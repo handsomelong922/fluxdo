@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -16,6 +15,11 @@ class DiscourseWidgetFactory extends WidgetFactory {
 
   /// 获取画廊图片列表（原图 URL）
   List<String> get galleryImages => galleryInfo?.images ?? [];
+
+  /// SVG 内容缓存：避免每次 build 都重新执行 getSingleFile() 的 SQLite 查询
+  final Map<String, _SvgCacheEntry> _svgCache = {};
+  /// 正在加载中的 SVG URL，避免并发重复加载
+  final Set<String> _svgLoading = {};
 
   DiscourseWidgetFactory({
     required this.context,
@@ -313,54 +317,63 @@ class DiscourseWidgetFactory extends WidgetFactory {
   }
 
   /// 构建 SVG 图片 widget
+  ///
+  /// 使用内存缓存避免每次 build 都重新执行 getSingleFile() 的 SQLite 查询。
+  /// 缓存和 DiscourseWidgetFactory 实例同生命周期（跟随 DiscourseHtmlContent State）。
   Widget _buildSvgWidget(String url, double? width, double? height, bool isEmoji) {
-    return FutureBuilder<File>(
-      future: DiscourseCacheManager().getSingleFile(url),
-      builder: (context, snapshot) {
+    return Builder(
+      builder: (context) {
         final emojiSize = (DefaultTextStyle.of(context).style.fontSize ?? 16.0) * 1.2;
 
-        if (snapshot.hasError || !snapshot.hasData) {
-          final size = isEmoji ? emojiSize : (width ?? 24.0);
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return SizedBox(width: size, height: isEmoji ? emojiSize : (height ?? 24.0));
+        // 命中缓存则直接渲染
+        final cached = _svgCache[url];
+        if (cached != null) {
+          if (isEmoji) {
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 2.0),
+              child: SizedBox(
+                width: emojiSize,
+                height: emojiSize,
+                child: SvgPicture.string(cached.content, fit: BoxFit.contain),
+              ),
+            );
           }
-          return Icon(Icons.broken_image, size: size, color: Theme.of(context).colorScheme.outline);
-        }
-
-        if (isEmoji) {
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 2.0),
-            child: SizedBox(
-              width: emojiSize,
-              height: emojiSize,
-              child: SvgPicture.file(snapshot.data!, fit: BoxFit.contain),
-            ),
+          return SvgPicture.string(
+            cached.content,
+            width: cached.width ?? width,
+            height: cached.height ?? height,
+            fit: BoxFit.contain,
           );
         }
 
-        // 读取 SVG 文件获取声明的尺寸
-        return FutureBuilder<String>(
-          future: snapshot.data!.readAsString(),
-          builder: (context, svgSnapshot) {
-            if (!svgSnapshot.hasData) return const SizedBox.shrink();
+        // 异步加载并缓存
+        _loadSvg(url);
 
-            var svgContent = svgSnapshot.data!;
-            final svgWidth = _parseSvgDimension(svgContent, 'width');
-            final svgHeight = _parseSvgDimension(svgContent, 'height');
-
-            // 修复 transform="scale(.1)" 问题：将 font-size 和 scale 合并
-            svgContent = _fixSvgTextScale(svgContent);
-
-            return SvgPicture.string(
-              svgContent,
-              width: svgWidth ?? width,
-              height: svgHeight ?? height,
-              fit: BoxFit.contain,
-            );
-          },
-        );
+        // 占位
+        final size = isEmoji ? emojiSize : (width ?? 24.0);
+        return SizedBox(width: size, height: isEmoji ? emojiSize : (height ?? 24.0));
       },
     );
+  }
+
+  /// 异步加载 SVG 文件内容到缓存
+  Future<void> _loadSvg(String url) async {
+    if (_svgLoading.contains(url)) return;
+    _svgLoading.add(url);
+
+    try {
+      final file = await DiscourseCacheManager().getSingleFile(url);
+      var content = await file.readAsString();
+      final svgWidth = _parseSvgDimension(content, 'width');
+      final svgHeight = _parseSvgDimension(content, 'height');
+      content = _fixSvgTextScale(content);
+
+      _svgCache[url] = _SvgCacheEntry(content: content, width: svgWidth, height: svgHeight);
+    } catch (_) {
+      // 加载失败不缓存，下次重试
+    } finally {
+      _svgLoading.remove(url);
+    }
   }
 
   /// 修复 SVG 中 text 元素的 scale 变换问题
@@ -399,4 +412,13 @@ class DiscourseWidgetFactory extends WidgetFactory {
     if (match != null) return double.tryParse(match.group(1)!);
     return null;
   }
+}
+
+/// SVG 内容缓存条目
+class _SvgCacheEntry {
+  final String content;
+  final double? width;
+  final double? height;
+
+  const _SvgCacheEntry({required this.content, this.width, this.height});
 }

@@ -11,18 +11,21 @@ class HtmlChunkCache {
 
   HtmlChunkCache._();
 
-  /// LRU 缓存，key 为 HTML 内容的 hashCode
-  final Map<int, List<HtmlChunk>> _cache = {};
+  /// LRU 缓存，key 为 (hashCode, length) 复合键，避免单一 hashCode 碰撞
+  final Map<(int, int), List<HtmlChunk>> _cache = {};
 
   /// 缓存最大条目数
   static const int _maxCacheSize = 100;
 
   /// 正在解析中的任务
-  final Set<int> _pendingKeys = {};
+  final Set<(int, int)> _pendingKeys = {};
+
+  /// 生成复合缓存 key
+  static (int, int) _keyOf(String html) => (html.hashCode, html.length);
 
   /// 获取缓存的分块结果
   List<HtmlChunk>? get(String html) {
-    final key = html.hashCode;
+    final key = _keyOf(html);
     final result = _cache[key];
     if (result != null) {
       // LRU: 移到末尾
@@ -38,13 +41,13 @@ class HtmlChunkCache {
     if (cached != null) return cached;
 
     final chunks = HtmlChunker.chunk(html);
-    _put(html.hashCode, chunks);
+    _put(_keyOf(html), chunks);
     return chunks;
   }
 
   /// 异步解析并缓存（用于长内容，在后台 isolate 执行）
   Future<List<HtmlChunk>> parseAsync(String html) async {
-    final key = html.hashCode;
+    final key = _keyOf(html);
 
     // 检查缓存
     final cached = get(html);
@@ -73,7 +76,7 @@ class HtmlChunkCache {
 
   /// 预加载：异步解析但不等待结果
   void preload(String html) {
-    final key = html.hashCode;
+    final key = _keyOf(html);
     if (_cache.containsKey(key) || _pendingKeys.contains(key)) {
       return; // 已缓存或正在解析
     }
@@ -97,7 +100,7 @@ class HtmlChunkCache {
 
   /// 检查是否已缓存
   bool isCached(String html) {
-    return _cache.containsKey(html.hashCode);
+    return _cache.containsKey(_keyOf(html));
   }
 
   /// 清除缓存
@@ -106,7 +109,7 @@ class HtmlChunkCache {
     _pendingKeys.clear();
   }
 
-  void _put(int key, List<HtmlChunk> chunks) {
+  void _put((int, int) key, List<HtmlChunk> chunks) {
     // LRU 淘汰
     while (_cache.length >= _maxCacheSize) {
       _cache.remove(_cache.keys.first);

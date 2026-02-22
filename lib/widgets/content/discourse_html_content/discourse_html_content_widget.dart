@@ -85,6 +85,14 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
   /// 已揭示的内联 spoiler ID 集合
   final Set<String> _revealedSpoilers = {};
 
+  /// 预处理后的 HTML 缓存，避免每次 build 都重新执行正则替换
+  String? _cachedProcessedHtml;
+  /// 缓存对应的原始输入快照，用于判断是否需要重新计算
+  String? _cachedRawHtml;
+  List<MentionedUser>? _cachedMentionedUsers;
+  List<LinkCount>? _cachedLinkCounts;
+  bool? _cachedPanguSpacing;
+
   @override
   void initState() {
     super.initState();
@@ -233,7 +241,19 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     final linkColor = theme.colorScheme.primary.toARGB32().toRadixString(16).substring(2);
     final enablePanguSpacing =
         widget.enablePanguSpacing ?? ref.watch(preferencesProvider).autoPanguSpacing;
-    final processedHtml = _preprocessHtml(widget.html, enablePanguSpacing);
+    // 仅当输入变化时才重新执行正则预处理，避免每次 build 都重复计算
+    if (_cachedProcessedHtml == null ||
+        _cachedRawHtml != widget.html ||
+        _cachedMentionedUsers != widget.mentionedUsers ||
+        _cachedLinkCounts != widget.linkCounts ||
+        _cachedPanguSpacing != enablePanguSpacing) {
+      _cachedRawHtml = widget.html;
+      _cachedMentionedUsers = widget.mentionedUsers;
+      _cachedLinkCounts = widget.linkCounts;
+      _cachedPanguSpacing = enablePanguSpacing;
+      _cachedProcessedHtml = _preprocessHtml(widget.html, enablePanguSpacing);
+    }
+    final processedHtml = _cachedProcessedHtml!;
 
     final htmlWidget = HtmlWidget(
       processedHtml,

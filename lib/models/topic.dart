@@ -1,4 +1,5 @@
 // 帖子数据模型
+import 'package:flutter/foundation.dart' show listEquals;
 import '../utils/time_utils.dart';
 import 'user.dart';
 
@@ -389,6 +390,14 @@ class PostReaction {
       count: json['count'] as int? ?? 0,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PostReaction && id == other.id && type == other.type && count == other.count;
+
+  @override
+  int get hashCode => Object.hash(id, type, count);
 }
 
 /// 回应人信息
@@ -641,6 +650,30 @@ class Post {
 
   /// 帖子是否已被删除
   bool get isDeleted => deletedAt != null;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Post &&
+          id == other.id &&
+          cooked == other.cooked &&
+          likeCount == other.likeCount &&
+          replyCount == other.replyCount &&
+          bookmarked == other.bookmarked &&
+          bookmarkId == other.bookmarkId &&
+          acceptedAnswer == other.acceptedAnswer &&
+          canAcceptAnswer == other.canAcceptAnswer &&
+          canUnacceptAnswer == other.canUnacceptAnswer &&
+          deletedAt == other.deletedAt &&
+          canEdit == other.canEdit &&
+          canDelete == other.canDelete &&
+          canRecover == other.canRecover &&
+          read == other.read &&
+          listEquals(reactions, other.reactions) &&
+          currentUserReaction == other.currentUserReaction;
+
+  @override
+  int get hashCode => Object.hash(id, cooked, likeCount, bookmarked, acceptedAnswer);
 
   /// 复制并修改部分字段
   Post copyWith({

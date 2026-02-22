@@ -80,8 +80,14 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     final index = currentPosts.indexWhere((p) => p.id == postId);
     if (index == -1) return;
 
+    final oldPost = currentPosts[index];
+    final newPost = updater(oldPost);
+
+    // 数据没变则跳过，避免触发不必要的 rebuild
+    if (oldPost == newPost) return;
+
     final newPosts = [...currentPosts];
-    newPosts[index] = updater(currentPosts[index]);
+    newPosts[index] = newPost;
 
     state = AsyncValue.data(currentDetail.copyWith(
       postStream: PostStream(posts: newPosts, stream: currentDetail.postStream.stream),

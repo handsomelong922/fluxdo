@@ -26,6 +26,15 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
     ),
   );
 
+  /// 内存级 URL 索引：记录已知存在于磁盘缓存中的 URL
+  ///
+  /// 避免每次 isImageCached / preloadImage 都执行 SQLite 查询。
+  /// 仅用于 "跳过已缓存" 的快速判断，不影响 CachedNetworkImage 自身的加载流程。
+  final Set<String> _knownCachedUrls = {};
+
+  /// 正在下载中的 URL，避免并发重复下载
+  final Set<String> _pendingUrls = {};
+
   /// 获取图片的字节数据
   ///
   /// 优先从缓存获取，如果缓存不存在则下载
@@ -33,6 +42,7 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
   Future<Uint8List?> getImageBytes(String url) async {
     try {
       final file = await getSingleFile(url);
+      _knownCachedUrls.add(url);
       return await file.readAsBytes();
     } catch (e) {
       debugPrint('[DiscourseCacheManager] Failed to get image bytes: $e');
@@ -46,7 +56,11 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
   Future<File?> getCachedFile(String url) async {
     try {
       final fileInfo = await getFileFromCache(url);
-      return fileInfo?.file;
+      if (fileInfo != null) {
+        _knownCachedUrls.add(url);
+        return fileInfo.file;
+      }
+      return null;
     } catch (e) {
       debugPrint('[DiscourseCacheManager] Failed to get cached file: $e');
       return null;
@@ -55,9 +69,16 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
 
   /// 检查图片是否已缓存
   Future<bool> isImageCached(String url) async {
+    // 先查内存索引，命中则跳过 SQLite
+    if (_knownCachedUrls.contains(url)) return true;
+
     try {
       final fileInfo = await getFileFromCache(url);
-      return fileInfo != null;
+      if (fileInfo != null) {
+        _knownCachedUrls.add(url);
+        return true;
+      }
+      return false;
     } catch (e) {
       return false;
     }
@@ -67,13 +88,20 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
   ///
   /// 用于预加载画廊中的相邻图片
   Future<void> preloadImage(String url) async {
+    // 内存索引快速跳过已缓存 URL，避免 SQLite 查询
+    if (_knownCachedUrls.contains(url)) return;
+    // 避免并发重复下载同一 URL
+    if (_pendingUrls.contains(url)) return;
+
+    _pendingUrls.add(url);
     try {
-      // 检查是否已缓存，避免重复下载
-      if (await isImageCached(url)) return;
-      // 触发下载但不等待完成
-      downloadFile(url);
+      // downloadFile 内部会先查缓存再决定是否下载
+      await downloadFile(url);
+      _knownCachedUrls.add(url);
     } catch (e) {
       debugPrint('[DiscourseCacheManager] Failed to preload image: $e');
+    } finally {
+      _pendingUrls.remove(url);
     }
   }
 

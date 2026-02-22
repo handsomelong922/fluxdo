@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -46,6 +45,11 @@ class _DiscourseImageState extends State<DiscourseImage> {
   bool _isLoading = true;
   bool _hasError = false;
 
+  /// 缓存 SVG 文件内容，避免每次 build 都重新执行 getSingleFile() SQLite 查询
+  String? _svgContent;
+  double? _svgWidth;
+  double? _svgHeight;
+
   static final DiscourseCacheManager _cacheManager = DiscourseCacheManager();
 
   @override
@@ -58,6 +62,7 @@ class _DiscourseImageState extends State<DiscourseImage> {
   void didUpdateWidget(DiscourseImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url) {
+      _svgContent = null;
       _resolveUrl();
     }
   }
@@ -143,6 +148,18 @@ class _DiscourseImageState extends State<DiscourseImage> {
   }
 
   Widget _buildCachedImage(ThemeData theme) {
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+
+    // 优化内存占用：始终限制解码尺寸，避免原始分辨率图片占满内存缓存
+    // 有明确宽度时按宽度缩放；否则以屏幕宽度为上限
+    final int memCacheWidth;
+    if (widget.width != null) {
+      memCacheWidth = (widget.width! * dpr).toInt();
+    } else {
+      final screenWidth = MediaQuery.of(context).size.width;
+      memCacheWidth = (screenWidth * dpr).toInt();
+    }
+
     return CachedNetworkImage(
       imageUrl: _resolvedUrl!,
       cacheManager: _cacheManager,
@@ -153,52 +170,49 @@ class _DiscourseImageState extends State<DiscourseImage> {
       fadeOutDuration: const Duration(milliseconds: 200),
       placeholder: (context, url) => _buildPlaceholder(theme),
       errorWidget: (context, url, error) => _buildErrorWidget(theme),
-      // 优化内存占用
-      memCacheWidth: widget.width != null
-          ? (widget.width! * MediaQuery.of(context).devicePixelRatio).toInt()
-          : null,
+      memCacheWidth: memCacheWidth,
       memCacheHeight: widget.height != null
-          ? (widget.height! * MediaQuery.of(context).devicePixelRatio).toInt()
+          ? (widget.height! * dpr).toInt()
           : null,
     );
   }
 
   Widget _buildSvgImage(ThemeData theme) {
-    return FutureBuilder<File>(
-      future: _cacheManager.getSingleFile(_resolvedUrl!),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildPlaceholder(theme);
-        }
+    // 已缓存 SVG 内容则直接渲染，不再走 getSingleFile() 的 SQLite 查询
+    if (_svgContent != null) {
+      return SvgPicture.string(
+        _svgContent!,
+        width: widget.width ?? _svgWidth,
+        height: widget.height ?? _svgHeight,
+        fit: widget.fit,
+      );
+    }
 
-        if (snapshot.hasError || !snapshot.hasData) {
-          return _buildErrorWidget(theme);
-        }
+    // 首次加载：异步获取文件并缓存结果
+    _loadSvgContent();
+    return _buildPlaceholder(theme);
+  }
 
-        return FutureBuilder<String>(
-          future: snapshot.data!.readAsString(),
-          builder: (context, svgSnapshot) {
-            if (!svgSnapshot.hasData) {
-              return _buildPlaceholder(theme);
-            }
+  Future<void> _loadSvgContent() async {
+    try {
+      final file = await _cacheManager.getSingleFile(_resolvedUrl!);
+      var content = await file.readAsString();
+      final svgWidth = _parseSvgDimension(content, 'width');
+      final svgHeight = _parseSvgDimension(content, 'height');
+      content = SvgUtils.sanitize(content);
 
-            var svgContent = svgSnapshot.data!;
-            final svgWidth = _parseSvgDimension(svgContent, 'width');
-            final svgHeight = _parseSvgDimension(svgContent, 'height');
-
-            // 清理 SVG 使其能被 flutter_svg 正确渲染
-            svgContent = SvgUtils.sanitize(svgContent);
-
-            return SvgPicture.string(
-              svgContent,
-              width: widget.width ?? svgWidth,
-              height: widget.height ?? svgHeight,
-              fit: widget.fit,
-            );
-          },
-        );
-      },
-    );
+      if (mounted) {
+        setState(() {
+          _svgContent = content;
+          _svgWidth = svgWidth;
+          _svgHeight = svgHeight;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _hasError = true);
+      }
+    }
   }
 
   Widget _buildPlaceholder(ThemeData theme) {
