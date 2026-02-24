@@ -164,9 +164,12 @@ class MainApp extends ConsumerWidget {
                 statusBarColor: Colors.transparent,
                 statusBarIconBrightness: iconBrightness,
                 systemNavigationBarIconBrightness: iconBrightness,
-                systemNavigationBarColor:
-                    Theme.of(context).colorScheme.surface,
-                systemNavigationBarDividerColor: Colors.transparent,
+                systemNavigationBarColor: Colors.transparent,
+                // Android 28 上 dividerColor 不能完全透明，用 withAlpha(1) 兼容
+                systemNavigationBarDividerColor:
+                    Colors.transparent.withAlpha(1),
+                // 关闭系统自动 scrim，实现完全沉浸
+                systemNavigationBarContrastEnforced: false,
               ),
               child: child!,
             );
