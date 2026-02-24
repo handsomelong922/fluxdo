@@ -199,6 +199,7 @@ class DiscourseWidgetFactory extends WidgetFactory {
                    imageUrl: originalUrl,
                    heroTag: heroTag,
                    thumbnailUrl: resolvedUrl,
+                   filenames: galleryInfo?.filenames,
                  );
                },
                child: imageWidget,
@@ -266,6 +267,7 @@ class DiscourseWidgetFactory extends WidgetFactory {
                 initialIndex: galleryIndex,
                 thumbnailUrl: resolvedUrl,
                 thumbnailUrls: galleryImages,
+                filenames: galleryInfo?.filenames,
               );
             },
           );

@@ -8,20 +8,55 @@ import '../../../services/discourse/discourse_service.dart';
 class GalleryInfo {
   /// 原图 URL 列表（用于画廊显示）
   final List<String> originalUrls;
-  
+
+  /// 每张图片的文件名列表（来自 lightbox title，可能为 null）
+  final List<String?> filenames;
+
   /// 缩略图 URL 到索引的映射（用于快速查找）
   final Map<String, int> _thumbnailToIndex;
 
   GalleryInfo._({
     required this.originalUrls,
     required Map<String, int> thumbnailToIndex,
-  }) : _thumbnailToIndex = thumbnailToIndex;
+    List<String?>? filenames,
+  })  : _thumbnailToIndex = thumbnailToIndex,
+        filenames = filenames ?? List.filled(originalUrls.length, null);
+
+  /// 获取指定索引的文件名
+  String? getFilename(int index) {
+    if (index >= 0 && index < filenames.length) return filenames[index];
+    return null;
+  }
 
   /// 从 HTML 提取画廊信息
   static GalleryInfo fromHtml(String html) {
+    // 第一步：解析 lightbox 锚点，建立 href → filename 映射
+    // Discourse 生成格式：<a class="lightbox" href="...原图..." title="文件名.jpg" ...>
+    final Map<String, String> hrefToFilename = {};
+    final lightboxAnchorRe = RegExp(
+      r'''<a\s[^>]*class\s*=\s*["'][^"']*\blightbox\b[^"']*["'][^>]*>''',
+      caseSensitive: false,
+    );
+    final hrefRe = RegExp(r'''href\s*=\s*["']([^"']+)["']''', caseSensitive: false);
+    final titleRe = RegExp(r'''title\s*=\s*["']([^"']+)["']''', caseSensitive: false);
+
+    for (final m in lightboxAnchorRe.allMatches(html)) {
+      final tag = m.group(0)!;
+      final href = hrefRe.firstMatch(tag)?.group(1);
+      final title = titleRe.firstMatch(tag)?.group(1);
+      if (href == null || title == null) continue;
+      var resolvedHref = href;
+      if (resolvedHref.startsWith('/') && !resolvedHref.startsWith('//')) {
+        resolvedHref = '${AppConstants.baseUrl}$resolvedHref';
+      }
+      hrefToFilename[resolvedHref] = title;
+    }
+
+    // 第二步：解析 img 标签
     final List<String> originalUrls = [];
+    final List<String?> filenames = [];
     final Map<String, int> thumbnailToIndex = {};
-    
+
     final imgTagRegExp = RegExp(r'<img[^>]+>', caseSensitive: false);
     final srcRegExp = RegExp(r'''src\s*=\s*["']?([^"'\s>]+)["']?''', caseSensitive: false);
     final excludeClassRegExp = RegExp(
@@ -47,24 +82,29 @@ class GalleryInfo {
 
       final thumbnailUrl = src;
       final originalUrl = DiscourseImageUtils.getOriginalUrl(src);
-      
+
+      // 从 lightbox 锚点映射中查找文件名
+      final filename = hrefToFilename[originalUrl] ?? hrefToFilename[thumbnailUrl];
+
       final index = originalUrls.length;
       originalUrls.add(originalUrl);
+      filenames.add(filename);
       thumbnailToIndex[thumbnailUrl] = index;
       // 也用原图 URL 作为 key，方便匹配
       thumbnailToIndex[originalUrl] = index;
     }
-    
+
     return GalleryInfo._(
       originalUrls: originalUrls,
       thumbnailToIndex: thumbnailToIndex,
+      filenames: filenames,
     );
   }
 
   /// 从外部传入的图片列表构建 GalleryInfo
   static GalleryInfo fromImages(List<String> images) {
     final Map<String, int> thumbnailToIndex = {};
-    
+
     for (var i = 0; i < images.length; i++) {
       final url = images[i];
       thumbnailToIndex[url] = i;
@@ -74,7 +114,7 @@ class GalleryInfo {
         thumbnailToIndex[originalUrl] = i;
       }
     }
-    
+
     return GalleryInfo._(
       originalUrls: images,
       thumbnailToIndex: thumbnailToIndex,
@@ -276,6 +316,7 @@ class DiscourseImageUtils {
     List<String>? heroTags,
     int initialIndex = 0,
     bool enableShare = true,
+    List<String?>? filenames,
   }) {
     ImageViewerPage.open(
       context,
@@ -287,6 +328,7 @@ class DiscourseImageUtils {
       enableShare: enableShare,
       thumbnailUrl: thumbnailUrl,
       thumbnailUrls: thumbnailUrls,
+      filenames: filenames,
     );
   }
 

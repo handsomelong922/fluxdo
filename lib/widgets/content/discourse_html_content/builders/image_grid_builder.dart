@@ -56,6 +56,7 @@ Widget? buildImageGrid({
               gridThumbnailImages: galleryImages,  // 原图列表
               heroTags: heroTags,
               index: globalIndex >= 0 ? globalIndex : 0,
+              filenames: galleryInfo.filenames,
             );
           }).toList(),
         );
@@ -120,6 +121,7 @@ class _GridImageTile extends StatelessWidget {
   final List<String> gridThumbnailImages;
   final List<String> heroTags;
   final int index;
+  final List<String?> filenames;
 
   const _GridImageTile({
     required this.theme,
@@ -130,6 +132,7 @@ class _GridImageTile extends StatelessWidget {
     required this.gridThumbnailImages,
     required this.heroTags,
     required this.index,
+    required this.filenames,
   });
 
   @override
@@ -250,6 +253,7 @@ class _GridImageTile extends StatelessWidget {
       thumbnailUrls: gridThumbnailImages,
       heroTags: heroTags,
       initialIndex: index >= 0 ? index : 0,
+      filenames: filenames,
     );
   }
 

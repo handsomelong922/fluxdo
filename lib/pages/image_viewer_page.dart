@@ -24,6 +24,8 @@ class ImageViewerPage extends StatefulWidget {
   final String? thumbnailUrl;
   /// 画廊中每张图片的缩略图 URL 列表
   final List<String>? thumbnailUrls;
+  /// 画廊中每张图片的文件名列表
+  final List<String?>? filenames;
 
   const ImageViewerPage({
     super.key,
@@ -36,6 +38,7 @@ class ImageViewerPage extends StatefulWidget {
     this.enableShare = false,
     this.thumbnailUrl,
     this.thumbnailUrls,
+    this.filenames,
   }) : assert(imageUrl != null || imageBytes != null);
 
   /// 使用透明路由打开图片查看器
@@ -49,6 +52,7 @@ class ImageViewerPage extends StatefulWidget {
     bool enableShare = false,
     String? thumbnailUrl,
     List<String>? thumbnailUrls,
+    List<String?>? filenames,
   }) {
     Navigator.push(
       context,
@@ -65,6 +69,7 @@ class ImageViewerPage extends StatefulWidget {
             enableShare: enableShare,
             thumbnailUrl: thumbnailUrl,
             thumbnailUrls: thumbnailUrls,
+            filenames: filenames,
           );
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -184,6 +189,14 @@ class _ImageViewerPageState extends State<ImageViewerPage>
   String get _currentImageUrl {
     final images = widget.galleryImages ?? [widget.imageUrl!];
     return images[currentIndex];
+  }
+
+  /// 获取当前图片的文件名
+  String? get _currentFilename {
+    final filenames = widget.filenames;
+    if (filenames == null) return null;
+    if (currentIndex < filenames.length) return filenames[currentIndex];
+    return null;
   }
 
   /// 保存当前图片到相册
@@ -676,6 +689,42 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                                   icon: const Icon(Icons.share, color: Colors.white),
                                   onPressed: _shareImage,
                                 ),
+                        ),
+                      ),
+
+                    // 底部文件名栏
+                    if (_currentFilename != null && _currentFilename!.isNotEmpty)
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          padding: EdgeInsets.only(
+                            left: 16,
+                            right: 16,
+                            top: 12,
+                            bottom: MediaQuery.of(context).padding.bottom + 12,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.6),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                          child: Text(
+                            _currentFilename!,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                            ),
+                          ),
                         ),
                       ),
                   ],

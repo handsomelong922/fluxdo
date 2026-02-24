@@ -105,6 +105,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage> with WidgetsB
   bool? _lastCanShowDetailPane;
   bool _isAutoSwitching = false;
   bool _autoOpenReplyHandled = false; // 是否已处理自动打开回复框
+  late final TopicSearchNotifier _topicSearchNotifier;
 
   @override
   void initState() {
@@ -131,6 +132,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage> with WidgetsB
     });
 
     final trackEnabled = ref.read(currentUserProvider).value != null;
+    _topicSearchNotifier = ref.read(topicSearchProvider(widget.topicId).notifier);
 
     _screenTrack = ScreenTrack(
       DiscourseService(),
@@ -186,7 +188,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage> with WidgetsB
     _screenTrack.stop();
     _controller.dispose();
     // 清理搜索状态，防止重新进入时仍处于搜索模式
-    ref.read(topicSearchProvider(widget.topicId).notifier).exitSearchMode();
+    _topicSearchNotifier.exitSearchMode();
     super.dispose();
   }
 
