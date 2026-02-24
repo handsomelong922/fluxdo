@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart' as inappwebview;
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// HTTP 代理设置数据模型
@@ -88,6 +90,10 @@ class ProxySettingsService {
       username: username,
       password: password,
     );
+
+    if (notifier.value.isValid) {
+      await _applyWebViewProxy();
+    }
   }
 
   /// 启用/禁用 HTTP 代理
@@ -101,6 +107,12 @@ class ProxySettingsService {
     // 启用代理时通知其他服务
     if (enabled) {
       onProxyEnabled?.call();
+    }
+
+    if (enabled) {
+      await _applyWebViewProxy();
+    } else {
+      await _clearWebViewProxy();
     }
 
     _touch();
@@ -138,6 +150,10 @@ class ProxySettingsService {
       await prefs.remove(_passwordKey);
     }
 
+    if (current.enabled && current.isValid) {
+      await _applyWebViewProxy();
+    }
+
     _touch();
   }
 
@@ -145,6 +161,31 @@ class ProxySettingsService {
   Future<void> disable() async {
     if (!current.enabled) return;
     await setEnabled(false);
+  }
+
+  /// 应用 WebView 代理（仅 Android）
+  Future<void> _applyWebViewProxy() async {
+    if (!Platform.isAndroid) return;
+    final settings = current;
+    if (!settings.isValid) return;
+    try {
+      await inappwebview.ProxyController.instance().setProxyOverride(
+        settings: inappwebview.ProxySettings(
+          proxyRules: [
+            inappwebview.ProxyRule(
+                url: 'http://${settings.host}:${settings.port}'),
+          ],
+        ),
+      );
+    } catch (_) {}
+  }
+
+  /// 清除 WebView 代理（仅 Android）
+  Future<void> _clearWebViewProxy() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await inappwebview.ProxyController.instance().clearProxyOverride();
+    } catch (_) {}
   }
 
   void _touch() {
