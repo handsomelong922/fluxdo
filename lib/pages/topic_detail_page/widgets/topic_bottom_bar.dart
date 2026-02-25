@@ -72,6 +72,7 @@ class TopicBottomBar extends StatelessWidget {
   Widget _buildShareMenu(BuildContext context, ThemeData theme) {
     return PopupMenuButton<String>(
       icon: const Icon(Icons.share_outlined),
+      iconColor: theme.colorScheme.onSurfaceVariant,
       tooltip: '分享',
       onSelected: (value) {
         switch (value) {
