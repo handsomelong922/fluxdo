@@ -35,6 +35,7 @@ import 'models/user.dart';
 import 'constants.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:ai_model_manager/ai_model_manager.dart';
 import 'providers/theme_provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'widgets/preheat_gate.dart';
@@ -89,9 +90,22 @@ Future<void> main() async {
   // 初始化后台通知服务（Android 前台服务 / iOS BGTaskScheduler）
   await BackgroundNotificationService().initialize();
 
+  // 注入 AI 模型管理包的消息提示实现
+  AiToastDelegate.configure((message, {type = AiToastType.info}) {
+    switch (type) {
+      case AiToastType.success:
+        ToastService.showSuccess(message);
+      case AiToastType.error:
+        ToastService.showError(message);
+      case AiToastType.info:
+        ToastService.showInfo(message);
+    }
+  });
+
   runApp(ProviderScope(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
+      aiSharedPreferencesProvider.overrideWithValue(prefs),
     ],
     child: const MainApp(),
   ));

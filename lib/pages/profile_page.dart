@@ -23,6 +23,7 @@ import '../widgets/common/flair_badge.dart';
 import '../widgets/common/smart_avatar.dart';
 import '../providers/app_state_refresher.dart';
 import 'metaverse_page.dart';
+import 'package:ai_model_manager/ai_model_manager.dart';
 import 'drafts_page.dart';
 import '../widgets/ldc_balance_card.dart';
 import '../providers/ldc_providers.dart';
@@ -466,9 +467,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       child: Column(
         children: [
           _buildOptionTile(
-            icon: Icons.color_lens_rounded, 
+            icon: Icons.smart_toy_rounded,
+            iconColor: Colors.cyan,
+            title: 'AI 模型服务',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiProvidersPage())),
+          ),
+          _buildOptionTile(
+            icon: Icons.color_lens_rounded,
             iconColor: Colors.teal,
-            title: '外观设置', 
+            title: '外观设置',
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppearancePage()))
           ),
           _buildOptionTile(
