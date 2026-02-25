@@ -292,6 +292,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
   @override
   void dispose() {
     _checkTimer?.cancel();
+    _controller?.dispose();
     super.dispose();
   }
 

@@ -24,7 +24,7 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
     Config(
       key,
       stalePeriod: const Duration(days: 7),
-      maxNrOfCacheObjects: 500,
+      maxNrOfCacheObjects: 200,
       fileService: HttpFileService(httpClient: DioHttpClient()),
     ),
   );
@@ -133,7 +133,7 @@ class ExternalImageCacheManager extends CacheManager with ImageCacheManager {
     Config(
       key,
       stalePeriod: const Duration(days: 30), // 外部图片缓存更久
-      maxNrOfCacheObjects: 200,
+      maxNrOfCacheObjects: 100,
       // 使用默认 HTTP 客户端，不需要 Discourse 认证
     ),
   );

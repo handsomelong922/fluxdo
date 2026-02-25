@@ -52,6 +52,12 @@ class _WebViewPageState extends State<WebViewPage> {
   }
 
   @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 

@@ -324,6 +324,9 @@ class _MainPageState extends ConsumerState<MainPage> with WidgetsBindingObserver
 
   /// App 进入后台：先启动前台服务保活，再切换到只轮询通知频道
   Future<void> _enterBackground() async {
+    // 清除 Flutter 图片内存缓存，降低后台内存占用
+    PaintingBinding.instance.imageCache.clear();
+
     final user = ref.read(currentUserProvider).value;
     if (user != null) {
       // 先启动前台服务，确保进程不被杀死

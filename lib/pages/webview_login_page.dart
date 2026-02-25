@@ -31,6 +31,12 @@ class _WebViewLoginPageState extends State<WebViewLoginPage> {
   }
 
   @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
