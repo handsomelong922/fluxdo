@@ -13,9 +13,13 @@ class AiChatPage extends ConsumerStatefulWidget {
   final int topicId;
   final TopicDetail? detail;
 
+  /// 状态栏高度（从父 context 传入，modal 内部会清零 padding.top）
+  final double topPadding;
+
   const AiChatPage({
     super.key,
     required this.topicId,
+    required this.topPadding,
     this.detail,
   });
 
@@ -184,90 +188,130 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
       });
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
+    final mediaQuery = MediaQuery.of(context);
+    final bottomInset = mediaQuery.viewInsets.bottom;
+    final screenHeight = mediaQuery.size.height;
+    // 内容区高度：键盘弹出时收缩，确保不超过屏幕顶部状态栏
+    final contentHeight = (screenHeight * 0.9)
+        .clamp(0.0, screenHeight - widget.topPadding - bottomInset);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        height: contentHeight,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Column(
           children: [
-            Icon(Icons.smart_toy_outlined,
-                size: 20, color: theme.colorScheme.primary),
-            const SizedBox(width: 8),
-            const Text('AI 助手'),
+            // 顶部拖动条
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            
+            // 自定义标题栏
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.auto_awesome, size: 20, color: theme.colorScheme.primary),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'AI 助手',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final scope = ref.watch(topicAiContextScopeProvider(widget.topicId));
+                          return AiContextSelector(
+                            currentScope: scope,
+                            onChanged: _onScopeChanged,
+                          );
+                        },
+                      ),
+                      if (chatState.messages.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          tooltip: '清空聊天',
+                          onPressed: () => _confirmClear(context, chatNotifier),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // 上下文加载提示
+            if (_isLoadingContext)
+              LinearProgressIndicator(
+                minHeight: 2,
+                color: theme.colorScheme.primary,
+              ),
+
+            // 聊天主要内容区
+            Expanded(
+              child: chatState.messages.isEmpty
+                  ? _buildEmptyState(context, theme)
+                  : _buildMessageList(context, ref, chatState),
+            ),
+
+            // 底部输入区
+            AiChatInput(
+              isGenerating: chatState.isGenerating,
+              onSend: (content) {
+                final scope = ref.read(topicAiContextScopeProvider(widget.topicId));
+                final selected = ref.read(topicSelectedAiModelProvider(widget.topicId));
+                final defaultModel = ref.read(defaultAiModelProvider);
+                final model = selected ?? defaultModel;
+                if (model == null) return;
+                chatNotifier.sendMessage(content, scope, selectedModel: model);
+              },
+              onStop: chatNotifier.stopGeneration,
+              bottomLeading: Consumer(
+                builder: (context, ref, _) {
+                  final allModels = ref.watch(allAvailableAiModelsProvider);
+                  final selected =
+                      ref.watch(topicSelectedAiModelProvider(widget.topicId));
+                  final defaultModel = ref.watch(defaultAiModelProvider);
+                  final current = selected ?? defaultModel;
+                  if (allModels.length <= 1 || current == null) {
+                    return const SizedBox.shrink();
+                  }
+                  return _AiModelSelector(
+                    allModels: allModels,
+                    current: current,
+                    onChanged: (model) {
+                      ref
+                          .read(topicSelectedAiModelProvider(widget.topicId)
+                              .notifier)
+                          .state = model;
+                    },
+                  );
+                },
+              ),
+            ),
           ],
         ),
-        centerTitle: false,
-        actions: [
-          // 上下文范围选择器
-          Consumer(
-            builder: (context, ref, _) {
-              final scope =
-                  ref.watch(topicAiContextScopeProvider(widget.topicId));
-              return AiContextSelector(
-                currentScope: scope,
-                onChanged: _onScopeChanged,
-              );
-            },
-          ),
-          if (chatState.messages.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              tooltip: '清空聊天',
-              onPressed: () => _confirmClear(context, chatNotifier),
-            ),
-        ],
       ),
-      body: Column(
-        children: [
-          // 上下文加载提示
-          if (_isLoadingContext)
-            LinearProgressIndicator(
-              minHeight: 2,
-              color: theme.colorScheme.primary,
-            ),
-          Expanded(
-            child: chatState.messages.isEmpty
-                ? _buildEmptyState(context, theme)
-                : _buildMessageList(context, ref, chatState),
-          ),
-          AiChatInput(
-            isGenerating: chatState.isGenerating,
-            onSend: (content) {
-              final scope =
-                  ref.read(topicAiContextScopeProvider(widget.topicId));
-              final selected =
-                  ref.read(topicSelectedAiModelProvider(widget.topicId));
-              final defaultModel = ref.read(defaultAiModelProvider);
-              final model = selected ?? defaultModel;
-              if (model == null) return;
-              chatNotifier.sendMessage(content, scope,
-                  selectedModel: model);
-            },
-            onStop: chatNotifier.stopGeneration,
-            bottomLeading: Consumer(
-              builder: (context, ref, _) {
-                final allModels = ref.watch(allAvailableAiModelsProvider);
-                final selected =
-                    ref.watch(topicSelectedAiModelProvider(widget.topicId));
-                final defaultModel = ref.watch(defaultAiModelProvider);
-                final current = selected ?? defaultModel;
-                if (allModels.length <= 1 || current == null) {
-                  return const SizedBox.shrink();
-                }
-                return _AiModelSelector(
-                  allModels: allModels,
-                  current: current,
-                  onChanged: (model) {
-                    ref
-                        .read(topicSelectedAiModelProvider(widget.topicId)
-                            .notifier)
-                        .state = model;
-                  },
-                );
-              },
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -419,7 +463,7 @@ class _AiModelSelector extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.smart_toy_outlined,
+            Icon(Icons.auto_awesome,
                 size: 16, color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 4),
             ConstrainedBox(

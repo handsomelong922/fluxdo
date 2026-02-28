@@ -15,7 +15,6 @@ import '../../models/topic.dart';
 import '../../utils/responsive.dart';
 import '../../utils/share_utils.dart';
 import '../../providers/preferences_provider.dart';
-import '../../providers/theme_provider.dart';
 import '../../providers/selected_topic_provider.dart';
 import '../../providers/discourse_providers.dart';
 import '../../providers/message_bus_providers.dart';
@@ -43,7 +42,6 @@ import '../../widgets/search/topic_search_view.dart';
 import '../../providers/topic_search_provider.dart';
 import '../edit_topic_page.dart';
 import 'widgets/ai_chat_page.dart';
-import 'widgets/ai_chat_guide.dart';
 
 part 'actions/_scroll_actions.dart';
 part 'actions/_user_actions.dart';
@@ -113,9 +111,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage> with WidgetsB
   bool _isAutoSwitching = false;
   bool _autoOpenReplyHandled = false; // 是否已处理自动打开回复框
   late final TopicSearchNotifier _topicSearchNotifier;
-  late final PageController _pageController;
-  final ValueNotifier<int> _currentPageNotifier = ValueNotifier<int>(0);
-  bool _aiGuideChecked = false;
 
   @override
   void initState() {
@@ -183,8 +178,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage> with WidgetsB
     );
 
     _controller.scrollController.addListener(_onScroll);
-
-    _pageController = PageController(initialPage: 0);
   }
 
   @override
@@ -196,8 +189,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage> with WidgetsB
     _isOverlayVisibleNotifier.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
-    _pageController.dispose();
-    _currentPageNotifier.dispose();
     _controller.scrollController.removeListener(_onScroll);
     _screenTrack.stop();
     _controller.dispose();
@@ -461,6 +452,13 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage> with WidgetsB
     final canEditTopic = detail.canEdit || (firstPost?.canEdit ?? false);
 
     return [
+      // AI 助手按钮
+      if (ref.watch(hasAvailableAiModelProvider))
+        IconButton(
+          icon: const Icon(Icons.auto_awesome),
+          tooltip: 'AI 助手',
+          onPressed: () => _showAiAssistantSheet(detail),
+        ),
       // 搜索按钮
       IconButton(
         icon: const Icon(Icons.search),
@@ -645,15 +643,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage> with WidgetsB
     final isSearchMode = searchState.isSearchMode;
     final hasAiModel = ref.watch(hasAvailableAiModelProvider);
 
-    // 首次引导检查
-    if (hasAiModel && !_aiGuideChecked && detail != null) {
-      _aiGuideChecked = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          final prefs = ref.read(sharedPreferencesProvider);
-          AiChatGuide.checkAndShow(prefs);
-        }
-      });
+    // 保持 AI 聊天 provider 存活，避免 BottomSheet 关闭后状态丢失
+    if (hasAiModel) {
+      ref.watch(topicAiChatProvider(widget.topicId));
     }
 
     final topicScaffold = Scaffold(
@@ -680,48 +672,31 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage> with WidgetsB
       );
     }
 
-    // 有 AI 模型时，用 ValueListenableBuilder 隔离页面切换状态，
-    // 避免 setState 导致话题帖子列表重建丢失滚动位置
     return LazyLoadScope(
-      child: ValueListenableBuilder<int>(
-        valueListenable: _currentPageNotifier,
-        builder: (context, currentPage, _) {
-          final isOnAiPage = currentPage != 0;
-          return PopScope(
-            canPop: !isSearchMode && !isOnAiPage,
-            onPopInvokedWithResult: (bool didPop, dynamic result) {
-              if (!didPop) {
-                if (isOnAiPage) {
-                  _pageController.animateToPage(
-                    0,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
-                  );
-                } else {
-                  _searchController.clear();
-                  ref.read(topicSearchProvider(widget.topicId).notifier).exitSearchMode();
-                }
-              }
-            },
-            child: PageView(
-              controller: _pageController,
-              physics: isSearchMode
-                  ? const NeverScrollableScrollPhysics()
-                  : const ClampingScrollPhysics(),
-              onPageChanged: (page) {
-                _currentPageNotifier.value = page;
-                // 离开 AI 页面时取消输入框焦点，防止返回时键盘意外弹出
-                if (page != 1) {
-                  FocusManager.instance.primaryFocus?.unfocus();
-                }
-              },
-              children: [
-                _KeepAlivePage(child: topicScaffold),
-                _KeepAlivePage(child: AiChatPage(topicId: widget.topicId, detail: detail)),
-              ],
-            ),
-          );
+      child: PopScope(
+        canPop: !isSearchMode,
+        onPopInvokedWithResult: (bool didPop, dynamic result) {
+          if (!didPop) {
+            _searchController.clear();
+            ref.read(topicSearchProvider(widget.topicId).notifier).exitSearchMode();
+          }
         },
+        child: topicScaffold,
+      ),
+    );
+  }
+
+  void _showAiAssistantSheet(TopicDetail detail) {
+    // 在 modal 外部获取状态栏高度，因为 showModalBottomSheet 会清零 padding.top
+    final topPadding = MediaQuery.of(context).padding.top;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AiChatPage(
+        topicId: widget.topicId,
+        detail: detail,
+        topPadding: topPadding,
       ),
     );
   }
@@ -1009,26 +984,5 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage> with WidgetsB
       child: scrollView,
     );
 
-  }
-}
-
-/// 保持 PageView 子页面存活，防止离屏时 state 被销毁导致滚动位置丢失
-class _KeepAlivePage extends StatefulWidget {
-  final Widget child;
-  const _KeepAlivePage({required this.child});
-
-  @override
-  State<_KeepAlivePage> createState() => _KeepAlivePageState();
-}
-
-class _KeepAlivePageState extends State<_KeepAlivePage>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    return widget.child;
   }
 }
