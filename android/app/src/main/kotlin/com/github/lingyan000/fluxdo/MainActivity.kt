@@ -1,16 +1,26 @@
 package com.github.lingyan000.fluxdo
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 
 class MainActivity : FlutterActivity() {
+
+    companion object {
+        private const val TAG = "AppLink"
+    }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
@@ -34,6 +44,22 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_URL", "URL is null", null)
                     }
                 }
+                "resolveAppLink" -> {
+                    val url = call.argument<String>("url")
+                    if (url != null) {
+                        result.success(resolveAppLink(url))
+                    } else {
+                        result.error("INVALID_URL", "URL is null", null)
+                    }
+                }
+                "launchAppLink" -> {
+                    val url = call.argument<String>("url")
+                    if (url != null) {
+                        result.success(launchAppLink(url))
+                    } else {
+                        result.error("INVALID_URL", "URL is null", null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
@@ -49,6 +75,189 @@ class MainActivity : FlutterActivity() {
             }
         }
     }
+
+    // ======================== 应用链接解析与启动 ========================
+
+    /**
+     * 解析应用链接，获取目标应用的名称和图标。
+     * 优先级：
+     *   1. intent 中自带 package → 直接通过包名查找
+     *   2. queryIntentActivities (MATCH_DEFAULT_ONLY)
+     *   3. queryIntentActivities (flag = 0，不限 DEFAULT)
+     */
+    private fun resolveAppLink(url: String): Map<String, Any?> {
+        Log.d(TAG, "resolveAppLink: $url")
+        try {
+            val intent = parseAppLinkIntent(url)
+            if (intent == null) {
+                Log.w(TAG, "parseAppLinkIntent returned null")
+                return mapOf("canResolve" to false)
+            }
+
+            // 路径 1: intent 自带 package 参数 → 直接查包名
+            val targetPackage = intent.`package`
+            if (targetPackage != null && targetPackage != packageName) {
+                Log.d(TAG, "Intent has package: $targetPackage, trying direct lookup")
+                val info = getAppInfoByPackage(targetPackage)
+                if (info != null) return info
+            }
+
+            // 路径 2: queryIntentActivities + MATCH_DEFAULT_ONLY
+            val target = findTargetActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            if (target != null) return target
+
+            // 路径 3: queryIntentActivities 无 flag 限制
+            val targetFallback = findTargetActivity(intent, 0)
+            if (targetFallback != null) return targetFallback
+
+            Log.d(TAG, "No matching activity found")
+            return mapOf("canResolve" to false)
+        } catch (e: Exception) {
+            Log.e(TAG, "resolveAppLink error", e)
+            return mapOf("canResolve" to false)
+        }
+    }
+
+    /** 通过包名直接获取应用信息 */
+    private fun getAppInfoByPackage(pkgName: String): Map<String, Any?>? {
+        return try {
+            val appInfo = getAppInfo(pkgName)
+            val appName = packageManager.getApplicationLabel(appInfo).toString()
+            val iconBytes = drawableToBytes(packageManager.getApplicationIcon(appInfo))
+            Log.d(TAG, "Direct lookup success: $appName ($pkgName), icon ${iconBytes.size} bytes")
+            mapOf(
+                "canResolve" to true,
+                "appName" to appName,
+                "packageName" to pkgName,
+                "appIcon" to iconBytes
+            )
+        } catch (e: PackageManager.NameNotFoundException) {
+            Log.d(TAG, "Package not found: $pkgName")
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "getAppInfoByPackage error for $pkgName", e)
+            null
+        }
+    }
+
+    /** 通过 queryIntentActivities 查找目标 Activity 并获取应用信息 */
+    private fun findTargetActivity(intent: Intent, flags: Int): Map<String, Any?>? {
+        val activities: List<ResolveInfo> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.queryIntentActivities(
+                intent,
+                PackageManager.ResolveInfoFlags.of(flags.toLong())
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.queryIntentActivities(intent, flags)
+        }
+
+        Log.d(TAG, "queryIntentActivities (flags=$flags): ${activities.size} results → " +
+            activities.joinToString { it.activityInfo.packageName })
+
+        val target = activities.firstOrNull {
+            it.activityInfo.packageName != packageName &&
+            it.activityInfo.packageName != "android"
+        } ?: return null
+
+        return getAppInfoByPackage(target.activityInfo.packageName)
+    }
+
+    /**
+     * 启动应用链接。
+     * 支持 intent:// URL，并在失败时尝试 fallback URL 或 Play 商店。
+     */
+    private fun launchAppLink(url: String): Boolean {
+        try {
+            val intent = parseAppLinkIntent(url) ?: return false
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            return true
+        } catch (e: ActivityNotFoundException) {
+            // intent:// URL 启动失败，尝试 fallback
+            if (url.startsWith("intent://") || url.startsWith("intent:")) {
+                return handleIntentFallback(url)
+            }
+            return false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return false
+        }
+    }
+
+    /** 解析 URL 为 Intent */
+    private fun parseAppLinkIntent(url: String): Intent? {
+        return try {
+            if (url.startsWith("intent://") || url.startsWith("intent:")) {
+                Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+            } else {
+                Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "parseAppLinkIntent failed for $url", e)
+            null
+        }
+    }
+
+    /** 获取 ApplicationInfo（兼容 API 33+） */
+    private fun getAppInfo(packageName: String): android.content.pm.ApplicationInfo {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            this.packageManager.getApplicationInfo(
+                packageName,
+                PackageManager.ApplicationInfoFlags.of(0)
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            this.packageManager.getApplicationInfo(packageName, 0)
+        }
+    }
+
+    /** 将 Drawable 转为 PNG 字节数组 */
+    private fun drawableToBytes(drawable: Drawable): ByteArray {
+        // 用 drawable 自身尺寸，但限制在合理范围
+        val w = drawable.intrinsicWidth.coerceIn(1, 256)
+        val h = drawable.intrinsicHeight.coerceIn(1, 256)
+        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(0, 0, w, h)
+        drawable.draw(canvas)
+
+        val stream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+        val bytes = stream.toByteArray()
+        bitmap.recycle()
+        return bytes
+    }
+
+    /** 处理 intent:// 的 fallback：browser_fallback_url → Play 商店 */
+    private fun handleIntentFallback(url: String): Boolean {
+        try {
+            val parsed = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+
+            // 1. 尝试 fallback URL
+            val fallbackUrl = parsed.getStringExtra("browser_fallback_url")
+            if (fallbackUrl != null) {
+                val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse(fallbackUrl))
+                fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(fallbackIntent)
+                return true
+            }
+
+            // 2. 尝试 Play 商店
+            val pkg = parsed.`package`
+            if (pkg != null) {
+                val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg"))
+                marketIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(marketIntent)
+                return true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false
+    }
+
+    // ======================== 外部浏览器 ========================
 
     private fun openInExternalBrowser(url: String): Boolean {
         return try {

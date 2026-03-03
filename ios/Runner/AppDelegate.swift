@@ -16,6 +16,33 @@ import workmanager_apple
     // 注册 cookie 同步 channel，用于将 cookie 写入 HTTPCookieStorage.shared
     // WKWebView 的 sharedCookiesEnabled 在创建时从 HTTPCookieStorage.shared 读取 cookie
     if let controller = window?.rootViewController as? FlutterViewController {
+      // 注册浏览器 channel（应用链接解析与启动）
+      let browserChannel = FlutterMethodChannel(
+        name: "com.github.lingyan000.fluxdo/browser",
+        binaryMessenger: controller.binaryMessenger
+      )
+      browserChannel.setMethodCallHandler { (call, result) in
+        switch call.method {
+        case "resolveAppLink":
+          // iOS 无法获取目标应用的名称和图标
+          result(["canResolve": false, "appName": nil, "packageName": nil, "appIcon": nil])
+
+        case "launchAppLink":
+          guard let args = call.arguments as? [String: Any],
+                let urlString = args["url"] as? String,
+                let url = URL(string: urlString) else {
+            result(false)
+            return
+          }
+          UIApplication.shared.open(url, options: [:]) { success in
+            result(success)
+          }
+
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
+
       let channel = FlutterMethodChannel(
         name: "com.fluxdo/cookie_storage",
         binaryMessenger: controller.binaryMessenger

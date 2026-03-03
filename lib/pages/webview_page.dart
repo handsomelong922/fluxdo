@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../utils/link_launcher.dart';
 import '../services/toast_service.dart';
+import '../services/app_link_service.dart';
 import '../constants.dart';
 import '../services/network/cookie/cookie_jar_service.dart';
 import '../services/webview_settings.dart';
+import '../widgets/common/app_link_confirm_dialog.dart';
 
 /// 通用内置浏览器页面
 class WebViewPage extends StatefulWidget {
@@ -140,7 +142,9 @@ class _WebViewPageState extends State<WebViewPage> {
               Expanded(
                 child: InAppWebView(
                   initialUrlRequest: URLRequest(url: WebUri(widget.url)),
-                  initialSettings: WebViewSettings.visible,
+                  initialSettings: WebViewSettings.visible
+                    ..useShouldOverrideUrlLoading = true,
+                  shouldOverrideUrlLoading: _shouldOverrideUrlLoading,
                   onWebViewCreated: (controller) => _controller = controller,
                   onLoadStart: (controller, url) {
                     setState(() {
@@ -198,6 +202,56 @@ class _WebViewPageState extends State<WebViewPage> {
       ),
       ),
     );
+  }
+
+  /// 允许 WebView 内部加载的 scheme
+  static const _allowedSchemes = {'http', 'https', 'about', 'data', 'blob'};
+
+  /// 拦截 URL 加载：对非 HTTP(S) 的应用链接弹出确认对话框
+  Future<NavigationActionPolicy> _shouldOverrideUrlLoading(
+    InAppWebViewController controller,
+    NavigationAction navigationAction,
+  ) async {
+    final url = navigationAction.request.url;
+    if (url == null) return NavigationActionPolicy.ALLOW;
+
+    final scheme = url.scheme.toLowerCase();
+
+    // HTTP(S) 和内部 scheme 正常加载
+    if (_allowedSchemes.contains(scheme)) {
+      return NavigationActionPolicy.ALLOW;
+    }
+
+    // javascript: 静默阻止
+    if (scheme == 'javascript') {
+      return NavigationActionPolicy.CANCEL;
+    }
+
+    // 其他 scheme（应用链接）：解析目标应用并弹出确认对话框
+    final urlString = url.toString();
+    if (!mounted) return NavigationActionPolicy.CANCEL;
+
+    // 通过原生代码解析目标应用信息
+    final appInfo = await AppLinkService.resolveAppLink(urlString);
+
+    if (!mounted) return NavigationActionPolicy.CANCEL;
+
+    final confirmed = await showAppLinkConfirmDialog(
+      context,
+      urlString,
+      appName: appInfo.appName,
+      appIcon: appInfo.appIcon,
+    );
+
+    if (confirmed == true) {
+      final success = await AppLinkService.launchAppLink(urlString);
+      if (!success && mounted) {
+        ToastService.showError('未找到可处理此链接的应用');
+      }
+    }
+
+    // 无论用户选择如何，都不让 WebView 加载此 URL
+    return NavigationActionPolicy.CANCEL;
   }
 
   Future<void> _syncCookiesBeforeOpen() async {

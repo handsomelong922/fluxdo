@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- APK 安装权限 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- 查询所有已安装应用（内置浏览器解析应用链接需要获取目标应用图标和名称） -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
     <!-- 前台服务权限（后台通知保活） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
@@ -100,11 +102,10 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
-        <!-- 查询浏览器应用 -->
+        <!-- 查询可处理 VIEW 的应用（浏览器 + 应用链接目标）
+             不限定 category/data，使 PackageManager 能看到所有注册了 VIEW 的应用 -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
-            <category android:name="android.intent.category.BROWSABLE" />
-            <data android:scheme="https" />
         </intent>
     </queries>
 </manifest>
