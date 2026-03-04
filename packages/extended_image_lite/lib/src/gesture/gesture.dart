@@ -43,6 +43,7 @@ class ExtendedImageGestureState extends State<ExtendedImageGesture>
   late Offset _startingOffset;
   Offset? _pointerDownPosition;
   late GestureAnimation _gestureAnimation;
+  bool _isGestureAnimationInitialized = false;
   GestureConfig? _gestureConfig;
   ExtendedImageGesturePageViewState? _pageViewState;
   ExtendedImageSlidePageState? get extendedImageSlidePageState =>
@@ -537,6 +538,13 @@ class ExtendedImageGestureState extends State<ExtendedImageGesture>
       totalScale: _gestureConfig!.initialScale,
       offset: Offset.zero,
     );
+
+    // 释放旧的手势动画，避免 Ticker 泄漏
+    if (_isGestureAnimationInitialized) {
+      _gestureAnimation.stop();
+      _gestureAnimation.dispose();
+    }
+    _isGestureAnimationInitialized = true;
 
     _gestureAnimation = GestureAnimation(
       this,

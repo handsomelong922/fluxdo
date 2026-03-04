@@ -1,21 +1,37 @@
 import 'package:flutter/material.dart';
 import '../../../../services/discourse_cache_manager.dart';
 import '../image_utils.dart';
+import 'image_carousel_builder.dart';
 
 /// 构建 Discourse 图片网格 (d-image-grid)
+/// 支持 grid 和 carousel 两种模式
 Widget? buildImageGrid({
   required BuildContext context,
   required ThemeData theme,
   required dynamic element,
   required GalleryInfo galleryInfo,
 }) {
+  // 提取所有图片
+  final images = extractGridImages(element);
+  if (images.isEmpty) return null;
+
+  // 检测 carousel 模式：data-mode="carousel" 或 class 包含 d-image-grid--carousel
+  final dataMode = element.attributes['data-mode'] as String?;
+  final isCarousel = dataMode == 'carousel' ||
+      (element.classes as Iterable<String>).contains('d-image-grid--carousel');
+
+  if (isCarousel) {
+    return buildImageCarousel(
+      context: context,
+      theme: theme,
+      images: images,
+      galleryInfo: galleryInfo,
+    );
+  }
+
   // 解析列数，默认 2 列
   final dataColumns = element.attributes['data-columns'] as String?;
   final columns = int.tryParse(dataColumns ?? '') ?? 2;
-
-  // 提取所有图片
-  final images = _extractImages(element);
-  if (images.isEmpty) return null;
 
   // 使用全局画廊信息
   final galleryImages = galleryInfo.images;
@@ -65,9 +81,9 @@ Widget? buildImageGrid({
   );
 }
 
-/// 提取图片数据
-List<_ImageData> _extractImages(dynamic element) {
-  final images = <_ImageData>[];
+/// 提取图片数据（从 d-image-grid 元素中）
+List<GridImageData> extractGridImages(dynamic element) {
+  final images = <GridImageData>[];
   final imgElements = element.getElementsByTagName('img');
 
   for (final img in imgElements) {
@@ -100,7 +116,7 @@ List<_ImageData> _extractImages(dynamic element) {
     final width = double.tryParse(widthStr ?? '');
     final height = double.tryParse(heightStr ?? '');
 
-    images.add(_ImageData(
+    images.add(GridImageData(
       src: src,
       fullSrc: fullSrc ?? (DiscourseImageUtils.isUploadUrl(src) ? src : DiscourseImageUtils.getOriginalUrl(src)),
       width: width,
@@ -114,7 +130,7 @@ List<_ImageData> _extractImages(dynamic element) {
 /// 网格图片瓦片
 class _GridImageTile extends StatelessWidget {
   final ThemeData theme;
-  final _ImageData imageData;
+  final GridImageData imageData;
   final double columnWidth;
   final String heroTag;
   final List<String> gridOriginalImages;
@@ -296,13 +312,13 @@ class _GridImageTile extends StatelessWidget {
 }
 
 /// 图片数据
-class _ImageData {
+class GridImageData {
   final String src;
   final String fullSrc;
   final double? width;
   final double? height;
 
-  _ImageData({
+  GridImageData({
     required this.src,
     required this.fullSrc,
     this.width,
