@@ -104,38 +104,43 @@ class NotificationChannelNotifier extends Notifier<void> {
           );
         }
 
-        final recentNotifier = ref.read(recentNotificationsProvider.notifier);
+        // 仅在通知列表已加载（面板已打开过）时做增量更新，
+        // 避免 ref.read(.notifier) 意外触发 build() 发起 API 请求
+        final recentState = ref.read(recentNotificationsProvider);
+        if (recentState.hasValue) {
+          final recentNotifier = ref.read(recentNotificationsProvider.notifier);
 
-        // 如果有新通知，从 last_notification 中提取并添加到列表
-        final lastNotification = data['last_notification'];
-        if (lastNotification is Map<String, dynamic>) {
-          final notification = lastNotification['notification'];
-          if (notification is Map<String, dynamic>) {
-            try {
-              final newNotification = DiscourseNotification.fromJson(notification);
-              debugPrint('[Notification] 添加新通知到列表: id=${newNotification.id}');
-              recentNotifier.addNotification(newNotification);
-            } catch (e) {
-              debugPrint('[Notification] 解析新通知失败: $e');
-            }
-          }
-        }
-
-        // 使用 recent 字段同步已有通知的已读状态（复刻 Discourse 逻辑）
-        final recent = data['recent'];
-        if (recent is List) {
-          final readStatusMap = <int, bool>{};
-          for (final entry in recent) {
-            if (entry is List && entry.length >= 2) {
-              final id = entry[0] as int?;
-              final read = entry[1] as bool?;
-              if (id != null && read != null) {
-                readStatusMap[id] = read;
+          // 如果有新通知，从 last_notification 中提取并添加到列表
+          final lastNotification = data['last_notification'];
+          if (lastNotification is Map<String, dynamic>) {
+            final notification = lastNotification['notification'];
+            if (notification is Map<String, dynamic>) {
+              try {
+                final newNotification = DiscourseNotification.fromJson(notification);
+                debugPrint('[Notification] 添加新通知到列表: id=${newNotification.id}');
+                recentNotifier.addNotification(newNotification);
+              } catch (e) {
+                debugPrint('[Notification] 解析新通知失败: $e');
               }
             }
           }
-          if (readStatusMap.isNotEmpty) {
-            recentNotifier.updateReadStatus(readStatusMap);
+
+          // 使用 recent 字段同步已有通知的已读状态（复刻 Discourse 逻辑）
+          final recent = data['recent'];
+          if (recent is List) {
+            final readStatusMap = <int, bool>{};
+            for (final entry in recent) {
+              if (entry is List && entry.length >= 2) {
+                final id = entry[0] as int?;
+                final read = entry[1] as bool?;
+                if (id != null && read != null) {
+                  readStatusMap[id] = read;
+                }
+              }
+            }
+            if (readStatusMap.isNotEmpty) {
+              recentNotifier.updateReadStatus(readStatusMap);
+            }
           }
         }
 

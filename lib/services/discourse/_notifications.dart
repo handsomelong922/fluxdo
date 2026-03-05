@@ -3,7 +3,7 @@ part of 'discourse_service.dart';
 /// 通知相关
 mixin _NotificationsMixin on _DiscourseServiceBase {
   /// 获取最近通知（recent 模式，非分页，用于快捷面板）
-  /// 同时触发 bump_last_seen_reviewable 清除通知计数
+  /// 会触发服务端 bump_last_seen_notification，重置未读计数
   Future<NotificationListResponse> getRecentNotifications() async {
     final response = await _dio.get('/notifications', queryParameters: {
       'recent': true,

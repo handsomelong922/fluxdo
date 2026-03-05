@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/notification.dart';
 import 'core_providers.dart';
@@ -11,17 +10,6 @@ class RecentNotificationsNotifier extends AsyncNotifier<List<DiscourseNotificati
     final service = ref.read(discourseServiceProvider);
     final response = await service.getRecentNotifications();
     return response.notifications;
-  }
-
-  /// 静默刷新（不显示 loading 状态）
-  Future<void> silentRefresh() async {
-    final service = ref.read(discourseServiceProvider);
-    try {
-      final response = await service.getRecentNotifications();
-      state = AsyncValue.data(response.notifications);
-    } catch (e) {
-      debugPrint('Silent refresh recent notifications failed: $e');
-    }
   }
 
   /// 添加新通知（由 messageBus 调用）

@@ -1,72 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/topic.dart';
-import '../services/preloaded_data_service.dart';
-import '../services/discourse/discourse_service.dart';
-import '../utils/pagination_helper.dart';
-import 'core_providers.dart';
-import 'category_provider.dart';
-import 'topic_sort_provider.dart';
-
-enum TopicListFilter {
-  latest,
-  newTopics,
-  unread,
-  unseen,
-  top,
-  hot,
-}
-
-/// TopicListFilter 扩展方法
-extension TopicListFilterX on TopicListFilter {
-  /// 获取 API 请求所用的过滤器名称
-  String get filterName {
-    switch (this) {
-      case TopicListFilter.latest:
-        return 'latest';
-      case TopicListFilter.newTopics:
-        return 'new';
-      case TopicListFilter.unread:
-        return 'unread';
-      case TopicListFilter.unseen:
-        return 'unseen';
-      case TopicListFilter.top:
-        return 'top';
-      case TopicListFilter.hot:
-        return 'top';
-    }
-  }
-
-  /// 获取 top 排序的周期参数（仅 top/hot 有效）
-  String? get period {
-    switch (this) {
-      case TopicListFilter.hot:
-        return 'weekly';
-      default:
-        return null;
-    }
-  }
-}
-
-/// 话题筛选条件（内部使用）
-class TopicFilterParams {
-  final int? categoryId;
-  final String? categorySlug;
-  final String? categoryName;
-  final String? parentCategorySlug;
-  final List<String> tags;
-
-  const TopicFilterParams({
-    this.categoryId,
-    this.categorySlug,
-    this.categoryName,
-    this.parentCategorySlug,
-    this.tags = const [],
-  });
-
-  bool get isEmpty => categoryId == null && tags.isEmpty;
-  bool get isNotEmpty => !isEmpty;
-}
+import '../../models/topic.dart';
+import '../../services/preloaded_data_service.dart';
+import '../../services/discourse/discourse_service.dart';
+import '../../utils/pagination_helper.dart';
+import '../core_providers.dart';
+import '../category_provider.dart';
+import '../message_bus/topic_tracking_providers.dart';
+import 'filter_provider.dart';
+import 'sort_provider.dart';
+import 'tab_state_provider.dart';
 
 /// 话题列表 Notifier (支持分页、静默刷新和筛选)
 class TopicListNotifier extends AsyncNotifier<List<Topic>> {
@@ -76,7 +19,9 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
 
   int _page = 0;
   bool _hasMore = true;
+  bool _isLoadMoreFailed = false;
   bool get hasMore => _hasMore;
+  bool get isLoadMoreFailed => _isLoadMoreFailed;
 
   /// 分页助手
   static final _paginationHelper = PaginationHelpers.forTopics<Topic>(
@@ -85,19 +30,17 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
 
   @override
   Future<List<Topic>> build() async {
-    // 监听筛选模式变化
-    final currentFilter = ref.watch(topicFilterProvider);
-
-    // 监听当前 tab 的标签变化
-    final tags = ref.watch(tabTagsProvider(_categoryId));
+    // 所有参数使用 ref.read（不建立依赖），
+    // 由 UI 层在参数变化时主动 invalidate provider
+    final currentFilter = ref.read(topicFilterProvider);
+    final tags = ref.read(tabTagsProvider(_categoryId));
     final filter = _buildFilterParams(tags);
-
-    // 监听排序字段和方向
-    final sortOrder = ref.watch(topicSortOrderProvider);
-    final sortAscending = ref.watch(topicSortAscendingProvider);
+    final sortOrder = ref.read(topicSortOrderProvider);
+    final sortAscending = ref.read(topicSortAscendingProvider);
 
     _page = 0;
     _hasMore = true;
+    _isLoadMoreFailed = false;
 
     // 获取排序 API 参数
     final orderParam = sortOrder.apiValue;
@@ -226,6 +169,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     state = await AsyncValue.guard(() async {
       _page = 0;
       _hasMore = true;
+      _isLoadMoreFailed = false;
       final service = ref.read(discourseServiceProvider);
       final filterParams = _currentFilterParams();
       final (order, ascending) = _currentSortParams();
@@ -247,6 +191,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     try {
       final response = await _fetchTopics(service, _currentFilter, 0, filterParams, order: order, ascending: ascending);
       _page = 0;
+      _isLoadMoreFailed = false;
 
       final result = _paginationHelper.processRefresh(
         PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
@@ -290,12 +235,13 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
 
   /// 加载更多
   Future<void> loadMore() async {
+    if (_isLoadMoreFailed) return; // 失败后需手动重试
     if (!_hasMore || state.isLoading) return;
 
     // ignore: invalid_use_of_internal_member
     state = const AsyncLoading<List<Topic>>().copyWithPrevious(state);
 
-    state = await AsyncValue.guard(() async {
+    final result = await AsyncValue.guard(() async {
       final currentTopics = state.requireValue;
       final nextPage = _page + 1;
 
@@ -305,17 +251,29 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       final response = await _fetchTopics(service, _currentFilter, nextPage, filterParams, order: order, ascending: ascending);
 
       final currentState = PaginationState(items: currentTopics);
-      final result = _paginationHelper.processLoadMore(
+      final paginationResult = _paginationHelper.processLoadMore(
         currentState,
         PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
       );
 
-      _hasMore = result.hasMore;
-      if (result.items.length > currentTopics.length) {
+      _hasMore = paginationResult.hasMore;
+      if (paginationResult.items.length > currentTopics.length) {
         _page = nextPage;
       }
-      return result.items;
+      return paginationResult.items;
     });
+    if (result.hasError) {
+      _isLoadMoreFailed = true;
+      state = AsyncValue.data(state.requireValue);
+    } else {
+      state = result;
+    }
+  }
+
+  /// 手动重试加载更多
+  void retryLoadMore() {
+    _isLoadMoreFailed = false;
+    loadMore();
   }
 
   /// 刷新单条话题状态（用于 MessageBus 更新）
@@ -371,8 +329,14 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     final filter = _currentFilter;
     if (filter == TopicListFilter.newTopics) {
       await service.dismissNewTopics(categoryId: _categoryId);
+      // 同步更新追踪状态计数
+      ref.read(topicTrackingStateProvider.notifier)
+          .dismissNewTopics(categoryId: _categoryId);
     } else if (filter == TopicListFilter.unread) {
       await service.dismissUnreadTopics(categoryId: _categoryId);
+      // 同步更新追踪状态计数
+      ref.read(topicTrackingStateProvider.notifier)
+          .dismissUnreadTopics(categoryId: _categoryId);
     }
     state = const AsyncValue.data([]);
     _hasMore = false;
@@ -421,6 +385,10 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     final newList = [...topics];
     newList[index] = updated;
     state = AsyncValue.data(newList);
+
+    // 同步更新追踪状态计数（阅读后减少 new/unread 计数）
+    ref.read(topicTrackingStateProvider.notifier)
+        .updateTopicRead(topicId, highestSeen, topic.highestPostNumber);
   }
 }
 

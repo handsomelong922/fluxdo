@@ -29,9 +29,9 @@ class _NotificationQuickPanelState extends ConsumerState<NotificationQuickPanel>
   @override
   void initState() {
     super.initState();
-    // 每次打开面板时静默刷新
+    // 每次打开面板时刷新
     Future.microtask(() {
-      ref.read(recentNotificationsProvider.notifier).silentRefresh();
+      ref.invalidate(recentNotificationsProvider);
     });
   }
 
@@ -150,7 +150,7 @@ class _NotificationQuickPanelState extends ConsumerState<NotificationQuickPanel>
                     Text('加载失败', style: TextStyle(color: colorScheme.error)),
                     const SizedBox(height: 8),
                     TextButton(
-                      onPressed: () => ref.read(recentNotificationsProvider.notifier).silentRefresh(),
+                      onPressed: () => ref.invalidate(recentNotificationsProvider),
                       child: const Text('重试'),
                     ),
                   ],
