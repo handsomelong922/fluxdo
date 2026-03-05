@@ -19,6 +19,7 @@ class TopicCard extends ConsumerWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final bool isSelected;
+  final Color? highlightColor;
 
   const TopicCard({
     super.key,
@@ -26,6 +27,7 @@ class TopicCard extends ConsumerWidget {
     this.onTap,
     this.onLongPress,
     this.isSelected = false,
+    this.highlightColor,
   });
 
   @override
@@ -57,7 +59,9 @@ class TopicCard extends ConsumerWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
-      color: isSelected ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4) : null,
+      color: isSelected
+          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
+          : highlightColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: isSelected
@@ -344,6 +348,7 @@ class CompactTopicCard extends ConsumerWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final bool isSelected;
+  final Color? highlightColor;
 
   const CompactTopicCard({
     super.key,
@@ -351,6 +356,7 @@ class CompactTopicCard extends ConsumerWidget {
     this.onTap,
     this.onLongPress,
     this.isSelected = false,
+    this.highlightColor,
   });
 
   @override
@@ -378,7 +384,7 @@ class CompactTopicCard extends ConsumerWidget {
       clipBehavior: Clip.antiAlias,
       color: isSelected
           ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
-          : theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
+          : highlightColor ?? theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: isSelected

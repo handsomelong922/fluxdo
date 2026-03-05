@@ -258,6 +258,36 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     }
   }
 
+  /// 按 topic_ids 加载并插入到列表顶部（对齐网页版 loadBefore）
+  ///
+  /// 1. 请求 /latest.json?topic_ids=xxx 获取这些话题的最新数据
+  /// 2. 从当前列表中移除同 ID 旧数据（处理"更新的话题"）
+  /// 3. 将 API 返回的话题全部插入列表顶部
+  ///
+  /// 返回实际被插入到顶部的 topic IDs（用于 UI 高亮）
+  Future<List<int>> loadBefore(List<int> topicIds) async {
+    if (topicIds.isEmpty) return [];
+    final currentTopics = state.value;
+    if (currentTopics == null) return [];
+
+    try {
+      final service = ref.read(discourseServiceProvider);
+      final response = await service.getTopicsByIds(topicIds);
+      final newTopics = response.topics;
+      if (newTopics.isEmpty) return [];
+
+      // 移除列表中已存在的同 ID 话题（刷新重复项，与网页版 removeValuesFromArray 一致）
+      final newTopicIds = newTopics.map((t) => t.id).toSet();
+      final remaining = currentTopics.where((t) => !newTopicIds.contains(t.id)).toList();
+      // 将新话题全部插入列表顶部
+      state = AsyncValue.data([...newTopics, ...remaining]);
+      return newTopics.map((t) => t.id).toList();
+    } catch (e) {
+      debugPrint('[TopicList] loadBefore 失败: $e');
+      return [];
+    }
+  }
+
   /// 加载更多
   Future<void> loadMore() async {
     if (!_hasMore || state.isLoading) return;

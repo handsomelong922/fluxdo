@@ -62,6 +62,7 @@ class User {
   final bool? canMuteUser;     // 是否可以静音
   final bool? canIgnoreUser;   // 是否可以忽略
 
+
   User({
     required this.id,
     required this.username,

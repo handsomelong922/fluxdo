@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/message_bus_service.dart';
@@ -110,23 +109,46 @@ class TopicListIncomingState {
     if (categoryId == null) return incomingTopics.length;
     return incomingTopics.values.where((c) => c == categoryId).length;
   }
+
+  /// 获取指定分类的 incoming topic IDs（null 表示全部）
+  List<int> incomingTopicIdsForCategory(int? categoryId) {
+    if (categoryId == null) return incomingTopics.keys.toList();
+    return incomingTopics.entries
+        .where((e) => e.value == categoryId)
+        .map((e) => e.key)
+        .toList();
+  }
 }
 
-/// 话题列表频道监听器
-/// 只标记有新话题，不主动刷新（避免频繁 API 调用）
-/// 存储每条新话题的 categoryId，让各 tab 独立查询自己的新话题数
-/// 仅根据全局标签筛选条件过滤消息
-/// 使用防抖机制批量更新，避免频繁触发 UI 刷新
+/// 话题列表频道监听器（对齐 Discourse 网页版 TopicTrackingState）
+///
+/// 同时订阅 /latest 和 /new 两个频道：
+/// - /latest 频道：message_type="latest"，表示已有话题收到新回复
+/// - /new 频道：message_type="new_topic"，表示有新话题创建
+///
+/// 在 latest 页面中，两种消息都计入 incoming（同一 topic_id 去重）。
+/// 与网页版一致，每条消息即时更新计数，不做防抖。
+/// MessageBus 的 long polling 已自然做了批次化。
 class LatestChannelNotifier extends Notifier<TopicListIncomingState> {
-  Timer? _debounceTimer;
-  final Map<int, int?> _pendingTopics = {};
-  static const _debounceDuration = Duration(seconds: 3);
 
   @override
   TopicListIncomingState build() {
     final messageBus = ref.watch(messageBusServiceProvider);
-    const channel = '/latest';
 
+    // 构建静音分类 ID 集合（对齐网页版 muted_category_ids + indirectly_muted_category_ids）
+    // 从分类列表的 notificationLevel 推导，结合本地覆盖实时反映用户修改
+    final categoryMap = ref.watch(categoryMapProvider).value ?? {};
+    final notifOverrides = ref.watch(categoryNotificationOverridesProvider);
+    final mutedCategoryIds = <int>{};
+    for (final category in categoryMap.values) {
+      // 本地覆盖优先
+      final level = notifOverrides[category.id] ?? category.notificationLevel;
+      if (level == 0) {
+        mutedCategoryIds.add(category.id);
+      }
+    }
+
+    // 处理 /latest 和 /new 频道消息的统一回调
     void onMessage(MessageBusMessage message) {
       final data = message.data;
       if (data is! Map<String, dynamic>) return;
@@ -134,54 +156,61 @@ class LatestChannelNotifier extends Notifier<TopicListIncomingState> {
       final topicId = data['topic_id'] as int?;
       if (topicId == null) return;
 
-      // 提取话题分类 ID（用于按 tab 隔离）
+      final messageType = data['message_type'] as String?;
+      // 仅处理 latest（话题更新）和 new_topic（新话题创建）两种类型
+      if (messageType != 'latest' && messageType != 'new_topic') return;
+
+      // 同一 topic_id 去重（与网页版 _addIncoming 一致）
+      if (state.incomingTopics.containsKey(topicId)) return;
+
+      // 提取话题分类 ID（用于按 tab 隔离和静音过滤）
       final payload = data['payload'] as Map<String, dynamic>?;
-      final topicCategoryId = payload?['category_id'] as int? ?? data['category_id'] as int?;
+      final topicCategoryId = payload?['category_id'] as int?;
 
-      debugPrint('[LatestChannel] 收到新话题: $topicId (category=$topicCategoryId)');
+      // 过滤静音分类（对齐网页版 _processChannelPayload 的 muted_category_ids 检查）
+      if (topicCategoryId != null && mutedCategoryIds.contains(topicCategoryId)) {
+        return;
+      }
 
-      _pendingTopics[topicId] = topicCategoryId;
+      debugPrint('[LatestChannel] incoming +1: type=$messageType, topicId=$topicId, category=$topicCategoryId');
 
-      _debounceTimer?.cancel();
-      _debounceTimer = Timer(_debounceDuration, () {
-        if (_pendingTopics.isNotEmpty) {
-          debugPrint('[LatestChannel] 批量添加 ${_pendingTopics.length} 条新话题');
-          state = TopicListIncomingState(
-            incomingTopics: {...state.incomingTopics, ..._pendingTopics},
-          );
-          _pendingTopics.clear();
-        }
-      });
+      // 即时更新（与网页版一致，无防抖）
+      state = TopicListIncomingState(
+        incomingTopics: {...state.incomingTopics, topicId: topicCategoryId},
+      );
     }
 
-    messageBus.subscribe(channel, onMessage);
+    // 订阅 /latest 频道（话题更新）
+    messageBus.subscribe('/latest', onMessage);
+    // 订阅 /new 频道（新话题创建）
+    messageBus.subscribe('/new', onMessage);
 
     ref.onDispose(() {
-      _debounceTimer?.cancel();
-      _pendingTopics.clear();
-      messageBus.unsubscribe(channel, onMessage);
+      messageBus.unsubscribe('/latest', onMessage);
+      messageBus.unsubscribe('/new', onMessage);
     });
 
     return const TopicListIncomingState();
   }
 
+  /// 按 topic IDs 清除 incoming（对齐网页版 clearIncoming）
+  void clearIncoming(List<int> topicIds) {
+    final toRemove = topicIds.toSet();
+    final remaining = Map<int, int?>.from(state.incomingTopics)
+      ..removeWhere((id, _) => toRemove.contains(id));
+    if (remaining.length == state.incomingTopics.length) return;
+    state = TopicListIncomingState(incomingTopics: remaining);
+  }
+
   /// 清除指定分类的新话题标记（null 表示清除全部）
   void clearNewTopicsForCategory(int? categoryId) {
     if (categoryId == null) {
-      _debounceTimer?.cancel();
-      _pendingTopics.clear();
       state = const TopicListIncomingState();
     } else {
-      _pendingTopics.removeWhere((_, c) => c == categoryId);
       final remaining = Map<int, int?>.from(state.incomingTopics)
         ..removeWhere((_, c) => c == categoryId);
       state = TopicListIncomingState(incomingTopics: remaining);
     }
-  }
-
-  /// 清除所有新话题标记
-  void clearNewTopics() {
-    clearNewTopicsForCategory(null);
   }
 }
 

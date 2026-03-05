@@ -2,6 +2,19 @@ part of 'discourse_service.dart';
 
 /// 话题相关
 mixin _TopicsMixin on _DiscourseServiceBase {
+  /// 按 topic_ids 获取话题（对齐网页版 loadBefore 请求）
+  /// 请求 /latest.json?topic_ids=1,2,3 返回指定话题的最新数据
+  Future<TopicListResponse> getTopicsByIds(List<int> topicIds) async {
+    if (topicIds.isEmpty) {
+      return TopicListResponse(topics: [], moreTopicsUrl: null);
+    }
+    final response = await _dio.get(
+      '/latest.json',
+      queryParameters: {'topic_ids': topicIds.join(',')},
+    );
+    return TopicListResponse.fromJson(response.data);
+  }
+
   Future<TopicListResponse> getLatestTopics({int page = 0, String? order, bool? ascending}) async {
     if (page == 0 && order == null) {
       final preloaded = PreloadedDataService();

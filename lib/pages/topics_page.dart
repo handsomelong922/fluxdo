@@ -822,6 +822,8 @@ class _TopicListState extends ConsumerState<_TopicList>
   final _refreshIndicatorKey = GlobalKey<RefreshIndicatorState>();
   bool _isLoadingNewTopics = false;
   bool _keepAlive = true;
+  /// 需要高亮的话题 IDs（loadBefore 插入后设置，渐变消失后清除）
+  final Set<int> _highlightedTopicIds = {};
 
   @override
   bool get wantKeepAlive => _keepAlive;
@@ -965,6 +967,29 @@ class _TopicListState extends ConsumerState<_TopicList>
 
                   final topic = topics[topicIndex];
                   final enableLongPress = ref.watch(preferencesProvider).longPressPreview;
+                  final shouldHighlight = _highlightedTopicIds.contains(topic.id);
+
+                  if (shouldHighlight) {
+                    return TweenAnimationBuilder<double>(
+                      key: ValueKey('highlight_${topic.id}'),
+                      tween: Tween(begin: 0.3, end: 0.0),
+                      duration: const Duration(milliseconds: 2000),
+                      curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
+                      onEnd: () => _highlightedTopicIds.remove(topic.id),
+                      builder: (context, opacity, _) {
+                        return buildTopicItem(
+                          context: context,
+                          topic: topic,
+                          isSelected: topic.id == selectedTopicId,
+                          onTap: () => _openTopic(topic),
+                          enableLongPress: enableLongPress,
+                          highlightColor: Theme.of(context)
+                              .colorScheme.primaryContainer
+                              .withValues(alpha: opacity),
+                        );
+                      },
+                    );
+                  }
 
                   return buildTopicItem(
                     context: context,
@@ -1010,10 +1035,15 @@ class _TopicListState extends ConsumerState<_TopicList>
               _isLoadingNewTopics = true;
             });
             try {
-              await ref.read(topicListProvider(providerKey).notifier).silentRefresh();
-              ref.read(latestChannelProvider.notifier).clearNewTopicsForCategory(providerKey);
+              // 对齐网页版 showInserted：按 topic_ids 增量加载并插入顶部
+              final incomingState = ref.read(latestChannelProvider);
+              final topicIds = incomingState.incomingTopicIdsForCategory(providerKey);
+              final insertedIds = await ref.read(topicListProvider(providerKey).notifier).loadBefore(topicIds);
+              ref.read(latestChannelProvider.notifier).clearIncoming(topicIds);
 
-              if (mounted) {
+              if (mounted && insertedIds.isNotEmpty) {
+                // 标记插入的话题以显示高亮动画
+                _highlightedTopicIds.addAll(insertedIds);
                 scrollController?.animateTo(
                   0,
                   duration: const Duration(milliseconds: 300),
@@ -1052,7 +1082,7 @@ class _TopicListState extends ConsumerState<_TopicList>
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          '有 $count 条新话题，点击刷新',
+                          '查看 $count 个新的或更新的话题',
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.primary,
                             fontSize: 13,

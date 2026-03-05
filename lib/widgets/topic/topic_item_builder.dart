@@ -13,6 +13,7 @@ Widget buildTopicItem({
   required bool isSelected,
   required VoidCallback onTap,
   required bool enableLongPress,
+  Color? highlightColor,
 }) {
   Widget child;
 
@@ -28,6 +29,7 @@ Widget buildTopicItem({
               )
           : null,
       isSelected: isSelected,
+      highlightColor: highlightColor,
     );
   } else {
     child = TopicCard(
@@ -41,6 +43,7 @@ Widget buildTopicItem({
               )
           : null,
       isSelected: isSelected,
+      highlightColor: highlightColor,
     );
   }
 
