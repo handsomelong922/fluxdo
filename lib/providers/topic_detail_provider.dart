@@ -47,6 +47,9 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   bool _isLoadPreviousFailed = false;
   String? _filter;  // 当前过滤模式（如 'summary' 表示热门回复）
   String? _usernameFilter;  // 当前用户名过滤（如只看题主）
+  /// 待加载的新帖子 ID 队列（对齐 Discourse _newPostsInStream）
+  final List<int> _pendingNewPostIds = [];
+  bool _isLoadingNewPosts = false;
 
   bool get hasMoreAfter => _hasMoreAfter;
   bool get hasMoreBefore => _hasMoreBefore;

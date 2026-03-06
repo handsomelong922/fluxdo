@@ -346,7 +346,7 @@ extension _UserActions on _TopicDetailPageState {
   void _handlePostUpdate(TopicDetailNotifier notifier, PostUpdate update) {
     switch (update.type) {
       case TopicMessageType.created:
-        notifier.loadNewReplies();
+        notifier.onNewPostCreated(update.postId);
         break;
       case TopicMessageType.revised:
       case TopicMessageType.rebaked:

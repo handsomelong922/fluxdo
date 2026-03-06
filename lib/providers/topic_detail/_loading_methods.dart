@@ -157,57 +157,62 @@ extension LoadingMethods on TopicDetailNotifier {
     await loadMore();
   }
 
-  /// 加载新回复（用于 MessageBus 实时更新）
-  Future<void> loadNewReplies() async {
+  /// 收到新回复通知（MessageBus created 消息）
+  /// 对齐 Discourse：不在底部时只更新 stream，在底部时批量加载帖子内容
+  void onNewPostCreated(int postId) {
     if (state.isLoading) return;
-    if (_isFilteredMode) return; // 过滤模式下忽略
+    if (_isFilteredMode) return;
 
     final currentDetail = state.value;
     if (currentDetail == null) return;
 
+    final currentStream = currentDetail.postStream.stream;
+    if (currentStream.contains(postId)) return; // 已在 stream 中
+
+    // 将 post ID 加入 stream 并更新 postsCount（本地即时更新，无需请求）
+    final newStream = [...currentStream, postId];
+    state = AsyncValue.data(currentDetail.copyWith(
+      postsCount: currentDetail.postsCount + 1,
+      postStream: PostStream(
+        posts: currentDetail.postStream.posts,
+        stream: newStream,
+        gaps: currentDetail.postStream.gaps,
+      ),
+    ));
+    _updateBoundaryState(currentDetail.postStream.posts, newStream);
+
+    // 如果用户在底部（已加载完所有帖子），批量加载新帖子内容
     final currentPosts = currentDetail.postStream.posts;
-    if (currentPosts.isEmpty) return;
-
-    final lastPostNumber = currentPosts.last.postNumber;
-
-    // 用户不在底部：只更新 stream 和 postsCount（让进度指示器反映新帖子）
-    if (lastPostNumber < currentDetail.postsCount) {
-      try {
-        final service = ref.read(discourseServiceProvider);
-        // 轻量请求：只获取最新话题信息以拿到 stream 和 postsCount
-        final newDetail = await service.getTopicDetail(arg.topicId, postNumber: lastPostNumber);
-        if (newDetail.postStream.stream.length > currentDetail.postStream.stream.length) {
-          if (!ref.mounted) return;
-          state = AsyncValue.data(currentDetail.copyWith(
-            postsCount: newDetail.postsCount,
-            postStream: PostStream(
-              posts: currentPosts,
-              stream: newDetail.postStream.stream,
-              gaps: currentDetail.postStream.gaps,
-            ),
-          ));
-          _updateBoundaryState(currentPosts, newDetail.postStream.stream);
-        }
-      } catch (e) {
-        debugPrint('[TopicDetail] 更新 stream 失败: $e');
-      }
-      return;
+    if (currentPosts.isNotEmpty &&
+        currentPosts.last.postNumber >= currentDetail.postsCount) {
+      _pendingNewPostIds.add(postId);
+      _loadPendingNewPosts();
     }
+  }
 
-    // 用户在底部：加载并追加新帖子
-    final targetPostNumber = lastPostNumber + 1;
+  /// 批量加载待处理的新帖子（对齐 Discourse triggerNewPostsInStream）
+  Future<void> _loadPendingNewPosts() async {
+    if (_isLoadingNewPosts) return;
+    if (_pendingNewPostIds.isEmpty) return;
+
+    _isLoadingNewPosts = true;
+    final postIds = List<int>.from(_pendingNewPostIds);
+    _pendingNewPostIds.clear();
 
     try {
       final service = ref.read(discourseServiceProvider);
-      final newDetail = await service.getTopicDetail(arg.topicId, postNumber: targetPostNumber);
+      final postStream = await service.getPosts(arg.topicId, postIds);
+      final fetchedPosts = postStream.posts;
 
-      if (newDetail.postStream.posts.isEmpty) return;
+      if (fetchedPosts.isEmpty || !ref.mounted) return;
 
+      final currentDetail = state.value;
+      if (currentDetail == null) return;
+
+      final currentPosts = currentDetail.postStream.posts;
       final existingIds = currentPosts.map((p) => p.id).toSet();
-      final newPosts = newDetail.postStream.posts.where((p) => !existingIds.contains(p.id)).toList();
-
+      final newPosts = fetchedPosts.where((p) => !existingIds.contains(p.id)).toList();
       if (newPosts.isEmpty) return;
-      if (!ref.mounted) return;
 
       // 本地递增被回复帖子的 replyCount（与 Discourse 官方做法一致）
       final replyToNumbers = <int>{};
@@ -228,19 +233,25 @@ extension LoadingMethods on TopicDetailNotifier {
       final mergedPosts = [...updatedCurrentPosts, ...newPosts];
       mergedPosts.sort((a, b) => a.postNumber.compareTo(b.postNumber));
 
-      final mergedStream = newDetail.postStream.stream;
-
-      _updateBoundaryState(mergedPosts, mergedStream);
+      _updateBoundaryState(mergedPosts, currentDetail.postStream.stream);
 
       state = AsyncValue.data(currentDetail.copyWith(
-        postsCount: newDetail.postsCount,
-        postStream: PostStream(posts: mergedPosts, stream: mergedStream, gaps: currentDetail.postStream.gaps),
-        canVote: newDetail.canVote,
-        voteCount: newDetail.voteCount,
-        userVoted: newDetail.userVoted,
+        postStream: PostStream(
+          posts: mergedPosts,
+          stream: currentDetail.postStream.stream,
+          gaps: currentDetail.postStream.gaps,
+        ),
       ));
     } catch (e) {
+      // 失败时将 post IDs 放回队列
+      _pendingNewPostIds.insertAll(0, postIds);
       debugPrint('[TopicDetail] 加载新回复失败: $e');
+    } finally {
+      _isLoadingNewPosts = false;
+      // 如果在加载期间又有新帖子进入队列，继续加载
+      if (_pendingNewPostIds.isNotEmpty) {
+        _loadPendingNewPosts();
+      }
     }
   }
 

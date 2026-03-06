@@ -55,6 +55,7 @@ class MessageBusService {
 
   bool _isPolling = false;
   bool _shouldStop = false;
+  int _pollGeneration = 0; // 每次启动轮询递增，旧循环通过比对自动退出
   bool _backgroundMode = false; // 后台模式：使用更长的轮询间隔
   CancelToken? _currentCancelToken; // 当前请求的 CancelToken
   int _failureCount = 0;
@@ -188,13 +189,15 @@ class MessageBusService {
     if (_isPolling) return;
     _isPolling = true;
     _shouldStop = false;
-    _poll();
+    _pollGeneration++;
+    _poll(_pollGeneration);
   }
 
   /// 停止轮询
   void _stopPolling() {
     _shouldStop = true;
     _isPolling = false;
+    _pollGeneration++; // 确保旧循环在任何 await 恢复后立即退出
     _currentCancelToken?.cancel('[MessageBus] 停止轮询');
     _currentCancelToken = null;
   }
@@ -213,8 +216,8 @@ class MessageBusService {
   }
 
   /// 执行长轮询（流式处理）
-  Future<void> _poll() async {
-    while (!_shouldStop && _subscriptions.isNotEmpty) {
+  Future<void> _poll(int generation) async {
+    while (!_shouldStop && _subscriptions.isNotEmpty && generation == _pollGeneration) {
       _currentCancelToken = CancelToken();
 
       try {
@@ -318,6 +321,7 @@ class MessageBusService {
           final waitSeconds = (retryAfter ?? 60) + Random().nextInt(30);
           debugPrint('[MessageBus] 触发速率限制，$waitSeconds秒后重试');
           await Future.delayed(Duration(seconds: waitSeconds));
+          if (generation != _pollGeneration) break;
           continue;
         }
 
@@ -334,6 +338,7 @@ class MessageBusService {
         debugPrint('[MessageBus] $backoffSeconds秒后重试');
 
         await Future.delayed(Duration(seconds: backoffSeconds));
+        if (generation != _pollGeneration) break;
       } catch (e, stack) {
         _failureCount++;
         final backoffSeconds = min(pow(2, _failureCount).toInt(), _maxBackoffSeconds);
@@ -341,10 +346,14 @@ class MessageBusService {
         debugPrint('[MessageBus] $stack');
         debugPrint('[MessageBus] $backoffSeconds秒后重试');
         await Future.delayed(Duration(seconds: backoffSeconds));
+        if (generation != _pollGeneration) break;
       }
     }
 
-    _isPolling = false;
+    // 只有当前活跃的循环才重置 _isPolling，避免旧循环退出时误清新循环的状态
+    if (generation == _pollGeneration) {
+      _isPolling = false;
+    }
   }
   
   /// 处理单个消息块
