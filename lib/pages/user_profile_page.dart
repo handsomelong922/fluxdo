@@ -12,7 +12,9 @@ import '../widgets/common/relative_time_text.dart';
 import '../utils/number_utils.dart';
 import '../utils/pagination_helper.dart';
 import '../services/emoji_handler.dart';
+import 'package:dio/dio.dart';
 import '../constants.dart';
+import '../services/app_error_handler.dart';
 import '../utils/share_utils.dart';
 import '../providers/preferences_provider.dart';
 import '../widgets/common/flair_badge.dart';
@@ -164,8 +166,10 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
           _isFollowed = !_isFollowed;
         });
       }
-    } catch (_) {
-      // 错误已由 ErrorInterceptor 处理
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     } finally {
       if (mounted) {
         setState(() => _isFollowLoading = false);

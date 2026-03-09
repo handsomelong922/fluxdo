@@ -10,7 +10,11 @@ extension _PostFooterReactionActions on _PostFooterSectionState {
       ref
           .read(topicDetailProvider(params).notifier)
           .updatePostReaction(widget.post.id, reactions, currentUserReaction);
-    } catch (_) {}
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
+    }
   }
 
   Future<void> _toggleLike() async {
@@ -30,7 +34,10 @@ extension _PostFooterReactionActions on _PostFooterSectionState {
       });
 
       _syncReactionToProvider(_reactions, _currentUserReaction);
-    } catch (_) {
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     } finally {
       if (mounted) {
         setState(() => _isLiking = false);
@@ -49,7 +56,11 @@ extension _PostFooterReactionActions on _PostFooterSectionState {
       });
 
       _syncReactionToProvider(_reactions, _currentUserReaction);
-    } catch (_) {}
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
+    }
   }
 
   void _showReactionPicker(BuildContext context, ThemeData theme) async {

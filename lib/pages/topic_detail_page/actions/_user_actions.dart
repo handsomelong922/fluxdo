@@ -141,9 +141,11 @@ extension _UserActions on _TopicDetailPageState {
       if (mounted) {
         ToastService.showSuccess(wasBookmarked ? '已取消书签' : '已添加书签');
       }
-    } catch (e) {
-      // 错误已由 ErrorInterceptor 处理
+    } on DioException catch (e) {
+      // 网络错误已由 ErrorInterceptor 处理
       debugPrint('[TopicDetail] 切换书签失败: $e');
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     }
   }
 
@@ -168,9 +170,11 @@ extension _UserActions on _TopicDetailPageState {
       if (mounted) {
         ToastService.showSuccess('已设置为${level.label}');
       }
-    } catch (e) {
-      // 错误已由 ErrorInterceptor 处理
+    } on DioException catch (e) {
+      // 网络错误已由 ErrorInterceptor 处理
       debugPrint('[TopicDetail] 更新订阅级别失败: $e');
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     }
   }
 

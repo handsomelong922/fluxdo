@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/topic.dart';
 import '../../../providers/discourse_providers.dart';
+import 'package:dio/dio.dart';
+import '../../../services/app_error_handler.dart';
 import '../../../services/discourse/discourse_service.dart';
 import '../../../services/toast_service.dart';
 
@@ -103,8 +105,13 @@ class _TopicVoteButtonState extends ConsumerState<TopicVoteButton> {
           ToastService.showSuccess(message);
         }
       }
-    } catch (_) {
-      // 错误已由 ErrorInterceptor 处理
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
       if (mounted) {
         setState(() => _isLoading = false);
       }

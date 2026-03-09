@@ -5,7 +5,9 @@ import 'package:fluxdo/widgets/markdown_editor/markdown_editor.dart';
 import 'package:fluxdo/models/category.dart';
 import 'package:fluxdo/models/topic.dart';
 
+import 'package:dio/dio.dart';
 import 'package:fluxdo/providers/discourse_providers.dart';
+import 'package:fluxdo/services/app_error_handler.dart';
 import 'package:fluxdo/services/toast_service.dart';
 import 'package:fluxdo/widgets/markdown_editor/markdown_renderer.dart';
 import 'package:fluxdo/widgets/topic/topic_editor_helpers.dart';
@@ -257,8 +259,10 @@ class _EditTopicPageState extends ConsumerState<EditTopicPage> {
         tags: tagsChanged ? _selectedTags : null,
         updatedFirstPost: updatedPost,
       ));
-    } catch (_) {
-      // 错误已由 ErrorInterceptor 处理
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

@@ -9,6 +9,8 @@ import 'package:super_clipboard/super_clipboard.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+import 'package:dio/dio.dart';
+import '../../services/app_error_handler.dart';
 import '../../services/discourse/discourse_service.dart';
 import '../../services/toast_service.dart';
 import '../common/fading_edge_scroll_view.dart';
@@ -176,8 +178,10 @@ class MarkdownToolbarState extends State<MarkdownToolbar> {
 
       if (!mounted) return;
       await uploadImageFromPath(imagePath: tempFile.path, imageName: fileName);
-    } catch (_) {
-      // 错误已由 ErrorInterceptor 处理
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     }
   }
 
@@ -692,8 +696,10 @@ class MarkdownToolbarState extends State<MarkdownToolbar> {
           text[selection.start - 1] != '\n';
       final prefix = needsLeadingNewline ? '\n' : '';
       insertText('$prefix${uploadResult.toMarkdown(alt: result.originalName)}\n');
-    } catch (_) {
-      // 错误已由 ErrorInterceptor 处理
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     } finally {
       if (mounted) {
         setState(() => _isUploading = false);
@@ -707,8 +713,10 @@ class MarkdownToolbarState extends State<MarkdownToolbar> {
       if (image == null) return;
 
       await uploadImageFromPath(imagePath: image.path, imageName: image.name);
-    } catch (_) {
-      // 错误已由 ErrorInterceptor 处理
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     }
   }
 

@@ -11,6 +11,8 @@ import '../widgets/search/search_post_card.dart';
 import '../widgets/search/search_preview_dialog.dart';
 import '../providers/preferences_provider.dart';
 import 'topic_detail_page/topic_detail_page.dart';
+import 'package:dio/dio.dart';
+import '../services/app_error_handler.dart';
 import 'user_profile_page.dart';
 
 /// 搜索页面
@@ -109,7 +111,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           _isClearingRecentSearches = false;
         });
       }
-    } catch (_) {
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+      if (mounted) {
+        setState(() => _isClearingRecentSearches = false);
+      }
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
       if (mounted) {
         setState(() => _isClearingRecentSearches = false);
       }

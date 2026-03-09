@@ -135,19 +135,8 @@ extension PostUpdateMethods on TopicDetailNotifier {
       newStream.add(post.id);
     }
 
-    // 本地递增被回复帖子的 replyCount
-    List<Post> updatedPosts = currentPosts;
-    if (post.replyToPostNumber > 0) {
-      updatedPosts = currentPosts.map((p) {
-        if (p.postNumber == post.replyToPostNumber) {
-          return p.copyWith(replyCount: p.replyCount + 1);
-        }
-        return p;
-      }).toList();
-    }
-
     if (!_hasMoreAfter) {
-      final newPosts = [...updatedPosts, post];
+      final newPosts = [...currentPosts, post];
       newPosts.sort((a, b) => a.postNumber.compareTo(b.postNumber));
 
       final newPostsCount = currentDetail.postsCount + 1;
@@ -156,14 +145,33 @@ extension PostUpdateMethods on TopicDetailNotifier {
         postsCount: newPostsCount,
         postStream: PostStream(posts: newPosts, stream: newStream, gaps: currentDetail.postStream.gaps),
       ));
+
+      // 从 API 刷新被回复帖子以获取正确的 replyCount（避免与 MessageBus 路径重复递增）
+      if (post.replyToPostNumber > 0) {
+        _refreshReplyTarget(post.replyToPostNumber);
+      }
+
       return true;
     } else {
       state = AsyncValue.data(currentDetail.copyWith(
         postsCount: currentDetail.postsCount + 1,
-        postStream: PostStream(posts: updatedPosts, stream: newStream, gaps: currentDetail.postStream.gaps),
+        postStream: PostStream(posts: currentPosts, stream: newStream, gaps: currentDetail.postStream.gaps),
       ));
       return false;
     }
+  }
+
+  /// 从 API 刷新被回复帖子，获取正确的 replyCount
+  void _refreshReplyTarget(int replyToPostNumber) {
+    final currentDetail = state.value;
+    if (currentDetail == null) return;
+
+    final posts = currentDetail.postStream.posts;
+    final index = posts.indexWhere((p) => p.postNumber == replyToPostNumber);
+    if (index == -1) return;
+    final targetPost = posts[index];
+
+    refreshPost(targetPost.id);
   }
 
   /// 更新已存在的帖子（用于编辑后直接更新）

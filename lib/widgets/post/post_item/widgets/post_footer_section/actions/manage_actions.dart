@@ -27,7 +27,10 @@ extension _PostFooterManageActions on _PostFooterSectionState {
           ToastService.showSuccess('已采纳为解决方案');
         }
       }
-    } catch (_) {
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     } finally {
       if (mounted) {
         setState(() => _isTogglingAnswer = false);
@@ -46,7 +49,10 @@ extension _PostFooterManageActions on _PostFooterSectionState {
         ToastService.showSuccess('已删除');
         widget.onRefreshPost?.call(widget.post.id);
       }
-    } catch (_) {
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     } finally {
       if (mounted) {
         setState(() => _isDeleting = false);
@@ -65,7 +71,10 @@ extension _PostFooterManageActions on _PostFooterSectionState {
         ToastService.showSuccess('已恢复');
         widget.onRefreshPost?.call(widget.post.id);
       }
-    } catch (_) {
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     } finally {
       if (mounted) {
         setState(() => _isDeleting = false);

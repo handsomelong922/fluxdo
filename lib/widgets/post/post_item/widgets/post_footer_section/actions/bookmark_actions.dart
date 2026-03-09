@@ -32,7 +32,10 @@ extension _PostFooterBookmarkActions on _PostFooterSectionState {
           ToastService.showSuccess('已添加书签');
         }
       }
-    } catch (_) {
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     } finally {
       if (mounted) {
         setState(() => _isBookmarking = false);

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../models/topic.dart';
 import '../../../../providers/discourse_providers.dart';
+import 'package:dio/dio.dart';
+import '../../../../services/app_error_handler.dart';
 import '../../../../services/discourse/discourse_service.dart';
 import '../../../common/relative_time_text.dart';
 import '../../small_action_item.dart';
@@ -80,7 +82,13 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
       _replyHistory = history;
       _isLoadingReplyHistoryNotifier.value = false;
       _showReplyHistoryNotifier.value = true;
-    } catch (_) {
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+      if (mounted) {
+        _isLoadingReplyHistoryNotifier.value = false;
+      }
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
       if (mounted) {
         _isLoadingReplyHistoryNotifier.value = false;
       }

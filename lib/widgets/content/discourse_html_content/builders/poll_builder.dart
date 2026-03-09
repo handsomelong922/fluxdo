@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../models/topic.dart';
+import 'package:dio/dio.dart';
+import '../../../../services/app_error_handler.dart';
 import '../../../../services/discourse/discourse_service.dart';
 
 /// 构建投票块
@@ -151,8 +153,10 @@ class _PollWidgetState extends State<_PollWidget> {
         });
         widget.onPollUpdated(result, votesToSubmit);
       }
-    } catch (_) {
-      // 错误已由 ErrorInterceptor 处理
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     } finally {
       if (mounted) setState(() => _isVoting = false);
     }
@@ -177,8 +181,10 @@ class _PollWidgetState extends State<_PollWidget> {
         });
         widget.onPollUpdated(result, _userVotes);
       }
-    } catch (_) {
-      // 错误已由 ErrorInterceptor 处理
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     } finally {
       if (mounted) setState(() => _isVoting = false);
     }
@@ -203,8 +209,10 @@ class _PollWidgetState extends State<_PollWidget> {
         });
         widget.onPollUpdated(result, []);
       }
-    } catch (_) {
-      // 错误已由 ErrorInterceptor 处理
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     } finally {
       if (mounted) setState(() => _isVoting = false);
     }

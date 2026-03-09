@@ -16,6 +16,8 @@ import '../widgets/layout/master_detail_layout.dart';
 import 'topic_detail_page/topic_detail_page.dart';
 import 'search_page.dart';
 import '../models/search_filter.dart';
+import 'package:dio/dio.dart';
+import '../services/app_error_handler.dart';
 import 'create_topic_page.dart';
 
 /// 分类话题列表页面（独立页面，不影响首页筛选）
@@ -150,7 +152,11 @@ class _CategoryTopicsPageState extends ConsumerState<CategoryTopicsPage> {
           _page = 0;
         });
       }
-    } catch (_) {}
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
+    }
   }
 
   Future<void> _loadMore() async {

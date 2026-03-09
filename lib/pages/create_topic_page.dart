@@ -7,6 +7,8 @@ import 'package:fluxdo/models/draft.dart';
 
 import 'package:fluxdo/providers/discourse_providers.dart';
 import 'package:fluxdo/services/toast_service.dart';
+import 'package:dio/dio.dart';
+import 'package:fluxdo/services/app_error_handler.dart';
 import 'package:fluxdo/services/network/exceptions/api_exception.dart';
 import 'package:fluxdo/widgets/markdown_editor/markdown_renderer.dart';
 import 'package:fluxdo/services/draft_controller.dart';
@@ -354,8 +356,10 @@ class _CreateTopicPageState extends ConsumerState<CreateTopicPage> {
       if (!mounted) return;
       ToastService.showInfo('你的帖子已提交，正在等待审核');
       Navigator.of(context).pop();
-    } catch (_) {
-      // 错误已由 ErrorInterceptor 处理
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

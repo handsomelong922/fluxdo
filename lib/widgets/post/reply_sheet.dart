@@ -8,6 +8,8 @@ import '../../services/discourse/discourse_service.dart';
 import '../../services/presence_service.dart';
 import '../../services/emoji_handler.dart';
 import '../../services/draft_controller.dart';
+import 'package:dio/dio.dart';
+import '../../services/app_error_handler.dart';
 import '../../services/network/exceptions/api_exception.dart';
 import '../../services/toast_service.dart';
 import '../common/smart_avatar.dart';
@@ -402,8 +404,10 @@ class _ReplySheetState extends ConsumerState<ReplySheet> {
       if (!mounted) return;
       ToastService.showInfo('你的帖子已提交，正在等待审核');
       Navigator.of(context).pop();
-    } catch (_) {
-      // 错误已由 ErrorInterceptor 处理
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

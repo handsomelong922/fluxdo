@@ -12,7 +12,13 @@ extension _PostFooterReplyActions on _PostFooterSectionState {
         _replies.addAll(replies);
         _isLoadingRepliesNotifier.value = false;
       }
-    } catch (_) {
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+      if (mounted) {
+        _isLoadingRepliesNotifier.value = false;
+      }
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
       if (mounted) {
         _isLoadingRepliesNotifier.value = false;
       }
@@ -40,7 +46,13 @@ extension _PostFooterReplyActions on _PostFooterSectionState {
         _isLoadingRepliesNotifier.value = false;
         _showRepliesNotifier.value = true;
       }
-    } catch (_) {
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+      if (mounted) {
+        _isLoadingRepliesNotifier.value = false;
+      }
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
       if (mounted) {
         _isLoadingRepliesNotifier.value = false;
       }
