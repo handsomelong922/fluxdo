@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:jovial_svg/jovial_svg.dart';
 import '../../services/discourse/discourse_service.dart';
 import '../../services/discourse_cache_manager.dart';
 import '../../pages/image_viewer_page.dart';
@@ -45,10 +45,8 @@ class _DiscourseImageState extends State<DiscourseImage> {
   bool _isLoading = true;
   bool _hasError = false;
 
-  /// 缓存 SVG 文件内容，避免每次 build 都重新执行 getSingleFile() SQLite 查询
-  String? _svgContent;
-  double? _svgWidth;
-  double? _svgHeight;
+  /// 缓存解析后的 ScalableImage，避免每次 build 都重新执行 getSingleFile() SQLite 查询
+  ScalableImage? _svgSi;
 
   static final DiscourseCacheManager _cacheManager = DiscourseCacheManager();
 
@@ -62,7 +60,7 @@ class _DiscourseImageState extends State<DiscourseImage> {
   void didUpdateWidget(DiscourseImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url) {
-      _svgContent = null;
+      _svgSi = null;
       _resolveUrl();
     }
   }
@@ -178,13 +176,14 @@ class _DiscourseImageState extends State<DiscourseImage> {
   }
 
   Widget _buildSvgImage(ThemeData theme) {
-    // 已缓存 SVG 内容则直接渲染，不再走 getSingleFile() 的 SQLite 查询
-    if (_svgContent != null) {
-      return SvgPicture.string(
-        _svgContent!,
-        width: widget.width ?? _svgWidth,
-        height: widget.height ?? _svgHeight,
-        fit: widget.fit,
+    // 已缓存 ScalableImage 则直接渲染
+    if (_svgSi != null) {
+      final siWidth = widget.width ?? _svgSi!.viewport.width;
+      final siHeight = widget.height ?? _svgSi!.viewport.height;
+      return SizedBox(
+        width: siWidth,
+        height: siHeight,
+        child: ScalableImageWidget(si: _svgSi!, fit: widget.fit),
       );
     }
 
@@ -197,15 +196,12 @@ class _DiscourseImageState extends State<DiscourseImage> {
     try {
       final file = await _cacheManager.getSingleFile(_resolvedUrl!);
       var content = await file.readAsString();
-      final svgWidth = _parseSvgDimension(content, 'width');
-      final svgHeight = _parseSvgDimension(content, 'height');
       content = SvgUtils.sanitize(content);
+      final si = ScalableImage.fromSvgString(content, warnF: (_) {});
 
       if (mounted) {
         setState(() {
-          _svgContent = content;
-          _svgWidth = svgWidth;
-          _svgHeight = svgHeight;
+          _svgSi = si;
         });
       }
     } catch (e) {
@@ -265,10 +261,4 @@ class _DiscourseImageState extends State<DiscourseImage> {
     );
   }
 
-  /// 从 SVG 内容解析尺寸属性
-  double? _parseSvgDimension(String svg, String attr) {
-    final match = RegExp('$attr="(\\d+(?:\\.\\d+)?)"').firstMatch(svg);
-    if (match != null) return double.tryParse(match.group(1)!);
-    return null;
-  }
 }

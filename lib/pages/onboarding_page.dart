@@ -1,6 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:jovial_svg/jovial_svg.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'webview_login_page.dart';
@@ -333,10 +333,16 @@ class _FloatingLogoState extends State<_FloatingLogo> with SingleTickerProviderS
               ],
             ),
           ),
-          SvgPicture.asset(
-            'assets/logo.svg',
+          SizedBox(
             width: 120,
             height: 120,
+            child: ScalableImageWidget.fromSISource(
+              si: ScalableImageSource.fromSvg(
+                DefaultAssetBundle.of(context),
+                'assets/logo.svg',
+                warnF: (_) {},
+              ),
+            ),
           ),
         ],
       ),

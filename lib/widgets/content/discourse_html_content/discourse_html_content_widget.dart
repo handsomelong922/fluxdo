@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jovial_svg/jovial_svg.dart';
 import 'package:pangutext/pangutext.dart';
 import '../../../constants.dart';
 import '../../../models/topic.dart';
@@ -575,11 +576,15 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
       );
     }
 
-    // 屏蔽 Discourse Lightbox 的元数据区域和图标
+    // 屏蔽 Discourse Lightbox 的元数据区域和 UI 图标
     if (element.classes.contains('meta') ||
-        element.classes.contains('d-icon') ||
-        element.localName == 'svg') {
+        element.classes.contains('d-icon')) {
       return const SizedBox.shrink();
+    }
+
+    // 内联 SVG 渲染
+    if (element.localName == 'svg') {
+      return _buildInlineSvg(element);
     }
 
     // 用户提及链接 (a.mention)：直接 WidgetSpan 渲染
@@ -826,6 +831,53 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     // 使用 CSS 样式渲染，回归文档流
 
     return null;
+  }
+
+  /// 构建内联 SVG widget
+  ///
+  /// 区分 Discourse UI 图标（.d-icon）和内容 SVG：
+  /// - 没有 viewBox 且没有 width/height 的小图标 → SizedBox.shrink()
+  /// - 有 viewBox 或有 width/height 的内容 SVG → 用 jovial_svg 渲染
+  Widget _buildInlineSvg(dynamic element) {
+    // 没有 viewBox 且没有尺寸属性的 SVG 视为 UI 图标，不渲染
+    final viewBox = element.attributes['viewBox'] as String?;
+    final widthAttr = element.attributes['width'] as String?;
+    final heightAttr = element.attributes['height'] as String?;
+    if (viewBox == null && widthAttr == null && heightAttr == null) {
+      return const SizedBox.shrink();
+    }
+
+    try {
+      final svgString = element.outerHtml as String;
+      final si = ScalableImage.fromSvgString(svgString, warnF: (_) {});
+      final viewport = si.viewport;
+
+      // viewport 无效则 fallback
+      if (viewport.width <= 0 || viewport.height <= 0) {
+        return const SizedBox.shrink();
+      }
+
+      final aspectRatio = viewport.width / viewport.height;
+
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : MediaQuery.of(context).size.width - 32;
+          final displayWidth = availableWidth;
+          final displayHeight = displayWidth / aspectRatio;
+
+          return SizedBox(
+            width: displayWidth,
+            height: displayHeight,
+            child: ScalableImageWidget(si: si, fit: BoxFit.contain),
+          );
+        },
+      );
+    } catch (_) {
+      // 解析失败 fallback
+      return const SizedBox.shrink();
+    }
   }
 
   /// 提取 spoiler 元素内的 lightbox 图片 URL，添加到已揭示集合

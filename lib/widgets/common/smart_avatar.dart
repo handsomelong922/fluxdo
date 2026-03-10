@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:jovial_svg/jovial_svg.dart';
 import '../../services/discourse_cache_manager.dart';
 import '../../utils/svg_utils.dart';
 
@@ -67,11 +67,11 @@ class _SmartAvatarState extends State<SmartAvatar> {
       child = _buildFallback(fgColor, innerRadius);
     } else if (_isSvgDetected && _svgContent != null) {
       // 已检测到 SVG，直接渲染
-      child = SvgPicture.string(
-        _svgContent!,
+      final si = ScalableImage.fromSvgString(_svgContent!, warnF: (_) {});
+      child = SizedBox(
         width: innerSize,
         height: innerSize,
-        fit: BoxFit.cover,
+        child: ScalableImageWidget(si: si, fit: BoxFit.cover),
       );
     } else {
       // 使用 CachedNetworkImage，解码失败时检测 SVG
@@ -252,11 +252,11 @@ class _SvgFallbackBuilderState extends State<_SvgFallbackBuilder> {
   @override
   Widget build(BuildContext context) {
     if (_svgContent != null) {
-      return SvgPicture.string(
-        _svgContent!,
+      final si = ScalableImage.fromSvgString(_svgContent!, warnF: (_) {});
+      return SizedBox(
         width: widget.size,
         height: widget.size,
-        fit: BoxFit.cover,
+        child: ScalableImageWidget(si: si, fit: BoxFit.cover),
       );
     }
 

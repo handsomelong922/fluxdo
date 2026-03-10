@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:jovial_svg/jovial_svg.dart';
 import '../services/preloaded_data_service.dart';
 import '../services/discourse/discourse_service.dart';
 import '../services/emoji_handler.dart';
@@ -161,10 +161,16 @@ class _PreheatLoadingState extends State<_PreheatLoading>
                               ),
                             ],
                           ),
-                          child: SvgPicture.asset(
-                            'assets/logo.svg',
+                          child: SizedBox(
                             width: 100,
                             height: 100,
+                            child: ScalableImageWidget.fromSISource(
+                              si: ScalableImageSource.fromSvg(
+                                DefaultAssetBundle.of(context),
+                                'assets/logo.svg',
+                                warnF: (_) {},
+                              ),
+                            ),
                           ),
                         ),
                       ),

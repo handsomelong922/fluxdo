@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:jovial_svg/jovial_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../constants.dart';
 import '../../services/discourse_cache_manager.dart';
@@ -141,7 +141,7 @@ class FlairBadge extends StatelessWidget {
     final imageSize = hasBgColor ? size * 0.7 : size;
     final fullUrl = _getFullFlairUrl();
 
-    // SVG 图片使用 DiscourseCacheManager 下载后用 flutter_svg 渲染
+    // SVG 图片使用 DiscourseCacheManager 下载后用 jovial_svg 渲染
     if (_isSvg) {
       return _SvgFlairBadge(
         url: fullUrl,
@@ -327,11 +327,11 @@ class _SvgFlairBadgeState extends State<_SvgFlairBadge> {
         color: Theme.of(context).colorScheme.outline,
       );
     } else {
-      content = SvgPicture.string(
-        _svgContent!,
+      final si = ScalableImage.fromSvgString(_svgContent!, warnF: (_) {});
+      content = SizedBox(
         width: widget.imageSize,
         height: widget.imageSize,
-        fit: BoxFit.contain,
+        child: ScalableImageWidget(si: si, fit: BoxFit.contain),
       );
     }
 

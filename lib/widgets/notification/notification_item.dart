@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:jovial_svg/jovial_svg.dart';
 import '../../models/notification.dart';
 import '../../constants.dart';
 import '../common/emoji_text.dart';
@@ -132,11 +132,12 @@ class NotificationItem extends StatelessWidget {
         break;
     }
     if (svgData != null) {
-      return SvgPicture.string(
-        svgData,
+      final si = ScalableImage.fromSvgString(svgData, warnF: (_) {})
+          .modifyTint(newTintColor: color, newTintMode: BlendMode.srcIn);
+      return SizedBox(
         width: 14,
         height: 14,
-        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+        child: ScalableImageWidget(si: si),
       );
     }
     return Icon(

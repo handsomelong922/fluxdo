@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:extended_image_lite/extended_image_lite.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:jovial_svg/jovial_svg.dart';
 import 'package:gal/gal.dart';
 import '../services/discourse_cache_manager.dart';
 import '../utils/double_tap_zoom_controller.dart';
@@ -784,7 +784,7 @@ class _ImageDecodeFallback extends StatefulWidget {
 }
 
 class _ImageDecodeFallbackState extends State<_ImageDecodeFallback> {
-  String? _svgContent;
+  ScalableImage? _svgSi;
   bool _checked = false;
   bool _isSvg = false;
   bool _isAvif = false;
@@ -805,9 +805,10 @@ class _ImageDecodeFallbackState extends State<_ImageDecodeFallback> {
       // 1. 先检测 SVG
       if (_isSvgContent(bytes)) {
         final svgString = SvgUtils.sanitize(String.fromCharCodes(bytes));
+        final si = ScalableImage.fromSvgString(svgString, warnF: (_) {});
         if (mounted) {
           setState(() {
-            _svgContent = svgString;
+            _svgSi = si;
             _isSvg = true;
             _checked = true;
           });
@@ -870,12 +871,9 @@ class _ImageDecodeFallbackState extends State<_ImageDecodeFallback> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isSvg && _svgContent != null) {
+    if (_isSvg && _svgSi != null) {
       return Center(
-        child: SvgPicture.string(
-          _svgContent!,
-          fit: BoxFit.contain,
-        ),
+        child: ScalableImageWidget(si: _svgSi!, fit: BoxFit.contain),
       );
     }
 

@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:jovial_svg/jovial_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -226,10 +226,16 @@ class _AboutPageState extends State<AboutPage> {
           const SizedBox(height: 40),
           // Logo Header
           Center(
-            child: SvgPicture.asset(
-              'assets/logo.svg',
+            child: SizedBox(
               width: 100,
               height: 100,
+              child: ScalableImageWidget.fromSISource(
+                si: ScalableImageSource.fromSvg(
+                  DefaultAssetBundle.of(context),
+                  'assets/logo.svg',
+                  warnF: (_) {},
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 24),

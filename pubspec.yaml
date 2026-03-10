@@ -46,7 +46,7 @@ dependencies:
   ai_model_manager:
     path: packages/ai_model_manager
   flutter_local_notifications: ^19.5.0
-  flutter_svg: ^2.2.3
+  jovial_svg: ^1.1.29
   html: ^0.15.5
   dio_smart_retry: ^7.0.1
   extended_nested_scroll_view: ^6.0.0
