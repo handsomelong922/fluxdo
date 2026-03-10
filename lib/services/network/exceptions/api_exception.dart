@@ -29,12 +29,15 @@ class PostEnqueuedException implements Exception {
 class CfChallengeException implements Exception {
   final bool userCancelled;
   final bool inCooldown;
-  CfChallengeException({this.userCancelled = false, this.inCooldown = false});
+  /// 原始错误（用于调试，保留验证/重试失败的实际原因）
+  final Object? cause;
+  CfChallengeException({this.userCancelled = false, this.inCooldown = false, this.cause});
 
   @override
   String toString() {
     if (inCooldown) return '请稍后再试';
     if (userCancelled) return '验证已取消';
+    if (cause != null) return '安全验证失败: $cause';
     return '安全验证失败，请重试';
   }
 }

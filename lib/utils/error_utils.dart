@@ -57,6 +57,29 @@ class ErrorUtils {
 
     // Dio 异常
     if (error is DioException) {
+      // 检查内嵌的自定义异常（如 CfChallengeException 通过 handler.reject 包装）
+      final innerError = error.error;
+      if (innerError is CfChallengeException) {
+        return ErrorInfo(
+          icon: Icons.shield_rounded,
+          title: '安全验证',
+          message: innerError.toString(),
+        );
+      }
+      if (innerError is RateLimitException) {
+        return ErrorInfo(
+          icon: Icons.speed_rounded,
+          title: '请求过于频繁',
+          message: innerError.toString(),
+        );
+      }
+      if (innerError is ServerException) {
+        return ErrorInfo(
+          icon: Icons.cloud_off_rounded,
+          title: '服务器不可用',
+          message: innerError.toString(),
+        );
+      }
       return _handleDioException(error);
     }
 

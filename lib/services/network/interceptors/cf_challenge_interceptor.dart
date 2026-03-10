@@ -85,10 +85,14 @@ class CfChallengeInterceptor extends Interceptor {
 
       // 检查是否在冷却期
       if (cfService.isInCooldown) {
-        debugPrint('[Dio] CF Challenge in cooldown, throwing exception');
+        debugPrint('[Dio] CF Challenge in cooldown, rejecting request');
         CfChallengeLogger.log('[INTERCEPTOR] Skipped: in cooldown');
         CfChallengeService.showGlobalMessage('安全验证失败，已进入冷却期，请稍后再试');
-        throw CfChallengeException(inCooldown: true);
+        return handler.reject(DioException(
+          requestOptions: err.requestOptions,
+          error: CfChallengeException(inCooldown: true),
+          type: DioExceptionType.unknown,
+        ));
       }
 
       // 检查请求是否标记为静默（后台验证）
@@ -105,7 +109,11 @@ class CfChallengeInterceptor extends Interceptor {
           debugPrint('[Dio] cf_clearance not found after sync, entering cooldown');
           cfService.startCooldown();
           CfChallengeService.showGlobalMessage('验证未生效，请稍后重试');
-          throw CfChallengeException();
+          return handler.reject(DioException(
+            requestOptions: err.requestOptions,
+            error: CfChallengeException(cause: 'cf_clearance cookie 同步失败'),
+            type: DioExceptionType.unknown,
+          ));
         }
 
         // 各自重试自己的原始请求（每个请求 URL/参数不同，无法共享）
@@ -115,6 +123,15 @@ class CfChallengeInterceptor extends Interceptor {
           // 清除原始请求中残留的 cookie header，让 CookieManager 重新读取最新的 cookie
           retryOptions.headers.remove('cookie');
           retryOptions.headers.remove('Cookie');
+          // 诊断：记录 CookieJar 中的 cookie 名称和 cf_clearance 状态
+          final cookieHeader = await cookieJarService.getCookieHeader();
+          final hasCfClearance = cookieHeader?.contains('cf_clearance=') ?? false;
+          final cookieNames = cookieHeader
+              ?.split('; ')
+              .map((c) => c.split('=').first)
+              .join(', ');
+          debugPrint('[Dio] Retry cookies: ${hasCfClearance ? "✓ 包含 cf_clearance" : "⚠️ 缺少 cf_clearance"}, '
+              'names=[$cookieNames], total=${cookieHeader?.length ?? 0} chars');
           final response = await dio.fetch(retryOptions);
           CfChallengeLogger.logInterceptorRetry(
             url: requestUrl,
@@ -123,32 +140,60 @@ class CfChallengeInterceptor extends Interceptor {
           );
           return handler.resolve(response);
         } catch (e) {
-          debugPrint('[Dio] Retry after CF verify failed: $e');
+          // 诊断：记录完整的重试失败信息
+          if (e is DioException) {
+            debugPrint('[Dio] Retry failed: status=${e.response?.statusCode}, '
+                'type=${e.type}, url=${e.requestOptions.uri}');
+            if (e.response?.statusCode == 403) {
+              debugPrint('[Dio] Retry got 403 again — cf_clearance may not have been sent or already expired');
+            }
+          } else {
+            debugPrint('[Dio] Retry failed (non-Dio): $e');
+          }
           CfChallengeLogger.logInterceptorRetry(
             url: requestUrl,
             success: false,
             error: e.toString(),
           );
-          // 重试失败不再 startCooldown，cookie 已验证有效，失败是其他原因
-          throw CfChallengeException();
+          // CF 验证已成功，重试失败是其他原因，传递实际错误以便排查
+          if (e is DioException) {
+            return handler.reject(e);
+          }
+          return handler.reject(DioException(
+            requestOptions: err.requestOptions,
+            error: e,
+            type: DioExceptionType.unknown,
+          ));
         }
       } else if (result == null) {
         // null 可能是冷却期内，也可能是无 context
         if (cfService.isInCooldown) {
           CfChallengeService.showGlobalMessage('安全验证失败，已进入冷却期，请稍后再试');
-          throw CfChallengeException(inCooldown: true);
+          return handler.reject(DioException(
+            requestOptions: err.requestOptions,
+            error: CfChallengeException(inCooldown: true),
+            type: DioExceptionType.unknown,
+          ));
         }
         // 无 context（应用刚启动，context 还没设置好）
         debugPrint(
             '[Dio] CF Challenge: no context available, cannot show verify page');
         CfChallengeLogger.log('[INTERCEPTOR] No context available');
         CfChallengeService.showGlobalMessage('无法打开验证页面，请稍后重试');
-        throw CfChallengeException(); // 通用错误，提示重试
+        return handler.reject(DioException(
+          requestOptions: err.requestOptions,
+          error: CfChallengeException(cause: '无法获取 context，验证页面未展示'),
+          type: DioExceptionType.unknown,
+        ));
       } else {
         // result == false：用户取消或验证失败
         CfChallengeLogger.log('[INTERCEPTOR] User cancelled or verify failed');
         CfChallengeService.showGlobalMessage('验证未完成，请重试');
-        throw CfChallengeException(userCancelled: true);
+        return handler.reject(DioException(
+          requestOptions: err.requestOptions,
+          error: CfChallengeException(userCancelled: true),
+          type: DioExceptionType.unknown,
+        ));
       }
     }
 

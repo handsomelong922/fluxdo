@@ -294,6 +294,10 @@ class _CfChallengePageState extends State<CfChallengePage> {
   static const _backgroundMaxCheckCount = 10;
   static const _foregroundMaxCheckCount = 60;
 
+  /// 验证页面加载时 WebView 中的 cf_clearance 快照
+  /// 用于区分「旧值残留」和「验证后新设的值」
+  String? _initialCfClearance;
+
   int get _activeMaxCheckCount =>
       _isBackground ? _backgroundMaxCheckCount : _foregroundMaxCheckCount;
 
@@ -301,6 +305,24 @@ class _CfChallengePageState extends State<CfChallengePage> {
   void initState() {
     super.initState();
     _isBackground = widget.startInBackground;
+    _snapshotInitialClearance();
+  }
+
+  /// 记录验证开始时 WebView 中的 cf_clearance（应为空，因为 showManualVerify 已删除）
+  Future<void> _snapshotInitialClearance() async {
+    try {
+      final cookie = await CookieManager.instance().getCookie(
+        url: WebUri(AppConstants.baseUrl),
+        name: 'cf_clearance',
+      );
+      _initialCfClearance = cookie?.value;
+      if (_initialCfClearance != null && _initialCfClearance!.isNotEmpty) {
+        debugPrint('[CfChallenge] ⚠️ 验证页加载时 WebView 仍存在旧 cf_clearance '
+            '(${_initialCfClearance!.length} chars)，将忽略该值');
+      }
+    } catch (e) {
+      debugPrint('[CfChallenge] 快照 cf_clearance 失败: $e');
+    }
   }
 
   @override
@@ -376,16 +398,46 @@ class _CfChallengePageState extends State<CfChallengePage> {
         url: WebUri(AppConstants.baseUrl),
         name: 'cf_clearance',
       );
-      if (cookie != null && cookie.value.isNotEmpty) {
-        debugPrint('[CfChallenge] 检测到 cf_clearance，验证成功');
-        CfChallengeLogger.logVerifyResult(
-          success: true,
-          reason: 'cf_clearance detected after challenge-platform response',
-        );
-        await CookieJarService().syncFromWebView();
-        _timeoutTimer?.cancel();
-        if (mounted) _finish(true);
+
+      if (cookie == null || cookie.value.isEmpty) {
+        debugPrint('[CfChallenge] 未检测到 cf_clearance，等待后续响应');
+        return;
       }
+
+      // 关键：对比初始快照，过滤掉未被清除干净的旧值
+      if (_initialCfClearance != null &&
+          _initialCfClearance!.isNotEmpty &&
+          cookie.value == _initialCfClearance) {
+        debugPrint('[CfChallenge] cf_clearance 与初始值相同（旧值残留），忽略');
+        return;
+      }
+
+      // cf_clearance 是新值，但需要确认页面已真正通过验证
+      // challenge-platform 在验证过程中有多次请求（脚本加载、初始化、提交等），
+      // 只有最终完成时页面才不再包含验证标记
+      final html = await _controller?.evaluateJavascript(
+        source: 'document.body ? document.body.innerHTML : ""',
+      );
+      if (html != null && CfChallengeService.isCfChallenge(html)) {
+        debugPrint('[CfChallenge] 检测到新 cf_clearance 但页面仍在验证中，继续等待');
+        return;
+      }
+
+      debugPrint('[CfChallenge] ✓ 验证完成：新 cf_clearance (${cookie.value.length} chars) 且页面已通过');
+      CfChallengeLogger.logVerifyResult(
+        success: true,
+        reason: 'new cf_clearance detected and page passed challenge',
+      );
+      await CookieJarService().syncFromWebView();
+      // 验证 cf_clearance 是否真正写入了 CookieJar
+      final synced = await CookieJarService().getCfClearance();
+      if (synced != null && synced.isNotEmpty) {
+        debugPrint('[CfChallenge] cf_clearance 已同步到 CookieJar (${synced.length} chars)');
+      } else {
+        debugPrint('[CfChallenge] ⚠️ syncFromWebView 后 CookieJar 中未找到 cf_clearance');
+      }
+      _timeoutTimer?.cancel();
+      if (mounted) _finish(true);
     } catch (e) {
       debugPrint('[CfChallenge] cookie 检查异常: $e');
     }
