@@ -1,6 +1,7 @@
 package com.github.lingyan000.fluxdo
 
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
@@ -27,8 +28,10 @@ class MainActivity : FlutterActivity() {
         // 强制重新分发 WindowInsets，修复 Android 15 旋转后 FlutterView 高度不更新的问题
         window.decorView.requestApplyInsets()
     }
+
     private val CHANNEL = "com.github.lingyan000.fluxdo/browser"
     private val CRASHLYTICS_CHANNEL = "com.github.lingyan000.fluxdo/crashlytics"
+    private val ICON_CHANNEL = "com.github.lingyan000.fluxdo/app_icon"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -74,6 +77,70 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ICON_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setAlternateIcon" -> {
+                    val iconName = call.argument<String?>("iconName")
+                    try {
+                        setAlternateIcon(iconName)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        Log.e("AppIcon", "切换图标失败: ${e.message}", e)
+                        result.error("ICON_CHANGE_FAILED", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    // ======================== 动态图标切换 ========================
+
+    /**
+     * 切换应用启动器图标。
+     * @param iconName activity-alias 短名（如 "ModernIcon"），null 表示恢复经典图标（DefaultIcon）
+     *
+     * 注意：.MainActivity 永远保持 enabled，不参与切换，
+     * 避免影响 adb / Flutter 工具链的直接启动。
+     */
+    private fun setAlternateIcon(iconName: String?) {
+        val pm = packageManager
+        val pkgName = packageName
+
+        // 目标 alias：null → 经典图标
+        val targetAlias = "$pkgName.${iconName ?: "DefaultIcon"}"
+
+        val flags = PackageManager.GET_ACTIVITIES or PackageManager.GET_DISABLED_COMPONENTS
+        val pkgInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.getPackageInfo(pkgName, PackageManager.PackageInfoFlags.of(flags.toLong()))
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(pkgName, flags)
+        }
+
+        val activities = pkgInfo.activities ?: throw IllegalStateException("No activities found")
+
+        // 先启用目标 alias，确保 app 始终可从启动器打开
+        pm.setComponentEnabledSetting(
+            ComponentName(pkgName, targetAlias),
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+            PackageManager.DONT_KILL_APP
+        )
+
+        // 禁用其他 alias（只操作 activity-alias，不碰 .MainActivity）
+        for (info in activities) {
+            if (info.targetActivity == null) continue  // 跳过主 Activity
+            if (info.name == targetAlias) continue      // 跳过目标
+
+            pm.setComponentEnabledSetting(
+                ComponentName(pkgName, info.name),
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP
+            )
+        }
+
+        Log.d("AppIcon", "图标已切换: ${iconName ?: "DefaultIcon"}")
     }
 
     // ======================== 应用链接解析与启动 ========================

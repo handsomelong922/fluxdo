@@ -29,9 +29,15 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!--
+                为 Flutter 工具链 / adb 提供 MAIN+LAUNCHER，使其能发现并启动 .MainActivity。
+                添加 data scheme 防止启动器匹配此 filter（launcher intent 无 data → 不匹配），
+                实际启动器入口由 activity-alias 提供。
+            -->
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <data android:scheme="fluxdo-launch" />
             </intent-filter>
             <!-- Deep Links for linux.do - 话题链接 -->
             <intent-filter android:autoVerify="true">
@@ -67,6 +73,30 @@
                 <data android:scheme="fluxdo" />
             </intent-filter>
         </activity>
+        <!-- 经典图标（默认启动入口） -->
+        <activity-alias
+            android:name=".DefaultIcon"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <!-- 现代备选图标（深浅色由 night 资源限定符自动切换） -->
+        <activity-alias
+            android:name=".ModernIcon"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_modern"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
         <!-- 禁用 Firebase 自动采集，由用户手动开启 -->
         <meta-data android:name="firebase_crashlytics_collection_enabled" android:value="false" />
         <meta-data android:name="firebase_analytics_collection_enabled" android:value="false" />

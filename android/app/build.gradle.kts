@@ -55,6 +55,14 @@ android {
         release {
             signingConfig = signingConfigs.getByName("release")
         }
+
+        debug {
+            signingConfig = signingConfigs.getByName("release")
+        }
+
+        getByName("profile") {
+            signingConfig = signingConfigs.getByName("release")
+        }
     }
 
     // 显式根据构建目标过滤 ABI，防止 Cronet 等原生库引入不需要的架构

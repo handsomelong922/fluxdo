@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:jovial_svg/jovial_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../pages/about_page.dart';
 import '../pages/network_settings_page/network_settings_page.dart';
+import '../providers/app_icon_provider.dart';
 import '../services/preloaded_data_service.dart';
 import '../services/discourse/discourse_service.dart';
 import '../services/emoji_handler.dart';
@@ -23,11 +25,23 @@ class PreheatGate extends StatefulWidget {
 class _PreheatGateState extends State<PreheatGate> {
   late Future<bool> _loadFuture;
   Object? _error;
+  AppIconStyle _iconStyle = AppIconStyle.classic;
 
   @override
   void initState() {
     super.initState();
+    _readIconStyle();
     _loadFuture = _preload();
+  }
+
+  void _readIconStyle() {
+    SharedPreferences.getInstance().then((prefs) {
+      final saved = prefs.getString('pref_app_icon');
+      final style = saved == 'modern' ? AppIconStyle.modern : AppIconStyle.classic;
+      if (mounted && style != _iconStyle) {
+        setState(() => _iconStyle = style);
+      }
+    });
   }
 
   Future<bool> _preload() async {
@@ -70,7 +84,11 @@ class _PreheatGateState extends State<PreheatGate> {
 
         Widget currentWidget;
         if (snapshot.connectionState != ConnectionState.done) {
-          currentWidget = _PreheatLoading(key: const ValueKey('loading'), onSkip: _skip);
+          currentWidget = _PreheatLoading(
+            key: const ValueKey('loading'),
+            onSkip: _skip,
+            iconStyle: _iconStyle,
+          );
         } else if (snapshot.data == true) {
           currentWidget = KeyedSubtree(
             key: const ValueKey('content'),
@@ -106,8 +124,9 @@ class _PreheatGateState extends State<PreheatGate> {
 
 class _PreheatLoading extends StatefulWidget {
   final VoidCallback? onSkip;
+  final AppIconStyle iconStyle;
 
-  const _PreheatLoading({super.key, this.onSkip});
+  const _PreheatLoading({super.key, this.onSkip, required this.iconStyle});
 
   @override
   State<_PreheatLoading> createState() => _PreheatLoadingState();
@@ -188,7 +207,11 @@ class _PreheatLoadingState extends State<_PreheatLoading>
                             child: ScalableImageWidget.fromSISource(
                               si: ScalableImageSource.fromSvg(
                                 DefaultAssetBundle.of(context),
-                                'assets/logo.svg',
+                                widget.iconStyle == AppIconStyle.modern
+                                    ? (Theme.of(context).brightness == Brightness.dark
+                                        ? 'assets/logo_modern.svg'
+                                        : 'assets/logo_modern_light.svg')
+                                    : 'assets/logo.svg',
                                 warnF: (_) {},
                               ),
                             ),

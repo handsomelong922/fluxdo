@@ -1,5 +1,9 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/app_icon_provider.dart';
 import '../providers/preferences_provider.dart';
 import '../providers/theme_provider.dart';
 
@@ -41,6 +45,14 @@ class AppearancePage extends ConsumerWidget {
           _buildSectionHeader(theme, '主题色彩', Icons.color_lens_outlined),
           const SizedBox(height: 16),
           _buildColorGrid(context, ref, themeState.seedColor, colorOptions),
+
+          // 应用图标（仅 iOS/Android）
+          if (!kIsWeb && (Platform.isIOS || Platform.isAndroid)) ...[
+            const SizedBox(height: 32),
+            _buildSectionHeader(theme, '应用图标', Icons.app_shortcut_outlined),
+            const SizedBox(height: 16),
+            _buildIconSelector(context, ref),
+          ],
 
           const SizedBox(height: 32),
 
@@ -144,6 +156,132 @@ class AppearancePage extends ConsumerWidget {
               onChanged: (value) {
                 ref.read(preferencesProvider.notifier).setDisplayPanguSpacing(value);
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIconSelector(BuildContext context, WidgetRef ref) {
+    final iconState = ref.watch(appIconProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Row(
+      children: [
+        _buildIconOption(
+          context, ref,
+          style: AppIconStyle.classic,
+          label: '经典',
+          assetPath: isDark
+              ? 'assets/images/icon_default_dark_preview.png'
+              : 'assets/images/icon_default_preview.png',
+          isSelected: iconState.currentStyle == AppIconStyle.classic,
+          isChanging: iconState.isChanging,
+          theme: theme,
+        ),
+        const SizedBox(width: 20),
+        _buildIconOption(
+          context, ref,
+          style: AppIconStyle.modern,
+          label: '现代',
+          assetPath: isDark
+              ? 'assets/images/icon_modern_preview.png'
+              : 'assets/images/icon_modern_light_preview.png',
+          isSelected: iconState.currentStyle == AppIconStyle.modern,
+          isChanging: iconState.isChanging,
+          theme: theme,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIconOption(
+    BuildContext context,
+    WidgetRef ref, {
+    required AppIconStyle style,
+    required String label,
+    required String assetPath,
+    required bool isSelected,
+    required bool isChanging,
+    required ThemeData theme,
+  }) {
+    return GestureDetector(
+      onTap: isChanging
+          ? null
+          : () async {
+              final success = await ref
+                  .read(appIconProvider.notifier)
+                  .setIconStyle(style);
+              if (!success && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('切换图标失败，请稍后重试')),
+                );
+              }
+            },
+      child: Column(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isSelected
+                    ? theme.colorScheme.primary
+                    : Colors.transparent,
+                width: 2.5,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Stack(
+                children: [
+                  Image.asset(
+                    assetPath,
+                    width: 72,
+                    height: 72,
+                    fit: BoxFit.cover,
+                  ),
+                  if (isChanging && isSelected)
+                    Container(
+                      width: 72,
+                      height: 72,
+                      color: Colors.black26,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
         ],
