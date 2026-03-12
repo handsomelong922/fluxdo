@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 
 import 'preloaded_data_service.dart';
-import '../constants.dart';
 import '../utils/url_helper.dart';
 
 /// Emoji URL 解析器
@@ -64,6 +63,6 @@ class EmojiHandler {
       return UrlHelper.resolveUrl(customUrl);
     }
     // 标准 emoji，URL 确定性拼接（与 Discourse buildEmojiUrl 一致）
-    return '${AppConstants.baseUrl}/images/emoji/twitter/$name.png?v=12';
+    return UrlHelper.resolveUrl('/images/emoji/twitter/$name.png?v=12');
   }
 }

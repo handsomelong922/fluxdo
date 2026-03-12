@@ -12,6 +12,16 @@ FluxDO 是为 [Linux.do](https://linux.do/) 社区打造的现代化移动和桌
 <a href="https://github.com/lingyan000/fluxdo/releases"><img alt="Get it on GitHub" src="https://img.shields.io/github/v/release/lingyan000/fluxdo?style=for-the-badge&logo=github&label=GitHub%20Releases" /></a>
 <a href="altstore://source?url=https://lingyan000.github.io/fluxdo/source.json"><img alt="Add to AltStore" src="https://img.shields.io/badge/AltStore-Add_Source-0c6bff?style=for-the-badge&logo=apple" /></a>
 
+### AltStore 安装
+
+1. 在 iOS 设备上安装 [AltStore](https://altstore.io/)
+2. 打开 AltStore，进入 **Browse** → **Sources** → 点击左上角 **+**
+3. 粘贴源地址：
+   ```
+   https://lingyan000.github.io/fluxdo/source.json
+   ```
+4. 在源中找到 FluxDO 并安装
+
 ![FluxDO 预览](screenshots/preview.png)
 
 ## 特性

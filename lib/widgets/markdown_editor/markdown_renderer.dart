@@ -3,6 +3,7 @@ import 'package:markdown/markdown.dart' as md;
 import '../content/discourse_html_content/discourse_html_content.dart';
 import '../../services/emoji_handler.dart';
 import '../../constants.dart';
+import '../../utils/url_helper.dart';
 
 /// Markdown 预览组件
 /// 使用官方 markdown 包将 Markdown 转换为 HTML，
@@ -89,11 +90,7 @@ class MarkdownBody extends StatelessWidget {
       var src = match.group(4) ?? '';
       
       // 处理相对路径
-      if (src.startsWith('//')) {
-        src = 'https:$src';
-      } else if (src.startsWith('/')) {
-        src = '${AppConstants.baseUrl}$src';
-      }
+      src = UrlHelper.resolveUrl(src);
       
       return '\n\n<img src="$src" alt="$alt" width="$width" height="$height">\n\n';
     });

@@ -37,6 +37,7 @@ class PreloadedDataService {
   List<String>? _enabledReactions;
   String? _sharedSessionKey;  // MessageBus 跨域认证 key
   String? _longPollingBaseUrl;  // MessageBus 独立域名
+  String? _cdnUrl;  // CDN 域名（从 data-discourse-setup 提取）
   bool _loaded = false;
   bool _loading = false;
 
@@ -240,6 +241,9 @@ class PreloadedDataService {
   /// 获取 MessageBus 长轮询 base URL（独立域名，如 https://ping.linux.do）
   String? get longPollingBaseUrl => _longPollingBaseUrl;
 
+  /// 获取 CDN URL（如 https://cdn.linux.do）
+  String? get cdnUrl => _cdnUrl;
+
   /// 获取 MessageBus 频道的初始 message ID
   /// 返回格式: {'/latest': 6855147, '/new': 104155, ...}
   Future<Map<String, dynamic>?> getTopicTrackingStateMeta() async {
@@ -329,6 +333,7 @@ class PreloadedDataService {
     _topicTrackingStateMeta = null;
     _sharedSessionKey = null;
     _longPollingBaseUrl = null;
+    _cdnUrl = null;
     await _loadPreloadedData();
   }
 
@@ -347,6 +352,7 @@ class PreloadedDataService {
     _enabledReactions = null;
     _sharedSessionKey = null;
     _longPollingBaseUrl = null;
+    _cdnUrl = null;
   }
 
   /// 确保数据已加载
@@ -399,6 +405,7 @@ class PreloadedDataService {
     _extractCsrfTokenFromHtml(html);
     _extractSharedSessionKeyFromHtml(html);
     _extractTurnstileSitekeyFromHtml(html);
+    _extractCdnUrlFromHtml(html);
     // 提取 data-preloaded 属性内容
     final match = RegExp(r'data-preloaded="([^"]*)"').firstMatch(html);
     if (match == null) {
@@ -452,6 +459,22 @@ class PreloadedDataService {
     final sitekey = match.group(1);
     if (sitekey != null && sitekey.isNotEmpty) {
       CfClearanceRefreshService().updateSitekey(sitekey);
+    }
+  }
+
+  /// 从 HTML 中提取 CDN URL（data-discourse-setup meta 标签的 data-cdn 属性）
+  void _extractCdnUrlFromHtml(String html) {
+    // 匹配 <meta id="data-discourse-setup" ... data-cdn="https://cdn.linux.do" ...>
+    final match = RegExp(
+      r'''id=["']data-discourse-setup["'][^>]*\bdata-cdn=["']([^"']+)["']''',
+      caseSensitive: false,
+    ).firstMatch(html);
+    if (match == null) return;
+    final cdn = match.group(1);
+    if (cdn != null && cdn.isNotEmpty) {
+      // 移除末尾斜杠
+      _cdnUrl = cdn.endsWith('/') ? cdn.substring(0, cdn.length - 1) : cdn;
+      debugPrint('[PreloadedData] cdnUrl: $_cdnUrl');
     }
   }
 

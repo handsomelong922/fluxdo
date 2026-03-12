@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import '../../../../services/discourse_cache_manager.dart';
+import '../../../../utils/url_helper.dart';
 import '../image_utils.dart';
 import '../../lazy_load_scope.dart';
 import 'image_carousel_builder.dart';
@@ -103,13 +104,13 @@ List<GridImageData> extractGridImages(dynamic element) {
 
     // 处理相对路径（但保留 upload:// 协议）
     if (!DiscourseImageUtils.isUploadUrl(src)) {
-      src = DiscourseImageUtils.resolveUrl(src);
+      src = UrlHelper.resolveUrl(src);
     }
 
     // 尝试获取原图链接
     String? fullSrc = DiscourseImageUtils.findOriginalImageUrl(img);
     if (fullSrc != null && !DiscourseImageUtils.isUploadUrl(fullSrc)) {
-      fullSrc = DiscourseImageUtils.resolveUrl(fullSrc);
+      fullSrc = UrlHelper.resolveUrl(fullSrc);
     }
 
     // 尝试获取宽高

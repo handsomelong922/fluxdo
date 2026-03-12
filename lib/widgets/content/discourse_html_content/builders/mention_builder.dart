@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:html/dom.dart' as dom;
-import '../../../../constants.dart';
 import '../../../../pages/user_profile_page.dart';
 import '../../../../services/discourse_cache_manager.dart';
 import '../../../../utils/discourse_url_parser.dart';
+import '../../../../utils/url_helper.dart';
 
 /// 构建用户提及链接
 Widget? buildMention({
@@ -81,11 +81,7 @@ Widget _buildStatusEmoji(dom.Element imgElement, double size) {
   if (src.isEmpty) return const SizedBox.shrink();
 
   // 将相对路径转换为绝对路径
-  final resolvedSrc = src.startsWith('//')
-      ? 'https:$src'
-      : src.startsWith('/')
-          ? '${AppConstants.baseUrl}$src'
-          : src;
+  final resolvedSrc = UrlHelper.resolveUrl(src);
 
   return Image(
     image: emojiImageProvider(resolvedSrc),

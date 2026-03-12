@@ -5,13 +5,13 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jovial_svg/jovial_svg.dart';
 import 'package:pangutext/pangutext.dart';
-import '../../../constants.dart';
 import '../../../models/topic.dart';
 import '../../../providers/preferences_provider.dart';
 import '../../../services/discourse/discourse_service.dart';
 import '../../../services/emoji_handler.dart';
 import '../../../utils/discourse_url_parser.dart';
 import '../../../utils/link_launcher.dart';
+import '../../../utils/url_helper.dart';
 import 'discourse_widget_factory.dart';
 import 'builders/quote_card_builder.dart';
 import 'builders/onebox_card_builder.dart';
@@ -228,11 +228,7 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
       (match) {
         final attr = match.group(1)!;
         final path = match.group(2)!;
-        // 处理协议相对路径 //
-        if (path.startsWith('//')) {
-          return '$attr="https:$path"';
-        }
-        return '$attr="${AppConstants.baseUrl}$path"';
+        return '$attr="${UrlHelper.resolveUrl(path)}"';
       },
     );
 
@@ -888,12 +884,7 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     for (final anchor in lightboxLinks) {
       final href = anchor.attributes['href'] as String?;
       if (href != null && href.isNotEmpty) {
-        var url = href;
-        if (url.startsWith('//')) {
-          url = 'https:$url';
-        } else if (url.startsWith('/')) {
-          url = '${AppConstants.baseUrl}$url';
-        }
+        final url = UrlHelper.resolveUrl(href);
         _revealedImageUrls.add(url);
       }
     }

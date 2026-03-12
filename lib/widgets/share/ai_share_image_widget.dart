@@ -5,6 +5,7 @@ import 'package:jovial_svg/jovial_svg.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../../constants.dart';
 import '../../services/emoji_handler.dart';
+import '../../utils/url_helper.dart';
 import '../../utils/time_utils.dart';
 import '../common/emoji_text.dart';
 import '../content/discourse_html_content/discourse_html_content_widget.dart';
@@ -264,11 +265,7 @@ class AiShareImageWidget extends StatelessWidget {
       final height = match.group(3)!;
       var src = match.group(4) ?? '';
 
-      if (src.startsWith('//')) {
-        src = 'https:$src';
-      } else if (src.startsWith('/')) {
-        src = '${AppConstants.baseUrl}$src';
-      }
+      src = UrlHelper.resolveUrl(src);
 
       return '\n\n<img src="$src" alt="$alt" width="$width" height="$height">\n\n';
     });

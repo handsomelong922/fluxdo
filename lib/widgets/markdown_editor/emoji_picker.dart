@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/emoji.dart';
 import '../../providers/discourse_providers.dart';
-import '../../services/discourse/discourse_service.dart';
-import '../content/discourse_image.dart';
+import '../../services/emoji_handler.dart';
+import '../../services/discourse_cache_manager.dart';
 import '../common/loading_spinner.dart';
 
 /// 常用表情的 Key
@@ -313,8 +313,8 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
         message: ':${emoji.name}:',
         child: Padding(
           padding: const EdgeInsets.all(4.0),
-          child: DiscourseImage(
-             url: DiscourseService.baseUrl + emoji.url,
+          child: Image(
+             image: emojiImageProvider(EmojiHandler().getEmojiUrl(emoji.name)),
              fit: BoxFit.contain,
           ),
         ),
@@ -511,8 +511,8 @@ class _EmojiSearchSheetState extends State<_EmojiSearchSheet> {
                               message: ':${emoji.name}:',
                               child: Padding(
                                 padding: const EdgeInsets.all(4.0),
-                                child: DiscourseImage(
-                                  url: DiscourseService.baseUrl + emoji.url,
+                                child: Image(
+                                  image: emojiImageProvider(EmojiHandler().getEmojiUrl(emoji.name)),
                                   fit: BoxFit.contain,
                                 ),
                               ),

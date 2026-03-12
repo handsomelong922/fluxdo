@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../../../../constants.dart';
 import '../../../../utils/layout_lock.dart';
+import '../../../../utils/url_helper.dart';
 import '../../../../pages/webview_page.dart';
 
 /// 是否需要交互遮罩（macOS 上 WebView 会捕获滚动事件）
@@ -123,15 +124,7 @@ class IframeAttributes {
   }
 
   /// 获取完整 URL
-  String get fullUrl {
-    if (src.startsWith('//')) {
-      return 'https:$src';
-    }
-    if (src.startsWith('/')) {
-      return '${AppConstants.baseUrl}$src';
-    }
-    return src;
-  }
+  String get fullUrl => UrlHelper.resolveUrl(src);
 }
 
 /// 构建 iframe Widget

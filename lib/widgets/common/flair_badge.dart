@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:jovial_svg/jovial_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../../constants.dart';
 import '../../services/discourse_cache_manager.dart';
+import '../../services/emoji_handler.dart';
 import '../../utils/svg_utils.dart';
 import '../../utils/font_awesome_helper.dart';
+import '../../utils/url_helper.dart';
 
 /// Flair 徽章组件
 /// 用于在头像右下角显示用户的群组/身份标识
@@ -75,23 +76,13 @@ class FlairBadge extends StatelessWidget {
   String _getFullFlairUrl() {
     if (flairUrl == null || flairUrl!.isEmpty) return '';
 
-    // 如果已经是完整 URL，直接返回
-    if (flairUrl!.startsWith('http://') || flairUrl!.startsWith('https://')) {
-      return flairUrl!;
-    }
-
     // 检查是否是 emoji 名称（如 :heart:）
     if (flairUrl!.startsWith(':') && flairUrl!.endsWith(':')) {
       final emojiName = flairUrl!.substring(1, flairUrl!.length - 1);
-      return '${AppConstants.baseUrl}/images/emoji/twitter/$emojiName.png?v=12';
+      return EmojiHandler().getEmojiUrl(emojiName);
     }
 
-    // 相对路径，拼接 baseUrl
-    if (flairUrl!.startsWith('/')) {
-      return '${AppConstants.baseUrl}$flairUrl';
-    }
-
-    return '${AppConstants.baseUrl}/$flairUrl';
+    return UrlHelper.resolveUrl(flairUrl!);
   }
 
   @override

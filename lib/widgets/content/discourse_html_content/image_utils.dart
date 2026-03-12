@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:html/parser.dart' as html_parser;
-import '../../../constants.dart';
 import '../../../pages/image_viewer_page.dart';
 import '../../../services/discourse/discourse_service.dart';
+import '../../../utils/url_helper.dart';
 
 /// 画廊信息类
 /// 同时保存缩略图 URL（用于匹配）和原图 URL（用于显示）
@@ -94,12 +94,7 @@ class GalleryInfo {
       final href = anchor.attributes['href'];
       if (href == null || href.isEmpty) continue;
 
-      var originalUrl = href;
-      if (originalUrl.startsWith('//')) {
-        originalUrl = 'https:$originalUrl';
-      } else if (originalUrl.startsWith('/')) {
-        originalUrl = '${AppConstants.baseUrl}$originalUrl';
-      }
+      var originalUrl = UrlHelper.resolveUrl(href);
 
       // 文件名：从 a.lightbox 的 title 获取
       final filename = anchor.attributes['title'];
@@ -108,11 +103,7 @@ class GalleryInfo {
       final img = anchor.querySelector('img');
       var thumbnailUrl = img?.attributes['src'];
       if (thumbnailUrl != null) {
-        if (thumbnailUrl.startsWith('//')) {
-          thumbnailUrl = 'https:$thumbnailUrl';
-        } else if (thumbnailUrl.startsWith('/')) {
-          thumbnailUrl = '${AppConstants.baseUrl}$thumbnailUrl';
-        }
+        thumbnailUrl = UrlHelper.resolveUrl(thumbnailUrl);
       }
 
       final index = originalUrls.length;
@@ -184,7 +175,7 @@ class GalleryInfo {
     }
     
     // 2. 尝试 resolveUrl 后查找（处理相对路径）
-    final resolvedUrl = DiscourseImageUtils.resolveUrl(imageUrl);
+    final resolvedUrl = UrlHelper.resolveUrl(imageUrl);
     if (_thumbnailToIndex.containsKey(resolvedUrl)) {
       return _thumbnailToIndex[resolvedUrl];
     }
@@ -355,15 +346,6 @@ class DiscourseImageUtils {
         lowerUrl.contains('/original/');
   }
 
-  /// 将相对路径转换为绝对路径
-  static String resolveUrl(String url) {
-    if (url.startsWith('//')) {
-      return 'https:$url';
-    } else if (url.startsWith('/')) {
-      return '${AppConstants.baseUrl}$url';
-    }
-    return url;
-  }
 
   /// 打开图片查看器（过滤不可见的 spoiler 图片）
   /// 根据 [revealedImageUrls] 过滤画廊，只显示非 spoiler 图片和已揭示的 spoiler 图片
