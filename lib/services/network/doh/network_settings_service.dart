@@ -191,6 +191,29 @@ class NetworkSettingsService {
     _touch();
   }
 
+  Future<void> updateCustomServer(DohServer oldServer, DohServer newServer) async {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    final updated = notifier.value.customServers
+        .map((s) => s.url == oldServer.url ? newServer : s)
+        .toList();
+    final selectedUrl = notifier.value.selectedServerUrl;
+    final newSelected = selectedUrl == oldServer.url ? newServer.url : selectedUrl;
+    notifier.value = notifier.value.copyWith(
+      customServers: updated,
+      selectedServerUrl: newSelected,
+    );
+    if (newSelected != selectedUrl) {
+      _resolver.updateServer(newSelected, bootstrapIps: _getBootstrapIps(newSelected));
+      _scheduleApplyProxyState();
+    }
+    await prefs.setString(_dohCustomKey, jsonEncode(updated.map((e) => e.toJson()).toList()));
+    if (newSelected != selectedUrl) {
+      await prefs.setString(_dohSelectedKey, newSelected);
+    }
+    _touch();
+  }
+
   Future<void> removeCustomServer(DohServer server) async {
     final prefs = _prefs;
     if (prefs == null) return;

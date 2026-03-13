@@ -382,18 +382,54 @@ class _DohSettingsCardState extends State<DohSettingsCard> {
               ),
             ),
 
-          // 删除按钮（仅自定义服务器）
-          if (server.isCustom)
-            IconButton(
-              icon: Icon(
-                Icons.delete_outline,
-                size: 20,
-                color: theme.colorScheme.error,
+          // 更多操作按钮
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, size: 20, color: theme.colorScheme.onSurfaceVariant),
+            tooltip: '更多',
+            padding: EdgeInsets.zero,
+            onSelected: (value) {
+              switch (value) {
+                case 'copy':
+                  Clipboard.setData(ClipboardData(text: server.url));
+                  ToastService.showInfo('已复制 DoH 地址');
+                case 'edit':
+                  _showEditServerDialog(server);
+                case 'delete':
+                  _confirmDeleteServer(server);
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'copy',
+                child: ListTile(
+                  leading: Icon(Icons.copy, size: 20),
+                  title: Text('复制地址'),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
               ),
-              tooltip: '删除',
-              onPressed: () => _confirmDeleteServer(server),
-              visualDensity: VisualDensity.compact,
-            ),
+              if (server.isCustom) ...[
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: ListTile(
+                    leading: Icon(Icons.edit, size: 20),
+                    title: Text('编辑'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(Icons.delete_outline, size: 20, color: theme.colorScheme.error),
+                    title: Text('删除', style: TextStyle(color: theme.colorScheme.error)),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ],
       ),
       selected: selected,
@@ -503,6 +539,68 @@ class _DohSettingsCardState extends State<DohSettingsCard> {
 
     if (result != null) {
       await _service.addCustomServer(result);
+    }
+  }
+
+  Future<void> _showEditServerDialog(DohServer server) async {
+    final nameController = TextEditingController(text: server.name);
+    final urlController = TextEditingController(text: server.url);
+
+    final result = await showDialog<DohServer>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('编辑服务器'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: '名称',
+                  hintText: '例如：My DNS',
+                ),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: urlController,
+                decoration: const InputDecoration(
+                  labelText: 'DoH 地址',
+                  hintText: 'https://dns.example.com/dns-query',
+                ),
+                keyboardType: TextInputType.url,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final name = nameController.text.trim();
+                final url = urlController.text.trim();
+                if (name.isEmpty || url.isEmpty) {
+                  ToastService.showInfo('请填写完整信息');
+                  return;
+                }
+                if (!url.startsWith('https://')) {
+                  ToastService.showError('地址必须以 https:// 开头');
+                  return;
+                }
+                Navigator.pop(context, DohServer(name: name, url: url, isCustom: true));
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != null) {
+      await _service.updateCustomServer(server, result);
     }
   }
 
