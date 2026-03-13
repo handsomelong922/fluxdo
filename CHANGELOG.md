@@ -1,3 +1,31 @@
+## v0.1.51
+
+- ✨ 表情包支持，感谢 @stevessr
+
+- ✨ 提升网络请求稳定性
+
+- ✨ VPN 自动切换，close #115
+
+- ✨ DOH 支持复制地址、编辑，close #138，close #100
+
+- ✨ 更新 doh_proxy
+
+- ✨ FAB 子按钮支持
+
+- ✨ improve upstream proxy support on android (#125)
+
+- ✨ 帖子内容优化
+
+- ✨ 用户封禁显示，close #139
+
+- ✨ 支持图标切换
+
+- ✨ 图片批量上传，close #130
+
+- ✨ 图片查看器手势优化
+
+- ✨ MacOS 图标优化
+
 ## v0.1.50
 
 - 🐛 修复部分图片资源无法加载
