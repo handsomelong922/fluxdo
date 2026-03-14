@@ -144,7 +144,7 @@ class EmojiCacheManager extends CacheManager with ImageCacheManager {
 /// 通用外部图片缓存管理器
 ///
 /// 用于第三方服务的图片（如 mermaid.ink、GitHub 等）
-/// 使用流式下载，但不携带 Discourse 认证信息
+/// 使用默认 HTTP 客户端，不需要 Discourse 认证
 class ExternalImageCacheManager extends CacheManager with ImageCacheManager {
   static const String key = 'externalImageCache';
   static ExternalImageCacheManager? _instance;
@@ -157,10 +157,33 @@ class ExternalImageCacheManager extends CacheManager with ImageCacheManager {
   ExternalImageCacheManager._() : super(
     Config(
       key,
-      stalePeriod: const Duration(days: 30), // 外部图片缓存更久
+      stalePeriod: const Duration(days: 30),
       maxNrOfCacheObjects: 200,
       repo: JsonCacheInfoRepository(databaseName: key),
-      // 使用默认 HTTP 客户端，不需要 Discourse 认证
+    ),
+  );
+}
+
+/// 表情包（Sticker）专用缓存管理器
+///
+/// 与 emoji / 内容图片分离，使用 DioHttpClient 携带 Sec-CH-UA 等请求头。
+/// 表情包图片体积较大、数量多，独立缓存避免互相淘汰。
+class StickerCacheManager extends CacheManager with ImageCacheManager {
+  static const String key = 'stickerImageCache';
+  static StickerCacheManager? _instance;
+
+  factory StickerCacheManager() {
+    _instance ??= StickerCacheManager._();
+    return _instance!;
+  }
+
+  StickerCacheManager._() : super(
+    Config(
+      key,
+      stalePeriod: const Duration(days: 30),
+      maxNrOfCacheObjects: 2000,
+      repo: JsonCacheInfoRepository(databaseName: key),
+      fileService: HttpFileService(httpClient: DioHttpClient()),
     ),
   );
 }
@@ -205,5 +228,19 @@ ImageProvider emojiImageProvider(String url, {double scale = 1.0}) {
     url,
     scale: scale,
     cacheManager: EmojiCacheManager(),
+  );
+}
+
+/// 创建表情包（Sticker）图片 Provider
+///
+/// 使用独立的 [StickerCacheManager]，AVIF URL 自动使用 AvifImageProvider 解码
+ImageProvider stickerImageProvider(String url, {double scale = 1.0}) {
+  if (_isAvifUrl(url)) {
+    return AvifImageProvider(url, scale: scale, cacheManager: StickerCacheManager());
+  }
+  return CachedNetworkImageProvider(
+    url,
+    scale: scale,
+    cacheManager: StickerCacheManager(),
   );
 }

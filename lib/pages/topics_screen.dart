@@ -241,9 +241,15 @@ class _TopicsFabState extends ConsumerState<_TopicsFab>
     }
   }
 
-  void _close() {
+  void _close({bool immediately = false}) {
     if (!_isExpanded) return;
     setState(() => _isExpanded = false);
+    if (immediately) {
+      _controller.stop();
+      _controller.value = 0;
+      _removeOverlay();
+      return;
+    }
     _controller.reverse().then((_) {
       _removeOverlay();
     });
@@ -270,6 +276,7 @@ class _TopicsFabState extends ConsumerState<_TopicsFab>
           // 子按钮：定位到主 FAB 上方
           CompositedTransformFollower(
             link: _layerLink,
+            showWhenUnlinked: false,
             targetAnchor: Alignment.topRight,
             followerAnchor: Alignment.bottomRight,
             offset: const Offset(0, -16),
@@ -281,7 +288,7 @@ class _TopicsFabState extends ConsumerState<_TopicsFab>
                   icon: Icons.drafts_outlined,
                   label: '我的草稿',
                   onTap: () {
-                    _close();
+                    _close(immediately: true);
                     widget.onOpenDrafts();
                   },
                   theme: theme,
@@ -291,7 +298,7 @@ class _TopicsFabState extends ConsumerState<_TopicsFab>
                   icon: Icons.edit_outlined,
                   label: '创建话题',
                   onTap: () {
-                    _close();
+                    _close(immediately: true);
                     widget.onCreateTopic();
                   },
                   theme: theme,

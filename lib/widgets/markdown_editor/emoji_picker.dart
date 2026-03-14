@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/emoji.dart';
 import '../../providers/discourse_providers.dart';
 import '../../services/emoji_handler.dart';
 import '../../services/discourse_cache_manager.dart';
+import '../common/cached_image.dart';
 import '../common/loading_spinner.dart';
 
 /// 常用表情的 Key
@@ -33,12 +35,16 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
     with AutomaticKeepAliveClientMixin {
   List<String> _recentEmojiNames = [];
 
+  /// 面板打开时快照，避免实时刷新影响体验
+  List<String>? _recentEmojiSnapshot;
+
   final ScrollController _scrollController = ScrollController();
   final ScrollController _tabScrollController = ScrollController();
   final GlobalKey _contentAreaKey = GlobalKey();
   List<GlobalKey> _groupKeys = [];
   int _activeGroupIndex = 0;
   bool _isProgrammaticScroll = false;
+  bool _scrollThrottled = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -62,7 +68,12 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
   Future<void> _loadRecentEmojis() async {
     final prefs = await SharedPreferences.getInstance();
     final names = prefs.getStringList(_recentEmojisKey) ?? [];
-    if (mounted) setState(() => _recentEmojiNames = names);
+    if (mounted) {
+      setState(() {
+        _recentEmojiNames = names;
+        _recentEmojiSnapshot = names.toList();
+      });
+    }
   }
 
   Future<void> _saveRecentEmoji(String emojiName) async {
@@ -73,7 +84,7 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_recentEmojisKey, _recentEmojiNames);
-    if (mounted) setState(() {});
+    // 不调用 setState，下次打开面板时才更新显示
   }
 
   void _onEmojiTap(Emoji emoji) {
@@ -84,8 +95,12 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
   // ==================== 滚动锚点 ====================
 
   void _onScroll() {
-    if (_isProgrammaticScroll) return;
-    _updateActiveGroup();
+    if (_isProgrammaticScroll || _scrollThrottled) return;
+    _scrollThrottled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _scrollThrottled = false;
+      if (mounted) _updateActiveGroup();
+    });
   }
 
   void _updateActiveGroup() {
@@ -157,14 +172,7 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
     );
 
     if (selectedEmoji != null) {
-      _recentEmojiNames.remove(selectedEmoji.name);
-      _recentEmojiNames.insert(0, selectedEmoji.name);
-      if (_recentEmojiNames.length > _maxRecentEmojis) {
-        _recentEmojiNames = _recentEmojiNames.sublist(0, _maxRecentEmojis);
-      }
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(_recentEmojisKey, _recentEmojiNames);
-      if (mounted) setState(() {});
+      _saveRecentEmoji(selectedEmoji.name);
       onSelected(selectedEmoji);
     }
   }
@@ -216,16 +224,17 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
   Widget _buildContent(Map<String, List<Emoji>> emojiGroups) {
     if (emojiGroups.isEmpty) return const Center(child: Text('没有找到表情'));
 
-    // 构建常用表情
+    // 构建最近使用的表情（使用快照）
     final recentEmojis = <Emoji>[];
-    if (_recentEmojiNames.isNotEmpty) {
+    final recentNames = _recentEmojiSnapshot ?? _recentEmojiNames;
+    if (recentNames.isNotEmpty) {
       final allEmojisMap = <String, Emoji>{};
       for (final group in emojiGroups.values) {
         for (final emoji in group) {
           allEmojisMap[emoji.name] = emoji;
         }
       }
-      for (final name in _recentEmojiNames) {
+      for (final name in recentNames) {
         final emoji = allEmojisMap[name];
         if (emoji != null) recentEmojis.add(emoji);
       }
@@ -250,6 +259,7 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
           key: _contentAreaKey,
           child: CustomScrollView(
             controller: _scrollController,
+            cacheExtent: 500,
             slivers: _buildSlivers(
                 emojiGroups, groupKeys, hasRecent, recentEmojis),
           ),
@@ -262,6 +272,10 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
       List<String> groupKeys, bool hasRecent) {
     final theme = Theme.of(context);
     final totalTabs = (hasRecent ? 1 : 0) + groupKeys.length;
+    const tabSlotWidth = 40.0;
+    const tabWidth = 36.0;
+    const tabMargin = 2.0;
+    final activeIndex = _activeGroupIndex.clamp(0, totalTabs - 1);
 
     return Row(
       children: [
@@ -276,53 +290,75 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
         Expanded(
           child: SizedBox(
             height: 40,
-            child: ListView.builder(
+            child: SingleChildScrollView(
               controller: _tabScrollController,
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              itemCount: totalTabs,
-              itemBuilder: (context, index) {
-                final isActive = _activeGroupIndex == index;
-                Widget icon;
-                if (hasRecent && index == 0) {
-                  icon = Icon(
-                    Icons.access_time,
-                    size: 20,
-                    color: isActive
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                  );
-                } else {
-                  final groupIndex = hasRecent ? index - 1 : index;
-                  final firstEmoji =
-                      emojiGroups[groupKeys[groupIndex]]!.first;
-                  icon = SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: Image(
-                      image: emojiImageProvider(
-                          EmojiHandler().getEmojiUrl(firstEmoji.name)),
-                      fit: BoxFit.contain,
+              child: SizedBox(
+                width: totalTabs * tabSlotWidth,
+                height: 40,
+                child: Stack(
+                  children: [
+                    // 滑动指示器
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                      left: activeIndex * tabSlotWidth + tabMargin,
+                      top: 4,
+                      bottom: 4,
+                      width: tabWidth,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer
+                              .withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
                     ),
-                  );
-                }
-                return GestureDetector(
-                  onTap: () => _scrollToGroup(index),
-                  child: Container(
-                    width: 36,
-                    margin: const EdgeInsets.symmetric(
-                        horizontal: 2, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isActive
-                          ? theme.colorScheme.primaryContainer
-                              .withValues(alpha: 0.5)
-                          : null,
-                      borderRadius: BorderRadius.circular(8),
+                    // Tab 图标
+                    Row(
+                      children: List.generate(totalTabs, (index) {
+                        Widget icon;
+                        if (hasRecent && index == 0) {
+                          icon = Icon(
+                            Icons.access_time,
+                            size: 20,
+                            color: activeIndex == index
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurfaceVariant,
+                          );
+                        } else {
+                          final groupIndex = hasRecent ? index - 1 : index;
+                          final firstEmoji =
+                              emojiGroups[groupKeys[groupIndex]]!.first;
+                          icon = CachedImage(
+                            url: EmojiHandler().getEmojiUrl(firstEmoji.name),
+                            width: 24,
+                            height: 24,
+                            memCacheWidth: 48,
+                            memCacheHeight: 48,
+                            fit: BoxFit.contain,
+                            cacheManager: EmojiCacheManager(),
+                          );
+                        }
+                        return GestureDetector(
+                          onTap: () => _scrollToGroup(index),
+                          child: SizedBox(
+                            width: tabSlotWidth,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: tabMargin,
+                                vertical: 4,
+                              ),
+                              child: Center(child: icon),
+                            ),
+                          ),
+                        );
+                      }),
                     ),
-                    child: Center(child: icon),
-                  ),
-                );
-              },
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -341,7 +377,7 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
 
     if (hasRecent) {
       slivers.add(SliverToBoxAdapter(
-        child: _buildSectionHeader('常用', _groupKeys[keyIndex]),
+        child: _buildSectionHeader('最近使用', _groupKeys[keyIndex]),
       ));
       slivers.add(_buildEmojiSliverGrid(recentEmojis));
       keyIndex++;
@@ -406,9 +442,12 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
         message: ':${emoji.name}:',
         child: Padding(
           padding: const EdgeInsets.all(4.0),
-          child: Image(
-            image: emojiImageProvider(EmojiHandler().getEmojiUrl(emoji.name)),
+          child: CachedImage(
+            url: EmojiHandler().getEmojiUrl(emoji.name),
             fit: BoxFit.contain,
+            memCacheWidth: 64,
+            memCacheHeight: 64,
+            cacheManager: EmojiCacheManager(),
           ),
         ),
       ),
@@ -614,11 +653,13 @@ class _EmojiSearchSheetState extends State<_EmojiSearchSheet> {
                               message: ':${emoji.name}:',
                               child: Padding(
                                 padding: const EdgeInsets.all(4.0),
-                                child: Image(
-                                  image: emojiImageProvider(
-                                      EmojiHandler()
-                                          .getEmojiUrl(emoji.name)),
+                                child: CachedImage(
+                                  url: EmojiHandler()
+                                      .getEmojiUrl(emoji.name),
                                   fit: BoxFit.contain,
+                                  memCacheWidth: 80,
+                                  memCacheHeight: 80,
+                                  cacheManager: EmojiCacheManager(),
                                 ),
                               ),
                             ),

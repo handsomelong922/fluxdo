@@ -153,7 +153,7 @@ class PreferencesPage extends ConsumerWidget {
                 Divider(height: 1, indent: 56, color: theme.colorScheme.outlineVariant.withValues(alpha:0.3)),
                 ListTile(
                   leading: Icon(
-                    Icons.collections_outlined,
+                    Icons.sticky_note_2_outlined,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                   title: const Text('表情包数据源'),

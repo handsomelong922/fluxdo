@@ -1,12 +1,14 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/sticker.dart';
 import '../../providers/sticker_provider.dart';
 import '../../services/discourse_cache_manager.dart';
+import '../common/cached_image.dart';
 import '../common/loading_spinner.dart';
-import 'emoji_sticker_panel.dart' show floatingTabHeight;
 import 'sticker_market_sheet.dart';
 
 /// 表情包选择器
@@ -16,9 +18,13 @@ import 'sticker_market_sheet.dart';
 class StickerPicker extends ConsumerStatefulWidget {
   final ValueChanged<String> onStickerSelected;
 
+  /// 底部额外 padding（用于给悬浮 Tab 留空间）
+  final double bottomPadding;
+
   const StickerPicker({
     super.key,
     required this.onStickerSelected,
+    this.bottomPadding = 0,
   });
 
   @override
@@ -32,7 +38,15 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
   final GlobalKey _contentAreaKey = GlobalKey();
   List<GlobalKey> _groupKeys = [];
   int _activeGroupIndex = 0;
+
+  /// 面板打开时快照，避免实时刷新影响体验
+  List<StickerItem>? _recentSnapshot;
   bool _isProgrammaticScroll = false;
+  bool _scrollThrottled = false;
+
+  // ==================== 长按预览 ====================
+  OverlayEntry? _previewEntry;
+  final _previewNotifier = ValueNotifier<_PreviewData?>(null);
 
   @override
   bool get wantKeepAlive => true;
@@ -45,6 +59,8 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
 
   @override
   void dispose() {
+    _endPreview();
+    _previewNotifier.dispose();
     _scrollController.dispose();
     _tabScrollController.dispose();
     super.dispose();
@@ -68,8 +84,12 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
   // ==================== 滚动锚点 ====================
 
   void _onScroll() {
-    if (_isProgrammaticScroll) return;
-    _updateActiveGroup();
+    if (_isProgrammaticScroll || _scrollThrottled) return;
+    _scrollThrottled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _scrollThrottled = false;
+      if (mounted) _updateActiveGroup();
+    });
   }
 
   void _updateActiveGroup() {
@@ -124,13 +144,60 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
     );
   }
 
+  // ==================== 长按预览 ====================
+
+  void _startPreview(StickerItem sticker, Rect itemRect) {
+    HapticFeedback.mediumImpact();
+    final screenSize = MediaQuery.of(context).size;
+    _previewNotifier.value = _PreviewData(sticker, itemRect, screenSize);
+    _previewEntry = OverlayEntry(
+      builder: (_) => _StickerPreviewOverlay(notifier: _previewNotifier),
+    );
+    Overlay.of(context).insert(_previewEntry!);
+  }
+
+  void _movePreview(Offset globalPosition) {
+    final found = _findStickerAt(globalPosition);
+    if (found != null && found.$1.id != _previewNotifier.value?.sticker.id) {
+      HapticFeedback.selectionClick();
+      final screenSize = _previewNotifier.value!.screenSize;
+      _previewNotifier.value = _PreviewData(found.$1, found.$2, screenSize);
+    }
+  }
+
+  void _endPreview() {
+    _previewEntry?.remove();
+    _previewEntry = null;
+    _previewNotifier.value = null;
+  }
+
+  (StickerItem, Rect)? _findStickerAt(Offset globalPosition) {
+    final result = HitTestResult();
+    WidgetsBinding.instance.hitTestInView(
+      result,
+      globalPosition,
+      View.of(context).viewId,
+    );
+    for (final entry in result.path) {
+      if (entry.target is RenderMetaData) {
+        final meta = entry.target as RenderMetaData;
+        if (meta.metaData is StickerItem) {
+          final rect = meta.localToGlobal(Offset.zero) & meta.size;
+          return (meta.metaData as StickerItem, rect);
+        }
+      }
+    }
+    return null;
+  }
+
   // ==================== 构建 ====================
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final subscribedIds = ref.watch(subscribedStickerIdsProvider);
-    final recentStickers = ref.watch(recentStickersProvider);
+    _recentSnapshot ??= ref.read(recentStickersProvider);
+    final recentStickers = _recentSnapshot!;
     final groupsAsync = ref.watch(stickerGroupsProvider);
 
     return ClipRect(
@@ -178,7 +245,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.collections_outlined,
+          Icon(Icons.sticky_note_2_outlined,
               size: 48,
               color: theme.colorScheme.outline.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
@@ -221,6 +288,11 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
   ) {
     if (groups.isEmpty) return _buildEmptyState();
 
+    // 预加载所有已订阅分组的详情，避免滚动时逐个 loading
+    for (final group in groups) {
+      ref.read(stickerGroupDetailProvider(group.id));
+    }
+
     final hasRecent = recentStickers.isNotEmpty;
     final totalGroups = (hasRecent ? 1 : 0) + groups.length;
 
@@ -238,6 +310,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
           key: _contentAreaKey,
           child: CustomScrollView(
             controller: _scrollController,
+            cacheExtent: 500,
             slivers: _buildSlivers(groups, hasRecent, recentStickers),
           ),
         ),
@@ -248,49 +321,75 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
   Widget _buildTabBar(List<StickerGroup> groups, bool hasRecent) {
     final theme = Theme.of(context);
     final totalTabs = (hasRecent ? 1 : 0) + groups.length;
+    const tabSlotWidth = 40.0;
+    const tabWidth = 36.0;
+    const tabMargin = 2.0;
+    final activeIndex = _activeGroupIndex.clamp(0, totalTabs - 1);
 
     return Row(
       children: [
         Expanded(
           child: SizedBox(
             height: 40,
-            child: ListView.builder(
+            child: SingleChildScrollView(
               controller: _tabScrollController,
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              itemCount: totalTabs,
-              itemBuilder: (context, index) {
-                final isActive = _activeGroupIndex == index;
-                Widget icon;
-                if (hasRecent && index == 0) {
-                  icon = Icon(
-                    Icons.access_time,
-                    size: 20,
-                    color: isActive
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                  );
-                } else {
-                  final group = groups[hasRecent ? index - 1 : index];
-                  icon = _buildGroupTabIcon(group);
-                }
-                return GestureDetector(
-                  onTap: () => _scrollToGroup(index),
-                  child: Container(
-                    width: 36,
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isActive
-                          ? theme.colorScheme.primaryContainer
-                              .withValues(alpha: 0.5)
-                          : null,
-                      borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                width: totalTabs * tabSlotWidth,
+                height: 40,
+                child: Stack(
+                  children: [
+                    // 滑动指示器
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                      left: activeIndex * tabSlotWidth + tabMargin,
+                      top: 4,
+                      bottom: 4,
+                      width: tabWidth,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer
+                              .withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
                     ),
-                    child: Center(child: icon),
-                  ),
-                );
-              },
+                    // Tab 图标
+                    Row(
+                      children: List.generate(totalTabs, (index) {
+                        Widget icon;
+                        if (hasRecent && index == 0) {
+                          icon = Icon(
+                            Icons.access_time,
+                            size: 20,
+                            color: activeIndex == index
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurfaceVariant,
+                          );
+                        } else {
+                          final group = groups[hasRecent ? index - 1 : index];
+                          icon = _buildGroupTabIcon(group);
+                        }
+                        return GestureDetector(
+                          onTap: () => _scrollToGroup(index),
+                          child: SizedBox(
+                            width: tabSlotWidth,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: tabMargin,
+                                vertical: 4,
+                              ),
+                              child: Center(child: icon),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -311,13 +410,16 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
     if (icon.startsWith('http://') || icon.startsWith('https://')) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(4),
-        child: CachedNetworkImage(
-          imageUrl: icon,
+        child: CachedImage(
+          url: icon,
           width: 24,
           height: 24,
+          memCacheWidth: 48,
+          memCacheHeight: 48,
           fit: BoxFit.cover,
-          cacheManager: ExternalImageCacheManager(),
-          errorWidget: (_, _, _) => _buildFallbackIcon(group.name),
+          cacheManager: StickerCacheManager(),
+          placeholder: (_) => _buildFallbackIcon(group.name),
+          errorBuilder: (_, _, _) => _buildFallbackIcon(group.name),
         ),
       );
     }
@@ -348,7 +450,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
 
     if (hasRecent) {
       slivers.add(SliverToBoxAdapter(
-        child: _buildSectionHeader('常用', _groupKeys[keyIndex]),
+        child: _buildSectionHeader('最近使用', _groupKeys[keyIndex]),
       ));
       slivers.add(_buildStickerSliverGrid(recentStickers));
       keyIndex++;
@@ -361,14 +463,19 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
       slivers.add(_StickerGroupSliverContent(
         groupId: group.id,
         onStickerTap: _onStickerTap,
+        onPreviewStart: _startPreview,
+        onPreviewMove: _movePreview,
+        onPreviewEnd: _endPreview,
       ));
       keyIndex++;
     }
 
     // 底部留白
-    slivers.add(SliverToBoxAdapter(
-      child: SizedBox(height: floatingTabHeight),
-    ));
+    if (widget.bottomPadding > 0) {
+      slivers.add(SliverToBoxAdapter(
+        child: SizedBox(height: widget.bottomPadding),
+      ));
+    }
 
     return slivers;
   }
@@ -396,6 +503,9 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
           (_, index) => _StickerItemWidget(
             sticker: stickers[index],
             onTap: () => _onStickerTap(stickers[index]),
+            onPreviewStart: _startPreview,
+            onPreviewMove: _movePreview,
+            onPreviewEnd: _endPreview,
           ),
           childCount: stickers.length,
         ),
@@ -413,10 +523,16 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
 class _StickerGroupSliverContent extends ConsumerWidget {
   final String groupId;
   final ValueChanged<StickerItem> onStickerTap;
+  final void Function(StickerItem, Rect) onPreviewStart;
+  final void Function(Offset) onPreviewMove;
+  final VoidCallback onPreviewEnd;
 
   const _StickerGroupSliverContent({
     required this.groupId,
     required this.onStickerTap,
+    required this.onPreviewStart,
+    required this.onPreviewMove,
+    required this.onPreviewEnd,
   });
 
   @override
@@ -461,6 +577,9 @@ class _StickerGroupSliverContent extends ConsumerWidget {
           (_, index) => _StickerItemWidget(
             sticker: detail.emojis[index],
             onTap: () => onStickerTap(detail.emojis[index]),
+            onPreviewStart: onPreviewStart,
+            onPreviewMove: onPreviewMove,
+            onPreviewEnd: onPreviewEnd,
           ),
           childCount: detail.emojis.length,
         ),
@@ -474,34 +593,181 @@ class _StickerGroupSliverContent extends ConsumerWidget {
   }
 }
 
-/// 单个表情包图片
+/// 单个表情包图片（支持长按滑动预览）
 class _StickerItemWidget extends StatelessWidget {
   final StickerItem sticker;
   final VoidCallback onTap;
+  final void Function(StickerItem, Rect) onPreviewStart;
+  final void Function(Offset) onPreviewMove;
+  final VoidCallback onPreviewEnd;
 
   const _StickerItemWidget({
     required this.sticker,
     required this.onTap,
+    required this.onPreviewStart,
+    required this.onPreviewMove,
+    required this.onPreviewEnd,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Tooltip(
-        message: sticker.name,
+    return MetaData(
+      metaData: sticker,
+      behavior: HitTestBehavior.opaque,
+      child: GestureDetector(
+        onTap: onTap,
+        onLongPressStart: (_) {
+          final box = context.findRenderObject() as RenderBox;
+          final rect = box.localToGlobal(Offset.zero) & box.size;
+          onPreviewStart(sticker, rect);
+        },
+        onLongPressMoveUpdate: (details) {
+          onPreviewMove(details.globalPosition);
+        },
+        onLongPressEnd: (_) => onPreviewEnd(),
+        onLongPressCancel: onPreviewEnd,
         child: Padding(
           padding: const EdgeInsets.all(4.0),
-          child: CachedNetworkImage(
-            imageUrl: sticker.url,
-            cacheManager: ExternalImageCacheManager(),
+          child: CachedImage(
+            url: sticker.url,
             fit: BoxFit.contain,
-            placeholder: (_, _) => const SizedBox.shrink(),
-            errorWidget: (_, _, _) => Icon(
+            memCacheWidth: 160,
+            memCacheHeight: 160,
+            cacheManager: StickerCacheManager(),
+            errorBuilder: (_, _, _) => Icon(
               Icons.broken_image_outlined,
               size: 24,
               color: Theme.of(context).colorScheme.outline,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 预览数据
+class _PreviewData {
+  final StickerItem sticker;
+  final Rect itemRect;
+  final Size screenSize;
+  const _PreviewData(this.sticker, this.itemRect, this.screenSize);
+}
+
+/// 预览 Overlay（监听 ValueNotifier 实时更新）
+class _StickerPreviewOverlay extends StatelessWidget {
+  final ValueNotifier<_PreviewData?> notifier;
+  const _StickerPreviewOverlay({required this.notifier});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<_PreviewData?>(
+      valueListenable: notifier,
+      builder: (context, data, _) {
+        if (data == null) return const SizedBox.shrink();
+        return _StickerPreviewPopup(
+          sticker: data.sticker,
+          itemRect: data.itemRect,
+          screenSize: data.screenSize,
+        );
+      },
+    );
+  }
+}
+
+/// 长按弹出的表情包放大预览
+class _StickerPreviewPopup extends StatelessWidget {
+  final StickerItem sticker;
+  final Rect itemRect;
+  final Size screenSize;
+
+  static const double _previewSize = 180;
+  static const double _nameHeight = 28;
+  static const double _cardPadding = 8;
+  static const double _totalHeight = _previewSize + _nameHeight + _cardPadding * 2;
+  static const double _totalWidth = _previewSize + _cardPadding * 2;
+  static const double _screenMargin = 12;
+
+  const _StickerPreviewPopup({
+    required this.sticker,
+    required this.itemRect,
+    required this.screenSize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    // 垂直定位：优先上方，空间不足时改下方
+    final spaceAbove = itemRect.top - _screenMargin;
+    final showAbove = spaceAbove >= _totalHeight;
+    final dy = showAbove
+        ? itemRect.top - _totalHeight - 8
+        : itemRect.bottom + 8;
+
+    // 水平居中对齐缩略图，clamp 防溢出
+    final dx = (itemRect.center.dx - _totalWidth / 2)
+        .clamp(_screenMargin, screenSize.width - _totalWidth - _screenMargin);
+
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      left: dx,
+      top: dy,
+      child: IgnorePointer(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutBack,
+          builder: (context, value, child) => Opacity(
+            opacity: value.clamp(0.0, 1.0),
+            child: Transform.scale(
+              scale: 0.6 + 0.4 * value,
+              alignment: showAbove ? Alignment.bottomCenter : Alignment.topCenter,
+              child: child,
+            ),
+          ),
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(16),
+            color: theme.colorScheme.surfaceContainerHigh,
+            child: Padding(
+              padding: const EdgeInsets.all(_cardPadding),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: _previewSize,
+                    height: _previewSize,
+                    child: CachedImage(
+                      url: sticker.url,
+                      fit: BoxFit.contain,
+                      // 不传 memCacheWidth → AVIF 完整解码（含动画）
+                      cacheManager: StickerCacheManager(),
+                      errorBuilder: (_, _, _) => Icon(
+                        Icons.broken_image_outlined,
+                        size: 48,
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: _previewSize,
+                    height: _nameHeight,
+                    child: Center(
+                      child: Text(
+                        sticker.name,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

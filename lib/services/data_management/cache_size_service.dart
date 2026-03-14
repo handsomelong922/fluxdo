@@ -12,6 +12,7 @@ class CacheSizeService {
     DiscourseCacheManager.key,
     EmojiCacheManager.key,
     ExternalImageCacheManager.key,
+    StickerCacheManager.key,
   ];
 
   /// 计算图片缓存大小（遍历三个 CacheManager 的磁盘目录）

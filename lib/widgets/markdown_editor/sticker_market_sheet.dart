@@ -1,23 +1,57 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/sticker.dart';
 import '../../providers/sticker_provider.dart';
 import '../../services/discourse_cache_manager.dart';
+import '../common/cached_image.dart';
 import '../common/loading_spinner.dart';
 
 /// 表情包市场浏览面板 (Bottom Sheet)
 ///
 /// 展示市场中所有可用的表情包分组，用户可以添加/移除。
-class StickerMarketSheet extends ConsumerWidget {
+/// 支持分页加载：首次只加载第一页，滚动到底部时自动加载下一页。
+class StickerMarketSheet extends ConsumerStatefulWidget {
   const StickerMarketSheet({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StickerMarketSheet> createState() => _StickerMarketSheetState();
+}
+
+class _StickerMarketSheetState extends ConsumerState<StickerMarketSheet> {
+  final ScrollController _scrollController = ScrollController();
+  bool _scrollThrottled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients || _scrollThrottled) return;
+    _scrollThrottled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollThrottled = false;
+      if (!mounted || !_scrollController.hasClients) return;
+      final pos = _scrollController.position;
+      if (pos.pixels >= pos.maxScrollExtent - 600) {
+        ref.read(marketGroupsProvider.notifier).loadMore();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mediaQuery = MediaQuery.of(context);
-    final groupsAsync = ref.watch(stickerGroupsProvider);
+    final groupsAsync = ref.watch(marketGroupsProvider);
     final subscribedIds = ref.watch(subscribedStickerIdsProvider);
 
     return Container(
@@ -34,8 +68,9 @@ class StickerMarketSheet extends ConsumerWidget {
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color:
-                      theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.5,
+                  ),
                   width: 0.5,
                 ),
               ),
@@ -48,8 +83,9 @@ class StickerMarketSheet extends ConsumerWidget {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.outlineVariant
-                        .withValues(alpha: 0.5),
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.5,
+                    ),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -78,18 +114,17 @@ class StickerMarketSheet extends ConsumerWidget {
             ),
           ),
 
-          // 内容区域
+          // 内容区域：优先使用已有数据，避免加载态闪烁
           Expanded(
             child: (() {
               final groups = groupsAsync.value;
               if (groups != null) {
-                return _buildGroupList(context, ref, groups, subscribedIds);
+                return _buildGroupList(groups, subscribedIds);
               }
               return groupsAsync.when(
-                data: (groups) =>
-                    _buildGroupList(context, ref, groups, subscribedIds),
+                data: (groups) => _buildGroupList(groups, subscribedIds),
                 loading: () => const Center(child: LoadingSpinner()),
-                error: (err, stack) => _buildError(context, ref),
+                error: (err, stack) => _buildError(),
               );
             })(),
           ),
@@ -98,7 +133,7 @@ class StickerMarketSheet extends ConsumerWidget {
     );
   }
 
-  Widget _buildError(BuildContext context, WidgetRef ref) {
+  Widget _buildError() {
     final theme = Theme.of(context);
     return Center(
       child: Column(
@@ -109,7 +144,7 @@ class StickerMarketSheet extends ConsumerWidget {
           Text('加载市场失败', style: TextStyle(color: theme.colorScheme.error)),
           const SizedBox(height: 8),
           TextButton(
-            onPressed: () => ref.invalidate(stickerGroupsProvider),
+            onPressed: () => ref.read(marketGroupsProvider.notifier).refresh(),
             child: const Text('重试'),
           ),
         ],
@@ -118,8 +153,6 @@ class StickerMarketSheet extends ConsumerWidget {
   }
 
   Widget _buildGroupList(
-    BuildContext context,
-    WidgetRef ref,
     List<StickerGroup> groups,
     List<String> subscribedIds,
   ) {
@@ -127,18 +160,41 @@ class StickerMarketSheet extends ConsumerWidget {
       return Center(
         child: Text(
           '暂无可用的表情包',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       );
     }
 
+    final subscribedSet = subscribedIds.toSet();
+    final hasMore = ref.read(marketGroupsProvider.notifier).hasMore;
+    final itemCount = groups.length + (hasMore ? 1 : 0);
+
     return ListView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: groups.length,
+      cacheExtent: 200,
+      itemExtent: 72,
+      itemCount: itemCount,
       itemBuilder: (context, index) {
+        if (index >= groups.length) {
+          // 底部加载指示器
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
         final group = groups[index];
-        final isSubscribed = subscribedIds.contains(group.id);
+        final isSubscribed = subscribedSet.contains(group.id);
         return _StickerGroupTile(
+          key: ValueKey(group.id),
           group: group,
           isSubscribed: isSubscribed,
           onToggle: () async {
@@ -156,12 +212,15 @@ class StickerMarketSheet extends ConsumerWidget {
 }
 
 /// 市场中的分组列表项
+///
+/// 保持纯渲染组件，避免滚动过程中为每个 item 额外触发 setState。
 class _StickerGroupTile extends StatelessWidget {
   final StickerGroup group;
   final bool isSubscribed;
   final VoidCallback onToggle;
 
   const _StickerGroupTile({
+    super.key,
     required this.group,
     required this.isSubscribed,
     required this.onToggle,
@@ -171,51 +230,60 @@ class _StickerGroupTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return ListTile(
-      leading: _buildIcon(theme),
-      title: Text(group.name),
-      subtitle: Text(
-        '${group.emojiCount} 个表情',
-        style: TextStyle(
-          fontSize: 12,
-          color: theme.colorScheme.onSurfaceVariant,
+    return RepaintBoundary(
+      child: ListTile(
+        dense: true,
+        leading: _buildIcon(theme),
+        title: Text(group.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+          '${group.emojiCount} 个表情',
+          style: TextStyle(
+            fontSize: 12,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
+        trailing: isSubscribed
+            ? FilledButton.tonalIcon(
+                onPressed: onToggle,
+                icon: const Icon(Icons.check, size: 16),
+                label: const Text('已添加'),
+                style: FilledButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+              )
+            : OutlinedButton.icon(
+                onPressed: onToggle,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('添加'),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+              ),
       ),
-      trailing: isSubscribed
-          ? FilledButton.tonalIcon(
-              onPressed: onToggle,
-              icon: const Icon(Icons.check, size: 16),
-              label: const Text('已添加'),
-              style: FilledButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-              ),
-            )
-          : OutlinedButton.icon(
-              onPressed: onToggle,
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('添加'),
-              style: OutlinedButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-              ),
-            ),
     );
   }
 
   Widget _buildIcon(ThemeData theme) {
     final icon = group.icon;
-
     if (icon.startsWith('http://') || icon.startsWith('https://')) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: CachedNetworkImage(
-          imageUrl: icon,
-          width: 40,
-          height: 40,
-          fit: BoxFit.cover,
-          cacheManager: ExternalImageCacheManager(),
-          errorWidget: (_, _, _) => _buildFallbackIcon(theme),
+        child: RepaintBoundary(
+          child: CachedImage(
+            url: icon,
+            width: 40,
+            height: 40,
+            memCacheWidth: 80,
+            memCacheHeight: 80,
+            fit: BoxFit.cover,
+            cacheManager: StickerCacheManager(),
+            placeholder: (_) => _buildFallbackIcon(theme),
+            errorBuilder: (_, _, _) => _buildFallbackIcon(theme),
+          ),
         ),
       );
     }

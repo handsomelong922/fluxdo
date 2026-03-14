@@ -6,6 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/sticker.dart';
 
+/// 顶层函数，供 compute() 在后台 Isolate 中解析分组详情
+StickerGroupDetail _parseGroupDetail(Map<String, dynamic> data) {
+  return StickerGroupDetail.fromJson(data);
+}
+
 /// 表情包市场 API 服务
 ///
 /// 使用独立的 Dio 实例（非 DiscourseDio），因为这是外部 API，
@@ -60,22 +65,24 @@ class StickerMarketService {
     final groups = <StickerGroup>[];
 
     for (int page = 1; page <= index.totalPages; page++) {
-      final data = await _fetchWithCache(
-        'page_$page',
-        '$baseUrl/assets/market/index/page-$page.json',
-      );
-      final list = data['groups'] as List<dynamic>? ?? [];
-      for (final item in list) {
-        final group = StickerGroup.fromJson(item as Map<String, dynamic>);
-        if (!group.isArchived) {
-          groups.add(group);
-        }
-      }
+      groups.addAll(await getGroupsPage(page));
     }
 
     // 按 order 排序
     groups.sort((a, b) => a.order.compareTo(b.order));
     return groups;
+  }
+
+  /// 获取单页分组数据
+  Future<List<StickerGroup>> getGroupsPage(int page) async {
+    final data = await _fetchWithCache(
+      'page_$page',
+      '$baseUrl/assets/market/index/page-$page.json',
+    );
+    final list = data['groups'] as List<dynamic>? ?? [];
+    return list
+        .map((item) => StickerGroup.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
   /// 获取分组详情
@@ -84,7 +91,7 @@ class StickerMarketService {
       'group_$groupId',
       '$baseUrl/assets/market/group-$groupId.json',
     );
-    return StickerGroupDetail.fromJson(data);
+    return compute(_parseGroupDetail, data);
   }
 
   // ==================== 订阅管理 ====================

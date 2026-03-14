@@ -69,6 +69,7 @@ class _DataManagementPageState extends ConsumerState<DataManagementPage> {
         DiscourseCacheManager().emptyCache(),
         EmojiCacheManager().emptyCache(),
         ExternalImageCacheManager().emptyCache(),
+        StickerCacheManager().emptyCache(),
       ]);
       // emptyCache() 只清除了索引，磁盘文件可能残留，需要删除整个目录
       await CacheSizeService.deleteImageCacheDirs();
@@ -140,6 +141,7 @@ class _DataManagementPageState extends ConsumerState<DataManagementPage> {
         DiscourseCacheManager().emptyCache(),
         EmojiCacheManager().emptyCache(),
         ExternalImageCacheManager().emptyCache(),
+        StickerCacheManager().emptyCache(),
         AiChatStorageService(prefs).deleteAllSessions(),
         _doClearCookies(),
       ]);
