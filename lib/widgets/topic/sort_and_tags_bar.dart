@@ -35,7 +35,7 @@ class SortAndTagsBar extends StatelessWidget {
   final VoidCallback onToggleAscending;
   final List<String> selectedTags;
   final ValueChanged<String> onTagRemoved;
-  final VoidCallback onAddTag;
+  final VoidCallback? onAddTag;
   final Widget? trailing;
 
   const SortAndTagsBar({
@@ -49,7 +49,7 @@ class SortAndTagsBar extends StatelessWidget {
     required this.onToggleAscending,
     required this.selectedTags,
     required this.onTagRemoved,
-    required this.onAddTag,
+    this.onAddTag,
     this.trailing,
   });
 
@@ -98,10 +98,11 @@ class SortAndTagsBar extends StatelessWidget {
                     ),
                   )),
                   // 添加标签按钮
-                  _AddTagButton(
-                    colorScheme: colorScheme,
-                    onTap: onAddTag,
-                  ),
+                  if (onAddTag != null)
+                    _AddTagButton(
+                      colorScheme: colorScheme,
+                      onTap: onAddTag!,
+                    ),
                 ],
               ),
             ),

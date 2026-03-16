@@ -12,6 +12,8 @@ import '../../services/discourse_cache_manager.dart';
 import '../common/relative_time_text.dart';
 import '../../utils/number_utils.dart';
 import '../common/emoji_text.dart';
+import '../../pages/category_topics_page.dart';
+import '../../pages/tag_topics_page.dart';
 
 /// 话题卡片组件 — 紧凑横向布局
 class TopicCard extends ConsumerWidget {
@@ -204,9 +206,19 @@ class TopicCard extends ConsumerWidget {
                                         category: category,
                                         faIcon: faIcon,
                                         logoUrl: logoUrl,
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(builder: (_) => CategoryTopicsPage(category: category)),
+                                        ),
                                       ),
                                     ...topic.tags.map(
-                                      (tag) => TagBadge(name: tag.name),
+                                      (tag) => TagBadge(
+                                        name: tag.name,
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(builder: (_) => TagTopicsPage(tagName: tag.name)),
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),

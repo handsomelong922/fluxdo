@@ -33,6 +33,7 @@ class TagBadge extends StatelessWidget {
   final TextStyle? textStyle;
   final Color? backgroundColor;
   final Border? border;
+  final VoidCallback? onTap;
 
   const TagBadge({
     super.key,
@@ -41,6 +42,7 @@ class TagBadge extends StatelessWidget {
     this.textStyle,
     this.backgroundColor,
     this.border,
+    this.onTap,
   });
 
   @override
@@ -55,7 +57,7 @@ class TagBadge extends StatelessWidget {
           color: theme.colorScheme.onSurfaceVariant,
         );
 
-    return Container(
+    Widget badge = Container(
       padding: size.padding,
       decoration: BoxDecoration(
         color: bg,
@@ -77,6 +79,11 @@ class TagBadge extends StatelessWidget {
         ],
       ),
     );
+
+    if (onTap != null) {
+      return GestureDetector(onTap: onTap, child: badge);
+    }
+    return badge;
   }
 }
 
@@ -211,6 +218,7 @@ class CategoryBadge extends StatelessWidget {
   final BadgeSize size;
   final TextStyle? textStyle;
   final bool showLockWhenRestricted;
+  final VoidCallback? onTap;
 
   const CategoryBadge({
     super.key,
@@ -220,6 +228,7 @@ class CategoryBadge extends StatelessWidget {
     this.size = BadgeSize.compact,
     this.textStyle,
     this.showLockWhenRestricted = true,
+    this.onTap,
   });
 
   @override
@@ -233,7 +242,7 @@ class CategoryBadge extends StatelessWidget {
           color: theme.colorScheme.onSurface,
         );
 
-    return Container(
+    Widget badge = Container(
       padding: size.padding,
       decoration: BoxDecoration(
         color: categoryColor.withValues(alpha: 0.08),
@@ -276,6 +285,11 @@ class CategoryBadge extends StatelessWidget {
         ],
       ),
     );
+
+    if (onTap != null) {
+      return GestureDetector(onTap: onTap, child: badge);
+    }
+    return badge;
   }
 
   Widget _buildCategoryDot(Color color) {

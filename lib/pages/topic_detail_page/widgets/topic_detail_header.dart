@@ -11,6 +11,8 @@ import '../../../utils/number_utils.dart';
 import '../../../widgets/topic/topic_notification_button.dart';
 import 'topic_vote_button.dart';
 import '../../../widgets/common/topic_badges.dart';
+import '../../category_topics_page.dart';
+import '../../tag_topics_page.dart';
 
 /// 话题详情页头部组件
 class TopicDetailHeader extends ConsumerWidget {
@@ -123,12 +125,20 @@ class TopicDetailHeader extends ConsumerWidget {
                     category: category,
                     faIcon: faIcon,
                     logoUrl: logoUrl,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => CategoryTopicsPage(category: category)),
+                    ),
                   ),
 
                 // 标签 Badges
                 if (detail.tags != null)
                   ...detail.tags!.map((tag) => TagBadge(
                     name: tag.name,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => TagTopicsPage(tagName: tag.name)),
+                    ),
                   )),
               ],
             ),
