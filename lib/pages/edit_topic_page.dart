@@ -177,7 +177,14 @@ class _EditTopicPageState extends ConsumerState<EditTopicPage> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      // 预览模式下验证错误不可见，切回编辑模式并提示
+      if (_showPreview) {
+        _togglePreview();
+        ToastService.showInfo('请检查输入');
+      }
+      return;
+    }
 
     // 手动验证内容
     if (_canEditContent) {
@@ -186,10 +193,12 @@ class _EditTopicPageState extends ConsumerState<EditTopicPage> {
           : (ref.read(minFirstPostLengthProvider).value ?? 20);
       final contentText = _contentController.text.trim();
       if (contentText.isEmpty) {
+        if (_showPreview) _togglePreview();
         ToastService.showInfo('请输入内容');
         return;
       }
       if (contentText.length < minContentLength) {
+        if (_showPreview) _togglePreview();
         ToastService.showInfo('内容至少需要 $minContentLength 个字符');
         return;
       }
@@ -197,6 +206,7 @@ class _EditTopicPageState extends ConsumerState<EditTopicPage> {
 
     // 只有在有权限编辑元数据且不是私信时才验证分类
     if (_canEditMetadata && !_isPrivateMessage && _selectedCategory == null) {
+      if (_showPreview) _togglePreview();
       ToastService.showInfo('请选择分类');
       return;
     }
@@ -207,6 +217,7 @@ class _EditTopicPageState extends ConsumerState<EditTopicPage> {
         _selectedCategory != null &&
         _selectedCategory!.minimumRequiredTags > 0 &&
         _selectedTags.length < _selectedCategory!.minimumRequiredTags) {
+      if (_showPreview) _togglePreview();
       ToastService.showInfo('此分类至少需要 ${_selectedCategory!.minimumRequiredTags} 个标签');
       return;
     }
@@ -438,6 +449,7 @@ class _EditTopicPageState extends ConsumerState<EditTopicPage> {
             Expanded(
               child: PageView(
                 controller: _pageController,
+                allowImplicitScrolling: true,
                 onPageChanged: (index) {
                   setState(() {
                     _showPreview = index == 1;
