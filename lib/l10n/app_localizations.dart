@@ -6383,6 +6383,18 @@ abstract class AppLocalizations {
   /// **'琥珀'**
   String get appearance_colorAmber;
 
+  /// No description provided for @appearance_font.
+  ///
+  /// In zh, this message translates to:
+  /// **'字体'**
+  String get appearance_font;
+
+  /// No description provided for @appearance_fontSystem.
+  ///
+  /// In zh, this message translates to:
+  /// **'系统默认'**
+  String get appearance_fontSystem;
+
   /// No description provided for @appLogs_title.
   ///
   /// In zh, this message translates to:
@@ -8368,6 +8380,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'登录成功！'**
   String get webviewLogin_loginSuccess;
+
+  /// No description provided for @webviewLogin_emailLoginPaste.
+  ///
+  /// In zh, this message translates to:
+  /// **'粘贴登录链接'**
+  String get webviewLogin_emailLoginPaste;
+
+  /// No description provided for @webviewLogin_emailLoginInvalidLink.
+  ///
+  /// In zh, this message translates to:
+  /// **'无效的登录链接'**
+  String get webviewLogin_emailLoginInvalidLink;
 
   /// No description provided for @webview_browser.
   ///

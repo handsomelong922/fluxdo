@@ -3505,6 +3505,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearance_colorAmber => 'Amber';
 
   @override
+  String get appearance_font => 'Font';
+
+  @override
+  String get appearance_fontSystem => 'System default';
+
+  @override
   String get appLogs_title => 'App Logs';
 
   @override
@@ -4580,6 +4586,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webviewLogin_loginSuccess => 'Login successful!';
+
+  @override
+  String get webviewLogin_emailLoginPaste => 'Paste login link';
+
+  @override
+  String get webviewLogin_emailLoginInvalidLink => 'Invalid login link';
 
   @override
   String get webview_browser => 'Browser';

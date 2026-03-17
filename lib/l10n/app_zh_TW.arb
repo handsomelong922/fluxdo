@@ -2142,6 +2142,10 @@
   "appearance_colorRed": "紅色",
   "appearance_colorIndigo": "靛藍",
   "appearance_colorAmber": "琥珀",
+
+  "appearance_font": "字體",
+  "appearance_fontSystem": "系統預設",
+
   "appLogs_title": "應用日誌",
   "appLogs_noLogs": "暫無日誌",
   "appLogs_clearTitle": "清除日誌",
@@ -2676,6 +2680,8 @@
   "webviewLogin_clearSavedTitle": "清除已儲存的密碼",
   "webviewLogin_clearSavedContent": "確定要清除已儲存的登入憑證嗎？下次登入時需要手動輸入。",
   "webviewLogin_loginSuccess": "登入成功！",
+  "webviewLogin_emailLoginPaste": "貼上登入連結",
+  "webviewLogin_emailLoginInvalidLink": "無效的登入連結",
   "webview_browser": "瀏覽器",
   "webview_goBack": "後退",
   "webview_goForward": "前進",

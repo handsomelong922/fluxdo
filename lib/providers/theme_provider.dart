@@ -4,27 +4,49 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// 内置字体选项
+enum AppFontFamily {
+  /// 跟随系统默认字体
+  system,
+  /// 内置 MiSans 字体
+  miSans,
+}
+
 /// App Theme State
 class ThemeState {
   final ThemeMode mode;
   final Color seedColor;
   final bool useDynamicColor;
+  final AppFontFamily fontFamily;
 
   const ThemeState({
     required this.mode,
     required this.seedColor,
     this.useDynamicColor = false,
+    this.fontFamily = AppFontFamily.system,
   });
+
+  /// 获取实际用于 ThemeData 的 fontFamily 字符串
+  String? get fontFamilyName {
+    switch (fontFamily) {
+      case AppFontFamily.miSans:
+        return 'MiSans';
+      case AppFontFamily.system:
+        return null;
+    }
+  }
 
   ThemeState copyWith({
     ThemeMode? mode,
     Color? seedColor,
     bool? useDynamicColor,
+    AppFontFamily? fontFamily,
   }) {
     return ThemeState(
       mode: mode ?? this.mode,
       seedColor: seedColor ?? this.seedColor,
       useDynamicColor: useDynamicColor ?? this.useDynamicColor,
+      fontFamily: fontFamily ?? this.fontFamily,
     );
   }
 }
@@ -34,6 +56,7 @@ class ThemeNotifier extends StateNotifier<ThemeState> {
   static const String _themeModeKey = 'theme_mode';
   static const String _seedColorKey = 'seed_color';
   static const String _dynamicColorKey = 'use_dynamic_color';
+  static const String _fontFamilyKey = 'font_family';
   final SharedPreferences _prefs;
 
   // Preset Colors
@@ -72,10 +95,18 @@ class ThemeNotifier extends StateNotifier<ThemeState> {
     // Load Dynamic Color
     final useDynamicColor = prefs.getBool(_dynamicColorKey) ?? false;
 
+    // Load Font Family
+    final savedFontFamily = prefs.getString(_fontFamilyKey);
+    AppFontFamily fontFamily = AppFontFamily.system;
+    if (savedFontFamily == 'miSans') {
+      fontFamily = AppFontFamily.miSans;
+    }
+
     return ThemeState(
-      mode: mode, 
-      seedColor: seedColor, 
+      mode: mode,
+      seedColor: seedColor,
       useDynamicColor: useDynamicColor,
+      fontFamily: fontFamily,
     );
   }
 
@@ -99,6 +130,16 @@ class ThemeNotifier extends StateNotifier<ThemeState> {
   Future<void> setUseDynamicColor(bool value) async {
     state = state.copyWith(useDynamicColor: value);
     await _prefs.setBool(_dynamicColorKey, value);
+  }
+
+  Future<void> setFontFamily(AppFontFamily fontFamily) async {
+    state = state.copyWith(fontFamily: fontFamily);
+    switch (fontFamily) {
+      case AppFontFamily.system:
+        await _prefs.setString(_fontFamilyKey, 'system');
+      case AppFontFamily.miSans:
+        await _prefs.setString(_fontFamilyKey, 'miSans');
+    }
   }
 }
 

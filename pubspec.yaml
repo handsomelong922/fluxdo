@@ -110,6 +110,11 @@ flutter:
     - assets/images/
     - assets/certs/
 
+  fonts:
+    - family: MiSans
+      fonts:
+        - asset: assets/fonts/MiSans-Regular.ttf
+
 
 
 

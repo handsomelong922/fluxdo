@@ -1252,6 +1252,9 @@
   "appearance_colorIndigo": "靛蓝",
   "appearance_colorAmber": "琥珀",
 
+  "appearance_font": "字体",
+  "appearance_fontSystem": "系统默认",
+
   "appLogs_title": "应用日志",
   "appLogs_noLogs": "暂无日志",
   "appLogs_clearTitle": "清除日志",
@@ -1638,6 +1641,8 @@
   "webviewLogin_clearSavedTitle": "清除已保存的密码",
   "webviewLogin_clearSavedContent": "确定要清除已保存的登录凭证吗？下次登录时需要手动输入。",
   "webviewLogin_loginSuccess": "登录成功！",
+  "webviewLogin_emailLoginPaste": "粘贴登录链接",
+  "webviewLogin_emailLoginInvalidLink": "无效的登录链接",
 
   "webview_browser": "浏览器",
   "webview_goBack": "后退",

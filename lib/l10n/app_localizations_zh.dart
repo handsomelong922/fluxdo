@@ -3449,6 +3449,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearance_colorAmber => '琥珀';
 
   @override
+  String get appearance_font => '字体';
+
+  @override
+  String get appearance_fontSystem => '系统默认';
+
+  @override
   String get appLogs_title => '应用日志';
 
   @override
@@ -4500,6 +4506,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get webviewLogin_loginSuccess => '登录成功！';
+
+  @override
+  String get webviewLogin_emailLoginPaste => '粘贴登录链接';
+
+  @override
+  String get webviewLogin_emailLoginInvalidLink => '无效的登录链接';
 
   @override
   String get webview_browser => '浏览器';
@@ -8551,6 +8563,12 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get appearance_colorAmber => '琥珀';
 
   @override
+  String get appearance_font => '字體';
+
+  @override
+  String get appearance_fontSystem => '系統預設';
+
+  @override
   String get appLogs_title => '應用日誌';
 
   @override
@@ -9602,6 +9620,12 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
 
   @override
   String get webviewLogin_loginSuccess => '登錄成功！';
+
+  @override
+  String get webviewLogin_emailLoginPaste => '粘貼登錄鏈接';
+
+  @override
+  String get webviewLogin_emailLoginInvalidLink => '無效的登錄鏈接';
 
   @override
   String get webview_browser => '瀏覽器';
@@ -13653,6 +13677,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get appearance_colorAmber => '琥珀';
 
   @override
+  String get appearance_font => '字體';
+
+  @override
+  String get appearance_fontSystem => '系統預設';
+
+  @override
   String get appLogs_title => '應用日誌';
 
   @override
@@ -14704,6 +14734,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get webviewLogin_loginSuccess => '登入成功！';
+
+  @override
+  String get webviewLogin_emailLoginPaste => '貼上登入連結';
+
+  @override
+  String get webviewLogin_emailLoginInvalidLink => '無效的登入連結';
 
   @override
   String get webview_browser => '瀏覽器';

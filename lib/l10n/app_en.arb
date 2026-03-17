@@ -1106,6 +1106,9 @@
   "appearance_colorIndigo": "Indigo",
   "appearance_colorAmber": "Amber",
 
+  "appearance_font": "Font",
+  "appearance_fontSystem": "System default",
+
   "appLogs_title": "App Logs",
   "appLogs_noLogs": "No logs",
   "appLogs_clearTitle": "Clear logs",
@@ -1463,6 +1466,8 @@
   "webviewLogin_clearSavedTitle": "Clear saved password",
   "webviewLogin_clearSavedContent": "Clear saved login credentials? You will need to enter them manually next time.",
   "webviewLogin_loginSuccess": "Login successful!",
+  "webviewLogin_emailLoginPaste": "Paste login link",
+  "webviewLogin_emailLoginInvalidLink": "Invalid login link",
 
   "webview_browser": "Browser",
   "webview_goBack": "Back",

@@ -67,6 +67,12 @@ class AppearancePage extends ConsumerWidget {
 
           const SizedBox(height: 32),
 
+          _buildSectionHeader(theme, l10n.appearance_font, Icons.font_download_outlined),
+          const SizedBox(height: 16),
+          _buildFontSelector(context, ref, themeState),
+
+          const SizedBox(height: 32),
+
           _buildSectionHeader(theme, l10n.appearance_reading, Icons.chrome_reader_mode_outlined),
           const SizedBox(height: 16),
           Card(
@@ -170,6 +176,41 @@ class AppearancePage extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFontSelector(BuildContext context, WidgetRef ref, ThemeState themeState) {
+    final l10n = context.l10n;
+    final options = <(String, AppFontFamily)>[
+      (l10n.appearance_fontSystem, AppFontFamily.system),
+      ('MiSans', AppFontFamily.miSans),
+    ];
+
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      clipBehavior: Clip.antiAlias,
+      child: RadioGroup<AppFontFamily>(
+        groupValue: themeState.fontFamily,
+        onChanged: (value) {
+          if (value != null) {
+            ref.read(themeProvider.notifier).setFontFamily(value);
+          }
+        },
+        child: Column(
+          children: [
+            for (final (label, fontFamily) in options)
+              RadioListTile<AppFontFamily>(
+                title: Text(
+                  label,
+                  style: fontFamily == AppFontFamily.miSans
+                      ? const TextStyle(fontFamily: 'MiSans')
+                      : null,
+                ),
+                value: fontFamily,
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -293,6 +293,7 @@ class MainApp extends ConsumerWidget {
           theme: ThemeData(
             colorScheme: lightScheme,
             useMaterial3: true,
+            fontFamily: themeState.fontFamilyName,
             cardTheme: CardThemeData(
               elevation: 0,
               shape: RoundedRectangleBorder(
@@ -305,6 +306,7 @@ class MainApp extends ConsumerWidget {
           darkTheme: ThemeData(
             colorScheme: darkScheme,
             useMaterial3: true,
+            fontFamily: themeState.fontFamilyName,
             cardTheme: CardThemeData(
               elevation: 0,
               shape: RoundedRectangleBorder(
