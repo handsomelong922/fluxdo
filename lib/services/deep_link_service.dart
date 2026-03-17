@@ -3,6 +3,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import '../pages/topic_detail_page/topic_detail_page.dart';
 import '../pages/user_profile_page.dart';
+import '../pages/webview_login_page.dart';
 import '../pages/webview_page.dart';
 import '../constants.dart';
 import '../utils/discourse_url_parser.dart';
@@ -23,6 +24,9 @@ class DeepLinkService {
   /// 防重复：记录最近处理的链接和时间
   Uri? _lastHandledUri;
   DateTime? _lastHandledTime;
+
+  /// 邮箱登录成功回调（用于 Onboarding 页面完成引导）
+  VoidCallback? onEmailLoginSuccess;
 
   /// 初始化服务
   /// 在主页面初始化后调用
@@ -113,6 +117,12 @@ class DeepLinkService {
       return;
     }
 
+    // 邮箱链接登录：/session/email-login/{token}
+    if (uri.host == 'linux.do' && uri.path.startsWith('/session/email-login/')) {
+      _handleEmailLogin(context, url);
+      return;
+    }
+
     // 其他 linux.do 链接：使用内置浏览器
     if (uri.host == 'linux.do' || uri.host.endsWith('.linux.do')) {
       WebViewPage.open(context, url);
@@ -175,6 +185,19 @@ class DeepLinkService {
         // 未知路径，打开网页版
         final webUrl = '${AppConstants.baseUrl}/${pathSegments.join('/')}';
         WebViewPage.open(context, webUrl);
+    }
+  }
+
+  /// 处理邮箱链接登录
+  Future<void> _handleEmailLogin(BuildContext context, String url) async {
+    debugPrint('DeepLinkService: 处理邮箱链接登录: $url');
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => WebViewLoginPage(initialUrl: url),
+      ),
+    );
+    if (result == true) {
+      onEmailLoginSuccess?.call();
     }
   }
 

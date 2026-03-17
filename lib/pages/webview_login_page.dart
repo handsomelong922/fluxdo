@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/preferences_provider.dart';
@@ -17,7 +18,11 @@ import '../l10n/s.dart';
 
 /// WebView 登录页面（统一使用 flutter_inappwebview）
 class WebViewLoginPage extends ConsumerStatefulWidget {
-  const WebViewLoginPage({super.key});
+  /// 初始加载的 URL，默认为登录页面
+  /// 用于邮箱链接登录等场景，可传入 email-login URL
+  final String? initialUrl;
+
+  const WebViewLoginPage({super.key, this.initialUrl});
 
   @override
   ConsumerState<WebViewLoginPage> createState() => _WebViewLoginPageState();
@@ -60,6 +65,11 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       appBar: AppBar(
         title: Text(context.l10n.webviewLogin_title),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.content_paste_outlined),
+            tooltip: context.l10n.webviewLogin_emailLoginPaste,
+            onPressed: _pasteEmailLoginLink,
+          ),
           if (_savedUsername != null)
             PopupMenuButton<String>(
               icon: const Icon(Icons.key_rounded),
@@ -104,7 +114,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
           ),
           Expanded(
             child: InAppWebView(
-              initialUrlRequest: URLRequest(url: WebUri('https://linux.do/login')),
+              initialUrlRequest: URLRequest(url: WebUri(widget.initialUrl ?? 'https://linux.do/login')),
               initialSettings: WebViewSettings.visible,
               onWebViewCreated: (controller) {
                 _controller = controller;
@@ -160,6 +170,27 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     }
   }
 
+  /// 从剪贴板粘贴邮箱登录链接
+  Future<void> _pasteEmailLoginLink() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text?.trim() ?? '';
+
+    if (text.isEmpty) {
+      ToastService.showError(S.current.webviewLogin_emailLoginInvalidLink);
+      return;
+    }
+
+    // 验证是否为有效的邮箱登录链接
+    final uri = Uri.tryParse(text);
+    if (uri == null || !uri.path.startsWith('/session/email-login/')) {
+      ToastService.showError(S.current.webviewLogin_emailLoginInvalidLink);
+      return;
+    }
+
+    // 在 WebView 中加载该链接
+    _controller?.loadUrl(urlRequest: URLRequest(url: WebUri(text)));
+  }
+
   /// 自动填充登录表单 + 注入凭证捕获脚本
   Future<void> _autoFillLoginForm(InAppWebViewController controller, WebUri? url) async {
     final autoFill = ref.read(preferencesProvider).autoFillLogin;
@@ -167,6 +198,8 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
 
     final urlStr = url?.toString() ?? '';
     if (!urlStr.contains('linux.do')) return;
+    // 邮箱链接登录页无需自动填充
+    if (urlStr.contains('/session/email-login/')) return;
 
     final credentials = await _credentialStore.load();
     final hasCredentials = credentials.username != null && credentials.username!.isNotEmpty

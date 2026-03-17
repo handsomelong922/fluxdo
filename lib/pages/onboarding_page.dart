@@ -4,6 +4,7 @@ import 'package:jovial_svg/jovial_svg.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import '../l10n/s.dart';
+import '../services/deep_link_service.dart';
 import 'webview_login_page.dart';
 import 'network_settings_page/network_settings_page.dart';
 
@@ -25,6 +26,13 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
   void initState() {
     super.initState();
     _setupEntryAnimations();
+    // 初始化 Deep Link 服务以处理邮箱链接登录
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      DeepLinkService.instance.onEmailLoginSuccess = () {
+        if (mounted) widget.onComplete();
+      };
+      DeepLinkService.instance.initialize(context);
+    });
   }
 
   void _setupEntryAnimations() {
@@ -62,6 +70,7 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
 
   @override
   void dispose() {
+    DeepLinkService.instance.onEmailLoginSuccess = null;
     _entryAnimationController.dispose();
     super.dispose();
   }
