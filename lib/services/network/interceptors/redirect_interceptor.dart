@@ -31,7 +31,7 @@ class RedirectInterceptor extends Interceptor {
         final redirectUri = Uri.parse(location);
         final absoluteUrl = redirectUri.isAbsolute
             ? location
-            : Uri.parse(response.requestOptions.uri.toString())
+            : response.requestOptions.uri
                 .resolve(location)
                 .toString();
 

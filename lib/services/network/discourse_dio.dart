@@ -7,7 +7,6 @@ import 'adapters/platform_adapter.dart';
 import 'cookie/app_cookie_manager.dart';
 import 'cookie/cookie_jar_service.dart';
 import 'cookie/cookie_sync_service.dart';
-import 'interceptors/gateway_proxy_interceptor.dart';
 import 'interceptors/cf_challenge_interceptor.dart';
 import 'interceptors/request_scheduler_interceptor.dart';
 import 'interceptors/session_guard_interceptor.dart';
@@ -97,11 +96,9 @@ class DiscourseDio {
       ));
     }
 
-    // 11. Gateway 拦截器（必须在 cookie/CF 之后，改写 URL 到 localhost 代理）
-    // 响应路径中最先恢复原始 URL，确保 cookie 管理器按正确域名处理
-    dio.interceptors.add(GatewayProxyInterceptor());
-
-    // 12. 网络日志拦截器（最后一个，记录最终结果）
+    // 11. 网络日志拦截器（最后一个，记录最终结果）
+    // 注意：Gateway URL 改写已移至 HttpClientAdapter 层（_GatewayAdapterWrapper），
+    // 所有拦截器始终看到原始 URL，无需额外处理。
     dio.interceptors.add(NetworkLogInterceptor());
 
     return dio;

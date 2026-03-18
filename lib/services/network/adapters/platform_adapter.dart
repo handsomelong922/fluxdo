@@ -49,11 +49,14 @@ HttpClientAdapter createExternalHttpAdapter() {
   final fallbackService = CronetFallbackService.instance;
   final rhttpSettings = RhttpSettingsService.instance;
 
+  HttpClientAdapter adapter;
   if (Platform.isWindows) {
-    return IOHttpClientAdapter();
+    adapter = IOHttpClientAdapter();
+  } else {
+    adapter = _DynamicAdapter(settings, proxySettings, fallbackService, rhttpSettings);
   }
 
-  return _DynamicAdapter(settings, proxySettings, fallbackService, rhttpSettings);
+  return _GatewayAdapterWrapper(adapter);
 }
 
 /// 配置平台适配器
@@ -82,6 +85,10 @@ void configurePlatformAdapter(Dio dio) {
       rhttpSettings,
     );
   }
+
+  // Gateway 包装：在传输层透明改写 URL 到 localhost 代理
+  // 所有拦截器始终看到原始 URL，避免 cookie 域名不匹配等问题
+  dio.httpClientAdapter = _GatewayAdapterWrapper(dio.httpClientAdapter);
 }
 
 /// 配置 WebView 适配器
@@ -132,6 +139,79 @@ HttpClientAdapter _createNativeAdapter() {
     return NativeAdapter(createCupertinoConfiguration: () => config);
   }
   return NativeAdapter();
+}
+
+/// Gateway 适配器包装器：在传输层透明改写 URL
+///
+/// 将 HTTPS 请求改写为 HTTP 指向 localhost gateway 代理，
+/// 消除 MITM 双重 TLS 开销。改写仅在 `fetch()` 调用期间生效，
+/// 结束后立即恢复原始 URL，确保所有拦截器始终看到原始 URL。
+///
+/// 这解决了在拦截器链中改写 URL 导致的根本问题：
+/// Cookie 管理器按 localhost 域名存取 cookie，
+/// 重试拦截器拿到被改写的 localhost URL 等。
+class _GatewayAdapterWrapper implements HttpClientAdapter {
+  _GatewayAdapterWrapper(this._inner);
+
+  final HttpClientAdapter _inner;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final settings = NetworkSettingsService.instance;
+    final proxySettings = ProxySettingsService.instance;
+    final rhttpSettings = RhttpSettingsService.instance;
+    final currentAdapter = getCurrentAdapterType();
+
+    // rhttp 直连时保留原始 HTTPS URL
+    final shouldUseRhttp = currentAdapter == AdapterType.rhttp ||
+        rhttpSettings.shouldUseRhttp(settings.current, proxySettings.current);
+
+    if (!shouldUseRhttp && settings.isGatewayMode) {
+      final port = settings.current.proxyPort;
+      final uri = options.uri;
+      if (port != null && uri.scheme == 'https') {
+        // 保存原始状态
+        final savedBaseUrl = options.baseUrl;
+        final savedPath = options.path;
+        final savedHost = options.headers['Host'];
+
+        // 改写为明文 HTTP 指向 localhost gateway
+        options.headers['Host'] = uri.host;
+        final gatewayUri = Uri(
+          scheme: 'http',
+          host: '127.0.0.1',
+          port: port,
+          path: uri.path,
+          query: uri.query.isEmpty ? null : uri.query,
+          fragment: uri.fragment.isEmpty ? null : uri.fragment,
+        );
+        options.baseUrl = '';
+        options.path = gatewayUri.toString();
+
+        try {
+          return await _inner.fetch(options, requestStream, cancelFuture);
+        } finally {
+          // 恢复原始 URL，确保拦截器响应链始终看到原始域名
+          options.baseUrl = savedBaseUrl;
+          options.path = savedPath;
+          if (savedHost != null) {
+            options.headers['Host'] = savedHost;
+          } else {
+            options.headers.remove('Host');
+          }
+        }
+      }
+    }
+
+    return _inner.fetch(options, requestStream, cancelFuture);
+  }
+
+  @override
+  void close({bool force = false}) => _inner.close(force: force);
 }
 
 /// 动态适配器：每次请求时根据设置 version 变化自动切换底层适配器

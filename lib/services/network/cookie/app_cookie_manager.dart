@@ -187,8 +187,10 @@ class AppCookieManager extends Interceptor {
 
     // Save cookies for the original site.
     final originalUri = response.requestOptions.uri;
-    final realUri = originalUri.resolveUri(response.realUri);
-    await cookieJar.saveFromResponse(realUri, cookies);
+    await cookieJar.saveFromResponse(
+      originalUri.resolveUri(response.realUri),
+      cookies,
+    );
 
     // Optionally save cookies for redirected locations.
     final allowRedirectSave = response.requestOptions.extra['allowRedirectSetCookie'] == true;
