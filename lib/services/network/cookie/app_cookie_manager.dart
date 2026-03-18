@@ -26,7 +26,12 @@ class AppCookieManager extends Interceptor {
 
   /// Merge cookies into a Cookie string.
   /// Cookies with longer paths are listed before cookies with shorter paths.
-  /// 同名 cookie 去重：优先保留 domain cookie，避免重复发送。
+  /// 同名 cookie 去重：优先保留 host-only cookie，避免重复发送。
+  ///
+  /// host-only cookie 来自服务器 Set-Cookie 响应（无 domain 属性），
+  /// 代表服务器最新轮换的值（如 _t 会话 token）。
+  /// domain cookie 来自 syncFromWebView（WKWebView 自动添加 domain），
+  /// 可能是旧值。优先 host-only 确保发送服务器最新认可的值。
   static String _mergeCookies(List<Cookie> cookies) {
     cookies.sort((a, b) {
       if (a.path == null && b.path == null) {
@@ -39,18 +44,18 @@ class AppCookieManager extends Interceptor {
         return b.path!.length.compareTo(a.path!.length);
       }
     });
-    // 按 name+path 去重，优先保留 domain cookie
+    // 按 name+path 去重，优先保留 host-only cookie（服务器最新值）
     final seen = <String>{};
     final deduped = <Cookie>[];
-    // 先收集 domain cookie
+    // 先收集 host-only cookie（来自服务器直接 Set-Cookie 响应，是最新值）
     for (final cookie in cookies) {
-      if (cookie.domain != null && seen.add('${cookie.name}|${cookie.path}')) {
+      if (cookie.domain == null && seen.add('${cookie.name}|${cookie.path}')) {
         deduped.add(cookie);
       }
     }
-    // 再收集没有 domain cookie 对应的 host-only cookie
+    // 再收集没有 host-only 对应的 domain cookie（兜底）
     for (final cookie in cookies) {
-      if (cookie.domain == null && seen.add('${cookie.name}|${cookie.path}')) {
+      if (cookie.domain != null && seen.add('${cookie.name}|${cookie.path}')) {
         deduped.add(cookie);
       }
     }
@@ -136,13 +141,24 @@ class AppCookieManager extends Interceptor {
     final savedCookies = await cookieJar.loadForRequest(options.uri);
     final previousCookies =
         options.headers[HttpHeaders.cookieHeader] as String?;
-    final cookies = _mergeCookies([
+    final allCookies = [
       ...?previousCookies
           ?.split(';')
           .where((e) => e.isNotEmpty)
           .map((c) => Cookie.fromSetCookieValue(c)),
       ...savedCookies,
-    ]);
+    ];
+
+    // 诊断：记录 _t cookie 的 host-only/domain 变体
+    final tCookies = allCookies.where((c) => c.name == '_t').toList();
+    if (tCookies.length > 1) {
+      final hostOnly = tCookies.where((c) => c.domain == null).map((c) => c.value.length);
+      final domain = tCookies.where((c) => c.domain != null).map((c) => '${c.domain}:${c.value.length}');
+      debugPrint('[CookieManager] _t 多副本: hostOnly=$hostOnly, domain=$domain, '
+          'uri=${options.uri.host}${options.uri.path}');
+    }
+
+    final cookies = _mergeCookies(allCookies);
     return cookies;
   }
 
@@ -167,9 +183,11 @@ class AppCookieManager extends Interceptor {
             cookie.expires!.isBefore(DateTime.now());
         final isDeletion =
             cookie.value == 'del' || cookie.value.isEmpty || isExpired;
+        final uri = response.requestOptions.uri;
         debugPrint('[CookieManager] _t ${isDeletion ? "DEL" : "SET"} '
-            'from ${response.requestOptions.method} ${response.requestOptions.uri.path} '
-            '(status=${response.statusCode}, len=${cookie.value.length})');
+            'from ${response.requestOptions.method} ${uri.host}${uri.path} '
+            '(status=${response.statusCode}, len=${cookie.value.length}, '
+            'domain=${cookie.domain}, hasLoggedIn=${response.requestOptions.headers['Discourse-Logged-In']})');
         LogWriter.instance.write({
           'timestamp': DateTime.now().toIso8601String(),
           'level': isDeletion ? 'warning' : 'info',
@@ -179,8 +197,11 @@ class AppCookieManager extends Interceptor {
           'valueLength': cookie.value.length,
           'isExpired': isExpired,
           'method': response.requestOptions.method,
-          'url': response.requestOptions.uri.path,
+          'url': uri.path,
+          'fullUrl': uri.toString(),
           'statusCode': response.statusCode,
+          'cookieDomain': cookie.domain,
+          'hasLoggedInHeader': response.requestOptions.headers['Discourse-Logged-In'] == 'true',
         });
       }
     }

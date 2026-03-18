@@ -371,6 +371,8 @@ class CookieJarService {
   // ---------------------------------------------------------------------------
 
   /// 获取指定 Cookie 的值
+  /// 优先返回 host-only cookie（服务器 Set-Cookie 直接设置的最新值），
+  /// 与 AppCookieManager._mergeCookies 的发送优先级保持一致。
   Future<String?> getCookieValue(String name) async {
     if (!_initialized) await initialize();
 
@@ -378,12 +380,10 @@ class CookieJarService {
       final uri = Uri.parse(AppConstants.baseUrl);
       final cookies = await _cookieJar!.loadForRequest(uri);
 
-      // 优先返回 domain cookie（更可能是最新的、由服务器设置的），
-      // 避免 host-only 和 domain cookie 共存时取到旧值。
       String? fallback;
       for (final cookie in cookies) {
         if (cookie.name == name) {
-          if (cookie.domain != null) {
+          if (cookie.domain == null) {
             return CookieValueCodec.decode(cookie.value);
           }
           fallback ??= CookieValueCodec.decode(cookie.value);
@@ -502,6 +502,27 @@ class CookieJarService {
 
   /// 获取 _t token
   Future<String?> getTToken() => getCookieValue('_t');
+
+  /// 获取 _t 的诊断信息（所有副本的元数据，不含实际值）
+  Future<Map<String, dynamic>> getTTokenDiagnostics() async {
+    if (!_initialized) await initialize();
+    try {
+      final uri = Uri.parse(AppConstants.baseUrl);
+      final cookies = await _cookieJar!.loadForRequest(uri);
+      final tCookies = cookies.where((c) => c.name == '_t').toList();
+      return {
+        'count': tCookies.length,
+        'variants': tCookies.map((c) => {
+          'domain': c.domain,
+          'path': c.path,
+          'len': c.value.length,
+          'hasPrefix': c.value.startsWith(CookieValueCodec._prefix),
+        }).toList(),
+      };
+    } catch (e) {
+      return {'error': e.toString()};
+    }
+  }
 
   /// 获取 cf_clearance
   Future<String?> getCfClearance() => getCookieValue('cf_clearance');
