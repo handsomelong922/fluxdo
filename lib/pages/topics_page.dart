@@ -25,6 +25,7 @@ import '../widgets/topic/category_tab_manager_sheet.dart';
 import '../widgets/common/tag_selection_sheet.dart';
 import '../providers/app_state_refresher.dart';
 import '../providers/preferences_provider.dart';
+import '../utils/responsive.dart';
 import '../widgets/layout/master_detail_layout.dart';
 import '../widgets/common/error_view.dart';
 import '../widgets/common/loading_dialog.dart';
@@ -784,7 +785,7 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
                             ),
                           ),
                         ),
-                        if (isLoggedIn) const NotificationIconButton(),
+                        if (isLoggedIn && !Responsive.showNavigationRail(context)) const NotificationIconButton(),
                         if (kDebugMode)
                           IconButton(
                             icon: const Icon(Icons.bug_report),

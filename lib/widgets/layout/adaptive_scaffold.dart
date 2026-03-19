@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../pages/topics_page.dart';
 import '../../providers/preferences_provider.dart';
 import '../../utils/responsive.dart';
+import '../notification/notification_quick_panel.dart';
 import 'adaptive_navigation.dart';
 
 /// 自适应 Scaffold
@@ -22,6 +23,7 @@ class AdaptiveScaffold extends ConsumerWidget {
     required this.body,
     this.floatingActionButton,
     this.railLeading,
+    this.railBottomLeading,
     this.extendedRail = false,
   });
 
@@ -31,6 +33,7 @@ class AdaptiveScaffold extends ConsumerWidget {
   final Widget body;
   final Widget? floatingActionButton;
   final Widget? railLeading;
+  final Widget? railBottomLeading;
   final bool extendedRail;
 
   @override
@@ -59,6 +62,7 @@ class AdaptiveScaffold extends ConsumerWidget {
               destinations: destinations,
               extended: extendedRail,
               leading: railLeading,
+              bottomLeading: railBottomLeading,
             ),
             if (!useAcrylicRail)
               const VerticalDivider(thickness: 1, width: 1),
@@ -68,9 +72,15 @@ class AdaptiveScaffold extends ConsumerWidget {
             // 桌面 acrylic 模式：用 Material 给 body 提供不透明背景
             // TopicsScreen 等页面没有自己的 Scaffold，
             // Material 和 Scaffold 内部是同一个组件，不会产生双层背景
-            child: useAcrylicRail
-                ? Material(color: Theme.of(context).colorScheme.surface, child: body)
-                : body,
+            child: Stack(
+              children: [
+                useAcrylicRail
+                    ? Material(color: Theme.of(context).colorScheme.surface, child: body)
+                    : body,
+                // 通知面板（在 widget 树中，低于路由层，新页面自然覆盖）
+                const SidebarNotificationPanel(),
+              ],
+            ),
           ),
         ],
       ),

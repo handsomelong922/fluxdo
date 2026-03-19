@@ -25,6 +25,7 @@ class AdaptiveNavigationRail extends StatelessWidget {
     required this.destinations,
     this.extended = false,
     this.leading,
+    this.bottomLeading,
     this.bottomDestinationCount = 1,
   });
 
@@ -33,6 +34,9 @@ class AdaptiveNavigationRail extends StatelessWidget {
   final List<AdaptiveDestination> destinations;
   final bool extended;
   final Widget? leading;
+
+  /// 底部导航项上方的自定义组件
+  final Widget? bottomLeading;
 
   /// 固定在底部的导航项数量（从末尾算起）
   final int bottomDestinationCount;
@@ -73,6 +77,10 @@ class AdaptiveNavigationRail extends StatelessWidget {
               );
             }),
             const Spacer(),
+            if (bottomLeading != null) ...[
+              bottomLeading!,
+              const SizedBox(height: 8),
+            ],
             // 底部导航项
             ...bottomDestinations.asMap().entries.map((entry) {
               final index = entry.key + splitIndex;

@@ -38,9 +38,11 @@ import '../services/cdk_oauth_service.dart';
 import '../l10n/s.dart';
 import '../services/toast_service.dart';
 import '../utils/number_utils.dart';
+import '../utils/responsive.dart';
 import '../services/emoji_handler.dart';
 import '../services/log/log_writer.dart';
 import '../providers/theme_provider.dart';
+import '../widgets/layout/master_detail_layout.dart';
 
 /// 个人页面
 class ProfilePage extends ConsumerStatefulWidget {
@@ -52,6 +54,7 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   late ScrollController _scrollController;
+  late ScrollController _rightScrollController;
   bool _showTitle = false;
   bool _isRefreshing = false;
 
@@ -60,6 +63,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     super.initState();
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
+    _rightScrollController = ScrollController();
   }
 
   /// 下拉刷新
@@ -81,12 +85,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _rightScrollController.dispose();
     super.dispose();
   }
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
-    
+
+    // 双栏模式下头像始终可见，无需标题动画
+    if (MasterDetailLayout.canShowBothPanesFor(context)) {
+      if (_showTitle) setState(() => _showTitle = false);
+      return;
+    }
+
     // 当滚动超过一定距离（例如头像区域的高度）时显示标题
     // 头像(72) + padding(大概20)
     final show = _scrollController.offset > 80;
@@ -228,16 +239,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final isLoggedIn = userState.value != null;
     final user = userState.value;
     final displayName = user?.name ?? user?.username ?? '';
-    
-    final isLoadingInitial = userState.isLoading && !userState.hasValue;
-    final hasError = userState.hasError && !userState.hasValue;
-    final errorMessage = userState.error?.toString() ?? '';
 
     final isOffline = userState.hasError && userState.hasValue && userState.value != null;
+    final showWideLayout = MasterDetailLayout.canShowBothPanesFor(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: _showTitle && displayName.isNotEmpty
+        title: !showWideLayout && _showTitle && displayName.isNotEmpty
             ? GestureDetector(
                 onTap: () {
                   _scrollController.animateTo(
@@ -292,101 +300,224 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             tooltip: context.l10n.profile_editProfile,
             onPressed: _openProfileEdit,
           ),
-          const Padding(
-            padding: EdgeInsets.only(right: 8.0),
-            child: NotificationIconButton(),
-          )
+          // 侧栏模式下通知角标已在侧栏头像上显示
+          if (!Responsive.showNavigationRail(context))
+            const Padding(
+              padding: EdgeInsets.only(right: 8.0),
+              child: NotificationIconButton(),
+            ),
         ] : null,
       ),
-      body: RefreshIndicator(
-        onRefresh: _refreshData,
-        child: ListView(
-          controller: _scrollController,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          children: [
-            const _ProfileHeader(),
-            const SizedBox(height: 24),
+      body: showWideLayout ? _buildWideBody(theme) : _buildMobileBody(theme),
+    );
+  }
 
-            if (isLoadingInitial)
-              const Center(child: Padding(
-                padding: EdgeInsets.all(64),
-                child: LoadingSpinner(),
-              ))
-            else if (hasError)
-              _buildError(theme, errorMessage)
-            else
-              Consumer(
-                builder: (context, ref, _) {
-                  final summary = ref.watch(userSummaryProvider.select((value) => value.value));
-                  final loggedIn = ref.watch(
-                    currentUserProvider.select((value) => value.value != null),
-                  );
-                  if (!loggedIn || summary == null) {
-                    return const SizedBox.shrink();
-                  }
-                  return Column(
-                    children: [
-                      _buildStatsRow(theme, summary),
-                      const SizedBox(height: 24),
-                    ],
-                  );
-                },
-              ),
+  /// 手机端：保持原有单列布局
+  Widget _buildMobileBody(ThemeData theme) {
+    final userState = ref.watch(currentUserProvider);
+    final isLoggedIn = userState.value != null;
+    final user = userState.value;
+    final isLoadingInitial = userState.isLoading && !userState.hasValue;
+    final hasError = userState.hasError && !userState.hasValue;
+    final errorMessage = userState.error?.toString() ?? '';
 
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      child: ListView(
+        controller: _scrollController,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        children: [
+          const _ProfileHeader(),
+          const SizedBox(height: 24),
+
+          if (isLoadingInitial)
+            const Center(child: Padding(
+              padding: EdgeInsets.all(64),
+              child: LoadingSpinner(),
+            ))
+          else if (hasError)
+            _buildError(theme, errorMessage)
+          else
             Consumer(
               builder: (context, ref, _) {
-                final prefs = ref.watch(sharedPreferencesProvider);
-                final ldcEnabled = prefs.getBool('ldc_enabled') ?? false;
-                final cdkEnabled = prefs.getBool('cdk_enabled') ?? false;
-
-                if (!ldcEnabled && !cdkEnabled) return const SizedBox.shrink();
-
+                final summary = ref.watch(userSummaryProvider.select((value) => value.value));
+                final loggedIn = ref.watch(
+                  currentUserProvider.select((value) => value.value != null),
+                );
+                if (!loggedIn || summary == null) {
+                  return const SizedBox.shrink();
+                }
                 return Column(
                   children: [
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        children: [
-                          if (ldcEnabled)
-                            LdcBalanceCard(
-                              inline: true,
-                              onReauthorize: () => _reauthorizeLdc(),
-                              showDivider: cdkEnabled,
-                            ),
-                          if (cdkEnabled)
-                            CdkBalanceCard(
-                              inline: true,
-                              onReauthorize: () => _reauthorizeCdk(),
-                            ),
-                        ],
-                      ),
-                    ),
+                    _buildStatsRow(theme, summary),
                     const SizedBox(height: 24),
                   ],
                 );
               },
             ),
 
-            if (isLoggedIn) ...[
-              _buildContentCard(theme),
-              const SizedBox(height: 20),
-              _buildCommunityCard(
-                theme,
-                canAccessInviteLinks: (user?.trustLevel ?? 0) >= 3,
-              ),
-              const SizedBox(height: 20),
-            ],
-            
-            _buildSystemAndToolsCard(theme),
-            const SizedBox(height: 32),
-            _buildAuthButton(theme, isLoggedIn),
-            const SizedBox(height: 48),
+          _buildBalanceCards(),
+
+          if (isLoggedIn) ...[
+            _buildContentCard(theme),
+            const SizedBox(height: 20),
+            _buildCommunityCard(
+              theme,
+              canAccessInviteLinks: (user?.trustLevel ?? 0) >= 3,
+            ),
+            const SizedBox(height: 20),
           ],
-        ),
+
+          _buildSystemAndToolsCard(theme),
+          const SizedBox(height: 32),
+          _buildAuthButton(theme, isLoggedIn),
+          const SizedBox(height: 48),
+        ],
       ),
+    );
+  }
+
+  /// 平板/桌面端：左右双栏布局
+  Widget _buildWideBody(ThemeData theme) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 360,
+          child: _buildLeftPanel(theme),
+        ),
+        VerticalDivider(width: 1, thickness: 0.5, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
+        Expanded(
+          child: _buildRightPanel(theme),
+        ),
+      ],
+    );
+  }
+
+  /// 左面板：资料卡 + 统计 + 余额卡片 + 登录/退出按钮固定底部
+  Widget _buildLeftPanel(ThemeData theme) {
+    final userState = ref.watch(currentUserProvider);
+    final isLoggedIn = userState.value != null;
+    final isLoadingInitial = userState.isLoading && !userState.hasValue;
+    final hasError = userState.hasError && !userState.hasValue;
+    final errorMessage = userState.error?.toString() ?? '';
+
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              children: [
+                const _ProfileHeader(),
+                const SizedBox(height: 24),
+
+                if (isLoadingInitial)
+                  const Center(child: Padding(
+                    padding: EdgeInsets.all(64),
+                    child: LoadingSpinner(),
+                  ))
+                else if (hasError)
+                  _buildError(theme, errorMessage)
+                else
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final summary = ref.watch(userSummaryProvider.select((value) => value.value));
+                      final loggedIn = ref.watch(
+                        currentUserProvider.select((value) => value.value != null),
+                      );
+                      if (!loggedIn || summary == null) {
+                        return const SizedBox.shrink();
+                      }
+                      return Column(
+                        children: [
+                          _buildStatsRow(theme, summary),
+                          const SizedBox(height: 24),
+                        ],
+                      );
+                    },
+                  ),
+
+                _buildBalanceCards(),
+
+                if (isLoggedIn) ...[
+                  _buildContentCard(theme),
+                  const SizedBox(height: 24),
+                ],
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: _buildAuthButton(theme, isLoggedIn),
+        ),
+      ],
+    );
+  }
+
+  /// 右面板：功能菜单卡片
+  Widget _buildRightPanel(ThemeData theme) {
+    final userState = ref.watch(currentUserProvider);
+    final isLoggedIn = userState.value != null;
+    final user = userState.value;
+
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      child: ListView(
+        controller: _rightScrollController,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        children: [
+          if (isLoggedIn) ...[
+            _buildCommunityCard(
+              theme,
+              canAccessInviteLinks: (user?.trustLevel ?? 0) >= 3,
+            ),
+            const SizedBox(height: 20),
+          ],
+          _buildSystemAndToolsCard(theme),
+          const SizedBox(height: 48),
+        ],
+      ),
+    );
+  }
+
+  /// LDC/CDK 余额卡片（共用组件）
+  Widget _buildBalanceCards() {
+    return Consumer(
+      builder: (context, ref, _) {
+        final prefs = ref.watch(sharedPreferencesProvider);
+        final ldcEnabled = prefs.getBool('ldc_enabled') ?? false;
+        final cdkEnabled = prefs.getBool('cdk_enabled') ?? false;
+
+        if (!ldcEnabled && !cdkEnabled) return const SizedBox.shrink();
+
+        return Column(
+          children: [
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  if (ldcEnabled)
+                    LdcBalanceCard(
+                      inline: true,
+                      onReauthorize: () => _reauthorizeLdc(),
+                      showDivider: cdkEnabled,
+                    ),
+                  if (cdkEnabled)
+                    CdkBalanceCard(
+                      inline: true,
+                      onReauthorize: () => _reauthorizeCdk(),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        );
+      },
     );
   }
   

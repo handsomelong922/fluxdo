@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:scroll_to_index/scroll_to_index.dart';
@@ -54,16 +55,22 @@ class TopicPostList extends StatefulWidget {
   final void Function(TopicNotificationLevel)? onNotificationLevelChanged;
   final void Function(int postId, bool accepted)? onSolutionChanged;
   final void Function(String selectedText, Post post)? onQuoteSelection;
+
   /// 图片引用回调（长按图片 → 引用）
   final void Function(String quote, Post post)? onQuoteImage;
   final bool Function(ScrollNotification) onScrollNotification;
+  final ValueChanged<double>? onPointerScroll;
+
   /// Gap 回调（拉黑用户帖子加载）
   final void Function(int postId)? onFillGapBefore;
   final void Function(int postId)? onFillGapAfter;
+
   /// 展开隐藏帖子回调
   final void Function(int postId)? onExpandHiddenPost;
+
   /// 是否使用弹框展示回复（过滤模式下）
   final bool useReplyDialog;
+
   /// 查看帖子详情回调
   final void Function(Post post)? onShowPostDetail;
 
@@ -100,6 +107,7 @@ class TopicPostList extends StatefulWidget {
     this.onQuoteSelection,
     this.onQuoteImage,
     required this.onScrollNotification,
+    this.onPointerScroll,
     this.onFillGapBefore,
     this.onFillGapAfter,
     this.onExpandHiddenPost,
@@ -117,6 +125,7 @@ class _TopicPostListState extends State<TopicPostList> {
   List<_PostRenderSegment> _renderSegments = const [];
   Map<int, int> _postIndexToScrollIndex = const {};
   Map<int, int> _scrollIndexToPostNumber = const {};
+
   /// postNumber → postIndex 反查表（避免 indexWhere 线性查找）
   Map<int, int> _postNumberToIndex = const {};
   SelectedContent? _lastLongPostSelectedContent;
@@ -158,15 +167,22 @@ class _TopicPostListState extends State<TopicPostList> {
   void Function(Post post)? get onShareAsImage => widget.onShareAsImage;
   void Function(int postId) get onRefreshPost => widget.onRefreshPost;
   void Function(int, bool) get onVoteChanged => widget.onVoteChanged;
-  void Function(TopicNotificationLevel)? get onNotificationLevelChanged => widget.onNotificationLevelChanged;
-  void Function(int postId, bool accepted)? get onSolutionChanged => widget.onSolutionChanged;
-  void Function(String selectedText, Post post)? get onQuoteSelection => widget.onQuoteSelection;
-  void Function(String quote, Post post)? get onQuoteImage => widget.onQuoteImage;
-  bool Function(ScrollNotification) get onScrollNotification => widget.onScrollNotification;
-  void Function(Set<int> visiblePostNumbers)? get onVisiblePostsChanged => widget.onVisiblePostsChanged;
+  void Function(TopicNotificationLevel)? get onNotificationLevelChanged =>
+      widget.onNotificationLevelChanged;
+  void Function(int postId, bool accepted)? get onSolutionChanged =>
+      widget.onSolutionChanged;
+  void Function(String selectedText, Post post)? get onQuoteSelection =>
+      widget.onQuoteSelection;
+  void Function(String quote, Post post)? get onQuoteImage =>
+      widget.onQuoteImage;
+  bool Function(ScrollNotification) get onScrollNotification =>
+      widget.onScrollNotification;
+  void Function(Set<int> visiblePostNumbers)? get onVisiblePostsChanged =>
+      widget.onVisiblePostsChanged;
   void Function(int postId)? get onFillGapBefore => widget.onFillGapBefore;
   void Function(int postId)? get onFillGapAfter => widget.onFillGapAfter;
-  void Function(int postId)? get onExpandHiddenPost => widget.onExpandHiddenPost;
+  void Function(int postId)? get onExpandHiddenPost =>
+      widget.onExpandHiddenPost;
   bool get useReplyDialog => widget.useReplyDialog;
 
   /// 检测当前可见帖子（Eyeline 机制）
@@ -200,7 +216,8 @@ class _TopicPostListState extends State<TopicPostList> {
     } else {
       // 所有帖子已加载，根据滚动进度动态计算 eyeline
       final remainingScroll = position.maxScrollExtent - position.pixels;
-      final totalScrollRange = position.maxScrollExtent - position.minScrollExtent;
+      final totalScrollRange =
+          position.maxScrollExtent - position.minScrollExtent;
       // eyeline 在最后一个视口距离内从顶部过渡到底部
       final scrollableArea = viewportHeight.clamp(0.0, totalScrollRange);
       final progress = scrollableArea > 0
@@ -291,7 +308,9 @@ class _TopicPostListState extends State<TopicPostList> {
     if (Responsive.isMobile(context)) return child;
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: Breakpoints.maxContentWidth),
+        constraints: const BoxConstraints(
+          maxWidth: Breakpoints.maxContentWidth,
+        ),
         child: child,
       ),
     );
@@ -312,12 +331,14 @@ class _TopicPostListState extends State<TopicPostList> {
         final gapIds = gaps.before[post.id]!;
         if (gapIds.isNotEmpty) {
           scrollIndexToPostNumber[segments.length] = post.postNumber;
-          segments.add(_PostRenderSegment.gapBefore(
-            scrollIndex: segments.length,
-            postIndex: postIndex,
-            post: post,
-            gapCount: gapIds.length,
-          ));
+          segments.add(
+            _PostRenderSegment.gapBefore(
+              scrollIndex: segments.length,
+              postIndex: postIndex,
+              post: post,
+              gapCount: gapIds.length,
+            ),
+          );
         }
       }
 
@@ -329,37 +350,45 @@ class _TopicPostListState extends State<TopicPostList> {
 
       if (!useLongSegments) {
         scrollIndexToPostNumber[segments.length] = post.postNumber;
-        segments.add(_PostRenderSegment.shortPost(
-          scrollIndex: segments.length,
-          postIndex: postIndex,
-          post: post,
-        ));
-      } else {
-        scrollIndexToPostNumber[segments.length] = post.postNumber;
-        segments.add(_PostRenderSegment.header(
-          scrollIndex: segments.length,
-          postIndex: postIndex,
-          post: post,
-        ));
-
-        for (final chunk in renderData.chunks) {
-          scrollIndexToPostNumber[segments.length] = post.postNumber;
-          segments.add(_PostRenderSegment.chunk(
+        segments.add(
+          _PostRenderSegment.shortPost(
             scrollIndex: segments.length,
             postIndex: postIndex,
             post: post,
-            chunkIndex: chunk.index,
-            chunkData: chunk,
-            renderData: renderData,
-          ));
+          ),
+        );
+      } else {
+        scrollIndexToPostNumber[segments.length] = post.postNumber;
+        segments.add(
+          _PostRenderSegment.header(
+            scrollIndex: segments.length,
+            postIndex: postIndex,
+            post: post,
+          ),
+        );
+
+        for (final chunk in renderData.chunks) {
+          scrollIndexToPostNumber[segments.length] = post.postNumber;
+          segments.add(
+            _PostRenderSegment.chunk(
+              scrollIndex: segments.length,
+              postIndex: postIndex,
+              post: post,
+              chunkIndex: chunk.index,
+              chunkData: chunk,
+              renderData: renderData,
+            ),
+          );
         }
 
         scrollIndexToPostNumber[segments.length] = post.postNumber;
-        segments.add(_PostRenderSegment.footer(
-          scrollIndex: segments.length,
-          postIndex: postIndex,
-          post: post,
-        ));
+        segments.add(
+          _PostRenderSegment.footer(
+            scrollIndex: segments.length,
+            postIndex: postIndex,
+            post: post,
+          ),
+        );
       }
 
       // 检查此帖子后面是否有 gap
@@ -367,12 +396,14 @@ class _TopicPostListState extends State<TopicPostList> {
         final gapIds = gaps.after[post.id]!;
         if (gapIds.isNotEmpty) {
           scrollIndexToPostNumber[segments.length] = post.postNumber;
-          segments.add(_PostRenderSegment.gapAfter(
-            scrollIndex: segments.length,
-            postIndex: postIndex,
-            post: post,
-            gapCount: gapIds.length,
-          ));
+          segments.add(
+            _PostRenderSegment.gapAfter(
+              scrollIndex: segments.length,
+              postIndex: postIndex,
+              post: post,
+              gapCount: gapIds.length,
+            ),
+          );
         }
       }
     }
@@ -404,7 +435,8 @@ class _TopicPostListState extends State<TopicPostList> {
     return SelectionArea(
       onSelectionChanged: (content) {
         _lastLongPostSelectedContent = content;
-        _lastLongCodeSelectionContext = CodeSelectionContextTracker.instance.current;
+        _lastLongCodeSelectionContext =
+            CodeSelectionContextTracker.instance.current;
         if (content == null) {
           _activeLongSelectionPost = null;
           _lastLongCodeSelectionContext = null;
@@ -412,7 +444,8 @@ class _TopicPostListState extends State<TopicPostList> {
       },
       contextMenuBuilder: (context, state) {
         final plainText = _lastLongPostSelectedContent?.plainText;
-        final canQuote = onQuoteSelection != null &&
+        final canQuote =
+            onQuoteSelection != null &&
             _activeLongSelectionPost != null &&
             plainText != null &&
             plainText.isNotEmpty;
@@ -438,60 +471,34 @@ class _TopicPostListState extends State<TopicPostList> {
       },
       child: NotificationListener<ScrollNotification>(
         onNotification: _handleScrollNotification,
-        child: CustomScrollView(
-          controller: scrollController,
-          center: centerKey,
-          cacheExtent: 500,
-          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-          slivers: [
-          // 向上加载骨架屏 / 失败重试
-          if (hasMoreBefore && isLoadPreviousFailed)
-            SliverToBoxAdapter(
-              child: _LoadFailedRetry(onRetry: onRetryLoadPrevious),
-            )
-          else if (hasMoreBefore && isLoadingPrevious)
-            LoadingSkeletonSliver(
-              itemCount: loadMoreSkeletonCount,
-              wrapContent: _wrapContent,
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerSignal: (event) {
+            if (event is PointerScrollEvent) {
+              widget.onPointerScroll?.call(event.scrollDelta.dy);
+            }
+          },
+          child: CustomScrollView(
+            controller: scrollController,
+            center: centerKey,
+            cacheExtent: 500,
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
             ),
-
-          // 话题 Header（centerPostIndex > 0 时放在 before-center 区域）
-          if (hasFirstPost && centerPostIndex > 0)
-            SliverToBoxAdapter(
-              child: _wrapContent(
-                context,
-                SelectionContainer.disabled(
-                  child: TopicDetailHeader(
-                    detail: detail,
-                    headerKey: headerKey,
-                    onVoteChanged: onVoteChanged,
-                    onNotificationLevelChanged: onNotificationLevelChanged,
-                    onJumpToPost: onJumpToPost,
-                  ),
+            slivers: [
+              // 向上加载骨架屏 / 失败重试
+              if (hasMoreBefore && isLoadPreviousFailed)
+                SliverToBoxAdapter(
+                  child: _LoadFailedRetry(onRetry: onRetryLoadPrevious),
+                )
+              else if (hasMoreBefore && isLoadingPrevious)
+                LoadingSkeletonSliver(
+                  itemCount: loadMoreSkeletonCount,
+                  wrapContent: _wrapContent,
                 ),
-              ),
-            ),
 
-          // Before-center 帖子（SliverList.builder 实现虚拟化回收）
-          // center 之前的 sliver 向上增长，index 0 离 center 最近，需要反转映射
-          if (centerPostIndex > 0)
-            SliverList.builder(
-              itemCount: centerScrollIndex,
-              itemBuilder: (context, index) {
-                final segmentIndex = centerScrollIndex - 1 - index;
-                return _buildSegmentItem(context, _renderSegments[segmentIndex]);
-              },
-            ),
-
-          // 中心帖子 + after-center 帖子（合并为一个 SliverList.builder）
-          // SliverList 不会回收最后一个 child，所以必须合并，确保 center 帖子
-          // 是多 item 列表中的一项，滚出视口后能被正常回收。
-          // centerPostIndex == 0 且有 header 时，用 SliverMainAxisGroup 将
-          // header 和帖子列表组合为 center，保证 header 默认可见。
-          if (centerPostIndex == 0 && hasFirstPost)
-            SliverMainAxisGroup(
-              key: centerKey,
-              slivers: [
+              // 话题 Header（centerPostIndex > 0 时放在 before-center 区域）
+              if (hasFirstPost && centerPostIndex > 0)
                 SliverToBoxAdapter(
                   child: _wrapContent(
                     context,
@@ -506,52 +513,97 @@ class _TopicPostListState extends State<TopicPostList> {
                     ),
                   ),
                 ),
-                SliverList.builder(
-                  itemCount: _renderSegments.length,
-                  itemBuilder: (context, index) =>
-                      _buildSegmentItem(context, _renderSegments[index]),
-                ),
-              ],
-            )
-          else
-            SliverList.builder(
-              key: centerKey,
-              itemCount: _renderSegments.length - centerScrollIndex,
-              itemBuilder: (context, index) {
-                final segmentIndex = centerScrollIndex + index;
-                return _buildSegmentItem(context, _renderSegments[segmentIndex]);
-              },
-            ),
 
-          // 正在输入指示器（始终占位，通过 AnimatedSize 平滑过渡避免列表抖动）
-          if (!hasMoreAfter)
-            SliverToBoxAdapter(
-              child: _wrapContent(
-                context,
-                SelectionContainer.disabled(
-                  child: AnimatedSize(
-                    duration: const Duration(milliseconds: 200),
-                    alignment: Alignment.topCenter,
-                    child: TypingAvatars(users: typingUsers),
+              // Before-center 帖子（SliverList.builder 实现虚拟化回收）
+              // center 之前的 sliver 向上增长，index 0 离 center 最近，需要反转映射
+              if (centerPostIndex > 0)
+                SliverList.builder(
+                  itemCount: centerScrollIndex,
+                  itemBuilder: (context, index) {
+                    final segmentIndex = centerScrollIndex - 1 - index;
+                    return _buildSegmentItem(
+                      context,
+                      _renderSegments[segmentIndex],
+                    );
+                  },
+                ),
+
+              // 中心帖子 + after-center 帖子（合并为一个 SliverList.builder）
+              // SliverList 不会回收最后一个 child，所以必须合并，确保 center 帖子
+              // 是多 item 列表中的一项，滚出视口后能被正常回收。
+              // centerPostIndex == 0 且有 header 时，用 SliverMainAxisGroup 将
+              // header 和帖子列表组合为 center，保证 header 默认可见。
+              if (centerPostIndex == 0 && hasFirstPost)
+                SliverMainAxisGroup(
+                  key: centerKey,
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: _wrapContent(
+                        context,
+                        SelectionContainer.disabled(
+                          child: TopicDetailHeader(
+                            detail: detail,
+                            headerKey: headerKey,
+                            onVoteChanged: onVoteChanged,
+                            onNotificationLevelChanged:
+                                onNotificationLevelChanged,
+                            onJumpToPost: onJumpToPost,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SliverList.builder(
+                      itemCount: _renderSegments.length,
+                      itemBuilder: (context, index) =>
+                          _buildSegmentItem(context, _renderSegments[index]),
+                    ),
+                  ],
+                )
+              else
+                SliverList.builder(
+                  key: centerKey,
+                  itemCount: _renderSegments.length - centerScrollIndex,
+                  itemBuilder: (context, index) {
+                    final segmentIndex = centerScrollIndex + index;
+                    return _buildSegmentItem(
+                      context,
+                      _renderSegments[segmentIndex],
+                    );
+                  },
+                ),
+
+              // 正在输入指示器（始终占位，通过 AnimatedSize 平滑过渡避免列表抖动）
+              if (!hasMoreAfter)
+                SliverToBoxAdapter(
+                  child: _wrapContent(
+                    context,
+                    SelectionContainer.disabled(
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 200),
+                        alignment: Alignment.topCenter,
+                        child: TypingAvatars(users: typingUsers),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
 
-          // 底部加载骨架屏 / 失败重试
-          if (hasMoreAfter && isLoadMoreFailed)
-            SliverToBoxAdapter(
-              child: _LoadFailedRetry(onRetry: onRetryLoadMore),
-            )
-          else if (hasMoreAfter && isLoadingMore)
-            LoadingSkeletonSliver(
-              itemCount: loadMoreSkeletonCount,
-              wrapContent: _wrapContent,
-            ),
-          SliverPadding(
-            padding: EdgeInsets.only(bottom: 80 + MediaQuery.of(context).padding.bottom),
+              // 底部加载骨架屏 / 失败重试
+              if (hasMoreAfter && isLoadMoreFailed)
+                SliverToBoxAdapter(
+                  child: _LoadFailedRetry(onRetry: onRetryLoadMore),
+                )
+              else if (hasMoreAfter && isLoadingMore)
+                LoadingSkeletonSliver(
+                  itemCount: loadMoreSkeletonCount,
+                  wrapContent: _wrapContent,
+                ),
+              SliverPadding(
+                padding: EdgeInsets.only(
+                  bottom: 80 + MediaQuery.of(context).padding.bottom,
+                ),
+              ),
+            ],
           ),
-          ],
         ),
       ),
     );
@@ -565,8 +617,16 @@ class _TopicPostListState extends State<TopicPostList> {
     final currentDate = posts[postIndex].createdAt;
     final previousDate = posts[postIndex - 1].createdAt;
 
-    final currentDay = DateTime(currentDate.year, currentDate.month, currentDate.day);
-    final previousDay = DateTime(previousDate.year, previousDate.month, previousDate.day);
+    final currentDay = DateTime(
+      currentDate.year,
+      currentDate.month,
+      currentDate.day,
+    );
+    final previousDay = DateTime(
+      previousDate.year,
+      previousDate.month,
+      previousDate.day,
+    );
 
     return currentDay != previousDay;
   }
@@ -582,7 +642,8 @@ class _TopicPostListState extends State<TopicPostList> {
     final posts_ = detail.postStream.posts;
     final nextPostIndex = postIndex + 1;
     final showBottomSeparator =
-        nextPostIndex < posts_.length && _shouldShowDateSeparator(nextPostIndex);
+        nextPostIndex < posts_.length &&
+        _shouldShowDateSeparator(nextPostIndex);
     final bottomDateSeparatorLabel = showBottomSeparator
         ? TimeUtils.formatSmartDate(posts_[nextPostIndex].createdAt)
         : null;
@@ -601,9 +662,13 @@ class _TopicPostListState extends State<TopicPostList> {
           dateSeparatorLabel: dateSeparatorLabel,
           bottomDateSeparatorLabel: bottomDateSeparatorLabel,
           onLike: () => ToastService.showInfo(S.current.ai_likeInDev),
-          onReply: isLoggedIn ? () => onReply(post.postNumber == 1 ? null : post) : null,
+          onReply: isLoggedIn
+              ? () => onReply(post.postNumber == 1 ? null : post)
+              : null,
           onEdit: isLoggedIn && post.canEdit ? () => onEdit(post) : null,
-          onShareAsImage: onShareAsImage != null ? () => onShareAsImage!(post) : null,
+          onShareAsImage: onShareAsImage != null
+              ? () => onShareAsImage!(post)
+              : null,
           onRefreshPost: onRefreshPost,
           onJumpToPost: onJumpToPost,
           onSolutionChanged: onSolutionChanged,
@@ -611,7 +676,9 @@ class _TopicPostListState extends State<TopicPostList> {
           onQuoteImage: onQuoteImage,
           onExpandHiddenPost: onExpandHiddenPost,
           useReplyDialog: useReplyDialog,
-          onShowPostDetail: widget.onShowPostDetail != null ? () => widget.onShowPostDetail!(post) : null,
+          onShowPostDetail: widget.onShowPostDetail != null
+              ? () => widget.onShowPostDetail!(post)
+              : null,
         );
         break;
       case _PostRenderSegmentType.longHeader:
@@ -643,20 +710,29 @@ class _TopicPostListState extends State<TopicPostList> {
           topicHasAcceptedAnswer: detail.hasAcceptedAnswer,
           acceptedAnswerPostNumber: detail.acceptedAnswerPostNumber,
           bottomDateSeparatorLabel: bottomDateSeparatorLabel,
-          onReply: isLoggedIn ? () => onReply(post.postNumber == 1 ? null : post) : null,
+          onReply: isLoggedIn
+              ? () => onReply(post.postNumber == 1 ? null : post)
+              : null,
           onEdit: isLoggedIn && post.canEdit ? () => onEdit(post) : null,
-          onShareAsImage: onShareAsImage != null ? () => onShareAsImage!(post) : null,
+          onShareAsImage: onShareAsImage != null
+              ? () => onShareAsImage!(post)
+              : null,
           onRefreshPost: onRefreshPost,
           onJumpToPost: onJumpToPost,
           onSolutionChanged: onSolutionChanged,
           useReplyDialog: useReplyDialog,
+          onShowPostDetail: widget.onShowPostDetail != null
+              ? () => widget.onShowPostDetail!(post)
+              : null,
         );
         break;
       case _PostRenderSegmentType.gapBefore:
         child = SelectionContainer.disabled(
           child: _GapIndicator(
             count: segment.gapCount,
-            onTap: onFillGapBefore != null ? () => onFillGapBefore!(post.id) : null,
+            onTap: onFillGapBefore != null
+                ? () => onFillGapBefore!(post.id)
+                : null,
           ),
         );
         break;
@@ -664,7 +740,9 @@ class _TopicPostListState extends State<TopicPostList> {
         child = SelectionContainer.disabled(
           child: _GapIndicator(
             count: segment.gapCount,
-            onTap: onFillGapAfter != null ? () => onFillGapAfter!(post.id) : null,
+            onTap: onFillGapAfter != null
+                ? () => onFillGapAfter!(post.id)
+                : null,
           ),
         );
         break;
@@ -690,7 +768,14 @@ class _TopicPostListState extends State<TopicPostList> {
   }
 }
 
-enum _PostRenderSegmentType { shortPost, longHeader, longChunk, longFooter, gapBefore, gapAfter }
+enum _PostRenderSegmentType {
+  shortPost,
+  longHeader,
+  longChunk,
+  longFooter,
+  gapBefore,
+  gapAfter,
+}
 
 class _PostRenderSegment {
   final _PostRenderSegmentType type;
@@ -819,14 +904,18 @@ class _GapIndicatorState extends State<_GapIndicator> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return InkWell(
-      onTap: _loading ? null : () {
-        setState(() => _loading = true);
-        widget.onTap?.call();
-      },
+      onTap: _loading
+          ? null
+          : () {
+              setState(() => _loading = true);
+              widget.onTap?.call();
+            },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          color: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.3,
+          ),
           border: Border(
             bottom: BorderSide(
               color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
@@ -859,7 +948,9 @@ class _GapIndicatorState extends State<_GapIndicator> {
                 ),
               ),
             Text(
-              _loading ? S.current.topicDetail_loading : S.current.topicDetail_showHiddenReplies(widget.count),
+              _loading
+                  ? S.current.topicDetail_loading
+                  : S.current.topicDetail_showHiddenReplies(widget.count),
               style: theme.textTheme.labelMedium?.copyWith(
                 color: theme.colorScheme.primary,
               ),

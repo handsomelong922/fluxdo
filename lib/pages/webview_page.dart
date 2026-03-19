@@ -1,3 +1,4 @@
+import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -8,6 +9,7 @@ import '../services/app_link_service.dart';
 import '../constants.dart';
 import '../services/network/cookie/cookie_jar_service.dart';
 import '../services/webview_settings.dart';
+import '../services/windows_webview_environment_service.dart';
 import '../widgets/common/app_link_confirm_dialog.dart';
 import '../providers/web_bookmark_provider.dart';
 import '../providers/web_history_provider.dart';
@@ -20,19 +22,20 @@ class WebViewPage extends ConsumerStatefulWidget {
   final String? title;
   final String? injectCss;
 
-  const WebViewPage({
-    super.key,
-    required this.url,
-    this.title,
-    this.injectCss,
-  });
+  const WebViewPage({super.key, required this.url, this.title, this.injectCss});
 
   /// 打开浏览器，url 为空字符串时显示空白页
-  static Future<T?> open<T extends Object?>(BuildContext context, String url, {String? title, String? injectCss}) {
+  static Future<T?> open<T extends Object?>(
+    BuildContext context,
+    String url, {
+    String? title,
+    String? injectCss,
+  }) {
     return Navigator.push<T>(
       context,
       MaterialPageRoute(
-        builder: (_) => WebViewPage(url: url, title: title, injectCss: injectCss),
+        builder: (_) =>
+            WebViewPage(url: url, title: title, injectCss: injectCss),
       ),
     );
   }
@@ -56,7 +59,11 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
     super.initState();
     _currentUrl = widget.url;
     _currentTitle = widget.title ?? '';
-    _cookieSyncFuture = _syncCookiesBeforeOpen();
+    // Windows 上不再提前 sync（CookieManager 对页面 WebView 不可靠），
+    // 改为在 onWebViewCreated 中通过 controller CDP 写入
+    _cookieSyncFuture = io.Platform.isWindows
+        ? Future.value()
+        : _syncCookiesBeforeOpen();
   }
 
   @override
@@ -69,7 +76,9 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isBookmarked = ref.watch(
-      webBookmarkProvider.select((list) => list.any((e) => e.url == _currentUrl)),
+      webBookmarkProvider.select(
+        (list) => list.any((e) => e.url == _currentUrl),
+      ),
     );
 
     return PopScope(
@@ -85,20 +94,31 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.lock_outline, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                  Icon(
+                    Icons.lock_outline,
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      _currentTitle.isNotEmpty ? _currentTitle : (_currentUrl.isNotEmpty ? _currentUrl : context.l10n.webview_inputUrl),
+                      _currentTitle.isNotEmpty
+                          ? _currentTitle
+                          : (_currentUrl.isNotEmpty
+                                ? _currentUrl
+                                : context.l10n.webview_inputUrl),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: _currentTitle.isNotEmpty || _currentUrl.isNotEmpty
+                        color:
+                            _currentTitle.isNotEmpty || _currentUrl.isNotEmpty
                             ? theme.colorScheme.onSurface
                             : theme.colorScheme.onSurfaceVariant,
                       ),
@@ -157,11 +177,17 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
                   value: 'toggle_bookmark',
                   child: Row(
                     children: [
-                      Icon(isBookmarked ? Icons.star_rounded : Icons.star_outline_rounded),
+                      Icon(
+                        isBookmarked
+                            ? Icons.star_rounded
+                            : Icons.star_outline_rounded,
+                      ),
                       const SizedBox(width: 8),
-                      Text(isBookmarked
-                          ? context.l10n.webview_removeBookmark
-                          : context.l10n.webview_addBookmark),
+                      Text(
+                        isBookmarked
+                            ? context.l10n.webview_removeBookmark
+                            : context.l10n.webview_addBookmark,
+                      ),
                     ],
                   ),
                 ),
@@ -189,98 +215,125 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
             ),
           ],
         ),
-      body: FutureBuilder<void>(
-        future: _cookieSyncFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return Column(
-            children: [
-              if (_isLoading)
-                LinearProgressIndicator(
-                  value: _progress,
-                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                ),
-              Expanded(
-                child: InAppWebView(
-                  initialUrlRequest: widget.url.isNotEmpty
-                      ? URLRequest(url: WebUri(widget.url))
-                      : null,
-                  initialSettings: WebViewSettings.visible
-                    ..useShouldOverrideUrlLoading = true,
-                  shouldOverrideUrlLoading: _shouldOverrideUrlLoading,
-                  onWebViewCreated: (controller) => _controller = controller,
-                  onLoadStart: (controller, url) {
-                    setState(() {
-                      _isLoading = true;
-                      _currentUrl = url?.toString() ?? '';
-                    });
-                  },
-                  onProgressChanged: (controller, progress) {
-                    setState(() => _progress = progress / 100);
-                  },
-                  onLoadStop: (controller, url) async {
-                    setState(() => _isLoading = false);
-                    final title = await controller.getTitle();
-                    final canGoBack = await controller.canGoBack();
-                    final canGoForward = await controller.canGoForward();
-                    final urlString = url?.toString();
-                    setState(() {
-                      _currentUrl = urlString ?? '';
-                      _canGoBack = canGoBack;
-                      _canGoForward = canGoForward;
-                      if (title != null && title.isNotEmpty) {
-                        _currentTitle = title;
-                      }
-                    });
-                    if (urlString != null && _shouldSyncCookiesForUrl(urlString)) {
-                      await CookieJarService().syncFromWebView();
-                    }
-                    if (widget.injectCss != null) {
-                      await controller.injectCSSCode(source: widget.injectCss!);
-                    }
-                    // 记录浏览历史
-                    if (urlString != null && urlString.isNotEmpty) {
-                      ref.read(webHistoryProvider.notifier).record(
-                            urlString,
-                            _currentTitle,
-                          );
-                    }
-                  },
-                  onUpdateVisitedHistory: (controller, url, isReload) async {
-                    final canGoBack = await controller.canGoBack();
-                    final canGoForward = await controller.canGoForward();
-                    final urlString = url?.toString();
-                    setState(() {
-                      _currentUrl = urlString ?? '';
-                      _canGoBack = canGoBack;
-                      _canGoForward = canGoForward;
-                    });
-                    if (urlString != null && _shouldSyncCookiesForUrl(urlString)) {
-                      await CookieJarService().syncFromWebView();
-                    }
-                  },
-                  onTitleChanged: (controller, title) {
-                    if (title != null && title.isNotEmpty) {
-                      setState(() => _currentTitle = title);
-                    }
-                  },
-                  onDownloadStartRequest: (controller, request) {
-                    final url = request.url.toString();
-                    ref.read(downloadProvider.notifier).startDownload(
-                          url: url,
-                          suggestedFilename: request.suggestedFilename,
-                          mimeType: request.mimeType,
-                          contentLength: request.contentLength,
+        body: FutureBuilder<void>(
+          future: _cookieSyncFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return Column(
+              children: [
+                if (_isLoading)
+                  LinearProgressIndicator(
+                    value: _progress,
+                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                  ),
+                Expanded(
+                  child: WebViewSettings.wrapWithScrollFix(InAppWebView(
+                    webViewEnvironment:
+                        WindowsWebViewEnvironmentService.instance.environment,
+                    // Windows：不自动加载 URL，先在 onWebViewCreated 中写入 cookie
+                    initialUrlRequest:
+                        (!io.Platform.isWindows && widget.url.isNotEmpty)
+                            ? URLRequest(url: WebUri(widget.url))
+                            : null,
+                    initialSettings: WebViewSettings.visible
+                      ..useShouldOverrideUrlLoading = true,
+                    shouldOverrideUrlLoading: _shouldOverrideUrlLoading,
+                    onWebViewCreated: (controller) async {
+                      _controller = controller;
+                      if (io.Platform.isWindows && widget.url.isNotEmpty) {
+                        await CookieJarService().syncToWebViewViaController(
+                          controller,
+                          currentUrl: widget.url,
                         );
-                  },
+                        await controller.loadUrl(
+                          urlRequest: URLRequest(url: WebUri(widget.url)),
+                        );
+                      }
+                    },
+                    onLoadStart: (controller, url) {
+                      setState(() {
+                        _isLoading = true;
+                        _currentUrl = url?.toString() ?? '';
+                      });
+                    },
+                    onProgressChanged: (controller, progress) {
+                      setState(() => _progress = progress / 100);
+                    },
+                    onLoadStop: (controller, url) async {
+                      setState(() => _isLoading = false);
+                      await WebViewSettings.injectScrollFix(controller);
+                      final title = await controller.getTitle();
+                      final canGoBack = await controller.canGoBack();
+                      final canGoForward = await controller.canGoForward();
+                      final urlString = url?.toString();
+                      setState(() {
+                        _currentUrl = urlString ?? '';
+                        _canGoBack = canGoBack;
+                        _canGoForward = canGoForward;
+                        if (title != null && title.isNotEmpty) {
+                          _currentTitle = title;
+                        }
+                      });
+                      if (urlString != null &&
+                          _shouldSyncCookiesForUrl(urlString)) {
+                        await CookieJarService().syncFromWebView(
+                          currentUrl: urlString,
+                          controller: controller,
+                        );
+                      }
+                      if (widget.injectCss != null) {
+                        await controller.injectCSSCode(
+                          source: widget.injectCss!,
+                        );
+                      }
+                      // 记录浏览历史
+                      if (urlString != null && urlString.isNotEmpty) {
+                        ref
+                            .read(webHistoryProvider.notifier)
+                            .record(urlString, _currentTitle);
+                      }
+                    },
+                    onUpdateVisitedHistory: (controller, url, isReload) async {
+                      final canGoBack = await controller.canGoBack();
+                      final canGoForward = await controller.canGoForward();
+                      final urlString = url?.toString();
+                      setState(() {
+                        _currentUrl = urlString ?? '';
+                        _canGoBack = canGoBack;
+                        _canGoForward = canGoForward;
+                      });
+                      if (urlString != null &&
+                          _shouldSyncCookiesForUrl(urlString)) {
+                        await CookieJarService().syncFromWebView(
+                          currentUrl: urlString,
+                          controller: controller,
+                        );
+                      }
+                    },
+                    onTitleChanged: (controller, title) {
+                      if (title != null && title.isNotEmpty) {
+                        setState(() => _currentTitle = title);
+                      }
+                    },
+                    onDownloadStartRequest: (controller, request) {
+                      final url = request.url.toString();
+                      ref
+                          .read(downloadProvider.notifier)
+                          .startDownload(
+                            url: url,
+                            suggestedFilename: request.suggestedFilename,
+                            mimeType: request.mimeType,
+                            contentLength: request.contentLength,
+                          );
+                    },
+                  ), getController: () => _controller),
                 ),
-              ),
-            ],
-          );
-        },
-      ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -336,7 +389,9 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
   }
 
   Future<void> _syncCookiesBeforeOpen() async {
-    await CookieJarService().syncToWebView();
+    await CookieJarService().syncToWebView(
+      currentUrl: widget.url,
+    );
   }
 
   bool _shouldSyncCookiesForUrl(String url) {
@@ -414,12 +469,13 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
 
   void _toggleBookmark() {
     if (_currentUrl.isEmpty) return;
-    final added = ref.read(webBookmarkProvider.notifier).toggle(
-      _currentUrl,
-      _currentTitle,
-    );
+    final added = ref
+        .read(webBookmarkProvider.notifier)
+        .toggle(_currentUrl, _currentTitle);
     ToastService.showSuccess(
-      added ? S.current.webview_bookmarkAdded : S.current.webview_bookmarkRemoved,
+      added
+          ? S.current.webview_bookmarkAdded
+          : S.current.webview_bookmarkRemoved,
     );
   }
 

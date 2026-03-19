@@ -421,8 +421,8 @@ extension _UserActions on _TopicDetailPageState {
         notifier.refreshPost(update.postId, updatedAt: update.updatedAt);
         break;
       case TopicMessageType.acted:
-        // acted 的 updated_at 是操作时间，不是帖子修改时间，不传 updatedAt 避免跳过刷新
-        notifier.refreshPost(update.postId, preserveCooked: true);
+        // 对齐 Discourse 官方 triggerChangedPost：acted 也传 updatedAt 做去重
+        notifier.refreshPost(update.postId, preserveCooked: true, updatedAt: update.updatedAt);
         break;
       case TopicMessageType.deleted:
         notifier.markPostDeleted(update.postId);

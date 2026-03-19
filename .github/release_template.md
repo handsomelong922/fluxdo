@@ -36,6 +36,12 @@
                 <a href="https://github.com/lingyan000/fluxdo/releases/download/vVERSION/fluxdo-macos-x86_64.dmg"><img src="https://img.shields.io/badge/DMG-Intel-666666.svg?logo=apple"></a>
             </td>
         </tr>
+        <tr>
+        <td>Windows</td>
+            <td>
+                <a href="https://github.com/lingyan000/fluxdo/releases/download/vVERSION/fluxdo-windows-x86_64.zip"><img src="https://img.shields.io/badge/ZIP-x64-0078D4.svg?logo=windows"></a>
+            </td>
+        </tr>
     </tbody>
 </table>
 

@@ -41,8 +41,12 @@ class TopicScrollState {
       showBottomBar: showBottomBar ?? this.showBottomBar,
       hasInitialScrolled: hasInitialScrolled ?? this.hasInitialScrolled,
       isPositioned: isPositioned ?? this.isPositioned,
-      jumpTargetPostNumber: clearJumpTarget ? null : (jumpTargetPostNumber ?? this.jumpTargetPostNumber),
-      initialCenterPostNumber: clearInitialCenter ? null : (initialCenterPostNumber ?? this.initialCenterPostNumber),
+      jumpTargetPostNumber: clearJumpTarget
+          ? null
+          : (jumpTargetPostNumber ?? this.jumpTargetPostNumber),
+      initialCenterPostNumber: clearInitialCenter
+          ? null
+          : (initialCenterPostNumber ?? this.initialCenterPostNumber),
       currentPostNumber: currentPostNumber ?? this.currentPostNumber,
     );
   }
@@ -97,11 +101,11 @@ class TopicDetailController extends ChangeNotifier {
     required bool trackEnabled,
     this.onScrolled,
     int? initialPostNumber,
-  })  : _trackEnabled = trackEnabled,
-        _scrollState = TopicScrollState(
-          currentPostNumber: initialPostNumber,
-          jumpTargetPostNumber: initialPostNumber,
-        );
+  }) : _trackEnabled = trackEnabled,
+       _scrollState = TopicScrollState(
+         currentPostNumber: initialPostNumber,
+         jumpTargetPostNumber: initialPostNumber,
+       );
 
   // ============ 滚动状态 Getters ============
 
@@ -161,10 +165,12 @@ class TopicDetailController extends ChangeNotifier {
   void handleScroll() {
     onScrolled?.call();
 
-    final shouldShowBackToTop = scrollController.hasClients &&
-        scrollController.position.pixels > 300;
+    final shouldShowBackToTop =
+        scrollController.hasClients && scrollController.position.pixels > 300;
     if (shouldShowBackToTop != _scrollState.showBackToTop) {
-      _updateScrollState(_scrollState.copyWith(showBackToTop: shouldShowBackToTop));
+      _updateScrollState(
+        _scrollState.copyWith(showBackToTop: shouldShowBackToTop),
+      );
     }
 
     // 滚动时触发进度更新（位置刷新在节流回调内执行）
@@ -177,26 +183,9 @@ class TopicDetailController extends ChangeNotifier {
       return false;
     }
 
-    if (notification is ScrollUpdateNotification && notification.dragDetails != null) {
-      final delta = notification.scrollDelta ?? 0;
-
-      if ((_accumulatedScrollDelta > 0 && delta < 0) ||
-          (_accumulatedScrollDelta < 0 && delta > 0)) {
-        _accumulatedScrollDelta = delta;
-      } else {
-        _accumulatedScrollDelta += delta;
-      }
-
-      const threshold = 50.0;
-      if (_accumulatedScrollDelta < -threshold && !_scrollState.showBottomBar) {
-        _scrollState = _scrollState.copyWith(showBottomBar: true);
-        showBottomBarNotifier.value = true;
-        _accumulatedScrollDelta = 0;
-      } else if (_accumulatedScrollDelta > threshold && _scrollState.showBottomBar) {
-        _scrollState = _scrollState.copyWith(showBottomBar: false);
-        showBottomBarNotifier.value = false;
-        _accumulatedScrollDelta = 0;
-      }
+    if (notification is ScrollUpdateNotification &&
+        notification.dragDetails != null) {
+      _handleBottomBarScrollDelta(notification.scrollDelta ?? 0);
     }
 
     if (notification is ScrollEndNotification) {
@@ -204,6 +193,34 @@ class TopicDetailController extends ChangeNotifier {
     }
 
     return false;
+  }
+
+  /// 处理桌面端鼠标滚轮/触控板滚动，避免依赖 dragDetails。
+  void handlePointerScroll(double delta) {
+    _handleBottomBarScrollDelta(delta);
+  }
+
+  void _handleBottomBarScrollDelta(double delta) {
+    if (delta == 0) return;
+
+    if ((_accumulatedScrollDelta > 0 && delta < 0) ||
+        (_accumulatedScrollDelta < 0 && delta > 0)) {
+      _accumulatedScrollDelta = delta;
+    } else {
+      _accumulatedScrollDelta += delta;
+    }
+
+    const threshold = 50.0;
+    if (_accumulatedScrollDelta < -threshold && !_scrollState.showBottomBar) {
+      _scrollState = _scrollState.copyWith(showBottomBar: true);
+      showBottomBarNotifier.value = true;
+      _accumulatedScrollDelta = 0;
+    } else if (_accumulatedScrollDelta > threshold &&
+        _scrollState.showBottomBar) {
+      _scrollState = _scrollState.copyWith(showBottomBar: false);
+      showBottomBarNotifier.value = false;
+      _accumulatedScrollDelta = 0;
+    }
   }
 
   /// 找到中心点位置
@@ -262,28 +279,32 @@ class TopicDetailController extends ChangeNotifier {
 
   /// 准备跳转到帖子（重新加载数据）
   void prepareJumpToPost(int postNumber) {
-    _updateScrollState(TopicScrollState(
-      showBackToTop: _scrollState.showBackToTop,
-      showBottomBar: _scrollState.showBottomBar,
-      hasInitialScrolled: false,
-      isPositioned: false,
-      jumpTargetPostNumber: postNumber,
-      initialCenterPostNumber: null,
-      currentPostNumber: postNumber,
-    ));
+    _updateScrollState(
+      TopicScrollState(
+        showBackToTop: _scrollState.showBackToTop,
+        showBottomBar: _scrollState.showBottomBar,
+        hasInitialScrolled: false,
+        isPositioned: false,
+        jumpTargetPostNumber: postNumber,
+        initialCenterPostNumber: null,
+        currentPostNumber: postNumber,
+      ),
+    );
   }
 
   /// 准备刷新
   void prepareRefresh(int anchorPostNumber, {bool skipHighlight = false}) {
-    _updateScrollState(TopicScrollState(
-      showBackToTop: _scrollState.showBackToTop,
-      showBottomBar: _scrollState.showBottomBar,
-      hasInitialScrolled: false,
-      isPositioned: _scrollState.isPositioned,
-      jumpTargetPostNumber: anchorPostNumber,
-      initialCenterPostNumber: null,
-      currentPostNumber: anchorPostNumber,
-    ));
+    _updateScrollState(
+      TopicScrollState(
+        showBackToTop: _scrollState.showBackToTop,
+        showBottomBar: _scrollState.showBottomBar,
+        hasInitialScrolled: false,
+        isPositioned: _scrollState.isPositioned,
+        jumpTargetPostNumber: anchorPostNumber,
+        initialCenterPostNumber: null,
+        currentPostNumber: anchorPostNumber,
+      ),
+    );
     if (skipHighlight) {
       skipNextJumpHighlight = true;
     }
@@ -294,10 +315,12 @@ class TopicDetailController extends ChangeNotifier {
     if (_scrollState.initialCenterPostNumber != null) {
       _updateScrollState(_scrollState.copyWith(hasInitialScrolled: true));
     } else {
-      _updateScrollState(_scrollState.copyWith(
-        hasInitialScrolled: true,
-        initialCenterPostNumber: firstPostNumber,
-      ));
+      _updateScrollState(
+        _scrollState.copyWith(
+          hasInitialScrolled: true,
+          initialCenterPostNumber: firstPostNumber,
+        ),
+      );
     }
   }
 
@@ -316,7 +339,9 @@ class TopicDetailController extends ChangeNotifier {
 
   /// 检查帖子是否已渲染
   bool isPostRendered(int postIndex) {
-    return scrollController.tagMap.containsKey(scrollIndexForPostIndex(postIndex));
+    return scrollController.tagMap.containsKey(
+      scrollIndexForPostIndex(postIndex),
+    );
   }
 
   void updateScrollIndexMapping(Map<int, int> mapping) {
@@ -328,13 +353,15 @@ class TopicDetailController extends ChangeNotifier {
     // 重置可见性数据
     resetVisibility();
 
-    _updateScrollState(_scrollState.copyWith(
-      hasInitialScrolled: false,
-      isPositioned: false,
-      jumpTargetPostNumber: postNumber,
-      initialCenterPostNumber: anchorPostNumber ?? postNumber,
-      currentPostNumber: postNumber,
-    ));
+    _updateScrollState(
+      _scrollState.copyWith(
+        hasInitialScrolled: false,
+        isPositioned: false,
+        jumpTargetPostNumber: postNumber,
+        initialCenterPostNumber: anchorPostNumber ?? postNumber,
+        currentPostNumber: postNumber,
+      ),
+    );
   }
 
   // ============ 高亮方法 ============
@@ -393,7 +420,10 @@ class TopicDetailController extends ChangeNotifier {
     _screenTrackThrottleTimer = Timer(const Duration(milliseconds: 16), () {
       if (_trackEnabled) {
         final readOnscreen = _visiblePostNumbers.intersection(_readPostNumbers);
-        screenTrack.setOnscreen(_visiblePostNumbers, readOnscreen: readOnscreen);
+        screenTrack.setOnscreen(
+          _visiblePostNumbers,
+          readOnscreen: readOnscreen,
+        );
       }
     });
   }

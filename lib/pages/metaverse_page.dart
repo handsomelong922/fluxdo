@@ -33,14 +33,19 @@ class _MetaversePageState extends ConsumerState<MetaversePage> {
     final prefs = ref.read(sharedPreferencesProvider);
     _ldcEnabled = prefs.getBool(_ldcEnabledKey) ?? false;
     _cdkEnabled = prefs.getBool(_cdkEnabledKey) ?? false;
-    
+
     // 每次进入页面时刷新已启用服务的数据
+    _refreshEnabledServices();
+  }
+
+  /// 先等 build() 完成，再调 refresh()，避免并发导致 build() 结果覆盖 refresh() 的错误状态
+  Future<void> _refreshEnabledServices() async {
     if (_ldcEnabled) {
-      ref.read(ldcUserInfoProvider.future).catchError((_) => null);
+      await ref.read(ldcUserInfoProvider.future).catchError((_) => null);
       ref.read(ldcUserInfoProvider.notifier).refresh();
     }
     if (_cdkEnabled) {
-      ref.read(cdkUserInfoProvider.future).catchError((_) => null);
+      await ref.read(cdkUserInfoProvider.future).catchError((_) => null);
       ref.read(cdkUserInfoProvider.notifier).refresh();
     }
   }

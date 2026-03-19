@@ -3,34 +3,299 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/s.dart';
 import '../../providers/discourse_providers.dart';
 import '../../pages/notifications_page.dart';
+import '../../utils/responsive.dart';
 import '../../utils/notification_navigation.dart';
 import 'notification_item.dart';
 import 'notification_list_skeleton.dart';
 
-/// 通知快捷面板（BottomSheet）
-/// 显示最近通知，由 recentNotificationsProvider 驱动
-class NotificationQuickPanel extends ConsumerStatefulWidget {
-  const NotificationQuickPanel({super.key});
+/// 通知快捷面板控制器
+/// 侧栏模式：在 widget 树中渲染（低于路由层，新页面自然覆盖）
+/// 手机模式：showModalBottomSheet
+class NotificationQuickPanel {
+  NotificationQuickPanel._();
 
-  /// 弹出快捷面板
+  /// 侧栏模式面板可见性
+  static final ValueNotifier<bool> _visible = ValueNotifier(false);
+  static ValueNotifier<bool> get visible => _visible;
+
+  /// 弹出或关闭快捷面板
   static Future<void> show(BuildContext context) {
-    return showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const NotificationQuickPanel(),
-    );
+    _visible.value = !_visible.value;
+    return Future.value();
   }
 
-  @override
-  ConsumerState<NotificationQuickPanel> createState() => _NotificationQuickPanelState();
+  /// 关闭侧栏面板
+  static void dismiss() {
+    _visible.value = false;
+  }
 }
 
-class _NotificationQuickPanelState extends ConsumerState<NotificationQuickPanel> {
+/// 侧栏模式通知面板（嵌入 widget 树，低于路由层）
+/// 放在 AdaptiveScaffold 的 body Stack 中
+class SidebarNotificationPanel extends StatefulWidget {
+  const SidebarNotificationPanel({super.key});
+
+  @override
+  State<SidebarNotificationPanel> createState() => _SidebarNotificationPanelState();
+}
+
+class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+  late Animation<double> _animation;
+  final ScrollController _scrollController = ScrollController();
+  bool _wasVisible = false;
+
   @override
   void initState() {
     super.initState();
-    // 每次打开面板时刷新
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
+    _animation = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    NotificationQuickPanel._visible.addListener(_onVisibilityChanged);
+  }
+
+  @override
+  void dispose() {
+    NotificationQuickPanel._visible.removeListener(_onVisibilityChanged);
+    _animController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onVisibilityChanged() {
+    final isVisible = NotificationQuickPanel._visible.value;
+    if (isVisible && !_wasVisible) {
+      _animController.forward();
+    } else if (!isVisible && _wasVisible) {
+      _animController.reverse();
+    }
+    _wasVisible = isVisible;
+  }
+
+  double _dragOffset = 0;
+  final _contentKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    final showRail = Responsive.showNavigationRail(context);
+
+    // 用 GlobalKey 保持内容子树不重建，滚动位置自然保留
+    final content = KeyedSubtree(
+      key: _contentKey,
+      child: Column(
+        children: [
+          _NotificationHeader(
+            padding: EdgeInsets.fromLTRB(20, showRail ? 16 : 12, 12, 8),
+          ),
+          _NotificationBody(scrollController: _scrollController),
+        ],
+      ),
+    );
+
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, _) {
+        if (_animation.value == 0 && !_animController.isAnimating) {
+          return const SizedBox.shrink();
+        }
+
+        final panel = Material(
+          color: Theme.of(context).colorScheme.surface,
+          clipBehavior: Clip.antiAlias,
+          elevation: 8,
+          borderRadius: showRail
+              ? const BorderRadius.only(topRight: Radius.circular(20))
+              : const BorderRadius.vertical(top: Radius.circular(20)),
+          child: Column(
+            children: [
+              if (!showRail) const _DragHandle(),
+              Expanded(child: content),
+            ],
+          ),
+        );
+
+        return showRail
+            ? _buildSidebarLayout(panel)
+            : _buildMobileLayout(panel);
+      },
+    );
+  }
+
+  /// 侧栏模式：从左边缘滑出
+  Widget _buildSidebarLayout(Widget child) {
+    final screenSize = MediaQuery.sizeOf(context);
+    const panelWidth = 420.0;
+    final panelHeight = (screenSize.height * 0.9).clamp(0.0, 900.0);
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: NotificationQuickPanel.dismiss,
+            child: ColoredBox(
+              color: Colors.black.withValues(alpha: 0.3 * _animation.value),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          bottom: 0,
+          width: panelWidth.clamp(0.0, screenSize.width),
+          height: panelHeight,
+          child: ClipRect(
+            child: FractionalTranslation(
+              translation: Offset(_animation.value - 1, 0),
+              child: child,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 手机模式：从底部滑出 + 下滑关闭
+  Widget _buildMobileLayout(Widget child) {
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final panelHeight = screenHeight * 0.8;
+    final slideOffset = (1 - _animation.value) * panelHeight;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: NotificationQuickPanel.dismiss,
+            child: ColoredBox(
+              color: Colors.black.withValues(alpha: 0.3 * _animation.value),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: -slideOffset - _dragOffset.clamp(0.0, panelHeight),
+          height: panelHeight,
+          child: GestureDetector(
+            onVerticalDragUpdate: (d) {
+              setState(() => _dragOffset += d.delta.dy);
+            },
+            onVerticalDragEnd: (d) {
+              if (_dragOffset > panelHeight * 0.2 ||
+                  (d.primaryVelocity ?? 0) > 500) {
+                NotificationQuickPanel.dismiss();
+                setState(() => _dragOffset = 0);
+              } else {
+                setState(() => _dragOffset = 0);
+              }
+            },
+            child: child,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 手机模式 BottomSheet 面板
+/// 拖拽手柄
+class _DragHandle extends StatelessWidget {
+  const _DragHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.only(top: 12),
+        width: 32,
+        height: 4,
+        decoration: BoxDecoration(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    );
+  }
+}
+
+/// 共用标题栏
+class _NotificationHeader extends ConsumerWidget {
+  const _NotificationHeader({required this.padding});
+
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Padding(
+      padding: padding,
+      child: Row(
+        children: [
+          Text(context.l10n.common_notification, style: theme.textTheme.titleLarge),
+          const Spacer(),
+          IconButton(
+            onPressed: () async {
+              await ref.read(recentNotificationsProvider.notifier).markAllAsRead();
+            },
+            icon: const Icon(Icons.done_all, size: 20),
+            tooltip: context.l10n.notification_markAllRead,
+            style: IconButton.styleFrom(
+              foregroundColor: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 4),
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotificationsPage()),
+              );
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  context.l10n.common_viewAll,
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(width: 2),
+                Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 共用通知列表
+class _NotificationBody extends ConsumerStatefulWidget {
+  const _NotificationBody({this.scrollController});
+
+  final ScrollController? scrollController;
+
+  @override
+  ConsumerState<_NotificationBody> createState() => _NotificationBodyState();
+}
+
+class _NotificationBodyState extends ConsumerState<_NotificationBody> {
+  @override
+  void initState() {
+    super.initState();
     Future.microtask(() {
       ref.invalidate(recentNotificationsProvider);
     });
@@ -38,128 +303,59 @@ class _NotificationQuickPanelState extends ConsumerState<NotificationQuickPanel>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final screenHeight = MediaQuery.of(context).size.height;
+    final colorScheme = Theme.of(context).colorScheme;
     final notificationsAsync = ref.watch(recentNotificationsProvider);
     final systemAvatarTemplate = ref.watch(systemUserAvatarTemplateProvider).value;
 
-    return Container(
-      height: screenHeight * 0.8,
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // 拖拽手柄
-          Center(
-            child: Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 32,
-              height: 4,
-              decoration: BoxDecoration(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(2),
+    return Expanded(
+      child: notificationsAsync.when(
+        data: (notifications) {
+          if (notifications.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.notifications_none, size: 48, color: Colors.grey),
+                  const SizedBox(height: 12),
+                  Text(context.l10n.notification_empty, style: const TextStyle(color: Colors.grey)),
+                ],
               ),
+            );
+          }
+          return ListView.builder(
+            controller: widget.scrollController,
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).padding.bottom,
             ),
-          ),
-          // 标题栏
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
-            child: Row(
-              children: [
-                Text(context.l10n.common_notification, style: theme.textTheme.titleLarge),
-                const Spacer(),
-                IconButton(
-                  onPressed: () async {
-                    await ref.read(recentNotificationsProvider.notifier).markAllAsRead();
-                  },
-                  icon: const Icon(Icons.done_all, size: 20),
-                  tooltip: context.l10n.notification_markAllRead,
-                  style: IconButton.styleFrom(
-                    foregroundColor: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const NotificationsPage()),
-                    );
-                  },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        context.l10n.common_viewAll,
-                        style: TextStyle(color: colorScheme.onSurfaceVariant),
-                      ),
-                      const SizedBox(width: 2),
-                      Icon(
-                        Icons.chevron_right,
-                        size: 18,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // 通知列表
-          Expanded(
-            child: notificationsAsync.when(
-              data: (notifications) {
-                if (notifications.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.notifications_none, size: 48, color: Colors.grey),
-                        const SizedBox(height: 12),
-                        Text(context.l10n.notification_empty, style: const TextStyle(color: Colors.grey)),
-                      ],
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  padding: EdgeInsets.only(
-                    bottom: MediaQuery.of(context).padding.bottom,
-                  ),
-                  itemCount: notifications.length,
-                  itemBuilder: (context, index) {
-                    final notification = notifications[index];
-                    return NotificationItem(
-                      notification: notification,
-                      systemAvatarTemplate: systemAvatarTemplate,
-                      onTap: () {
-                        handleNotificationTap(context, ref, notification);
-                      },
-                    );
-                  },
-                );
-              },
-              loading: () => const NotificationListSkeleton(),
-              error: (error, _) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.grey),
-                    const SizedBox(height: 12),
-                    Text(context.l10n.common_loadFailed, style: TextStyle(color: colorScheme.error)),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () => ref.invalidate(recentNotificationsProvider),
-                      child: Text(context.l10n.common_retry),
-                    ),
-                  ],
-                ),
+            itemCount: notifications.length,
+            itemBuilder: (context, index) {
+              final notification = notifications[index];
+              return NotificationItem(
+                notification: notification,
+                systemAvatarTemplate: systemAvatarTemplate,
+                onTap: () {
+                  handleNotificationTap(context, ref, notification);
+                },
+              );
+            },
+          );
+        },
+        loading: () => const NotificationListSkeleton(),
+        error: (error, _) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+              const SizedBox(height: 12),
+              Text(context.l10n.common_loadFailed, style: TextStyle(color: colorScheme.error)),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => ref.invalidate(recentNotificationsProvider),
+                child: Text(context.l10n.common_retry),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

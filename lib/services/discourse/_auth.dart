@@ -255,6 +255,10 @@ mixin _AuthMixin on _DiscourseServiceBase {
     if (_isLoggingOut) return;
     _isLoggingOut = true;
 
+    // ===== 第一步：立即切断所有在途请求 =====
+    // 先于 logout 执行，防止用户在失效状态下继续操作产生更多 403
+    AuthSession().advance();
+
     // 收集 _t cookie 诊断信息（不含实际值，仅状态）
     final jarTToken = await _cookieJar.getTToken();
     final csrfToken = _cookieSync.csrfToken;

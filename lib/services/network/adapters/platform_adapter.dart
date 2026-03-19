@@ -16,8 +16,8 @@ import 'webview_http_adapter.dart';
 
 /// 当前使用的适配器类型
 enum AdapterType {
-  webview, // WebView 适配器（Windows）
-  native, // Native 适配器（Cronet/Cupertino）
+  webview, // WebView 适配器（仅 Windows 显式兜底）
+  native, // Native/IO 适配器（Cronet/Cupertino/Dio IO）
   network, // Network 适配器（通过代理）
   rhttp, // rhttp 引擎（Rust reqwest）
 }
@@ -34,7 +34,13 @@ String getAdapterDisplayName(AdapterType type) {
     case AdapterType.webview:
       return S.current.network_adapterWebView;
     case AdapterType.native:
-      return Platform.isAndroid ? S.current.network_adapterNativeAndroid : S.current.network_adapterNativeIos;
+      if (Platform.isAndroid) {
+        return S.current.network_adapterNativeAndroid;
+      }
+      if (Platform.isIOS || Platform.isMacOS) {
+        return S.current.network_adapterNativeIos;
+      }
+      return _getDesktopIoAdapterDisplayName();
     case AdapterType.network:
       return S.current.network_adapterNetwork;
     case AdapterType.rhttp:
@@ -49,57 +55,65 @@ HttpClientAdapter createExternalHttpAdapter() {
   final fallbackService = CronetFallbackService.instance;
   final rhttpSettings = RhttpSettingsService.instance;
 
-  HttpClientAdapter adapter;
-  if (Platform.isWindows) {
-    adapter = IOHttpClientAdapter();
-  } else {
-    adapter = _DynamicAdapter(settings, proxySettings, fallbackService, rhttpSettings);
-  }
-
+  final adapter = _DynamicAdapter(
+    settings,
+    proxySettings,
+    fallbackService,
+    rhttpSettings,
+  );
   return _GatewayAdapterWrapper(adapter);
 }
 
 /// 配置平台适配器
-void configurePlatformAdapter(Dio dio) {
+void configurePlatformAdapter(Dio dio, {bool preferWebViewFallback = false}) {
   final settings = NetworkSettingsService.instance;
   final proxySettings = ProxySettingsService.instance;
   final fallbackService = CronetFallbackService.instance;
   final rhttpSettings = RhttpSettingsService.instance;
 
-  if (Platform.isWindows) {
-    // Windows: 始终使用 WebView 适配器
-    _configureWebViewAdapter(dio);
-    _currentAdapterType = AdapterType.webview;
-  } else {
-    // Android / iOS / macOS / Linux: 动态适配器，请求时自动切换
-    dio.httpClientAdapter = _DynamicAdapter(
-      settings,
-      proxySettings,
-      fallbackService,
-      rhttpSettings,
-    );
-    _currentAdapterType = _resolveAdapterType(
-      settings,
-      proxySettings,
-      fallbackService,
-      rhttpSettings,
-    );
+  if (Platform.isWindows && preferWebViewFallback) {
+    configureWebViewFallbackAdapter(dio);
+    return;
   }
+
+  // 所有平台默认使用主链路动态适配；
+  // Windows 主链路为 Dio IO 适配器，WebView 仅保留显式兜底入口。
+  dio.httpClientAdapter = _DynamicAdapter(
+    settings,
+    proxySettings,
+    fallbackService,
+    rhttpSettings,
+  );
+  _currentAdapterType = _resolveAdapterType(
+    settings,
+    proxySettings,
+    fallbackService,
+    rhttpSettings,
+  );
 
   // Gateway 包装：在传输层透明改写 URL 到 localhost 代理
   // 所有拦截器始终看到原始 URL，避免 cookie 域名不匹配等问题
   dio.httpClientAdapter = _GatewayAdapterWrapper(dio.httpClientAdapter);
 }
 
+/// 配置 WebView 适配器（仅 Windows 显式兜底）
+void configureWebViewFallbackAdapter(Dio dio) {
+  _configureWebViewAdapter(dio);
+  _currentAdapterType = AdapterType.webview;
+}
+
 /// 配置 WebView 适配器
 void _configureWebViewAdapter(Dio dio) {
   final adapter = WebViewHttpAdapter();
   dio.httpClientAdapter = adapter;
-  adapter.initialize().then((_) {
-    debugPrint('[DIO] Using WebViewHttpAdapter on Windows');
-  }).catchError((e) {
-    debugPrint('[DIO] WebViewHttpAdapter init failed: $e');
-  });
+  adapter
+      .initialize()
+      .then((_) {
+        debugPrint('[DIO] Using WebViewHttpAdapter as Windows fallback');
+      })
+      .catchError((e) {
+        debugPrint('[DIO] WebViewHttpAdapter init failed: $e');
+      });
 }
 
 AdapterType _resolveAdapterType(
@@ -126,6 +140,10 @@ AdapterType _resolveAdapterType(
 
 /// 创建当前平台对应的 NativeAdapter
 HttpClientAdapter _createNativeAdapter() {
+  if (Platform.isWindows) {
+    debugPrint('[DIO] Dynamic adapter -> IOHttpClientAdapter');
+    return IOHttpClientAdapter();
+  }
   if (kDebugMode && (Platform.isMacOS || Platform.isIOS)) {
     // 调试模式下使用默认适配器（IOHttpClientAdapter），避免 NativeAdapter 热重启崩溃
     debugPrint('[DIO] Dynamic adapter -> IOHttpClientAdapter (debug mode)');
@@ -167,7 +185,8 @@ class _GatewayAdapterWrapper implements HttpClientAdapter {
     final currentAdapter = getCurrentAdapterType();
 
     // rhttp 直连时保留原始 HTTPS URL
-    final shouldUseRhttp = currentAdapter == AdapterType.rhttp ||
+    final shouldUseRhttp =
+        currentAdapter == AdapterType.rhttp ||
         rhttpSettings.shouldUseRhttp(settings.current, proxySettings.current);
 
     if (!shouldUseRhttp && settings.isGatewayMode) {
@@ -217,7 +236,8 @@ class _GatewayAdapterWrapper implements HttpClientAdapter {
 /// 动态适配器：每次请求时根据设置 version 变化自动切换底层适配器
 ///
 /// Android 上在 rhttp ↔ network ↔ native（Cronet）之间切换；
-/// iOS/macOS/Linux 上在 rhttp ↔ network ↔ native（Cupertino/IO）之间切换。
+/// iOS/macOS 在 rhttp ↔ network ↔ native（Cupertino）之间切换；
+/// Windows 在 rhttp ↔ network ↔ native（Dio IO）之间切换。
 class _DynamicAdapter implements HttpClientAdapter {
   _DynamicAdapter(
     this._settings,
@@ -246,7 +266,9 @@ class _DynamicAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) {
     if (_closed) {
-      throw StateError("Can't establish connection after the adapter was closed.");
+      throw StateError(
+        "Can't establish connection after the adapter was closed.",
+      );
     }
     final delegate = _ensureDelegate();
     return delegate.fetch(options, requestStream, cancelFuture);
@@ -264,7 +286,8 @@ class _DynamicAdapter implements HttpClientAdapter {
     final rhttpVersion = _rhttpSettings.version;
     final hasFallenBack = _fallbackService.hasFallenBack;
 
-    final shouldRebuild = _delegate == null ||
+    final shouldRebuild =
+        _delegate == null ||
         _delegateType != desiredType ||
         _settingsVersion != settingsVersion ||
         _proxyVersion != proxyVersion ||
@@ -285,7 +308,6 @@ class _DynamicAdapter implements HttpClientAdapter {
       debugPrint('[DIO] Dynamic adapter -> NetworkHttpAdapter');
     } else {
       _delegate = _createNativeAdapter();
-      debugPrint('[DIO] Dynamic adapter -> NativeAdapter');
     }
 
     _delegateType = desiredType;
@@ -302,4 +324,18 @@ class _DynamicAdapter implements HttpClientAdapter {
     _closed = true;
     _delegate?.close(force: force);
   }
+}
+
+String _getDesktopIoAdapterDisplayName() {
+  final localeName = S.current.localeName.toLowerCase();
+  if (localeName.startsWith('zh_hk')) {
+    return 'Dio IO 適配器';
+  }
+  if (localeName.startsWith('zh_tw')) {
+    return 'Dio IO 介面卡';
+  }
+  if (localeName.startsWith('zh')) {
+    return 'Dio IO 适配器';
+  }
+  return 'Dio IO adapter';
 }

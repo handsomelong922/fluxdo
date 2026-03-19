@@ -5,11 +5,13 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:ua_client_hints/ua_client_hints.dart';
 import 'config/site_customization.dart';
 import 'config/sites/linuxdo.dart';
+import 'services/windows_webview_environment_service.dart';
 
 /// 应用常量
 class AppConstants {
   /// 当前站点自定义配置
   static final SiteCustomization siteCustomization = linuxdoCustomization;
+
   /// 是否启用 WebView Cookie 同步（启动时预热 WebView）
   /// 设为 false 时，不使用 WebView 同步，Cookie 由 Dio Set-Cookie 与本地存储维护
   static const bool enableWebViewCookieSync = false;
@@ -28,8 +30,32 @@ class AppConstants {
     if (_uaInitialized) return;
     _uaInitialized = true;
 
+    if (Platform.isWindows) {
+      try {
+        final windowsWebViewUa = await _getWindowsWebViewUserAgent();
+        if (windowsWebViewUa != null && windowsWebViewUa.isNotEmpty) {
+          _cachedUserAgent = windowsWebViewUa;
+          debugPrint(
+            '[AppConstants] Windows WebView runtime UA: $_cachedUserAgent',
+          );
+        } else {
+          _cachedUserAgent = _buildDefaultUserAgent();
+          debugPrint(
+            '[AppConstants] Windows WebView runtime UA 为空，使用内置默认 UA: '
+            '$_cachedUserAgent',
+          );
+        }
+      } catch (e) {
+        debugPrint('[AppConstants] 获取 Windows WebView UA 失败: $e');
+        _cachedUserAgent = _buildDefaultUserAgent();
+      }
+      _uaCompleter.complete(_cachedUserAgent!);
+      await _initClientHints();
+      return;
+    }
+
     try {
-      // 所有平台都尝试获取 WebView 的真实 UA，确保 UA 与 WebView 能力匹配
+      // 移动端 / macOS 尝试获取 WebView 的真实 UA，确保 UA 与 WebView 能力匹配
       final webViewUA = await InAppWebViewController.getDefaultUserAgent();
       // 清理 UA，使其看起来像普通浏览器
       _cachedUserAgent = _sanitizeUserAgent(webViewUA);
@@ -43,6 +69,62 @@ class AppConstants {
 
     // 初始化 Client Hints（仅 Android/iOS）
     await _initClientHints();
+  }
+
+  static Future<String?> _getWindowsWebViewUserAgent() async {
+    await WindowsWebViewEnvironmentService.instance.initialize();
+
+    HeadlessInAppWebView? headlessWebView;
+    final completer = Completer<String?>();
+
+    try {
+      headlessWebView = HeadlessInAppWebView(
+        webViewEnvironment:
+            WindowsWebViewEnvironmentService.instance.environment,
+        initialData: InAppWebViewInitialData(
+          data: '<!DOCTYPE html><html><head></head><body></body></html>',
+          mimeType: 'text/html',
+          encoding: 'utf-8',
+        ),
+        initialSettings: InAppWebViewSettings(
+          javaScriptEnabled: true,
+          isInspectable: false,
+        ),
+        onLoadStop: (controller, url) async {
+          if (completer.isCompleted) return;
+          try {
+            final result = await controller.evaluateJavascript(
+              source: 'navigator.userAgent',
+            );
+            completer.complete(result?.toString());
+          } catch (e) {
+            debugPrint(
+              '[AppConstants] 读取 Windows WebView navigator.userAgent 失败: $e',
+            );
+            completer.complete(null);
+          }
+        },
+        onReceivedError: (controller, request, error) {
+          if (!completer.isCompleted) {
+            debugPrint(
+              '[AppConstants] Windows WebView UA 页面加载失败: ${error.description}',
+            );
+            completer.complete(null);
+          }
+        },
+      );
+
+      await headlessWebView.run();
+      return await completer.future.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('[AppConstants] 获取 Windows WebView UA 超时');
+          return null;
+        },
+      );
+    } finally {
+      await headlessWebView?.dispose();
+    }
   }
 
   /// 初始化 User-Agent Client Hints 请求头
@@ -110,9 +192,7 @@ class AppConstants {
       // macOS WKWebView 可能包含 "Safari" 但缺少版本号，
       // 或包含非标准标记，这里做基本清理
       // 移除可能的 Electron/Chromium 嵌入标记
-      sanitized = sanitized.replaceAll(
-        RegExp(r'\s*Electron/[\d.]+'), '',
-      );
+      sanitized = sanitized.replaceAll(RegExp(r'\s*Electron/[\d.]+'), '');
     }
 
     return sanitized;
@@ -127,6 +207,17 @@ class AppConstants {
 
   /// 同步获取 User-Agent（需确保已初始化，否则返回默认值）
   static String get userAgent => _cachedUserAgent ?? _buildDefaultUserAgent();
+
+  /// WebView 内核层面的 UA 覆写。
+  ///
+  /// Windows 不再强行覆写 WebView UA，让底层 WebView2
+  /// 使用自己的原生默认值，避免验证页基于 UA/能力特征出现不一致。
+  static String? get webViewUserAgentOverride {
+    if (Platform.isWindows) {
+      return null;
+    }
+    return userAgent;
+  }
 
   /// 构建默认 User-Agent（降级方案）
   /// 版本号对齐 Chrome 131 (2024.11)，避免过旧被 Cloudflare 等拦截

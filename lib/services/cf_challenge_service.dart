@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../constants.dart';
@@ -7,8 +8,13 @@ import 'local_notification_service.dart'; // 用于获取全局 navigatorKey
 import 'cf_challenge_logger.dart';
 import 'cf_clearance_refresh_service.dart';
 import 'toast_service.dart';
+import 'webview_settings.dart';
+import 'windows_webview_environment_service.dart';
 import '../l10n/s.dart';
 import '../widgets/draggable_floating_pill.dart';
+
+CookieManager get _cfCookieManager =>
+    WindowsWebViewEnvironmentService.instance.cookieManager;
 
 /// CF 验证服务
 /// 处理 Cloudflare Turnstile 验证（仅手动模式）
@@ -56,16 +62,21 @@ class CfChallengeService {
     _consecutiveFailures++;
     if (_consecutiveFailures >= _maxFailuresBeforeCooldown) {
       _cooldownUntil = DateTime.now().add(_cooldownDuration);
-      debugPrint('[CfChallenge] 连续失败 $_consecutiveFailures 次，进入 ${_cooldownDuration.inSeconds}s 冷却期');
+      debugPrint(
+        '[CfChallenge] 连续失败 $_consecutiveFailures 次，进入 ${_cooldownDuration.inSeconds}s 冷却期',
+      );
       CfChallengeLogger.logCooldown(entering: true, until: _cooldownUntil);
     } else {
-      debugPrint('[CfChallenge] 验证失败 $_consecutiveFailures/$_maxFailuresBeforeCooldown，允许重试');
+      debugPrint(
+        '[CfChallenge] 验证失败 $_consecutiveFailures/$_maxFailuresBeforeCooldown，允许重试',
+      );
     }
   }
 
   static void showGlobalMessage(String message, {bool isError = true}) {
     final now = DateTime.now();
-    if (_lastToastAt != null && now.difference(_lastToastAt!) < _toastCooldown) {
+    if (_lastToastAt != null &&
+        now.difference(_lastToastAt!) < _toastCooldown) {
       return;
     }
     _lastToastAt = now;
@@ -116,7 +127,10 @@ class CfChallengeService {
   /// 显示手动验证页面
   /// 返回值：true=验证成功, false=验证失败, null=冷却期内暂不可用或无 context
   /// [forceForeground] 是否强制前台显示（默认为 true）
-  Future<bool?> showManualVerify([BuildContext? context, bool forceForeground = true]) async {
+  Future<bool?> showManualVerify([
+    BuildContext? context,
+    bool forceForeground = true,
+  ]) async {
     // 检查冷却期
     if (isInCooldown) {
       debugPrint('[CfChallenge] In cooldown, skipping manual verify');
@@ -126,7 +140,9 @@ class CfChallengeService {
 
     final verifyUrl = '${AppConstants.baseUrl}/challenge';
     CfChallengeLogger.logVerifyStart(verifyUrl);
-    unawaited(CfChallengeLogger.logAccessIps(url: verifyUrl, context: 'verify_start'));
+    unawaited(
+      CfChallengeLogger.logAccessIps(url: verifyUrl, context: 'verify_start'),
+    );
 
     // 尝试获取 context：传入的 > 已设置的 > 全局 navigatorKey
     BuildContext? ctx = context ?? _context;
@@ -145,20 +161,24 @@ class CfChallengeService {
       debugPrint('[CfChallenge] Waiting for context to be ready...');
       ctx = await _contextReadyCompleter!.future;
     }
+    if (!ctx.mounted) {
+      debugPrint('[CfChallenge] Context no longer mounted');
+      return null;
+    }
 
     // 如果已经在验证中 (Overlay 存在)
     if (_isVerifying) {
-        // 如果当前是后台模式，且请求强制前台，则提升为前台
-        if (forceForeground) {
-             // 找到当前的 State 并调用 promoteToForeground
-             // 这里我们需要访问到 CfChallengePage 的 State
-             // 由于无法直接访问，我们将通过 EventBus 或简单的 GlobalKey/Callback 机制
-             // 在此简化处理：我们假设 _isVerifying 意味着正在运行
-             // 实际上，如果已经在运行，我们只需返回当前的 future
-             // 但我们需要通知 UI 切换到前台。
-             // FIXME: 这里简单的返回 future 可能无法触发 UI 变更。
-             // 由于 CfChallengeService 是单例，我们可以持有一个 key 或回调
-        }
+      // 如果当前是后台模式，且请求强制前台，则提升为前台
+      if (forceForeground) {
+        // 找到当前的 State 并调用 promoteToForeground
+        // 这里我们需要访问到 CfChallengePage 的 State
+        // 由于无法直接访问，我们将通过 EventBus 或简单的 GlobalKey/Callback 机制
+        // 在此简化处理：我们假设 _isVerifying 意味着正在运行
+        // 实际上，如果已经在运行，我们只需返回当前的 future
+        // 但我们需要通知 UI 切换到前台。
+        // FIXME: 这里简单的返回 future 可能无法触发 UI 变更。
+        // 由于 CfChallengeService 是单例，我们可以持有一个 key 或回调
+      }
 
       final completer = Completer<bool>();
       _verifyCompleter.add(completer);
@@ -168,7 +188,9 @@ class CfChallengeService {
     _isVerifying = true;
 
     // ignore: use_build_context_synchronously
-    final overlayState = Overlay.maybeOf(ctx, rootOverlay: true) ?? navigatorKey.currentState?.overlay;
+    final overlayState =
+        Overlay.maybeOf(ctx, rootOverlay: true) ??
+        navigatorKey.currentState?.overlay;
     if (overlayState == null) {
       debugPrint('[CfChallenge] No overlay available for manual verify');
       CfChallengeLogger.log('[VERIFY] No overlay available');
@@ -188,16 +210,17 @@ class CfChallengeService {
     // 1. 先从 CookieJar 删除
     await cookieJarService.deleteCookie('cf_clearance');
     // 2. 同步到 WebView（此时 CookieJar 中已无 cf_clearance）
-    await cookieJarService.syncToWebView();
+    await cookieJarService.syncToWebView(
+    );
     // 3. 双重保障：直接从 WebView 中删除 cf_clearance
     //    避免 syncToWebView 的竞态导致旧值残留
-    await CookieManager.instance().deleteCookie(
+    await _cfCookieManager.deleteCookie(
       url: WebUri(AppConstants.baseUrl),
       name: 'cf_clearance',
       path: '/',
     );
     // 同时删除带前导点 domain 的变体
-    await CookieManager.instance().deleteCookie(
+    await _cfCookieManager.deleteCookie(
       url: WebUri(AppConstants.baseUrl),
       name: 'cf_clearance',
       domain: '.${Uri.parse(AppConstants.baseUrl).host}',
@@ -220,13 +243,13 @@ class CfChallengeService {
 
     // 清理资源
     void cleanup() {
-       if (entry.mounted) {
-         entry.remove();
-       }
-       if (interceptorRoute?.isActive ?? false) {
-         interceptorRoute?.navigator?.removeRoute(interceptorRoute!);
-       }
-       _isVerifying = false;
+      if (entry.mounted) {
+        entry.remove();
+      }
+      if (interceptorRoute?.isActive ?? false) {
+        interceptorRoute?.navigator?.removeRoute(interceptorRoute!);
+      }
+      _isVerifying = false;
     }
 
     void finish(bool success) {
@@ -239,38 +262,39 @@ class CfChallengeService {
     // 创建 OverlayEntry
     // 我们需要传递一个 promoteCallback 给 Page，让 Page 能调用 Service 来 push route
     void onPromoteToForeground(BuildContext pageContext) {
-        if (interceptorRoute != null && interceptorRoute!.isActive) return; // 已经有 Route 了
+      if (interceptorRoute != null && interceptorRoute!.isActive) {
+        return; // 已经有 Route 了
+      }
 
-        // Push 透明 Route 用于拦截返回键
-        interceptorRoute = PageRouteBuilder(
-            opaque: false,
-            barrierColor: Colors.transparent,
-            pageBuilder: (context, _, _) {
-                 return PopScope(
-                    canPop: false,
-                    onPopInvokedWithResult: (didPop, result) async {
-                        if (didPop) return;
-                        if (!_isVerifying) return;
+      // Push 透明 Route 用于拦截返回键
+      interceptorRoute = PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.transparent,
+        pageBuilder: (context, _, _) {
+          return PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (didPop, result) async {
+              if (didPop) return;
+              if (!_isVerifying) return;
 
-                        // 触发内部弹窗 via GlobalKey
-                        pageKey.currentState?.showExitConfirmation();
-                    },
-                    // 使用 IgnorePointer 让点击事件穿透到下层的 Overlay (WebView)
-                    child: const IgnorePointer(
-                      child: SizedBox.expand(),
-                    ),
-                 );
+              // 触发内部弹窗 via GlobalKey
+              pageKey.currentState?.showExitConfirmation();
             },
-        );
+            // 使用 IgnorePointer 让点击事件穿透到下层的 Overlay (WebView)
+            child: const IgnorePointer(child: SizedBox.expand()),
+          );
+        },
+      );
 
-        Navigator.of(pageContext).push(interceptorRoute!).then((_) {
-            // Route 被 pop
-        });
+      Navigator.of(pageContext).push(interceptorRoute!).then((_) {
+        // Route 被 pop
+      });
     }
 
     entry = OverlayEntry(
       builder: (context) => CfChallengePage(
         key: pageKey,
+        verifyUrl: verifyUrl,
         startInBackground: !forceForeground,
         onResult: finish,
         onPromoteRequest: () => onPromoteToForeground(context),
@@ -280,14 +304,14 @@ class CfChallengeService {
 
     // 如果初始就是前台，立即执行 promote
     if (forceForeground) {
-        // Post frame callback to ensure overlay is mounted and context is valid
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-            // 注意：这里的 ctx 是 Service 传入的 ctx，可能不是 Overlay 的 context
-            // 但 Navigator.of(ctx) 应该能找到正确的 Navigator
-            // 我们最好使用 OverlayEntry builder 里的 context，但这里访问不到。
-            // 使用 ctx 应该是安全的。
-             onPromoteToForeground(ctx!);
-        });
+      // Post frame callback to ensure overlay is mounted and context is valid
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // 注意：这里的 ctx 是 Service 传入的 ctx，可能不是 Overlay 的 context
+        // 但 Navigator.of(ctx) 应该能找到正确的 Navigator
+        // 我们最好使用 OverlayEntry builder 里的 context，但这里访问不到。
+        // 使用 ctx 应该是安全的。
+        onPromoteToForeground(ctx!);
+      });
     }
 
     final result = await resultCompleter.future;
@@ -301,7 +325,10 @@ class CfChallengeService {
     // 验证成功后重置冷却期
     if (result == true) {
       resetCooldown();
-      CfChallengeLogger.logVerifyResult(success: true, reason: 'user completed');
+      CfChallengeLogger.logVerifyResult(
+        success: true,
+        reason: 'user completed',
+      );
       // 手动验证成功后重新启动自动续期
       CfClearanceRefreshService().start();
     } else {
@@ -312,8 +339,13 @@ class CfChallengeService {
       }
       // 验证失败，启动冷却期
       startCooldown();
-      debugPrint('[CfChallenge] Verification failed, cooldown until $_cooldownUntil');
-      CfChallengeLogger.logVerifyResult(success: false, reason: 'user cancelled or timeout');
+      debugPrint(
+        '[CfChallenge] Verification failed, cooldown until $_cooldownUntil',
+      );
+      CfChallengeLogger.logVerifyResult(
+        success: false,
+        reason: 'user cancelled or timeout',
+      );
     }
 
     return result;
@@ -324,10 +356,13 @@ class CfChallengeService {
 class CfChallengePage extends StatefulWidget {
   const CfChallengePage({
     super.key,
+    required this.verifyUrl,
     this.startInBackground = false,
     this.onResult,
     this.onPromoteRequest,
   });
+
+  final String verifyUrl;
 
   /// 先后台尝试验证，超时后再切到前台
   final bool startInBackground;
@@ -342,14 +377,19 @@ class _CfChallengePageState extends State<CfChallengePage> {
   InAppWebViewController? _controller;
   bool _isLoading = true;
   double _progress = 0;
+  bool _hasMarkedPageReady = false;
   bool _hasPopped = false; // 防止重复 pop
   late bool _isBackground;
   int _checkCount = 0;
   Timer? _timeoutTimer;
   Timer? _noChallengeCheckTimer;
+  Timer? _loadStopFallbackTimer;
+  Timer? _pageReadyFallbackTimer;
   static const _backgroundMaxCheckCount = 10;
   static const _foregroundMaxCheckCount = 60;
   static const _noChallengeCheckDelay = Duration(seconds: 5);
+  static const _loadStopFallbackDelay = Duration(milliseconds: 1200);
+  static const _pageReadyFallbackDelay = Duration(seconds: 4);
 
   /// 验证页面加载时 WebView 中的 cf_clearance 快照
   /// 用于区分「旧值残留」和「验证后新设的值」
@@ -368,14 +408,13 @@ class _CfChallengePageState extends State<CfChallengePage> {
   /// 记录验证开始时 WebView 中的 cf_clearance（应为空，因为 showManualVerify 已删除）
   Future<void> _snapshotInitialClearance() async {
     try {
-      final cookie = await CookieManager.instance().getCookie(
-        url: WebUri(AppConstants.baseUrl),
-        name: 'cf_clearance',
-      );
-      _initialCfClearance = cookie?.value;
+      final cookieValue = await _readCookieValue('cf_clearance');
+      _initialCfClearance = cookieValue;
       if (_initialCfClearance != null && _initialCfClearance!.isNotEmpty) {
-        debugPrint('[CfChallenge] ⚠️ 验证页加载时 WebView 仍存在旧 cf_clearance '
-            '(${_initialCfClearance!.length} chars)，将忽略该值');
+        debugPrint(
+          '[CfChallenge] ⚠️ 验证页加载时 WebView 仍存在旧 cf_clearance '
+          '(${_initialCfClearance!.length} chars)，将忽略该值',
+        );
       }
     } catch (e) {
       debugPrint('[CfChallenge] 快照 cf_clearance 失败: $e');
@@ -386,8 +425,47 @@ class _CfChallengePageState extends State<CfChallengePage> {
   void dispose() {
     _timeoutTimer?.cancel();
     _noChallengeCheckTimer?.cancel();
+    _loadStopFallbackTimer?.cancel();
+    _pageReadyFallbackTimer?.cancel();
     _controller?.dispose();
     super.dispose();
+  }
+
+  /// 读取 cookie 值：先尝试 CookieManager，Windows 上 fallback 到 DevTools
+  Future<String?> _readCookieValue(String name) async {
+    try {
+      final cookie = await _cfCookieManager.getCookie(
+        url: WebUri(AppConstants.baseUrl),
+        name: name,
+      );
+      if (cookie != null && cookie.value.isNotEmpty) {
+        return cookie.value;
+      }
+    } catch (e) {
+      debugPrint('[CfChallenge] CookieManager 读取 $name 失败: $e');
+    }
+
+    // Windows 上通过 CookieJarService 的统一方法读取
+    if (io.Platform.isWindows && _controller != null) {
+      return CookieJarService().readCookieValueFromController(
+        _controller!,
+        name,
+        currentUrl: widget.verifyUrl,
+      );
+    }
+    return null;
+  }
+
+  /// 将关键 cookie 从 WebView DevTools 同步到 CookieJar
+  Future<void> _syncLiveCookiesToCookieJar() async {
+    final controller = _controller;
+    if (controller == null) return;
+
+    await CookieJarService().syncCriticalCookiesFromController(
+      controller,
+      currentUrl: widget.verifyUrl,
+      cookieNames: const {'_t', '_forum_session', 'cf_clearance'},
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -398,8 +476,10 @@ class _CfChallengePageState extends State<CfChallengePage> {
 
   /// 注入 XHR/fetch 拦截脚本
   Future<void> _injectChallengeInterceptor(
-      InAppWebViewController controller) async {
-    await controller.evaluateJavascript(source: '''
+    InAppWebViewController controller,
+  ) async {
+    await controller.evaluateJavascript(
+      source: '''
 (function() {
   if (window._cfInterceptorInstalled) return;
   window._cfInterceptorInstalled = true;
@@ -439,7 +519,8 @@ class _CfChallengePageState extends State<CfChallengePage> {
     });
   };
 })();
-''');
+''',
+    );
   }
 
   /// challenge-platform 响应到达时的回调
@@ -448,16 +529,14 @@ class _CfChallengePageState extends State<CfChallengePage> {
     final url = args.isNotEmpty ? args[0] : '';
     final status = args.length > 1 ? args[1] : 0;
     debugPrint('[CfChallenge] challenge-platform 响应: url=$url, status=$status');
-    CfChallengeLogger.log('[VERIFY] Challenge response: url=$url, status=$status');
+    CfChallengeLogger.log(
+      '[VERIFY] Challenge response: url=$url, status=$status',
+    );
 
     try {
-      // CookieManager 可读 HttpOnly cookie
-      final cookie = await CookieManager.instance().getCookie(
-        url: WebUri(AppConstants.baseUrl),
-        name: 'cf_clearance',
-      );
+      final cookieValue = await _readCookieValue('cf_clearance');
 
-      if (cookie == null || cookie.value.isEmpty) {
+      if (cookieValue == null || cookieValue.isEmpty) {
         debugPrint('[CfChallenge] 未检测到 cf_clearance，等待后续响应');
         return;
       }
@@ -465,7 +544,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
       // 关键：对比初始快照，过滤掉未被清除干净的旧值
       if (_initialCfClearance != null &&
           _initialCfClearance!.isNotEmpty &&
-          cookie.value == _initialCfClearance) {
+          cookieValue == _initialCfClearance) {
         debugPrint('[CfChallenge] cf_clearance 与初始值相同（旧值残留），忽略');
         return;
       }
@@ -481,18 +560,25 @@ class _CfChallengePageState extends State<CfChallengePage> {
         return;
       }
 
-      debugPrint('[CfChallenge] ✓ 验证完成：新 cf_clearance (${cookie.value.length} chars) 且页面已通过');
+      debugPrint(
+        '[CfChallenge] ✓ 验证完成：新 cf_clearance (${cookieValue.length} chars) 且页面已通过',
+      );
       CfChallengeLogger.logVerifyResult(
         success: true,
         reason: 'new cf_clearance detected and page passed challenge',
       );
-      await CookieJarService().syncFromWebView();
+      await _syncLiveCookiesToCookieJar();
+      await CookieJarService().syncFromWebView(controller: _controller);
       // 验证 cf_clearance 是否真正写入了 CookieJar
       final synced = await CookieJarService().getCfClearance();
       if (synced != null && synced.isNotEmpty) {
-        debugPrint('[CfChallenge] cf_clearance 已同步到 CookieJar (${synced.length} chars)');
+        debugPrint(
+          '[CfChallenge] cf_clearance 已同步到 CookieJar (${synced.length} chars)',
+        );
       } else {
-        debugPrint('[CfChallenge] ⚠️ syncFromWebView 后 CookieJar 中未找到 cf_clearance');
+        debugPrint(
+          '[CfChallenge] ⚠️ syncFromWebView 后 CookieJar 中未找到 cf_clearance',
+        );
       }
       _timeoutTimer?.cancel();
       if (mounted) _finish(true);
@@ -524,14 +610,16 @@ class _CfChallengePageState extends State<CfChallengePage> {
       if (_checkCount > _activeMaxCheckCount) {
         if (_isBackground) {
           CfChallengeLogger.log(
-              '[VERIFY] Background timeout after $_activeMaxCheckCount seconds, prompting manual verify');
+            '[VERIFY] Background timeout after $_activeMaxCheckCount seconds, prompting manual verify',
+          );
           _promoteToForeground();
           return;
         }
         timer.cancel();
         CfChallengeLogger.logVerifyResult(
-            success: false,
-            reason: 'timeout after $_activeMaxCheckCount seconds');
+          success: false,
+          reason: 'timeout after $_activeMaxCheckCount seconds',
+        );
         if (mounted) {
           _showError(S.current.cf_verifyTimeout);
           Future.delayed(const Duration(seconds: 2), () {
@@ -556,28 +644,27 @@ class _CfChallengePageState extends State<CfChallengePage> {
         if (_hasPopped) return;
         if (html == null) return;
 
-        final hasChallenge =
-            CfChallengeService.hasActiveCfChallenge(html.toString());
+        final hasChallenge = CfChallengeService.hasActiveCfChallenge(
+          html.toString(),
+        );
         if (hasChallenge) return; // 页面有盾，等待正常验证流程
 
         // 页面没有盾，检查是否已有新的 cf_clearance（CF 可能自动放行了）
-        final cookie = await CookieManager.instance().getCookie(
-          url: WebUri(AppConstants.baseUrl),
-          name: 'cf_clearance',
-        );
+        final cookieValue = await _readCookieValue('cf_clearance');
         if (_hasPopped) return;
 
-        if (cookie != null &&
-            cookie.value.isNotEmpty &&
+        if (cookieValue != null &&
+            cookieValue.isNotEmpty &&
             (_initialCfClearance == null ||
                 _initialCfClearance!.isEmpty ||
-                cookie.value != _initialCfClearance)) {
+                cookieValue != _initialCfClearance)) {
           debugPrint('[CfChallenge] 页面无盾但检测到新 cf_clearance，自动完成');
           CfChallengeLogger.logVerifyResult(
             success: true,
             reason: 'no challenge but new cf_clearance detected',
           );
-          await CookieJarService().syncFromWebView();
+          await _syncLiveCookiesToCookieJar();
+          await CookieJarService().syncFromWebView(controller: _controller);
           _timeoutTimer?.cancel();
           if (mounted) _finish(true);
         } else {
@@ -603,26 +690,26 @@ class _CfChallengePageState extends State<CfChallengePage> {
     if (_hasPopped || _polling) return;
     _polling = true;
     try {
-      final cookie = await CookieManager.instance().getCookie(
-        url: WebUri(AppConstants.baseUrl),
-        name: 'cf_clearance',
-      );
+      final cookieValue = await _readCookieValue('cf_clearance');
       if (_hasPopped) return;
-      if (cookie == null || cookie.value.isEmpty) return;
+      if (cookieValue == null || cookieValue.isEmpty) return;
 
       // 与初始快照对比，过滤旧值残留
       if (_initialCfClearance != null &&
           _initialCfClearance!.isNotEmpty &&
-          cookie.value == _initialCfClearance) {
+          cookieValue == _initialCfClearance) {
         return;
       }
 
-      debugPrint('[CfChallenge] ✓ 轮询检测到新 cf_clearance (${cookie.value.length} chars)');
+      debugPrint(
+        '[CfChallenge] ✓ 轮询检测到新 cf_clearance (${cookieValue.length} chars)',
+      );
       CfChallengeLogger.logVerifyResult(
         success: true,
         reason: 'polling detected new cf_clearance',
       );
-      await CookieJarService().syncFromWebView();
+      await _syncLiveCookiesToCookieJar();
+      await CookieJarService().syncFromWebView(controller: _controller);
       _timeoutTimer?.cancel();
       if (mounted) _finish(true);
     } catch (e) {
@@ -640,10 +727,10 @@ class _CfChallengePageState extends State<CfChallengePage> {
   bool _showHelpDialog = false;
 
   Future<void> showExitConfirmation() async {
-     if (!mounted) return;
-     setState(() {
-       _showExitDialog = true;
-     });
+    if (!mounted) return;
+    setState(() {
+      _showExitDialog = true;
+    });
   }
 
   void _dismissExitConfirmation() {
@@ -661,6 +748,9 @@ class _CfChallengePageState extends State<CfChallengePage> {
   void _refresh() {
     _timeoutTimer?.cancel();
     _noChallengeCheckTimer?.cancel();
+    _loadStopFallbackTimer?.cancel();
+    _pageReadyFallbackTimer?.cancel();
+    _hasMarkedPageReady = false;
     _checkCount = 0;
     setState(() {
       _isLoading = true;
@@ -719,6 +809,55 @@ class _CfChallengePageState extends State<CfChallengePage> {
     ToastService.showError(message);
   }
 
+  void _handlePageReady(InAppWebViewController controller, {String? reason}) {
+    if (_hasMarkedPageReady || _hasPopped) return;
+    _hasMarkedPageReady = true;
+    _loadStopFallbackTimer?.cancel();
+    _pageReadyFallbackTimer?.cancel();
+
+    if (mounted && _isLoading) {
+      setState(() => _isLoading = false);
+    }
+
+    if (reason != null) {
+      debugPrint('[CfChallenge] 页面进入可验证状态: $reason');
+    }
+
+    _injectChallengeInterceptor(controller);
+    _startTimeout();
+    _scheduleNoChallengeCheck(controller);
+  }
+
+  void _schedulePageReadyFallback(InAppWebViewController controller) {
+    if (!io.Platform.isWindows || _hasMarkedPageReady) {
+      return;
+    }
+    _pageReadyFallbackTimer?.cancel();
+    _pageReadyFallbackTimer = Timer(_pageReadyFallbackDelay, () {
+      _pageReadyFallbackTimer = null;
+      if (_hasMarkedPageReady || _hasPopped) {
+        return;
+      }
+      _handlePageReady(controller, reason: 'Windows timed fallback');
+    });
+  }
+
+  void _scheduleLoadStopFallback(
+    InAppWebViewController controller,
+    int progress,
+  ) {
+    if (!io.Platform.isWindows || _hasMarkedPageReady || progress < 95) {
+      return;
+    }
+    _loadStopFallbackTimer ??= Timer(_loadStopFallbackDelay, () {
+      _loadStopFallbackTimer = null;
+      if (_hasMarkedPageReady || _hasPopped || _progress < 0.95) {
+        return;
+      }
+      _handlePageReady(controller, reason: 'Windows progress fallback');
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // build
   // ---------------------------------------------------------------------------
@@ -736,7 +875,9 @@ class _CfChallengePageState extends State<CfChallengePage> {
           child: Opacity(
             opacity: _isBackground ? 0 : 1,
             child: Scaffold(
-              backgroundColor: Colors.transparent,
+              backgroundColor: showUi
+                  ? theme.colorScheme.surface
+                  : Colors.transparent,
               appBar: showUi
                   ? AppBar(
                       title: Column(
@@ -775,19 +916,24 @@ class _CfChallengePageState extends State<CfChallengePage> {
                   if (showUi && _isLoading)
                     LinearProgressIndicator(
                       value: _progress > 0 ? _progress : null,
-                      backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                      backgroundColor:
+                          theme.colorScheme.surfaceContainerHighest,
                     ),
                   Expanded(
                     child: Stack(
                       children: [
                         IgnorePointer(
                           ignoring: _isBackground,
-                          child: InAppWebView(
+                          child: WebViewSettings.wrapWithScrollFix(InAppWebView(
+                            webViewEnvironment: WindowsWebViewEnvironmentService
+                                .instance
+                                .environment,
                             initialUrlRequest: URLRequest(
-                                url: WebUri('${AppConstants.baseUrl}/challenge')),
+                              url: WebUri(widget.verifyUrl),
+                            ),
                             initialSettings: InAppWebViewSettings(
                               javaScriptEnabled: true,
-                              userAgent: AppConstants.userAgent,
+                              userAgent: AppConstants.webViewUserAgentOverride,
                               mediaPlaybackRequiresUserGesture: false,
                             ),
                             onWebViewCreated: (controller) {
@@ -799,36 +945,47 @@ class _CfChallengePageState extends State<CfChallengePage> {
                               );
                             },
                             onLoadStart: (controller, url) {
+                              _loadStopFallbackTimer?.cancel();
+                              _pageReadyFallbackTimer?.cancel();
+                              _hasMarkedPageReady = false;
+                              _schedulePageReadyFallback(controller);
                               setState(() {
                                 _isLoading = true;
                                 _progress = 0;
                               });
                             },
+                            onPageCommitVisible: (controller, url) {
+                              _handlePageReady(
+                                controller,
+                                reason: 'onPageCommitVisible',
+                              );
+                            },
                             onProgressChanged: (controller, progress) {
                               _progress = progress / 100;
+                              _scheduleLoadStopFallback(controller, progress);
                               if (showUi) {
                                 setState(() {});
                               }
                             },
                             onLoadStop: (controller, url) {
-                              if (mounted) {
-                                setState(() => _isLoading = false);
-                              }
-                              // 注入 XHR/fetch 拦截脚本
-                              _injectChallengeInterceptor(controller);
-                              _startTimeout();
-                              // 延迟检测页面是否存在 CF 验证盾，无盾则快速退出
-                              _scheduleNoChallengeCheck(controller);
+                              WebViewSettings.injectScrollFix(controller);
+                              _handlePageReady(
+                                controller,
+                                reason: 'onLoadStop',
+                              );
                             },
                             onReceivedError: (controller, request, error) {
+                              _pageReadyFallbackTimer?.cancel();
                               if (mounted) {
                                 setState(() => _isLoading = false);
                               }
                               if (showUi) {
-                                _showError(context.l10n.cf_loadFailed(error.description));
+                                _showError(
+                                  context.l10n.cf_loadFailed(error.description),
+                                );
                               }
                             },
-                          ),
+                          ), getController: () => _controller),
                         ),
 
                         // 警告卡片
@@ -852,9 +1009,13 @@ class _CfChallengePageState extends State<CfChallengePage> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        context.l10n.cf_verifyLonger(_activeMaxCheckCount - _checkCount),
+                                        context.l10n.cf_verifyLonger(
+                                          _activeMaxCheckCount - _checkCount,
+                                        ),
                                         style: TextStyle(
-                                          color: theme.colorScheme.onErrorContainer,
+                                          color: theme
+                                              .colorScheme
+                                              .onErrorContainer,
                                         ),
                                       ),
                                     ),
@@ -874,37 +1035,37 @@ class _CfChallengePageState extends State<CfChallengePage> {
 
         // 内部弹窗层
         if (_showExitDialog)
-           Stack(
-             children: [
-                GestureDetector(
-                  onTap: _dismissExitConfirmation,
-                  child: Container(
-                    color: Colors.black54,
-                    width: double.infinity,
-                    height: double.infinity,
-                  ),
+          Stack(
+            children: [
+              GestureDetector(
+                onTap: _dismissExitConfirmation,
+                child: Container(
+                  color: Colors.black54,
+                  width: double.infinity,
+                  height: double.infinity,
                 ),
-                Center(
-                  child: AlertDialog(
-                    title: Text(context.l10n.cf_abandonVerifyTitle),
-                    content: Text(context.l10n.cf_abandonVerifyMessage),
-                    actions: [
-                      TextButton(
-                        onPressed: _dismissExitConfirmation,
-                        child: Text(context.l10n.cf_continueVerify),
+              ),
+              Center(
+                child: AlertDialog(
+                  title: Text(context.l10n.cf_abandonVerifyTitle),
+                  content: Text(context.l10n.cf_abandonVerifyMessage),
+                  actions: [
+                    TextButton(
+                      onPressed: _dismissExitConfirmation,
+                      child: Text(context.l10n.cf_continueVerify),
+                    ),
+                    TextButton(
+                      onPressed: _confirmExit,
+                      child: Text(
+                        context.l10n.common_exit,
+                        style: TextStyle(color: theme.colorScheme.error),
                       ),
-                      TextButton(
-                        onPressed: _confirmExit,
-                        child: Text(
-                          context.l10n.common_exit,
-                          style: TextStyle(color: theme.colorScheme.error),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-             ],
-           ),
+              ),
+            ],
+          ),
 
         if (_showHelpDialog)
           Stack(
@@ -943,3 +1104,4 @@ class _CfChallengePageState extends State<CfChallengePage> {
     );
   }
 }
+

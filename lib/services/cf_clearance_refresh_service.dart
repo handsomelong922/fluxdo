@@ -8,6 +8,7 @@ import '../constants.dart';
 import 'cf_challenge_logger.dart';
 import 'network/cookie/cookie_jar_service.dart';
 import 'network/discourse_dio.dart';
+import 'windows_webview_environment_service.dart';
 
 /// cf_clearance 自动续期服务
 ///
@@ -28,8 +29,17 @@ class CfClearanceRefreshService {
   /// 持久 HeadlessWebView（保持 Turnstile widget 存活）
   HeadlessInAppWebView? _headlessWebView;
 
+  /// 当前 HeadlessWebView 对应的 controller
+  InAppWebViewController? _webViewController;
+
   /// WebView 是否已启动
   bool _isRunning = false;
+
+  /// WebView 是否正处于销毁阶段
+  bool _isDisposing = false;
+
+  /// 当前是否期望服务保持运行
+  bool _shouldBeRunning = false;
 
   /// 是否正在调用 rc 端点
   bool _isCallingRc = false;
@@ -46,6 +56,12 @@ class CfClearanceRefreshService {
   /// Turnstile 首次解题超时
   static const Duration _initialTimeout = Duration(seconds: 30);
 
+  /// 销毁前等待原生回调栈退出的缓冲时间
+  static const Duration _disposeGracePeriod = Duration(milliseconds: 150);
+
+  Timer? _initialTimer;
+  Timer? _delayedStopTimer;
+
   // ---------------------------------------------------------------------------
   // sitekey 管理
   // ---------------------------------------------------------------------------
@@ -60,14 +76,14 @@ class CfClearanceRefreshService {
     _sitekey = sitekey;
     if (changed) {
       CfChallengeLogger.log(
-          '[CfRefresh] sitekey 已更新: ${sitekey.substring(0, 8)}...');
+        '[CfRefresh] sitekey 已更新: ${sitekey.substring(0, 8)}...',
+      );
     }
   }
 
   /// 从 HTML 中提取并更新 sitekey
   void extractAndUpdateSitekey(String html) {
-    final match =
-        RegExp(r'data-sitekey="([0-9a-zA-Zx_-]+)"').firstMatch(html);
+    final match = RegExp(r'data-sitekey="([0-9a-zA-Zx_-]+)"').firstMatch(html);
     if (match == null) return;
     final sitekey = match.group(1);
     if (sitekey != null && sitekey.isNotEmpty) {
@@ -81,31 +97,48 @@ class CfClearanceRefreshService {
 
   /// 启动服务：创建持久 WebView，加载 Turnstile
   void start() {
-    if (_isRunning) return;
+    if (_isRunning && !_isDisposing) return;
+    _shouldBeRunning = true;
     _consecutiveFailures = 0;
     _generation++;
+    _delayedStopTimer?.cancel();
+    if (_isDisposing) {
+      CfChallengeLogger.log('[CfRefresh] start 已排队，等待当前 WebView 完成销毁');
+      return;
+    }
     _startWebView();
   }
 
   /// 暂停：销毁 WebView（应用进入后台，WebView 可能被系统挂起）
   void pause() {
-    if (!_isRunning) return;
+    if (!_isRunning && !_isDisposing) return;
+    _shouldBeRunning = false;
+    _generation++;
     CfChallengeLogger.log('[CfRefresh] 暂停，释放 WebView');
-    _disposeWebView();
+    unawaited(_disposeWebView(reason: 'pause'));
   }
 
   /// 恢复：重新创建 WebView（应用回到前台）
   void resume() {
-    if (_isRunning) return;
+    if (_isRunning && !_isDisposing) return;
+    _shouldBeRunning = true;
     CfChallengeLogger.log('[CfRefresh] 恢复');
     _consecutiveFailures = 0;
+    _generation++;
+    _delayedStopTimer?.cancel();
+    if (_isDisposing) {
+      CfChallengeLogger.log('[CfRefresh] resume 已排队，等待当前 WebView 完成销毁');
+      return;
+    }
     _startWebView();
   }
 
   /// 停止服务
   void stop() {
+    _shouldBeRunning = false;
     _generation++;
-    _disposeWebView();
+    _delayedStopTimer?.cancel();
+    unawaited(_disposeWebView(reason: 'stop'));
     _consecutiveFailures = 0;
     CfChallengeLogger.log('[CfRefresh] 服务已停止');
   }
@@ -116,6 +149,7 @@ class CfClearanceRefreshService {
 
   /// 启动持久 HeadlessWebView
   void _startWebView() {
+    if (_isRunning || _isDisposing) return;
     if (_sitekey == null) {
       CfChallengeLogger.log('[CfRefresh] 无 sitekey，跳过启动');
       return;
@@ -125,34 +159,54 @@ class CfClearanceRefreshService {
     final gen = _generation;
     CookieJarService().getCfClearanceCookie().then((cookie) {
       // stop() 或新一轮 start() 已被调用，放弃本次启动
-      if (gen != _generation) return;
+      if (gen != _generation ||
+          _isDisposing ||
+          _isRunning ||
+          !_shouldBeRunning) {
+        return;
+      }
       if (cookie == null) {
         CfChallengeLogger.log('[CfRefresh] 无 cf_clearance，跳过启动');
         return;
       }
-      _createAndRunWebView();
+      unawaited(_createAndRunWebView(gen));
     });
   }
 
   /// 创建并运行 HeadlessWebView
-  Future<void> _createAndRunWebView() async {
-    if (_isRunning || _sitekey == null) return;
+  Future<void> _createAndRunWebView(int gen) async {
+    if (_isRunning || _isDisposing || _sitekey == null || !_shouldBeRunning) {
+      return;
+    }
 
     final html = _buildTurnstileHtml(_sitekey!);
-    Timer? initialTimer;
-
-    _headlessWebView = HeadlessInAppWebView(
+    final webView = HeadlessInAppWebView(
+      webViewEnvironment: WindowsWebViewEnvironmentService.instance.environment,
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
-        userAgent: AppConstants.userAgent,
+        userAgent: AppConstants.webViewUserAgentOverride,
       ),
       onWebViewCreated: (controller) {
+        if (!_canHandleGeneration(gen)) {
+          CfChallengeLogger.log(
+            '[CfRefresh] 忽略过期 WebView 创建回调: gen=$gen current=$_generation',
+          );
+          return;
+        }
+        _webViewController = controller;
+
         // 核心通道：拦截 api.js 内部的 fetch(/rc/) 调用
         controller.addJavaScriptHandler(
           handlerName: 'onRcIntercepted',
           callback: (args) {
-            initialTimer?.cancel();
-            initialTimer = null;
+            if (!_canHandleGeneration(gen)) {
+              CfChallengeLogger.log(
+                '[CfRefresh] 忽略 onRcIntercepted 回调: gen=$gen current=$_generation disposing=$_isDisposing',
+              );
+              return null;
+            }
+
+            _cancelInitialTimer();
 
             if (args.isNotEmpty && args[0] is Map) {
               final data = args[0] as Map;
@@ -160,8 +214,9 @@ class CfClearanceRefreshService {
               final chlId = data['chlId'] as String?;
               final secondaryToken = data['secondaryToken'] as String?;
               final sitekey = data['sitekey'] as String?;
-              _onRcIntercepted(id, chlId, secondaryToken, sitekey);
+              _onRcIntercepted(id, chlId, secondaryToken, sitekey, gen);
             }
+            return null;
           },
         );
 
@@ -169,14 +224,23 @@ class CfClearanceRefreshService {
         controller.addJavaScriptHandler(
           handlerName: 'onTurnstileError',
           callback: (args) {
+            if (!_canHandleGeneration(gen)) {
+              CfChallengeLogger.log(
+                '[CfRefresh] 忽略 onTurnstileError 回调: gen=$gen current=$_generation disposing=$_isDisposing',
+              );
+              return null;
+            }
+
             final error = args.isNotEmpty ? args[0] : 'unknown';
             CfChallengeLogger.log('[CfRefresh] Turnstile 错误: $error');
             _consecutiveFailures++;
             if (_consecutiveFailures >= _maxConsecutiveFailures) {
               CfChallengeLogger.log(
-                  '[CfRefresh] 连续失败 $_consecutiveFailures 次，停止服务');
-              stop();
+                '[CfRefresh] 连续失败 $_consecutiveFailures 次，延迟停止服务',
+              );
+              _scheduleStop('turnstile_error:$error', gen: gen);
             }
+            return null;
           },
         );
       },
@@ -184,39 +248,103 @@ class CfClearanceRefreshService {
         debugPrint('[CfRefresh] WebView 错误: ${error.description}');
       },
     );
+    _headlessWebView = webView;
 
     try {
       _isRunning = true;
       CfChallengeLogger.log('[CfRefresh] 启动 Turnstile WebView');
 
-      await _headlessWebView!.run();
-      await _headlessWebView!.webViewController?.loadData(
+      await webView.run();
+      if (!_canHandleGeneration(gen)) return;
+
+      await webView.webViewController?.loadData(
         data: html,
         baseUrl: WebUri(AppConstants.baseUrl),
         mimeType: 'text/html',
         encoding: 'utf-8',
       );
+      if (!_canHandleGeneration(gen)) return;
 
       // 首次解题超时检测
-      initialTimer = Timer(_initialTimeout, () {
+      _initialTimer = Timer(_initialTimeout, () {
+        if (!_canHandleGeneration(gen)) return;
         CfChallengeLogger.log('[CfRefresh] 首次解题超时');
         _consecutiveFailures++;
         _checkAndStopIfNeeded();
       });
     } catch (e) {
       debugPrint('[CfRefresh] WebView 启动失败: $e');
+      CfChallengeLogger.log('[CfRefresh] WebView 启动失败: $e');
+      _cancelInitialTimer();
       _isRunning = false;
-      await _headlessWebView?.dispose();
-      _headlessWebView = null;
+      if (identical(_headlessWebView, webView)) {
+        _headlessWebView = null;
+        _webViewController = null;
+        _shouldBeRunning = false;
+        try {
+          await webView.dispose();
+        } catch (disposeError) {
+          CfChallengeLogger.log(
+            '[CfRefresh] 启动失败后的 WebView dispose 异常: $disposeError',
+          );
+        }
+      }
     }
   }
 
   /// 释放 WebView
-  Future<void> _disposeWebView() async {
+  Future<void> _disposeWebView({required String reason}) async {
+    if (_isDisposing) {
+      CfChallengeLogger.log('[CfRefresh] 忽略重复 dispose 请求: $reason');
+      return;
+    }
+
+    _isDisposing = true;
     _isRunning = false;
+    _isCallingRc = false;
+    _cancelInitialTimer();
+    _delayedStopTimer?.cancel();
+    _delayedStopTimer = null;
+
     final wv = _headlessWebView;
+    final controller = _webViewController;
     _headlessWebView = null;
-    await wv?.dispose();
+    _webViewController = null;
+
+    CfChallengeLogger.log(
+      '[CfRefresh] disposing begin: reason=$reason, gen=$_generation',
+    );
+
+    try {
+      if (controller != null) {
+        CfChallengeLogger.log('[CfRefresh] 移除 JS handlers');
+        controller.removeJavaScriptHandler(handlerName: 'onRcIntercepted');
+        controller.removeJavaScriptHandler(handlerName: 'onTurnstileError');
+      }
+    } catch (e) {
+      CfChallengeLogger.log('[CfRefresh] 移除 JS handlers 异常: $e');
+    }
+
+    if (controller != null || wv != null) {
+      await Future.delayed(_disposeGracePeriod);
+    }
+
+    try {
+      await wv?.dispose();
+    } catch (e) {
+      CfChallengeLogger.log('[CfRefresh] WebView dispose 异常: $e');
+    } finally {
+      _isDisposing = false;
+    }
+
+    CfChallengeLogger.log(
+      '[CfRefresh] disposing end: reason=$reason, shouldRun=$_shouldBeRunning',
+    );
+
+    if (_shouldBeRunning && !_isRunning) {
+      CfChallengeLogger.log('[CfRefresh] dispose 后按期望状态重启 WebView');
+      _startWebView();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -225,7 +353,15 @@ class CfClearanceRefreshService {
 
   /// fetch 拦截回调：api.js 尝试调用 rc 端点，被我们截获
   void _onRcIntercepted(
-      String id, String? chlId, String? secondaryToken, String? sitekey) {
+    String id,
+    String? chlId,
+    String? secondaryToken,
+    String? sitekey,
+    int gen,
+  ) {
+    if (!_canHandleGeneration(gen)) {
+      return;
+    }
     if (_isCallingRc) {
       // 已有 rc 调用进行中，直接返回 503 让 api.js 知道繁忙
       _resolveRcPromise(id, 503, '{}');
@@ -239,8 +375,9 @@ class CfClearanceRefreshService {
     }
 
     // sitekey 优先用拦截到的，fallback 用缓存的
-    final effectiveSitekey =
-        (sitekey != null && sitekey.isNotEmpty) ? sitekey : _sitekey;
+    final effectiveSitekey = (sitekey != null && sitekey.isNotEmpty)
+        ? sitekey
+        : _sitekey;
     if (effectiveSitekey == null) {
       CfChallengeLogger.log('[CfRefresh] 无 sitekey，跳过 rc 调用');
       _resolveRcPromise(id, 400, '{}');
@@ -249,14 +386,19 @@ class CfClearanceRefreshService {
 
     CfChallengeLogger.log('[CfRefresh] 拦截 rc 调用，chlId: $chlId');
 
-    _callRcEndpoint(id, chlId, secondaryToken, effectiveSitekey);
+    _callRcEndpoint(id, chlId, secondaryToken, effectiveSitekey, gen);
   }
 
   /// 调用 CF rc 端点并将真实响应回传给 JS
   Future<void> _callRcEndpoint(
-      String id, String chlId, String? secondaryToken, String sitekey) async {
+    String id,
+    String chlId,
+    String? secondaryToken,
+    String sitekey,
+    int gen,
+  ) async {
+    if (!_canHandleGeneration(gen)) return;
     _isCallingRc = true;
-    final gen = _generation;
     try {
       final dio = DiscourseDio.create(
         enableCfChallenge: false,
@@ -275,17 +417,13 @@ class CfClearanceRefreshService {
             'Origin': AppConstants.baseUrl,
             'Referer': '${AppConstants.baseUrl}/',
           },
-          extra: {
-            'skipCfChallenge': true,
-            'skipCsrf': true,
-            'isSilent': true,
-          },
+          extra: {'skipCfChallenge': true, 'skipCsrf': true, 'isSilent': true},
           validateStatus: (status) => status != null,
         ),
       );
 
       // 请求期间服务已被停止，丢弃结果
-      if (gen != _generation) return;
+      if (!_canHandleGeneration(gen)) return;
 
       final statusCode = response.statusCode ?? 500;
       final body = response.data?.toString() ?? '{}';
@@ -296,7 +434,7 @@ class CfClearanceRefreshService {
 
       // 等待 cookie 持久化完成后再检查
       await Future.delayed(const Duration(milliseconds: 500));
-      if (gen != _generation) return;
+      if (!_canHandleGeneration(gen)) return;
 
       // 验证 cf_clearance 是否已更新
       final cfClearance = await CookieJarService().getCfClearance();
@@ -306,11 +444,12 @@ class CfClearanceRefreshService {
       } else {
         _consecutiveFailures++;
         CfChallengeLogger.log(
-            '[CfRefresh] cf_clearance 未更新 (连续失败 $_consecutiveFailures 次)');
+          '[CfRefresh] cf_clearance 未更新 (连续失败 $_consecutiveFailures 次)',
+        );
         _checkAndStopIfNeeded();
       }
     } catch (e) {
-      if (gen != _generation) return;
+      if (!_canHandleGeneration(gen)) return;
       CfChallengeLogger.log('[CfRefresh] rc 端点调用异常: $e');
       _resolveRcPromise(id, 500, '{}');
       _consecutiveFailures++;
@@ -322,13 +461,20 @@ class CfClearanceRefreshService {
 
   /// 通过 evaluateJavascript 将真实响应回传给 JS 的 pending Promise
   void _resolveRcPromise(String id, int statusCode, String body) {
+    if (_isDisposing || !_isRunning) {
+      CfChallengeLogger.log(
+        '[CfRefresh] 跳过 resolveRcPromise: id=$id running=$_isRunning disposing=$_isDisposing',
+      );
+      return;
+    }
+
     // 转义 body 中的特殊字符，防止 JS 注入
     final escapedBody = body
         .replaceAll('\\', '\\\\')
         .replaceAll("'", "\\'")
         .replaceAll('\n', '\\n')
         .replaceAll('\r', '\\r');
-    _headlessWebView?.webViewController?.evaluateJavascript(
+    _webViewController?.evaluateJavascript(
       source: "window._resolveRc('$id', $statusCode, '$escapedBody')",
     );
   }
@@ -337,8 +483,31 @@ class CfClearanceRefreshService {
   void _checkAndStopIfNeeded() {
     if (_consecutiveFailures >= _maxConsecutiveFailures) {
       CfChallengeLogger.log('[CfRefresh] 连续失败过多，停止服务');
-      stop();
+      _scheduleStop('too_many_failures', gen: _generation);
     }
+  }
+
+  bool _canHandleGeneration(int gen) {
+    return gen == _generation && _isRunning && !_isDisposing;
+  }
+
+  void _cancelInitialTimer() {
+    _initialTimer?.cancel();
+    _initialTimer = null;
+  }
+
+  void _scheduleStop(String reason, {required int gen}) {
+    _delayedStopTimer?.cancel();
+    _delayedStopTimer = Timer(_disposeGracePeriod, () {
+      if (gen != _generation || _isDisposing || !_isRunning) {
+        CfChallengeLogger.log(
+          '[CfRefresh] 取消延迟 stop: reason=$reason, gen=$gen current=$_generation running=$_isRunning disposing=$_isDisposing',
+        );
+        return;
+      }
+      CfChallengeLogger.log('[CfRefresh] 执行延迟 stop: $reason');
+      stop();
+    });
   }
 
   // ---------------------------------------------------------------------------

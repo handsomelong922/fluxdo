@@ -176,15 +176,20 @@ class AppCookieManager extends Interceptor {
         .map((str) => Cookie.fromSetCookieValue(str))
         .toList();
 
-    // 诊断：记录 _t cookie 变更（仅元信息，不含实际值）
+    // 拦截服务端对关键 cookie 的删除指令。
+    // 服务端可能在 200 响应中通过 Set-Cookie 删除 _t（设置为过期/空值），
+    // 如果无条件写入 CookieJar，会导致验证机制还没判断完 _t 就已经丢了。
+    // 只过滤「删除」操作，正常的「更新」（有值且未过期）仍然放行。
+    final filteredCookies = <Cookie>[];
     for (final cookie in cookies) {
-      if (cookie.name == '_t') {
+      final isSessionCookie = cookie.name == '_t' || cookie.name == '_forum_session';
+      if (isSessionCookie) {
         final isExpired = cookie.expires != null &&
             cookie.expires!.isBefore(DateTime.now());
         final isDeletion =
             cookie.value == 'del' || cookie.value.isEmpty || isExpired;
         final uri = response.requestOptions.uri;
-        debugPrint('[CookieManager] _t ${isDeletion ? "DEL" : "SET"} '
+        debugPrint('[CookieManager] _t ${isDeletion ? "DEL(blocked)" : "SET"} '
             'from ${response.requestOptions.method} ${uri.host}${uri.path} '
             '(status=${response.statusCode}, len=${cookie.value.length}, '
             'domain=${cookie.domain}, hasLoggedIn=${response.requestOptions.headers['Discourse-Logged-In']})');
@@ -192,8 +197,8 @@ class AppCookieManager extends Interceptor {
           'timestamp': DateTime.now().toIso8601String(),
           'level': isDeletion ? 'warning' : 'info',
           'type': 'cookie_change',
-          'event': isDeletion ? 'token_cookie_deleted' : 'token_cookie_updated',
-          'message': isDeletion ? '_t cookie 被删除' : '_t cookie 被更新',
+          'event': isDeletion ? 'token_cookie_delete_blocked' : 'token_cookie_updated',
+          'message': isDeletion ? '${cookie.name} 删除被拦截' : '${cookie.name} cookie 被更新',
           'valueLength': cookie.value.length,
           'isExpired': isExpired,
           'method': response.requestOptions.method,
@@ -203,14 +208,19 @@ class AppCookieManager extends Interceptor {
           'cookieDomain': cookie.domain,
           'hasLoggedInHeader': response.requestOptions.headers['Discourse-Logged-In'] == 'true',
         });
+        if (isDeletion) {
+          // 不写入 CookieJar，由业务层（_handleAuthInvalid）决定是否真正清除
+          continue;
+        }
       }
+      filteredCookies.add(cookie);
     }
 
     // Save cookies for the original site.
     final originalUri = response.requestOptions.uri;
     await cookieJar.saveFromResponse(
       originalUri.resolveUri(response.realUri),
-      cookies,
+      filteredCookies,
     );
 
     // Optionally save cookies for redirected locations.

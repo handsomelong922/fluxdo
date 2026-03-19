@@ -7,6 +7,7 @@ import '../constants.dart';
 import 'network/cookie/cookie_jar_service.dart';
 import 'preloaded_data_service.dart';
 import 'auth_log_service.dart';
+import 'windows_webview_environment_service.dart';
 
 /// WebView 登录验证服务
 /// 通过无头 WebView 访问站点，检查 data-preloaded 中的 currentUser
@@ -76,7 +77,8 @@ class AuthVerifyService {
       debugPrint('[AuthVerifyService] 开始 WebView 验证...');
       
       // 同步当前 Cookie 到 WebView
-      await CookieJarService().syncToWebView();
+      await CookieJarService().syncToWebView(
+      );
       
       // 使用无头 WebView 加载页面
       final result = await _loadAndVerify();
@@ -125,12 +127,14 @@ class AuthVerifyService {
 
     try {
       headlessWebView = HeadlessInAppWebView(
+        webViewEnvironment:
+            WindowsWebViewEnvironmentService.instance.environment,
         initialUrlRequest: URLRequest(
           url: WebUri(AppConstants.baseUrl),
         ),
         initialSettings: InAppWebViewSettings(
           javaScriptEnabled: true,
-          userAgent: AppConstants.userAgent,
+          userAgent: AppConstants.webViewUserAgentOverride,
         ),
         onLoadStop: (controller, url) async {
           if (completer.isCompleted) return;
@@ -229,7 +233,8 @@ class AuthVerifyService {
   /// 同步 WebView Cookie 到客户端
   Future<void> _syncCookiesToClient() async {
     try {
-      await CookieJarService().syncFromWebView();
+      await CookieJarService().syncFromWebView(
+      );
       // 刷新预加载数据
       await PreloadedDataService().refresh();
       debugPrint('[AuthVerifyService] Cookie 同步完成');

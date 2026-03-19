@@ -13,10 +13,12 @@ class NetworkAdapterSettingsPage extends StatefulWidget {
   const NetworkAdapterSettingsPage({super.key});
 
   @override
-  State<NetworkAdapterSettingsPage> createState() => _NetworkAdapterSettingsPageState();
+  State<NetworkAdapterSettingsPage> createState() =>
+      _NetworkAdapterSettingsPageState();
 }
 
-class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage> {
+class _NetworkAdapterSettingsPageState
+    extends State<NetworkAdapterSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -30,9 +32,7 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
         final failureReason = fallbackService.fallbackReason;
 
         return Scaffold(
-          appBar: AppBar(
-            title: Text(context.l10n.networkAdapter_title),
-          ),
+          appBar: AppBar(title: Text(context.l10n.networkAdapter_title)),
           body: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             children: [
@@ -77,9 +77,7 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
     final isNative = displayType == AdapterType.native;
 
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -98,20 +96,25 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
               ],
             ),
           ),
-          Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha:0.2)),
+          Divider(
+            height: 1,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+          ),
           ListTile(
             leading: const Icon(Icons.settings_ethernet),
             title: Text(context.l10n.networkAdapter_adapterType),
             subtitle: Text(
-              displayType != null ? getAdapterDisplayName(displayType) : context.l10n.common_unknown,
+              displayType != null
+                  ? getAdapterDisplayName(displayType)
+                  : context.l10n.common_unknown,
             ),
             trailing: _buildStatusChip(
               theme,
               icon: isNative ? Icons.check_circle : Icons.info,
-              label: isNative ? context.l10n.networkAdapter_native : context.l10n.networkAdapter_fallback,
-              color: isNative
-                  ? Colors.green
-                  : theme.colorScheme.secondary,
+              label: isNative
+                  ? context.l10n.networkAdapter_native
+                  : context.l10n.networkAdapter_fallback,
+              color: isNative ? Colors.green : theme.colorScheme.secondary,
             ),
           ),
         ],
@@ -119,11 +122,13 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
     );
   }
 
-  Widget _buildControlCard(ThemeData theme, bool forceFallback, CronetFallbackService fallbackService) {
+  Widget _buildControlCard(
+    ThemeData theme,
+    bool forceFallback,
+    CronetFallbackService fallbackService,
+  ) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -142,7 +147,10 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
               ],
             ),
           ),
-          Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha:0.2)),
+          Divider(
+            height: 1,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+          ),
           SwitchListTile(
             secondary: const Icon(Icons.swap_horiz),
             title: Text(context.l10n.networkAdapter_forceFallback),
@@ -160,12 +168,14 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
     );
   }
 
-  Widget _buildFallbackStatusCard(ThemeData theme, String? failureReason, CronetFallbackService fallbackService) {
+  Widget _buildFallbackStatusCard(
+    ThemeData theme,
+    String? failureReason,
+    CronetFallbackService fallbackService,
+  ) {
     return Card(
-      color: theme.colorScheme.errorContainer.withValues(alpha:0.3),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      color: theme.colorScheme.errorContainer.withValues(alpha: 0.3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -185,14 +195,21 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
               ],
             ),
           ),
-          Divider(height: 1, color: theme.colorScheme.error.withValues(alpha:0.2)),
+          Divider(
+            height: 1,
+            color: theme.colorScheme.error.withValues(alpha: 0.2),
+          ),
           ListTile(
             leading: Icon(Icons.info_outline, color: theme.colorScheme.error),
             title: Text(context.l10n.networkAdapter_autoFallback),
             subtitle: Text(context.l10n.networkAdapter_autoFallbackDesc),
           ),
           if (failureReason != null) ...[
-            Divider(height: 1, indent: 56, color: theme.colorScheme.error.withValues(alpha:0.2)),
+            Divider(
+              height: 1,
+              indent: 56,
+              color: theme.colorScheme.error.withValues(alpha: 0.2),
+            ),
             ListTile(
               leading: const Icon(Icons.bug_report),
               title: Text(context.l10n.networkAdapter_viewReason),
@@ -200,7 +217,11 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
               onTap: () => _showFailureReasonDialog(failureReason),
             ),
           ],
-          Divider(height: 1, indent: 56, color: theme.colorScheme.error.withValues(alpha:0.2)),
+          Divider(
+            height: 1,
+            indent: 56,
+            color: theme.colorScheme.error.withValues(alpha: 0.2),
+          ),
           ListTile(
             leading: const Icon(Icons.refresh),
             title: Text(context.l10n.networkAdapter_resetFallback),
@@ -213,12 +234,13 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
     );
   }
 
-  Widget _buildTestCard(ThemeData theme, CronetFallbackService fallbackService) {
+  Widget _buildTestCard(
+    ThemeData theme,
+    CronetFallbackService fallbackService,
+  ) {
     return Card(
-      color: theme.colorScheme.tertiaryContainer.withValues(alpha:0.3),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -238,7 +260,10 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
               ],
             ),
           ),
-          Divider(height: 1, color: theme.colorScheme.tertiary.withValues(alpha:0.2)),
+          Divider(
+            height: 1,
+            color: theme.colorScheme.tertiary.withValues(alpha: 0.2),
+          ),
           ListTile(
             leading: Icon(Icons.bug_report, color: theme.colorScheme.tertiary),
             title: Text(context.l10n.networkAdapter_simulateError),
@@ -260,7 +285,7 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha:0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -281,7 +306,7 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha:0.5),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -336,7 +361,9 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
     );
   }
 
-  Future<void> _resetFallbackState(CronetFallbackService fallbackService) async {
+  Future<void> _resetFallbackState(
+    CronetFallbackService fallbackService,
+  ) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -363,7 +390,9 @@ class _NetworkAdapterSettingsPageState extends State<NetworkAdapterSettingsPage>
     }
   }
 
-  Future<void> _simulateCronetError(CronetFallbackService fallbackService) async {
+  Future<void> _simulateCronetError(
+    CronetFallbackService fallbackService,
+  ) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

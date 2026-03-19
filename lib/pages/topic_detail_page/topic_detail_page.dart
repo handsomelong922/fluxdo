@@ -116,11 +116,17 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
   /// 标题是否显示（用 ValueNotifier 隔离 AppBar 更新）
   final ValueNotifier<bool> _showTitleNotifier = ValueNotifier<bool>(false);
+
   /// AppBar 是否有阴影（用 ValueNotifier 隔离 AppBar 更新）
-  final ValueNotifier<bool> _isScrolledUnderNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<bool> _isScrolledUnderNotifier = ValueNotifier<bool>(
+    false,
+  );
+
   /// 展开头部是否可见（用 ValueNotifier 隔离 UI 更新）
-  final ValueNotifier<bool> _isOverlayVisibleNotifier = ValueNotifier<bool>(false);
-  bool _isSwitchingMode = false;  // 切换热门回复模式
+  final ValueNotifier<bool> _isOverlayVisibleNotifier = ValueNotifier<bool>(
+    false,
+  );
+  bool _isSwitchingMode = false; // 切换热门回复模式
   // 搜索相关
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -147,37 +153,45 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
-    
-    _animation = Tween<Offset>(
-      begin: const Offset(0, -1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _expandController,
-      curve: Curves.easeOutCubic,
-    ))..addStatusListener((status) {
-      if (status == AnimationStatus.forward) {
-        _isOverlayVisibleNotifier.value = true;
-      } else if (status == AnimationStatus.dismissed) {
-        _isOverlayVisibleNotifier.value = false;
-      }
-    });
+
+    _animation =
+        Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _expandController,
+            curve: Curves.easeOutCubic,
+          ),
+        )..addStatusListener((status) {
+          if (status == AnimationStatus.forward) {
+            _isOverlayVisibleNotifier.value = true;
+          } else if (status == AnimationStatus.dismissed) {
+            _isOverlayVisibleNotifier.value = false;
+          }
+        });
 
     final trackEnabled = ref.read(currentUserProvider).value != null;
-    _topicSearchNotifier = ref.read(topicSearchProvider(widget.topicId).notifier);
+    _topicSearchNotifier = ref.read(
+      topicSearchProvider(widget.topicId).notifier,
+    );
 
     _screenTrack = ScreenTrack(
       DiscourseService(),
       debugSourceId: _instanceId,
       onTimingsSent: (topicId, postNumbers, highestSeen) {
-        debugPrint('[TopicDetail] onTimingsSent callback triggered: topicId=$topicId, highestSeen=$highestSeen');
+        debugPrint(
+          '[TopicDetail] onTimingsSent callback triggered: topicId=$topicId, highestSeen=$highestSeen',
+        );
         // 遍历所有分类 tab，更新所有活跃的 provider 实例
         final pinnedIds = ref.read(pinnedCategoriesProvider);
         final categoryIds = [null, ...pinnedIds];
         for (final categoryId in categoryIds) {
-          ref.read(topicListProvider(categoryId).notifier).updateSeen(topicId, highestSeen);
+          ref
+              .read(topicListProvider(categoryId).notifier)
+              .updateSeen(topicId, highestSeen);
         }
         // 更新会话已读状态，触发 PostItem 消除未读圆点
-        ref.read(topicSessionProvider(topicId).notifier).markAsRead(postNumbers);
+        ref
+            .read(topicSessionProvider(topicId).notifier)
+            .markAsRead(postNumbers);
       },
     );
 
@@ -201,7 +215,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.parentActive != widget.parentActive) {
       _isParentActive = widget.parentActive;
-      _syncScreenTrackState(reason: _isParentActive ? 'parent_active' : 'parent_inactive');
+      _syncScreenTrackState(
+        reason: _isParentActive ? 'parent_active' : 'parent_inactive',
+      );
     }
   }
 
@@ -277,7 +293,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   }
 
   void _syncScreenTrackState({required String reason}) {
-    final shouldRun = _controller.trackEnabled && _isRouteVisible && _isParentActive;
+    final shouldRun =
+        _controller.trackEnabled && _isRouteVisible && _isParentActive;
     if (shouldRun == _isScreenTrackRunning) return;
 
     if (shouldRun) {
@@ -339,7 +356,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   }
 
   void _toggleExpandedHeader() {
-    if (_expandController.status == AnimationStatus.completed || 
+    if (_expandController.status == AnimationStatus.completed ||
         _expandController.status == AnimationStatus.forward) {
       _expandController.reverse();
     } else {
@@ -390,13 +407,16 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         return;
       }
 
-      final currentPostNumber = _controller.currentPostNumber ?? widget.scrollToPostNumber;
-      ref.read(selectedTopicProvider.notifier).select(
-        topicId: widget.topicId,
-        initialTitle: detail?.title ?? widget.initialTitle,
-        scrollToPostNumber: currentPostNumber,
-        instanceId: _instanceId,
-      );
+      final currentPostNumber =
+          _controller.currentPostNumber ?? widget.scrollToPostNumber;
+      ref
+          .read(selectedTopicProvider.notifier)
+          .select(
+            topicId: widget.topicId,
+            initialTitle: detail?.title ?? widget.initialTitle,
+            scrollToPostNumber: currentPostNumber,
+            instanceId: _instanceId,
+          );
       navigator.pop();
     });
   }
@@ -406,7 +426,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     if (Responsive.isMobile(context)) return child;
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: Breakpoints.maxContentWidth),
+        constraints: const BoxConstraints(
+          maxWidth: Breakpoints.maxContentWidth,
+        ),
         child: child,
       ),
     );
@@ -437,7 +459,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           style: theme.textTheme.bodyLarge,
           textInputAction: TextInputAction.search,
           onSubmitted: (query) {
-            ref.read(topicSearchProvider(widget.topicId).notifier).search(query);
+            ref
+                .read(topicSearchProvider(widget.topicId).notifier)
+                .search(query);
           },
         ),
         actions: [
@@ -445,7 +469,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             icon: const Icon(Icons.close),
             onPressed: () {
               _searchController.clear();
-              ref.read(topicSearchProvider(widget.topicId).notifier).exitSearchMode();
+              ref
+                  .read(topicSearchProvider(widget.topicId).notifier)
+                  .exitSearchMode();
             },
           ),
         ],
@@ -463,7 +489,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             animation: _expandController,
             builder: (context, child) {
               final targetElevation = isScrolledUnder ? 3.0 : 0.0;
-              final currentElevation = targetElevation * (1.0 - _expandController.value);
+              final currentElevation =
+                  targetElevation * (1.0 - _expandController.value);
               final expandProgress = _expandController.value;
               final shouldShowTitle = showTitle || !_hasFirstPost;
 
@@ -472,7 +499,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                 elevation: currentElevation,
                 scrolledUnderElevation: currentElevation,
                 shadowColor: Colors.transparent,
-                surfaceTintColor: theme.colorScheme.surfaceTint.withValues(alpha:(1.0 - expandProgress).clamp(0.0, 1.0)),
+                surfaceTintColor: theme.colorScheme.surfaceTint.withValues(
+                  alpha: (1.0 - expandProgress).clamp(0.0, 1.0),
+                ),
                 backgroundColor: theme.colorScheme.surface,
                 title: _buildAppBarTitle(
                   theme: theme,
@@ -522,7 +551,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                     child: Icon(
                       Icons.lock_outline,
                       size: 18,
-                      color: theme.textTheme.titleMedium?.color ?? theme.colorScheme.onSurface,
+                      color:
+                          theme.textTheme.titleMedium?.color ??
+                          theme.colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -531,14 +562,14 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                   alignment: PlaceholderAlignment.middle,
                   child: Padding(
                     padding: const EdgeInsets.only(right: 4),
-                    child: Icon(
-                      Icons.check_box,
-                      size: 18,
-                      color: Colors.green,
-                    ),
+                    child: Icon(Icons.check_box, size: 18, color: Colors.green),
                   ),
                 ),
-              ...EmojiText.buildEmojiSpans(context, detail?.title ?? widget.initialTitle ?? '', theme.textTheme.titleMedium),
+              ...EmojiText.buildEmojiSpans(
+                context,
+                detail?.title ?? widget.initialTitle ?? '',
+                theme.textTheme.titleMedium,
+              ),
             ],
           ),
           overflow: TextOverflow.ellipsis,
@@ -559,7 +590,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
 
     // 编辑话题入口：可以编辑话题元数据 或 可以编辑首贴内容
-    final firstPost = detail.postStream.posts.where((p) => p.postNumber == 1).firstOrNull;
+    final firstPost = detail.postStream.posts
+        .where((p) => p.postNumber == 1)
+        .firstOrNull;
     final canEditTopic = detail.canEdit || (firstPost?.canEdit ?? false);
 
     return [
@@ -575,7 +608,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         icon: const Icon(Icons.search),
         tooltip: context.l10n.topicDetail_searchTopic,
         onPressed: () {
-          ref.read(topicSearchProvider(widget.topicId).notifier).enterSearchMode();
+          ref
+              .read(topicSearchProvider(widget.topicId).notifier)
+              .enterSearchMode();
         },
       ),
       // 更多选项
@@ -627,7 +662,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                       : Theme.of(context).colorScheme.onSurface,
                 ),
                 const SizedBox(width: 12),
-                Text(detail.bookmarked ? context.l10n.topicDetail_editBookmark : context.l10n.common_addBookmark),
+                Text(
+                  detail.bookmarked
+                      ? context.l10n.topicDetail_editBookmark
+                      : context.l10n.common_addBookmark,
+                ),
               ],
             ),
           ),
@@ -635,7 +674,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             value: 'read_later',
             child: Builder(
               builder: (context) {
-                final isInReadLater = ref.read(readLaterProvider.notifier).contains(widget.topicId);
+                final isInReadLater = ref
+                    .read(readLaterProvider.notifier)
+                    .contains(widget.topicId);
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -647,7 +688,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                           : Theme.of(context).colorScheme.onSurface,
                     ),
                     const SizedBox(width: 12),
-                    Text(isInReadLater ? context.l10n.topicDetail_removeFromReadLater : context.l10n.topicDetail_addToReadLater),
+                    Text(
+                      isInReadLater
+                          ? context.l10n.topicDetail_removeFromReadLater
+                          : context.l10n.topicDetail_addToReadLater,
+                    ),
                   ],
                 );
               },
@@ -711,23 +756,33 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     ref.listen(topicChannelProvider(widget.topicId), (previous, next) {
       // 1. reload_topic（话题状态变更：关闭/打开/固定等）
       if (next.reloadRequested && !(previous?.reloadRequested ?? false)) {
-        ref.read(topicChannelProvider(widget.topicId).notifier).clearReloadRequest();
+        ref
+            .read(topicChannelProvider(widget.topicId).notifier)
+            .clearReloadRequest();
         _handleReloadTopic(notifier, next.refreshStreamRequested);
         return;
       }
 
       // 2. notification_level_change（通知级别变更）
-      if (next.notificationLevelChange != null && previous?.notificationLevelChange != next.notificationLevelChange) {
-        final level = TopicNotificationLevel.fromValue(next.notificationLevelChange!);
-        ref.read(topicChannelProvider(widget.topicId).notifier).clearNotificationLevelChange();
+      if (next.notificationLevelChange != null &&
+          previous?.notificationLevelChange != next.notificationLevelChange) {
+        final level = TopicNotificationLevel.fromValue(
+          next.notificationLevelChange!,
+        );
+        ref
+            .read(topicChannelProvider(widget.topicId).notifier)
+            .clearNotificationLevelChange();
         notifier.updateNotificationLevelLocally(level);
         return;
       }
 
       // 3. stats 更新
-      if (next.statsUpdate != null && previous?.statsUpdate != next.statsUpdate) {
+      if (next.statsUpdate != null &&
+          previous?.statsUpdate != next.statsUpdate) {
         notifier.applyStatsUpdate(next.statsUpdate!);
-        ref.read(topicChannelProvider(widget.topicId).notifier).clearStatsUpdate();
+        ref
+            .read(topicChannelProvider(widget.topicId).notifier)
+            .clearStatsUpdate();
       }
 
       // 4. 帖子级别更新（created/revised/deleted/liked 等）
@@ -771,9 +826,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               // 如果指定了回复帖子编号，找到对应的帖子
               Post? replyToPost;
               if (widget.autoReplyToPostNumber != null) {
-                replyToPost = posts.where(
-                  (p) => p.postNumber == widget.autoReplyToPostNumber,
-                ).firstOrNull;
+                replyToPost = posts
+                    .where((p) => p.postNumber == widget.autoReplyToPostNumber)
+                    .firstOrNull;
               }
               _handleReply(replyToPost);
             }
@@ -808,11 +863,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
 
     final topicScaffold = Scaffold(
-      appBar: _buildAppBar(
-        theme: theme,
-        detail: detail,
-        notifier: notifier,
-      ),
+      appBar: _buildAppBar(theme: theme, detail: detail, notifier: notifier),
       body: _buildBody(context, detailAsync, detail, notifier, isLoggedIn),
     );
 
@@ -823,7 +874,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           onPopInvokedWithResult: (bool didPop, dynamic result) {
             if (!didPop) {
               _searchController.clear();
-              ref.read(topicSearchProvider(widget.topicId).notifier).exitSearchMode();
+              ref
+                  .read(topicSearchProvider(widget.topicId).notifier)
+                  .exitSearchMode();
             }
           },
           child: topicScaffold,
@@ -837,7 +890,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         onPopInvokedWithResult: (bool didPop, dynamic result) {
           if (!didPop) {
             _searchController.clear();
-            ref.read(topicSearchProvider(widget.topicId).notifier).exitSearchMode();
+            ref
+                .read(topicSearchProvider(widget.topicId).notifier)
+                .exitSearchMode();
           }
         },
         child: topicScaffold,
@@ -886,13 +941,19 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     // 注意：当 hasError 为 true 时，即使 isLoading 也为 true（AsyncLoading.copyWithPrevious 语义），
     // 也应该优先显示错误页面而不是骨架屏
     if (_isSwitchingMode) {
-      final showHeaderSkeleton = widget.scrollToPostNumber == null || widget.scrollToPostNumber == 0;
-      return _wrapWithConstraint(PostListSkeleton(withHeader: showHeaderSkeleton));
+      final showHeaderSkeleton =
+          widget.scrollToPostNumber == null || widget.scrollToPostNumber == 0;
+      return _wrapWithConstraint(
+        PostListSkeleton(withHeader: showHeaderSkeleton),
+      );
     }
-    
+
     if (detailAsync.isLoading && detail == null) {
-      final showHeaderSkeleton = widget.scrollToPostNumber == null || widget.scrollToPostNumber == 0;
-      return _wrapWithConstraint(PostListSkeleton(withHeader: showHeaderSkeleton));
+      final showHeaderSkeleton =
+          widget.scrollToPostNumber == null || widget.scrollToPostNumber == 0;
+      return _wrapWithConstraint(
+        PostListSkeleton(withHeader: showHeaderSkeleton),
+      );
     }
 
     // 跳转中：等待包含目标帖子的新数据 - 显示骨架屏
@@ -900,7 +961,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     if (jumpTarget != null && detail != null) {
       final posts = detail.postStream.posts;
       // 检查目标帖子是否在当前加载的范围内
-      final hasTarget = posts.isNotEmpty &&
+      final hasTarget =
+          posts.isNotEmpty &&
           posts.first.postNumber <= jumpTarget &&
           posts.last.postNumber >= jumpTarget;
       if (!hasTarget) {
@@ -921,73 +983,72 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         ],
       );
     } else if (detail != null) {
-       // 正常内容构建 (保持原有逻辑，但简化提取)
-       content = _buildPostListContent(context, detail, notifier, isLoggedIn);
+      // 正常内容构建 (保持原有逻辑，但简化提取)
+      content = _buildPostListContent(context, detail, notifier, isLoggedIn);
     }
 
     // Stack 组装
     return Stack(
-        children: [
-          // 使用 Offstage 保持帖子列表存在但在搜索模式下隐藏，保留滚动位置
-          Offstage(
-            offstage: isSearchMode,
-            child: content,
+      children: [
+        // 使用 Offstage 保持帖子列表存在但在搜索模式下隐藏，保留滚动位置
+        Offstage(offstage: isSearchMode, child: content),
+
+        // 搜索视图
+        if (isSearchMode)
+          TopicSearchView(
+            topicId: widget.topicId,
+            onJumpToPost: (postNumber) {
+              // 退出搜索模式并跳转到指定帖子
+              ref
+                  .read(topicSearchProvider(widget.topicId).notifier)
+                  .exitSearchMode();
+              _searchController.clear();
+              _scrollToPost(postNumber);
+            },
           ),
 
-          // 搜索视图
-          if (isSearchMode)
-            TopicSearchView(
-              topicId: widget.topicId,
-              onJumpToPost: (postNumber) {
-                // 退出搜索模式并跳转到指定帖子
-                ref.read(topicSearchProvider(widget.topicId).notifier).exitSearchMode();
-                _searchController.clear();
-                _scrollToPost(postNumber);
-              },
-            ),
+        // TopicDetailOverlay (Bottom Bar)
+        // 使用 ValueListenableBuilder 隔离状态变化，避免整页重建
+        if (detail != null && !isSearchMode)
+          ValueListenableBuilder<bool>(
+            valueListenable: _controller.showBottomBarNotifier,
+            builder: (context, showBottomBar, _) {
+              return ValueListenableBuilder<int>(
+                valueListenable: _controller.streamIndexNotifier,
+                builder: (context, currentStreamIndex, _) {
+                  return TopicDetailOverlay(
+                    showBottomBar: showBottomBar,
+                    isLoggedIn: isLoggedIn,
+                    currentStreamIndex: currentStreamIndex,
+                    totalCount: detail.postStream.stream.length,
+                    detail: detail,
+                    onScrollToTop: _scrollToTop,
+                    onShare: _shareTopic,
+                    onShareAsImage: _shareAsImage,
+                    onExport: _showExportSheet,
+                    onOpenInBrowser: _openInBrowser,
+                    onReply: () => _handleReply(null),
+                    onProgressTap: () => _showTimelineSheet(detail),
+                    isSummaryMode: notifier.isSummaryMode,
+                    isAuthorOnlyMode: notifier.isAuthorOnlyMode,
+                    isTopLevelMode: notifier.isTopLevelMode,
+                    isLoading: _isSwitchingMode,
+                    onShowTopReplies: _handleShowTopReplies,
+                    onShowAuthorOnly: _handleShowAuthorOnly,
+                    onShowTopLevelReplies: _handleShowTopLevelReplies,
+                    onCancelFilter: _handleCancelFilter,
+                  );
+                },
+              );
+            },
+          ),
 
-          // TopicDetailOverlay (Bottom Bar)
-          // 使用 ValueListenableBuilder 隔离状态变化，避免整页重建
-          if (detail != null && !isSearchMode)
-            ValueListenableBuilder<bool>(
-              valueListenable: _controller.showBottomBarNotifier,
-              builder: (context, showBottomBar, _) {
-                return ValueListenableBuilder<int>(
-                  valueListenable: _controller.streamIndexNotifier,
-                  builder: (context, currentStreamIndex, _) {
-                    return TopicDetailOverlay(
-                      showBottomBar: showBottomBar,
-                      isLoggedIn: isLoggedIn,
-                      currentStreamIndex: currentStreamIndex,
-                      totalCount: detail.postStream.stream.length,
-                      detail: detail,
-                      onScrollToTop: _scrollToTop,
-                      onShare: _shareTopic,
-                      onShareAsImage: _shareAsImage,
-                      onExport: _showExportSheet,
-                      onOpenInBrowser: _openInBrowser,
-                      onReply: () => _handleReply(null),
-                      onProgressTap: () => _showTimelineSheet(detail),
-                      isSummaryMode: notifier.isSummaryMode,
-                      isAuthorOnlyMode: notifier.isAuthorOnlyMode,
-                      isTopLevelMode: notifier.isTopLevelMode,
-                      isLoading: _isSwitchingMode,
-                      onShowTopReplies: _handleShowTopReplies,
-                      onShowAuthorOnly: _handleShowAuthorOnly,
-                      onShowTopLevelReplies: _handleShowTopLevelReplies,
-                      onCancelFilter: _handleCancelFilter,
-                    );
-                  },
-                );
-              },
-            ),
-
-          // Expanded Header 相关组件（使用 ValueListenableBuilder 隔离状态变化）
-          if (!isSearchMode)
-            ValueListenableBuilder<bool>(
-              valueListenable: _isOverlayVisibleNotifier,
-              builder: (context, isOverlayVisible, _) {
-                if (!isOverlayVisible) return const SizedBox.shrink();
+        // Expanded Header 相关组件（使用 ValueListenableBuilder 隔离状态变化）
+        if (!isSearchMode)
+          ValueListenableBuilder<bool>(
+            valueListenable: _isOverlayVisibleNotifier,
+            builder: (context, isOverlayVisible, _) {
+              if (!isOverlayVisible) return const SizedBox.shrink();
 
               return Stack(
                 children: [
@@ -1017,14 +1078,20 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                           child: Material(
                             color: Theme.of(context).colorScheme.surface,
                             elevation: 0,
-                            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                            borderRadius: const BorderRadius.vertical(
+                              bottom: Radius.circular(16),
+                            ),
                             clipBehavior: Clip.antiAlias,
                             child: SingleChildScrollView(
                               child: TopicDetailHeader(
                                 detail: detail,
                                 headerKey: null,
                                 onVoteChanged: _handleVoteChanged,
-                                onNotificationLevelChanged: (level) => _handleNotificationLevelChanged(notifier, level),
+                                onNotificationLevelChanged: (level) =>
+                                    _handleNotificationLevelChanged(
+                                      notifier,
+                                      level,
+                                    ),
                                 onJumpToPost: _scrollToPost,
                               ),
                             ),
@@ -1036,8 +1103,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               );
             },
           ),
-        ],
-      );
+      ],
+    );
   }
 
   Widget _buildPostListContent(
@@ -1049,8 +1116,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final posts = detail.postStream.posts;
     final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
     final sessionState = ref.watch(topicSessionProvider(widget.topicId));
-  
-     if (posts.isNotEmpty) {
+
+    if (posts.isNotEmpty) {
       final readPostNumbers = <int>{};
       for (final post in posts) {
         if (post.read) {
@@ -1079,7 +1146,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     // 初始定位
     if (!_controller.hasInitialScrolled && posts.isNotEmpty) {
       _controller.markInitialScrolled(posts.first.postNumber);
-      if (_controller.currentPostNumber == null || _controller.currentPostNumber == 0) {
+      if (_controller.currentPostNumber == null ||
+          _controller.currentPostNumber == 0) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && !_controller.isPositioned) {
             _controller.markPositioned();
@@ -1128,11 +1196,13 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               onShareAsImage: _sharePostAsImage,
               onRefreshPost: _handleRefreshPost,
               onVoteChanged: _handleVoteChanged,
-              onNotificationLevelChanged: (level) => _handleNotificationLevelChanged(notifier, level),
+              onNotificationLevelChanged: (level) =>
+                  _handleNotificationLevelChanged(notifier, level),
               onSolutionChanged: _handleSolutionChanged,
               onQuoteSelection: isLoggedIn ? _handleQuoteSelection : null,
               onQuoteImage: isLoggedIn ? _handleImageQuote : null,
               onScrollNotification: _controller.handleScrollNotification,
+              onPointerScroll: _controller.handlePointerScroll,
               onFillGapBefore: (postId) => notifier.fillGapBefore(postId),
               onFillGapAfter: (postId) => notifier.fillGapAfter(postId),
               onExpandHiddenPost: (postId) => notifier.expandHiddenPost(postId),
@@ -1164,13 +1234,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     return ValueListenableBuilder<bool>(
       valueListenable: _controller.isPositionedNotifier,
       builder: (context, isPositioned, child) {
-        return Opacity(
-          opacity: isPositioned ? 1.0 : 0.0,
-          child: child,
-        );
+        return Opacity(opacity: isPositioned ? 1.0 : 0.0, child: child);
       },
       child: scrollView,
     );
-
   }
 }

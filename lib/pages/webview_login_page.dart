@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../constants.dart';
 import '../providers/preferences_provider.dart';
 import '../services/credential_store_service.dart';
 import '../services/auth_session.dart';
@@ -13,6 +14,7 @@ import '../services/network/cookie/cookie_jar_service.dart';
 import '../services/network/cookie/cookie_sync_service.dart';
 import '../services/toast_service.dart';
 import '../services/webview_settings.dart';
+import '../services/windows_webview_environment_service.dart';
 import '../services/log/log_writer.dart';
 import '../l10n/s.dart';
 
@@ -35,20 +37,23 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   InAppWebViewController? _controller;
   bool _isLoading = true;
   bool _loginHandled = false;
-  String _url = 'https://linux.do/';
+  String _url = AppConstants.baseUrl;
   double _progress = 0;
   String? _savedUsername;
 
   @override
   void initState() {
     super.initState();
-    _cookieJar.syncToWebView();
+    _cookieJar.syncToWebView(
+    );
     _loadSavedUsername();
   }
 
   Future<void> _loadSavedUsername() async {
     final credentials = await _credentialStore.load();
-    if (mounted && credentials.username != null && credentials.username!.isNotEmpty) {
+    if (mounted &&
+        credentials.username != null &&
+        credentials.username!.isNotEmpty) {
       setState(() => _savedUsername = credentials.username);
     }
   }
@@ -75,12 +80,16 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
               icon: const Icon(Icons.key_rounded),
               tooltip: context.l10n.webviewLogin_savedPassword,
               onSelected: (value) {
-                if (value == 'clear') _clearCredentials();
+                if (value == 'clear') {
+                  _clearCredentials();
+                }
               },
               itemBuilder: (context) => [
                 PopupMenuItem(
                   enabled: false,
-                  child: Text(context.l10n.webviewLogin_lastLogin(_savedUsername!)),
+                  child: Text(
+                    context.l10n.webviewLogin_lastLogin(_savedUsername!),
+                  ),
                 ),
                 const PopupMenuDivider(),
                 PopupMenuItem(
@@ -95,7 +104,11 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                 ),
               ],
             ),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: () => _controller?.reload(), tooltip: context.l10n.common_refresh),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => _controller?.reload(),
+            tooltip: context.l10n.common_refresh,
+          ),
         ],
       ),
       body: Column(
@@ -106,15 +119,31 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: Row(
               children: [
-                Icon(Icons.lock, size: 14, color: Theme.of(context).colorScheme.primary),
+                Icon(
+                  Icons.lock,
+                  size: 14,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
-                Expanded(child: Text(_url, style: Theme.of(context).textTheme.bodySmall, overflow: TextOverflow.ellipsis)),
+                Expanded(
+                  child: Text(
+                    _url,
+                    style: Theme.of(context).textTheme.bodySmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
           Expanded(
-            child: InAppWebView(
-              initialUrlRequest: URLRequest(url: WebUri(widget.initialUrl ?? 'https://linux.do/login')),
+            child: WebViewSettings.wrapWithScrollFix(InAppWebView(
+              webViewEnvironment:
+                  WindowsWebViewEnvironmentService.instance.environment,
+              initialUrlRequest: URLRequest(
+                url: WebUri(
+                  widget.initialUrl ?? '${AppConstants.baseUrl}/login',
+                ),
+              ),
               initialSettings: WebViewSettings.visible,
               onWebViewCreated: (controller) {
                 _controller = controller;
@@ -122,30 +151,44 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                 controller.addJavaScriptHandler(
                   handlerName: 'onLoginCredentials',
                   callback: (args) {
-                    if (args.isNotEmpty && ref.read(preferencesProvider).autoFillLogin) {
+                    if (args.isNotEmpty &&
+                        ref.read(preferencesProvider).autoFillLogin) {
                       try {
                         final data = args[0] as Map<String, dynamic>;
                         final username = data['username'] as String?;
                         final password = data['password'] as String?;
-                        if (username != null && username.isNotEmpty && password != null && password.isNotEmpty) {
+                        if (username != null &&
+                            username.isNotEmpty &&
+                            password != null &&
+                            password.isNotEmpty) {
                           _credentialStore.save(username, password);
-                          if (mounted) setState(() => _savedUsername = username);
+                          if (mounted) {
+                            setState(() => _savedUsername = username);
+                          }
                         }
                       } catch (_) {}
                     }
                   },
                 );
               },
-              onLoadStart: (controller, url) => setState(() { _isLoading = true; _url = url?.toString() ?? ''; }),
-              onProgressChanged: (controller, progress) => setState(() => _progress = progress / 100),
+              onLoadStart: (controller, url) => setState(() {
+                _isLoading = true;
+                _url = url?.toString() ?? '';
+              }),
+              onProgressChanged: (controller, progress) =>
+                  setState(() => _progress = progress / 100),
               onLoadStop: (controller, url) async {
-                setState(() { _isLoading = false; _url = url?.toString() ?? ''; });
+                setState(() {
+                  _isLoading = false;
+                  _url = url?.toString() ?? '';
+                });
+                await WebViewSettings.injectScrollFix(controller);
                 // 自动填充登录表单
                 await _autoFillLoginForm(controller, url);
                 // 自动检测登录状态
                 await _checkLoginStatus(controller);
               },
-            ),
+            ), getController: () => _controller),
           ),
         ],
       ),
@@ -159,8 +202,14 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         title: Text(context.l10n.webviewLogin_clearSavedTitle),
         content: Text(context.l10n.webviewLogin_clearSavedContent),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(context.l10n.common_cancel)),
-          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: Text(context.l10n.common_delete)),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(context.l10n.common_cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(context.l10n.common_delete),
+          ),
         ],
       ),
     );
@@ -192,24 +241,37 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   }
 
   /// 自动填充登录表单 + 注入凭证捕获脚本
-  Future<void> _autoFillLoginForm(InAppWebViewController controller, WebUri? url) async {
+  Future<void> _autoFillLoginForm(
+    InAppWebViewController controller,
+    WebUri? url,
+  ) async {
     final autoFill = ref.read(preferencesProvider).autoFillLogin;
     if (!autoFill) return;
 
     final urlStr = url?.toString() ?? '';
-    if (!urlStr.contains('linux.do')) return;
+    final host = Uri.tryParse(urlStr)?.host;
+    if (host == null || host != Uri.parse(AppConstants.baseUrl).host) return;
     // 邮箱链接登录页无需自动填充
     if (urlStr.contains('/session/email-login/')) return;
 
     final credentials = await _credentialStore.load();
-    final hasCredentials = credentials.username != null && credentials.username!.isNotEmpty
-        && credentials.password != null && credentials.password!.isNotEmpty;
+    final hasCredentials =
+        credentials.username != null &&
+        credentials.username!.isNotEmpty &&
+        credentials.password != null &&
+        credentials.password!.isNotEmpty;
 
     // 转义特殊字符防止 JS 注入
-    final escapedUsername = hasCredentials ? jsonEncode(credentials.username!) : 'null';
-    final escapedPassword = hasCredentials ? jsonEncode(credentials.password!) : 'null';
+    final escapedUsername = hasCredentials
+        ? jsonEncode(credentials.username!)
+        : 'null';
+    final escapedPassword = hasCredentials
+        ? jsonEncode(credentials.password!)
+        : 'null';
 
-    await controller.evaluateJavascript(source: '''
+    await controller.evaluateJavascript(
+      source:
+          '''
       (function() {
         var savedUser = $escapedUsername;
         var savedPass = $escapedPassword;
@@ -250,31 +312,99 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
           if (++attempts > 30) clearInterval(timer);
         }, 300);
       })();
-    ''');
+    ''',
+    );
   }
 
   /// 检测登录状态，登录成功自动关闭
   Future<void> _checkLoginStatus(InAppWebViewController controller) async {
     if (_loginHandled) return;
 
-    final cookieManager = CookieManager.instance();
-    final cookies = await cookieManager.getCookies(url: WebUri('https://linux.do/'));
-
-    String? tToken;
-
-    for (final cookie in cookies) {
-      if (cookie.name == '_t') { tToken = cookie.value; break; }
+    final username = await _readCurrentUsername(controller);
+    if (username == null || username.isEmpty) {
+      return;
     }
 
-    if (tToken == null || tToken.isEmpty) return;
+    final currentUrl = (await controller.getUrl())?.toString();
+    final tToken = await _readTTokenFromWebView(
+      controller,
+      currentUrl: currentUrl,
+    );
+    if (tToken == null || tToken.isEmpty) {
+      debugPrint('[Login] 已检测到 currentUser=$username，但尚未读到 _t，等待后续同步');
+      _scheduleLoginRecheck(controller);
+      return;
+    }
 
-    // 防止重定向导致多次触发
     _loginHandled = true;
 
-    // 尝试从页面获取用户名
-    String? username;
     try {
-      final result = await controller.evaluateJavascript(source: '''
+      await _service.saveUsername(username);
+      await _syncCsrfFromPage(controller);
+
+      // 先切断旧请求，防止 syncFromWebView 期间旧响应的 Set-Cookie 写入竞争
+      AuthSession().advance();
+
+      // Windows 上先用 DevTools 实时 cookie 回写关键登录态，再做常规同步。
+      await _cookieJar.syncCriticalCookiesFromController(
+        controller,
+        currentUrl: currentUrl,
+        cookieNames: const {'_t', '_forum_session', 'cf_clearance'},
+      );
+      // 登录后从 WebView 同步所有 Cookie 到 CookieJar（包括 _t、cf_clearance 等）
+      // syncFromWebView 内部会先清掉关键 cookie 的旧值，确保 WebView 的值不被残留的 host-only cookie 覆盖
+      await _cookieJar.syncFromWebView(
+        currentUrl: currentUrl,
+        controller: controller,
+      );
+
+      final jarToken = await _cookieJar.getTToken();
+      final effectiveToken = (jarToken != null && jarToken.isNotEmpty)
+          ? jarToken
+          : tToken;
+      final tokenMatch = jarToken == tToken;
+      if (!tokenMatch) {
+        debugPrint(
+          '[Login] _t 不一致! WebView=${tToken.length}chars, Jar=${jarToken?.length}chars',
+        );
+      }
+
+      // 仅设置 token，暂不广播
+      _service.setToken(effectiveToken);
+      // 先刷新预加载数据（确保 longPollingBaseUrl 等就绪）
+      await PreloadedDataService().refresh();
+      // 数据就绪后再广播（触发 provider rebuild + MessageBus 初始化）
+      _service.onLoginSuccess(effectiveToken);
+
+      // 记录登录日志
+      LogWriter.instance.write({
+        'timestamp': DateTime.now().toIso8601String(),
+        'level': 'info',
+        'type': 'lifecycle',
+        'event': 'login',
+        'message': '用户登录成功',
+        'username': username,
+        'jarTokenLen': jarToken?.length,
+        'webViewTokenLen': tToken.length,
+        'tokenMatch': tokenMatch,
+      });
+
+      if (mounted) {
+        ToastService.showSuccess(S.current.webviewLogin_loginSuccess);
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      _loginHandled = false;
+      debugPrint('[Login] 登录态同步失败: $e');
+    }
+  }
+
+  Future<String?> _readCurrentUsername(
+    InAppWebViewController controller,
+  ) async {
+    try {
+      final result = await controller.evaluateJavascript(
+        source: '''
         (function() {
           try {
             var meta = document.querySelector('meta[name="current-username"]');
@@ -285,64 +415,70 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
             return null;
           } catch(e) { return null; }
         })();
-      ''');
+      ''',
+      );
 
-      if (result != null && result.toString().isNotEmpty && result.toString() != 'null') {
-        username = result.toString();
+      if (result == null) {
+        return null;
       }
-    } catch (_) {}
 
-    // 保存用户名
-    if (username != null && username.isNotEmpty) {
-      await _service.saveUsername(username);
+      final username = result.toString();
+      if (username.isEmpty || username == 'null') {
+        return null;
+      }
+      return username;
+    } catch (_) {
+      return null;
     }
-    // 同步 CSRF（从页面 meta 获取）
+  }
+
+  Future<void> _syncCsrfFromPage(InAppWebViewController controller) async {
     try {
-      final csrf = await controller.evaluateJavascript(source: '''
+      final csrf = await controller.evaluateJavascript(
+        source: '''
         (function() {
           var meta = document.querySelector('meta[name="csrf-token"]');
           return meta && meta.content ? meta.content : null;
         })();
-      ''');
-      if (csrf != null && csrf.toString().isNotEmpty && csrf.toString() != 'null') {
+      ''',
+      );
+      if (csrf != null &&
+          csrf.toString().isNotEmpty &&
+          csrf.toString() != 'null') {
         CookieSyncService().setCsrfToken(csrf.toString());
       }
     } catch (_) {}
-    // 先切断旧请求，防止 syncFromWebView 期间旧响应的 Set-Cookie 写入竞争
-    AuthSession().advance();
-    // 登录后从 WebView 同步所有 Cookie 到 CookieJar（包括 _t、cf_clearance 等）
-    // syncFromWebView 内部会先清掉关键 cookie 的旧值，确保 WebView 的值不被残留的 host-only cookie 覆盖
-    await _cookieJar.syncFromWebView();
+  }
 
-    // 校验同步后 CookieJar 中的 _t 与 WebView 一致
-    final jarToken = await _cookieJar.getTToken();
-    final tokenMatch = jarToken == tToken;
-    if (!tokenMatch) {
-      debugPrint('[Login] _t 不一致! WebView=${tToken.length}chars, Jar=${jarToken?.length}chars');
+  Future<String?> _readTTokenFromWebView(
+    InAppWebViewController controller, {
+    String? currentUrl,
+  }) async {
+    final cookieManager =
+        WindowsWebViewEnvironmentService.instance.cookieManager;
+    final cookies = await cookieManager.getCookies(
+      url: WebUri(AppConstants.baseUrl),
+    );
+
+    for (final cookie in cookies) {
+      if (cookie.name == '_t' && cookie.value.isNotEmpty) {
+        return cookie.value;
+      }
     }
-    // 仅设置 token，暂不广播
-    _service.setToken(tToken);
-    // 先刷新预加载数据（确保 longPollingBaseUrl 等就绪）
-    await PreloadedDataService().refresh();
-    // 数据就绪后再广播（触发 provider rebuild + MessageBus 初始化）
-    _service.onLoginSuccess(tToken);
 
-    // 记录登录日志
-    LogWriter.instance.write({
-      'timestamp': DateTime.now().toIso8601String(),
-      'level': 'info',
-      'type': 'lifecycle',
-      'event': 'login',
-      'message': '用户登录成功',
-      if (username != null) 'username': username,
-      'jarTokenLen': jarToken?.length,
-      'webViewTokenLen': tToken.length,
-      'tokenMatch': tokenMatch,
+    return _cookieJar.readCookieValueFromController(
+      controller,
+      '_t',
+      currentUrl: currentUrl,
+    );
+  }
+
+  void _scheduleLoginRecheck(InAppWebViewController controller) {
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (!mounted || _loginHandled || _controller != controller) {
+        return;
+      }
+      _checkLoginStatus(controller);
     });
-
-    if (mounted) {
-      ToastService.showSuccess(S.current.webviewLogin_loginSuccess);
-      Navigator.of(context).pop(true);
-    }
   }
 }

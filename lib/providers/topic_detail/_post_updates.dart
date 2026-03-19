@@ -4,6 +4,12 @@ part of '../topic_detail_provider.dart';
 
 /// 帖子和话题更新相关方法
 extension PostUpdateMethods on TopicDetailNotifier {
+  /// 正在请求中的 postId 集合，防止同一 postId 并发请求。
+  /// 对齐 Discourse 官方 triggerChangedPost：同一 postId 同时只有一个在途请求，
+  /// 如果在途期间又收到新消息，标记需要「尾部重试」一次以获取最新状态。
+  static final _pendingRefresh = <int>{};
+  static final _needsRetry = <int>{};
+
   /// 刷新单个帖子（用于 MessageBus revised/acted 等消息）
   /// 与 Discourse 官方一致，使用 /posts/{id}.json 单帖接口获取完整数据
   Future<void> refreshPost(int postId, {bool preserveCooked = false, DateTime? updatedAt}) async {
@@ -14,8 +20,14 @@ extension PostUpdateMethods on TopicDetailNotifier {
     final index = currentPosts.indexWhere((p) => p.id == postId);
     if (index == -1) return;
 
-    // 如果提供了 updatedAt，检查是否真的需要更新
+    // 对齐 Discourse 官方：只在 updated_at 更新时才请求
     if (updatedAt != null && !currentPosts[index].updatedAt.isBefore(updatedAt)) {
+      return;
+    }
+
+    // 同一 postId 已有在途请求 → 标记尾部重试，不发新请求
+    if (!_pendingRefresh.add(postId)) {
+      _needsRetry.add(postId);
       return;
     }
 
@@ -24,22 +36,39 @@ extension PostUpdateMethods on TopicDetailNotifier {
       final updatedPost = await service.getPost(postId);
       if (!ref.mounted) return;
 
-      final finalPost = preserveCooked
-          ? updatedPost.copyWith(
-              cooked: currentPosts[index].cooked,
-              read: currentPosts[index].read,
-            )
-          : updatedPost;
-
-      final newPosts = [...currentPosts];
-      newPosts[index] = finalPost;
-
-      state = AsyncValue.data(currentDetail.copyWith(
-        postStream: PostStream(posts: newPosts, stream: currentDetail.postStream.stream, gaps: currentDetail.postStream.gaps),
-      ));
+      _applyPostUpdate(postId, updatedPost, preserveCooked: preserveCooked);
     } catch (e) {
       debugPrint('[TopicDetail] 刷新帖子 $postId 失败: $e');
+    } finally {
+      _pendingRefresh.remove(postId);
+      // 在途期间有新消息到达 → 自动重试一次获取最新状态
+      if (_needsRetry.remove(postId) && ref.mounted) {
+        refreshPost(postId);
+      }
     }
+  }
+
+  /// 将获取到的帖子数据应用到 state
+  void _applyPostUpdate(int postId, Post updatedPost, {bool preserveCooked = false}) {
+    final currentDetail = state.value;
+    if (currentDetail == null) return;
+    final currentPosts = currentDetail.postStream.posts;
+    final index = currentPosts.indexWhere((p) => p.id == postId);
+    if (index == -1) return;
+
+    final finalPost = preserveCooked
+        ? updatedPost.copyWith(
+            cooked: currentPosts[index].cooked,
+            read: currentPosts[index].read,
+          )
+        : updatedPost;
+
+    final newPosts = [...currentPosts];
+    newPosts[index] = finalPost;
+
+    state = AsyncValue.data(currentDetail.copyWith(
+      postStream: PostStream(posts: newPosts, stream: currentDetail.postStream.stream, gaps: currentDetail.postStream.gaps),
+    ));
   }
 
   /// 从列表中移除帖子（用于 MessageBus destroyed 消息）

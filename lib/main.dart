@@ -21,6 +21,7 @@ import 'services/discourse/discourse_service.dart';
 import 'providers/app_state_refresher.dart';
 import 'services/highlighter_service.dart';
 import 'widgets/common/smart_avatar.dart';
+import 'widgets/common/notification_icon_button.dart';
 import 'services/network/cookie/cookie_sync_service.dart';
 import 'services/network/cookie/cookie_jar_service.dart';
 import 'services/network/adapters/cronet_fallback_service.dart';
@@ -51,6 +52,7 @@ import 'services/log/logger_utils.dart';
 import 'services/download_service.dart';
 import 'services/navigation/app_route_observer.dart';
 import 'services/window_state_service.dart';
+import 'services/windows_webview_environment_service.dart';
 import 'models/user.dart';
 import 'constants.dart';
 import 'providers/connectivity_provider.dart';
@@ -92,6 +94,8 @@ Future<void> main() async {
     AppConstants.initUserAgent(),
     LogWriter.init(),
     ProxyCertificate.initialize(),
+    if (Platform.isWindows)
+      WindowsWebViewEnvironmentService.instance.initialize(),
     CookieJarService().initialize(),
     CookieSyncService().init(),
     BackgroundNotificationService().initialize(),
@@ -110,8 +114,8 @@ Future<void> main() async {
       effect: Platform.isMacOS
           ? acrylic.WindowEffect.sidebar
           : Platform.isWindows
-              ? acrylic.WindowEffect.acrylic
-              : acrylic.WindowEffect.transparent,
+          ? acrylic.WindowEffect.mica
+          : acrylic.WindowEffect.transparent,
     );
     await windowManager.waitUntilReadyToShow(null, () async {
       await windowManager.setPreventClose(true);
@@ -126,8 +130,9 @@ Future<void> main() async {
     CronetFallbackService.instance.initialize(prefs),
     ProxySettingsService.instance.initialize(prefs),
     if (Platform.isAndroid && crashlyticsEnabled)
-      const MethodChannel('com.github.lingyan000.fluxdo/crashlytics')
-          .invokeMethod('setCrashlyticsEnabled', {'enabled': true}),
+      const MethodChannel(
+        'com.github.lingyan000.fluxdo/crashlytics',
+      ).invokeMethod('setCrashlyticsEnabled', {'enabled': true}),
   ]);
   // rhttp (Rust reqwest) 初始化：在 ProxySettingsService 之后、NetworkSettingsService 之前
   await RhttpSettingsService.instance.initialize(prefs);
@@ -210,7 +215,9 @@ Future<void> main() async {
   final savedLocale = prefs.getString('pref_locale');
   if (savedLocale != null && savedLocale != 'system') {
     final parts = savedLocale.split('_');
-    AiL10n.configureLocale(Locale(parts[0], parts.length > 1 ? parts[1] : null));
+    AiL10n.configureLocale(
+      Locale(parts[0], parts.length > 1 ? parts[1] : null),
+    );
   }
 
   // 过滤 Flutter 框架已知 bug（https://github.com/flutter/flutter/issues/115787）
@@ -218,7 +225,10 @@ Future<void> main() async {
   bool filterKnownFrameworkBugs(Report report) {
     final error = report.error;
     if (error is AssertionError &&
-        error.message?.toString().contains('Drag target size is larger than scrollable size') == true) {
+        error.message?.toString().contains(
+              'Drag target size is larger than scrollable size',
+            ) ==
+            true) {
       return false;
     }
     return true;
@@ -227,18 +237,13 @@ Future<void> main() async {
   // 配置 Catcher2 全局异常捕获
   final debugConfig = Catcher2Options(
     SilentReportMode(),
-    [
-      ConsoleHandler(),
-      JsonFileHandler(),
-    ],
+    [ConsoleHandler(), JsonFileHandler()],
     handlerTimeout: 10000,
     filterFunction: filterKnownFrameworkBugs,
   );
   final releaseConfig = Catcher2Options(
     SilentReportMode(),
-    [
-      JsonFileHandler(),
-    ],
+    [JsonFileHandler()],
     handlerTimeout: 10000,
     filterFunction: filterKnownFrameworkBugs,
   );
@@ -249,12 +254,13 @@ Future<void> main() async {
       // 禁用 Riverpod 3 默认的自动重试机制
       // 默认会对所有失败的异步 provider 指数退避重试 10 次，
       // 在网络不通时会造成大量无意义的重复请求
-      retry: (_, __) => null,
+      retry: (_, _) => null,
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
         aiSharedPreferencesProvider.overrideWithValue(prefs),
-        aiDioAdapterFactoryProvider
-            .overrideWithValue(createExternalHttpAdapter),
+        aiDioAdapterFactoryProvider.overrideWithValue(
+          createExternalHttpAdapter,
+        ),
       ],
       child: const MainApp(),
     ),
@@ -277,7 +283,9 @@ class MainApp extends ConsumerWidget {
         ColorScheme lightScheme;
         ColorScheme darkScheme;
 
-        if (themeState.useDynamicColor && lightDynamic != null && darkDynamic != null) {
+        if (themeState.useDynamicColor &&
+            lightDynamic != null &&
+            darkDynamic != null) {
           // Optimization: Use standard ColorScheme.fromSeed with the dynamic primary color
           // This ensures better contrast and consistency than using the raw OEM scheme
           lightScheme = ColorScheme.fromSeed(
@@ -350,8 +358,8 @@ class MainApp extends ConsumerWidget {
                 effect: Platform.isMacOS
                     ? acrylic.WindowEffect.sidebar
                     : Platform.isWindows
-                        ? acrylic.WindowEffect.acrylic
-                        : acrylic.WindowEffect.transparent,
+                    ? acrylic.WindowEffect.mica
+                    : acrylic.WindowEffect.transparent,
                 dark: isDark,
               );
               if (Platform.isMacOS) {
@@ -365,23 +373,19 @@ class MainApp extends ConsumerWidget {
                 systemNavigationBarIconBrightness: iconBrightness,
                 systemNavigationBarColor: Colors.transparent,
                 // Android 28 上 dividerColor 不能完全透明，用 withAlpha(1) 兼容
-                systemNavigationBarDividerColor:
-                    Colors.transparent.withAlpha(1),
+                systemNavigationBarDividerColor: Colors.transparent.withAlpha(
+                  1,
+                ),
                 // 关闭系统自动 scrim，实现完全沉浸
                 systemNavigationBarContrastEnforced: false,
               ),
               child: Stack(
                 fit: StackFit.passthrough,
-                children: [
-                  child!,
-                  const ReadLaterBubble(),
-                ],
+                children: [child!, const ReadLaterBubble()],
               ),
             );
           },
-          home: const OnboardingGate(
-            child: PreheatGate(child: MainPage()),
-          ),
+          home: const OnboardingGate(child: PreheatGate(child: MainPage())),
         );
       },
     );
@@ -395,7 +399,8 @@ class MainPage extends ConsumerStatefulWidget {
   ConsumerState<MainPage> createState() => _MainPageState();
 }
 
-class _MainPageState extends ConsumerState<MainPage> with WidgetsBindingObserver {
+class _MainPageState extends ConsumerState<MainPage>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
   ProviderSubscription<AsyncValue<String>>? _authErrorSub;
   ProviderSubscription<AsyncValue<void>>? _authStateSub;
@@ -434,7 +439,10 @@ class _MainPageState extends ConsumerState<MainPage> with WidgetsBindingObserver
       _autoCheckUpdate();
     });
     // 监听登录失效事件
-    _authErrorSub = ref.listenManual<AsyncValue<String>>(authErrorProvider, (_, next) {
+    _authErrorSub = ref.listenManual<AsyncValue<String>>(authErrorProvider, (
+      _,
+      next,
+    ) {
       next.whenData((message) => _handleAuthError(message));
     });
 
@@ -442,7 +450,10 @@ class _MainPageState extends ConsumerState<MainPage> with WidgetsBindingObserver
     ConnectivityService().init();
 
     // 全局监听连接状态变化，弹 Toast 通知用户
-    _connectivitySub = ref.listenManual<AsyncValue<bool>>(isConnectedProvider, (prev, next) {
+    _connectivitySub = ref.listenManual<AsyncValue<bool>>(isConnectedProvider, (
+      prev,
+      next,
+    ) {
       final wasConnected = prev?.value ?? true;
       final isNow = next.value;
       if (isNow == false && wasConnected) {
@@ -452,40 +463,51 @@ class _MainPageState extends ConsumerState<MainPage> with WidgetsBindingObserver
       }
     });
 
-    _authStateSub = ref.listenManual<AsyncValue<void>>(authStateProvider, (_, next) {
+    _authStateSub = ref.listenManual<AsyncValue<void>>(authStateProvider, (
+      _,
+      next,
+    ) {
       next.whenData((_) {
         if (mounted) {
           AppStateRefresher.refreshAll(ref);
         }
       });
     });
-    _currentUserSub = ref.listenManual<AsyncValue<User?>>(
-      currentUserProvider,
-      (_, next) {
-        final user = next.value;
-        if (user != null && !_messageBusInitialized) {
-          _messageBusInitialized = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _messageBusSub?.close();
-            _messageBusSub = ref.listenManual<void>(messageBusInitProvider, (_, _) {});
-            _notificationChannelSub?.close();
-            _notificationChannelSub = ref.listenManual<void>(notificationChannelProvider, (_, _) {});
-            _notificationAlertChannelSub?.close();
-            _notificationAlertChannelSub = ref.listenManual<void>(notificationAlertChannelProvider, (_, _) {});
-          });
-        } else if (user == null) {
-          _messageBusInitialized = false;
+    _currentUserSub = ref.listenManual<AsyncValue<User?>>(currentUserProvider, (
+      _,
+      next,
+    ) {
+      final user = next.value;
+      if (user != null && !_messageBusInitialized) {
+        _messageBusInitialized = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
           _messageBusSub?.close();
-          _messageBusSub = null;
+          _messageBusSub = ref.listenManual<void>(
+            messageBusInitProvider,
+            (_, _) {},
+          );
           _notificationChannelSub?.close();
-          _notificationChannelSub = null;
+          _notificationChannelSub = ref.listenManual<void>(
+            notificationChannelProvider,
+            (_, _) {},
+          );
           _notificationAlertChannelSub?.close();
-          _notificationAlertChannelSub = null;
-        }
-      },
-      fireImmediately: true,
-    );
+          _notificationAlertChannelSub = ref.listenManual<void>(
+            notificationAlertChannelProvider,
+            (_, _) {},
+          );
+        });
+      } else if (user == null) {
+        _messageBusInitialized = false;
+        _messageBusSub?.close();
+        _messageBusSub = null;
+        _notificationChannelSub?.close();
+        _notificationChannelSub = null;
+        _notificationAlertChannelSub?.close();
+        _notificationAlertChannelSub = null;
+      }
+    }, fireImmediately: true);
   }
 
   Future<void> _autoCheckUpdate() async {
@@ -496,7 +518,8 @@ class _MainPageState extends ConsumerState<MainPage> with WidgetsBindingObserver
 
   void _onDestinationSelected(int index) {
     final now = DateTime.now();
-    final isDoubleTap = _lastTappedIndex == index &&
+    final isDoubleTap =
+        _lastTappedIndex == index &&
         _lastTapTime != null &&
         now.difference(_lastTapTime!).inMilliseconds < 300;
 
@@ -635,6 +658,7 @@ class _MainPageState extends ConsumerState<MainPage> with WidgetsBindingObserver
         selectedIndex: _currentIndex,
         onDestinationSelected: _onDestinationSelected,
         destinations: _buildDestinations(user),
+        railBottomLeading: user != null ? const NotificationIconButton() : null,
         body: IndexedStack(
           index: _currentIndex,
           children: [

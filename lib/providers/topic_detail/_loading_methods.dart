@@ -181,10 +181,9 @@ extension LoadingMethods on TopicDetailNotifier {
     ));
     _updateBoundaryState(currentDetail.postStream.posts, newStream);
 
-    // 如果用户在底部（已加载完所有帖子），批量加载新帖子内容
-    final currentPosts = currentDetail.postStream.posts;
-    if (currentPosts.isNotEmpty &&
-        currentPosts.last.postNumber >= currentDetail.postsCount) {
+    // 对齐 Discourse loadedAllPosts：已加载到底部时才批量拉取新帖子内容，
+    // 否则只更新 stream（用户滚到底部时通过 loadMore 自然加载）。
+    if (!_hasMoreAfter) {
       _pendingNewPostIds.add(postId);
       _loadPendingNewPosts();
     }

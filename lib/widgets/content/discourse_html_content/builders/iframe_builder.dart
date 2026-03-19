@@ -9,6 +9,7 @@ import '../../../../utils/layout_lock.dart';
 import '../../../../utils/url_helper.dart';
 import '../../../../pages/webview_page.dart';
 import '../../../../l10n/s.dart';
+import '../../../../services/windows_webview_environment_service.dart';
 
 /// 是否需要交互遮罩（macOS 上 WebView 会捕获滚动事件）
 bool get _needsInteractionMask => !kIsWeb && Platform.isMacOS;
@@ -243,6 +244,8 @@ class _IframeWidgetState extends State<IframeWidget> {
               // WebView - 始终渲染
               // 直接加载 URL，通过设置 Referer 头解决 origin 验证问题
               InAppWebView(
+                webViewEnvironment:
+                    WindowsWebViewEnvironmentService.instance.environment,
                 initialUrlRequest: URLRequest(
                   url: WebUri(attrs.fullUrl),
                   headers: {
@@ -395,7 +398,7 @@ class _IframeWidgetState extends State<IframeWidget> {
   InAppWebViewSettings _buildSettings(IframeAttributes attrs) {
     return InAppWebViewSettings(
       // User-Agent
-      userAgent: AppConstants.userAgent,
+      userAgent: AppConstants.webViewUserAgentOverride,
 
       // JavaScript（根据 sandbox 属性决定）
       javaScriptEnabled: attrs.allowScripts,
