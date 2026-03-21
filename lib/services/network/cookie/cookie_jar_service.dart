@@ -938,30 +938,49 @@ class CookieJarService {
     String name, {
     String? currentUrl,
   }) async {
-    if (!io.Platform.isWindows) {
-      return null;
+    if (io.Platform.isWindows) {
+      try {
+        final liveCookies = await _readLiveCookiesFromController(
+          controller,
+          currentUrl: currentUrl,
+        );
+        _DevToolsCookieSnapshot? fallback;
+        for (final cookie in liveCookies) {
+          if (cookie.name != name) {
+            continue;
+          }
+          if (_matchesAppHost(cookie.domain) && cookie.value.isNotEmpty) {
+            return cookie.value;
+          }
+          fallback ??= cookie;
+        }
+        return fallback?.value;
+      } catch (e) {
+        debugPrint(
+          '[CookieJar][Windows] Failed to read live cookie $name: $e',
+        );
+        return null;
+      }
     }
 
-    try {
-      final liveCookies = await _readLiveCookiesFromController(
-        controller,
-        currentUrl: currentUrl,
-      );
-      _DevToolsCookieSnapshot? fallback;
-      for (final cookie in liveCookies) {
-        if (cookie.name != name) {
-          continue;
+    // Linux WPE: 无 CDP，且 getCookies(url) 可能匹配不到
+    // 用 getAllCookies() 绕过 URL 过滤
+    if (io.Platform.isLinux) {
+      try {
+        final allCookies = await _webViewCookieManager.getAllCookies();
+        for (final c in allCookies) {
+          if (c.name == name &&
+              c.value.isNotEmpty &&
+              _matchesAppHost(c.domain)) {
+            return c.value;
+          }
         }
-        if (_matchesAppHost(cookie.domain) && cookie.value.isNotEmpty) {
-          return cookie.value;
-        }
-        fallback ??= cookie;
+      } catch (e) {
+        debugPrint('[CookieJar][Linux] getAllCookies fallback for $name: $e');
       }
-      return fallback?.value;
-    } catch (e) {
-      debugPrint('[CookieJar][Windows] Failed to read live cookie $name: $e');
-      return null;
     }
+
+    return null;
   }
 
   /// 将当前 WebView 控制器里的关键实时 Cookie 直接回写到 CookieJar。
@@ -972,12 +991,54 @@ class CookieJarService {
     Set<String>? cookieNames,
   }) async {
     if (!_initialized) await initialize();
-    if (!io.Platform.isWindows) {
+    if (!io.Platform.isWindows && !io.Platform.isLinux) {
       return;
     }
 
     final names = cookieNames ?? const {'_t', '_forum_session', 'cf_clearance'};
 
+    // Linux WPE: 无 CDP，用 getAllCookies() 绕过 URL 匹配问题
+    if (io.Platform.isLinux) {
+      try {
+        final allCookies = await _webViewCookieManager.getAllCookies();
+        if (allCookies.isEmpty) return;
+
+        var synced = 0;
+        for (final cookie in allCookies) {
+          if (!names.contains(cookie.name)) continue;
+          if (!_matchesAppHost(cookie.domain) || cookie.value.isEmpty) {
+            continue;
+          }
+
+          final rawDomain = cookie.domain?.trim();
+          final persistedDomain =
+              (rawDomain != null && rawDomain.startsWith('.'))
+                  ? rawDomain
+                  : null;
+
+          await setCookie(
+            cookie.name,
+            cookie.value,
+            domain: persistedDomain,
+            path: cookie.path ?? '/',
+            expires: _parseWebViewCookieExpires(cookie.expiresDate),
+            secure: cookie.isSecure ?? false,
+            httpOnly: cookie.isHttpOnly ?? false,
+          );
+          synced++;
+        }
+        if (synced > 0) {
+          debugPrint(
+            '[CookieJar][Linux] Synced $synced live cookies via getAllCookies()',
+          );
+        }
+      } catch (e) {
+        debugPrint('[CookieJar][Linux] syncCriticalCookies failed: $e');
+      }
+      return;
+    }
+
+    // Windows: 通过 DevTools Protocol 精确同步
     try {
       final liveCookies = await _readLiveCookiesFromController(
         controller,

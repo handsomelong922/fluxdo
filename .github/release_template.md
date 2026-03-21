@@ -39,7 +39,14 @@
         <tr>
         <td>Windows</td>
             <td>
-                <a href="https://github.com/lingyan000/fluxdo/releases/download/vVERSION/fluxdo-windows-x86_64.zip"><img src="https://img.shields.io/badge/ZIP-x64-0078D4.svg?logo=windows"></a>
+                <a href="https://github.com/lingyan000/fluxdo/releases/download/vVERSION/fluxdo-windows-x86_64-setup.exe"><img src="https://img.shields.io/badge/Setup-x64-0078D4.svg?logo=windows"></a><br>
+                <a href="https://github.com/lingyan000/fluxdo/releases/download/vVERSION/fluxdo-windows-x86_64.zip"><img src="https://img.shields.io/badge/ZIP-x64-2d7d9a.svg?logo=windows"></a>
+            </td>
+        </tr>
+        <tr>
+        <td>Linux</td>
+            <td>
+                <a href="https://github.com/lingyan000/fluxdo/releases/download/vVERSION/fluxdo-linux-x86_64.flatpak"><img src="https://img.shields.io/badge/Flatpak-x64-1793D1.svg?logo=linux"></a>
             </td>
         </tr>
     </tbody>

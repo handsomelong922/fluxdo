@@ -30,23 +30,23 @@ class AppConstants {
     if (_uaInitialized) return;
     _uaInitialized = true;
 
-    if (Platform.isWindows) {
+    if (Platform.isWindows || Platform.isLinux) {
       try {
-        final windowsWebViewUa = await _getWindowsWebViewUserAgent();
-        if (windowsWebViewUa != null && windowsWebViewUa.isNotEmpty) {
-          _cachedUserAgent = windowsWebViewUa;
+        final runtimeUa = await _getDesktopWebViewUserAgent();
+        if (runtimeUa != null && runtimeUa.isNotEmpty) {
+          _cachedUserAgent = runtimeUa;
           debugPrint(
-            '[AppConstants] Windows WebView runtime UA: $_cachedUserAgent',
+            '[AppConstants] Desktop WebView runtime UA: $_cachedUserAgent',
           );
         } else {
           _cachedUserAgent = _buildDefaultUserAgent();
           debugPrint(
-            '[AppConstants] Windows WebView runtime UA 为空，使用内置默认 UA: '
+            '[AppConstants] Desktop WebView runtime UA 为空，使用内置默认 UA: '
             '$_cachedUserAgent',
           );
         }
       } catch (e) {
-        debugPrint('[AppConstants] 获取 Windows WebView UA 失败: $e');
+        debugPrint('[AppConstants] 获取 Desktop WebView UA 失败: $e');
         _cachedUserAgent = _buildDefaultUserAgent();
       }
       _uaCompleter.complete(_cachedUserAgent!);
@@ -71,8 +71,10 @@ class AppConstants {
     await _initClientHints();
   }
 
-  static Future<String?> _getWindowsWebViewUserAgent() async {
-    await WindowsWebViewEnvironmentService.instance.initialize();
+  static Future<String?> _getDesktopWebViewUserAgent() async {
+    if (Platform.isWindows) {
+      await WindowsWebViewEnvironmentService.instance.initialize();
+    }
 
     HeadlessInAppWebView? headlessWebView;
     final completer = Completer<String?>();
@@ -99,7 +101,7 @@ class AppConstants {
             completer.complete(result?.toString());
           } catch (e) {
             debugPrint(
-              '[AppConstants] 读取 Windows WebView navigator.userAgent 失败: $e',
+              '[AppConstants] 读取 WebView navigator.userAgent 失败: $e',
             );
             completer.complete(null);
           }
@@ -107,7 +109,7 @@ class AppConstants {
         onReceivedError: (controller, request, error) {
           if (!completer.isCompleted) {
             debugPrint(
-              '[AppConstants] Windows WebView UA 页面加载失败: ${error.description}',
+              '[AppConstants] WebView UA 页面加载失败: ${error.description}',
             );
             completer.complete(null);
           }
@@ -118,7 +120,7 @@ class AppConstants {
       return await completer.future.timeout(
         const Duration(seconds: 10),
         onTimeout: () {
-          debugPrint('[AppConstants] 获取 Windows WebView UA 超时');
+          debugPrint('[AppConstants] 获取 Desktop WebView UA 超时');
           return null;
         },
       );
@@ -213,7 +215,9 @@ class AppConstants {
   /// Windows 不再强行覆写 WebView UA，让底层 WebView2
   /// 使用自己的原生默认值，避免验证页基于 UA/能力特征出现不一致。
   static String? get webViewUserAgentOverride {
-    if (Platform.isWindows) {
+    // Windows/Linux 桌面端不覆写 WebView UA，让底层引擎使用原生默认值，
+    // 避免 UA 与引擎能力指纹不一致被 CF 等检测到
+    if (Platform.isWindows || Platform.isLinux) {
       return null;
     }
     return userAgent;

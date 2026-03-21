@@ -452,6 +452,22 @@ class _CfChallengePageState extends State<CfChallengePage> {
         currentUrl: widget.verifyUrl,
       );
     }
+
+    // Linux WPE: getCookie() 内部已调 getCookies(url) 做 URL 过滤，
+    // 若 URL 匹配有问题，改用 getAllCookies() 绕过 URL 过滤
+    if (io.Platform.isLinux) {
+      try {
+        final allCookies = await _cfCookieManager.getAllCookies();
+        for (final c in allCookies) {
+          if (c.name == name && c.value.isNotEmpty) {
+            return c.value;
+          }
+        }
+      } catch (e) {
+        debugPrint('[CfChallenge] Linux getAllCookies fallback 读取 $name 失败: $e');
+      }
+    }
+
     return null;
   }
 
@@ -837,7 +853,8 @@ class _CfChallengePageState extends State<CfChallengePage> {
   }
 
   void _schedulePageReadyFallback(InAppWebViewController controller) {
-    if (!io.Platform.isWindows || _hasMarkedPageReady) {
+    if ((!io.Platform.isWindows && !io.Platform.isLinux) ||
+        _hasMarkedPageReady) {
       return;
     }
     _pageReadyFallbackTimer?.cancel();
@@ -846,7 +863,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
       if (_hasMarkedPageReady || _hasPopped) {
         return;
       }
-      _handlePageReady(controller, reason: 'Windows timed fallback');
+      _handlePageReady(controller, reason: 'timed fallback');
     });
   }
 
@@ -854,7 +871,9 @@ class _CfChallengePageState extends State<CfChallengePage> {
     InAppWebViewController controller,
     int progress,
   ) {
-    if (!io.Platform.isWindows || _hasMarkedPageReady || progress < 95) {
+    if ((!io.Platform.isWindows && !io.Platform.isLinux) ||
+        _hasMarkedPageReady ||
+        progress < 95) {
       return;
     }
     _loadStopFallbackTimer ??= Timer(_loadStopFallbackDelay, () {
@@ -862,7 +881,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
       if (_hasMarkedPageReady || _hasPopped || _progress < 0.95) {
         return;
       }
-      _handlePageReady(controller, reason: 'Windows progress fallback');
+      _handlePageReady(controller, reason: 'progress fallback');
     });
   }
 

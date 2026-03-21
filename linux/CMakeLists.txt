@@ -54,6 +54,16 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 
+# Allow offline Flatpak builds to provide a vendored nlohmann_json checkout.
+set(FLUXDO_VENDORED_NLOHMANN_JSON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/nlohmann_json")
+if(EXISTS "${FLUXDO_VENDORED_NLOHMANN_JSON_DIR}/CMakeLists.txt")
+  set(
+    FETCHCONTENT_SOURCE_DIR_NLOHMANN_JSON
+    "${FLUXDO_VENDORED_NLOHMANN_JSON_DIR}"
+    CACHE PATH "Vendored nlohmann_json source for Linux plugin builds" FORCE
+  )
+endif()
+
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 

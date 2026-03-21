@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:catcher_2/catcher_2.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -115,16 +114,22 @@ Future<void> main() async {
       effect: Platform.isMacOS
           ? acrylic.WindowEffect.sidebar
           : Platform.isWindows
-          ? acrylic.WindowEffect.mica
-          : acrylic.WindowEffect.transparent,
+              ? acrylic.WindowEffect.mica
+              : acrylic.WindowEffect.disabled,
     );
     final isVisible = await windowManager.isVisible();
     await windowManager.setPreventClose(true);
     if (isVisible) {
       await WindowStateService.instance.attach(prefs);
+      if (Platform.isLinux) {
+        await windowManager.focus();
+      }
     } else {
       await windowManager.waitUntilReadyToShow(null, () async {
         await WindowStateService.instance.restore(prefs);
+        if (Platform.isLinux) {
+          await windowManager.focus();
+        }
       });
     }
   }
@@ -159,7 +164,7 @@ Future<void> main() async {
   await NetworkSettingsService.instance.initialize(prefs);
   VpnAutoToggleService.instance.initialize(prefs);
   try {
-    final initialConnectivity = await Connectivity().checkConnectivity();
+    final initialConnectivity = await ConnectivityService.safeCheckConnectivity();
     await VpnAutoToggleService.instance.syncInitialState(initialConnectivity);
   } catch (e) {
     debugPrint('[Main] 初始 VPN 状态同步失败: $e');
@@ -364,8 +369,8 @@ class MainApp extends ConsumerWidget {
                 effect: Platform.isMacOS
                     ? acrylic.WindowEffect.sidebar
                     : Platform.isWindows
-                    ? acrylic.WindowEffect.mica
-                    : acrylic.WindowEffect.transparent,
+                        ? acrylic.WindowEffect.mica
+                        : acrylic.WindowEffect.disabled,
                 dark: isDark,
               );
               if (Platform.isMacOS) {

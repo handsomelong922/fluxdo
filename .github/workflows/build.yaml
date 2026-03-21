@@ -7,6 +7,7 @@ on:
 
 env:
   IS_STABLE: ${{ !contains(github.ref, '-') }}
+  FLUTTER_LINUX_VERSION: '3.41.5'
 
 jobs:
   build:
@@ -217,8 +218,172 @@ jobs:
           path: ./dist
           overwrite: true
 
+  flatpak_prepare_sources:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_LINUX_VERSION }}
+          cache: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Prepare Flatpak source tree
+        env:
+          PUB_CACHE: ${{ github.workspace }}/.pub-cache
+        run: bash scripts/ci/prepare_flatpak_source_tree.sh
+
+      - name: Upload Flatpak source tree artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-source-tree-internal
+          path: .artifacts/flatpak/fluxdo-flatpak-source-tree.tar.gz
+          if-no-files-found: error
+          overwrite: true
+
+  ensure_flatpak_wpe_layer:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
+      options: --privileged
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read WPE layer version
+        id: layer
+        run: |
+          version="$(tr -d '\r\n' < flatpak/wpe-layer.version)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Try downloading prebuilt WPE layer
+        id: fetch
+        run: |
+          mkdir -p dist
+          asset="fluxdo-flatpak-wpe-layer-gnome48-x86_64.tar.zst"
+          base_url="https://github.com/${{ github.repository }}/releases/download/flatpak-wpe-layer-${{ steps.layer.outputs.version }}"
+          if curl -fsIL "${base_url}/${asset}" > /dev/null; then
+            curl -fL "${base_url}/${asset}" -o "dist/${asset}"
+            curl -fL "${base_url}/${asset}.sha256" -o "dist/${asset}.sha256"
+            (
+              cd dist
+              sha256sum -c "${asset}.sha256"
+            )
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build WPE layer on cache miss
+        if: steps.fetch.outputs.hit != 'true'
+        run: |
+          flatpak --system remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          xvfb-run --auto-servernum flatpak-builder \
+            --repo=repo \
+            --disable-rofiles-fuse \
+            --install-deps-from=flathub \
+            --force-clean \
+            --default-branch=stable \
+            --arch=x86_64 \
+            --ccache \
+            --verbose \
+            flatpak_wpe_layer \
+            flatpak/com.github.lingyan000.fluxdo.wpe-layer.yml
+          bash scripts/ci/package_flatpak_wpe_layer.sh \
+            flatpak_wpe_layer \
+            dist/fluxdo-flatpak-wpe-layer-gnome48-x86_64.tar.zst
+
+      - name: Publish WPE layer release on cache miss
+        if: steps.fetch.outputs.hit != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: flatpak-wpe-layer-${{ steps.layer.outputs.version }}
+          name: Flatpak WPE Layer ${{ steps.layer.outputs.version }}
+          body: |
+            Prebuilt Flatpak WPE dependency layer for Fluxdo.
+          prerelease: true
+          make_latest: false
+          files: |
+            dist/fluxdo-flatpak-wpe-layer-gnome48-x86_64.tar.zst
+            dist/fluxdo-flatpak-wpe-layer-gnome48-x86_64.tar.zst.sha256
+          fail_on_unmatched_files: true
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload WPE layer workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-wpe-layer-current
+          path: |
+            dist/fluxdo-flatpak-wpe-layer-gnome48-x86_64.tar.zst
+            dist/fluxdo-flatpak-wpe-layer-gnome48-x86_64.tar.zst.sha256
+          if-no-files-found: error
+          overwrite: true
+
+  flatpak_package:
+    needs:
+      - flatpak_prepare_sources
+      - ensure_flatpak_wpe_layer
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
+      options: --privileged
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Flatpak source tree artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: flatpak-source-tree-internal
+          path: .artifacts/flatpak
+
+      - name: Download WPE layer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: flatpak-wpe-layer-current
+          path: flatpak/stage/wpe-layer
+
+      - name: Extract Flatpak source tree
+        run: |
+          rm -rf flatpak/stage/source-tree
+          mkdir -p flatpak/stage/source-tree
+          tar -xzf .artifacts/flatpak/fluxdo-flatpak-source-tree.tar.gz -C flatpak/stage/source-tree
+          ls -la flatpak/stage/source-tree
+
+      - name: Build Flatpak bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: flatpak/com.github.lingyan000.fluxdo.yml
+          bundle: fluxdo-linux-x86_64.flatpak
+          branch: stable
+          repository-name: flathub
+          arch: x86_64
+          verbose: true
+          upload-artifact: false
+
+      - name: Upload Flatpak artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-linux-flatpak-x86_64
+          path: fluxdo-linux-x86_64.flatpak
+          if-no-files-found: error
+          overwrite: true
+
   changelog:
-    needs: build
+    needs:
+      - build
+      - flatpak_package
     runs-on: ubuntu-latest
     if: ${{ !contains(github.ref, '-') }}
     permissions:
@@ -275,7 +440,9 @@ jobs:
           fi
 
   upload:
-    needs: build
+    needs:
+      - build
+      - flatpak_package
     runs-on: ubuntu-latest
     permissions: write-all
     services:

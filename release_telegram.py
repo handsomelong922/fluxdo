@@ -52,7 +52,7 @@ def main() -> int:
     package_files = []
     if artifacts_dir.exists():
         package_files = sorted(
-            p for p in artifacts_dir.iterdir() if p.is_file() and p.suffix in {".apk", ".ipa", ".dmg", ".exe"}
+            p for p in artifacts_dir.iterdir() if p.is_file() and p.suffix in {".apk", ".ipa", ".dmg", ".exe", ".flatpak"}
         )
 
     if not package_files:

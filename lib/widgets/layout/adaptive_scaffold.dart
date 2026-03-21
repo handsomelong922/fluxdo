@@ -48,8 +48,8 @@ class AdaptiveScaffold extends ConsumerWidget {
         ? ref.watch(barVisibilityProvider)
         : 1.0;
 
-    final isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
-    final useAcrylicRail = showRail && isDesktop;
+    final hasAcrylic = Platform.isMacOS || Platform.isWindows;
+    final useAcrylicRail = showRail && hasAcrylic;
     final railWidth = extendedRail ? 180.0 : 72.0;
     final overlayLeftInset = showRail
         ? railWidth + (useAcrylicRail ? 0.0 : 1.0)

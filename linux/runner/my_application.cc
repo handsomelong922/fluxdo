@@ -14,6 +14,50 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
+static void focus_flutter_view(GtkWindow* window, GtkWidget* view) {
+  if (window == nullptr || view == nullptr) {
+    return;
+  }
+
+  if (!gtk_widget_get_can_focus(view)) {
+    gtk_widget_set_can_focus(view, TRUE);
+  }
+
+  gtk_window_set_focus(window, view);
+  gtk_widget_grab_focus(view);
+}
+
+static void on_window_show(GtkWidget* widget, gpointer user_data) {
+  focus_flutter_view(GTK_WINDOW(widget), GTK_WIDGET(user_data));
+}
+
+static gboolean on_window_focus_in_event(GtkWidget* widget,
+                                         GdkEventFocus* event,
+                                         gpointer user_data) {
+  (void)event;
+  focus_flutter_view(GTK_WINDOW(widget), GTK_WIDGET(user_data));
+  return FALSE;
+}
+
+static void on_window_is_active_changed(GObject* object,
+                                        GParamSpec* pspec,
+                                        gpointer user_data) {
+  (void)pspec;
+  GtkWindow* window = GTK_WINDOW(object);
+  if (!gtk_window_is_active(window)) {
+    return;
+  }
+  focus_flutter_view(window, GTK_WIDGET(user_data));
+}
+
+static gboolean on_view_button_press_event(GtkWidget* widget,
+                                           GdkEventButton* event,
+                                           gpointer user_data) {
+  (void)event;
+  focus_flutter_view(GTK_WINDOW(user_data), widget);
+  return FALSE;
+}
+
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
@@ -65,9 +109,22 @@ static void my_application_activate(GApplication* application) {
   // window hidden until Dart restores the saved desktop window state.
   gtk_widget_realize(GTK_WIDGET(view));
 
+  gtk_widget_add_events(GTK_WIDGET(view), GDK_BUTTON_PRESS_MASK);
+  g_signal_connect(window, "show", G_CALLBACK(on_window_show), view);
+  g_signal_connect(window,
+                   "focus-in-event",
+                   G_CALLBACK(on_window_focus_in_event),
+                   view);
+  g_signal_connect(window,
+                   "notify::is-active",
+                   G_CALLBACK(on_window_is_active_changed),
+                   view);
+  g_signal_connect(
+      view, "button-press-event", G_CALLBACK(on_view_button_press_event), window);
+
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 
-  gtk_widget_grab_focus(GTK_WIDGET(view));
+  focus_flutter_view(window, GTK_WIDGET(view));
 }
 
 // Implements GApplication::local_command_line.
