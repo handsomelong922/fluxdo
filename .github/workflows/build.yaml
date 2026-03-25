@@ -424,17 +424,11 @@ jobs:
               range="${prev:+$prev..}$curr"
 
               echo -e "## $curr\n" >> "$temp"
-              git log --no-merges --pretty=format:"%B%x1e" "$range" | \
-              awk 'BEGIN{RS="\x1e"} \
-                $0 !~ /Update changelog/ && \
-                $0 !~ /Co-Authored-By: Release Script/ && \
-                $0 !~ /^chore: bump version to / { \
-                  gsub(/\n+$/, "", $0); \
-                  if (length($0)) { \
-                    n=split($0, lines, /\n+/); \
-                    for (i=1;i<=n;i++) if (length(lines[i])) print "- " lines[i] "\n"; \
-                  } \
-                }' >> "$temp"
+              git log --no-merges --pretty=format:"- %s" "$range" | \
+                grep -v 'Update changelog' | \
+                grep -v 'Co-Authored-By: Release Script' | \
+                grep -v '^- chore: bump version to ' >> "$temp"
+              echo "" >> "$temp"
           done
 
           [ -f CHANGELOG.md ] && cat CHANGELOG.md >> "$temp"
@@ -501,17 +495,11 @@ jobs:
             prev="${tags[i+1]}"
             range="${prev:+$prev..}$curr"
 
-            git log --no-merges --pretty=format:"%B%x1e" "$range" | \
-            awk 'BEGIN{RS="\x1e"} \
-              $0 !~ /Update changelog/ && \
-              $0 !~ /Co-Authored-By: Release Script/ && \
-              $0 !~ /^chore: bump version to / { \
-                gsub(/\n+$/, "", $0); \
-                if (length($0)) { \
-                  n=split($0, lines, /\n+/); \
-                  for (i=1;i<=n;i++) if (length(lines[i])) print "- " lines[i] "\n"; \
-                } \
-              }' >> "$out"
+            git log --no-merges --pretty=format:"- %s" "$range" | \
+              grep -v 'Update changelog' | \
+              grep -v 'Co-Authored-By: Release Script' | \
+              grep -v '^- chore: bump version to ' >> "$out"
+            echo "" >> "$out"
           done
 
       - name: Wait for telegram-bot-api
