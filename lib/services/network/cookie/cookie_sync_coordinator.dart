@@ -1,0 +1,677 @@
+import 'dart:io' as io;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+
+import '../../../constants.dart';
+import '../../cf_challenge_logger.dart';
+import '../../windows_webview_environment_service.dart';
+import 'cookie_diagnostics.dart';
+import 'cookie_jar_service.dart';
+import 'cookie_sync_context.dart';
+import 'strategy/platform_cookie_strategy.dart';
+import 'strategy/windows_cookie_strategy.dart';
+
+/// Cookie 同步编排器
+/// 负责 WebView ↔ CookieJar 的双向同步，委托平台策略处理差异
+class CookieSyncCoordinator {
+  CookieSyncCoordinator({
+    required this.jar,
+    required this.strategy,
+  });
+
+  final CookieJarService jar;
+  final PlatformCookieStrategy strategy;
+
+  CookieManager get _webViewCookieManager =>
+      WindowsWebViewEnvironmentService.instance.cookieManager;
+
+  // ---------------------------------------------------------------------------
+  // syncFromWebView：WebView → CookieJar
+  // ---------------------------------------------------------------------------
+
+  /// 从 WebView 同步 Cookie 到 CookieJar
+  Future<void> syncFromWebView(CookieSyncContext ctx) async {
+    try {
+      // Windows + controller 可用时，通过 CDP 读取
+      if (io.Platform.isWindows && ctx.controller != null) {
+        await _syncFromWebViewViaCDP(ctx);
+        return;
+      }
+
+      final webViewCookies = await strategy.readCookiesFromWebView(ctx);
+
+      if (CfChallengeLogger.isEnabled) {
+        CfChallengeLogger.logCookieSync(
+          direction: 'WebView -> CookieJar',
+          cookies: webViewCookies.map((snapshot) {
+            final wc = snapshot.cookie;
+            return CookieLogEntry(
+              name: wc.name,
+              domain: wc.domain,
+              path: wc.path,
+              expires: CookieJarService.parseWebViewCookieExpires(
+                wc.expiresDate,
+              ),
+              valueLength: wc.value.length,
+            );
+          }).toList(),
+        );
+      }
+
+      if (webViewCookies.isEmpty) {
+        if (io.Platform.isWindows) {
+          debugPrint(
+            '[CookieJar][Windows] syncFromWebView 未读取到任何 Cookie: '
+            'userDataFolder='
+            '${WindowsWebViewEnvironmentService.instance.userDataFolder ?? "<default>"}',
+          );
+        }
+        return;
+      }
+
+      // 按 URI 分桶、去重
+      final bucketedCookies = <Uri, Map<String, io.Cookie>>{};
+
+      for (final snapshot in webViewCookies) {
+        final wc = snapshot.cookie;
+        if (ctx.cookieNames != null && !ctx.cookieNames!.contains(wc.name)) {
+          continue;
+        }
+        final rawDomain = wc.domain?.trim();
+        final normalizedDomain =
+            CookieJarService.normalizeWebViewCookieDomain(rawDomain);
+        final shouldPersistAsDomainCookie =
+            _shouldPersistWebViewDomainCookie(
+          rawDomain: rawDomain,
+          normalizedDomain: normalizedDomain,
+          sourceHosts: snapshot.sourceHosts,
+        );
+        String? domainAttr;
+        var hostForUri = snapshot.primaryHost;
+
+        if (normalizedDomain != null) {
+          hostForUri = normalizedDomain;
+          if (shouldPersistAsDomainCookie) {
+            domainAttr = '.$normalizedDomain';
+          }
+        }
+
+        // Dart Cookie 构造函数严格遵循 RFC 6265，对不合规值使用编码存储
+        io.Cookie cookie;
+        try {
+          cookie = io.Cookie(wc.name, wc.value)
+            ..path = wc.path ?? '/'
+            ..secure = wc.isSecure ?? false
+            ..httpOnly = wc.isHttpOnly ?? false;
+        } catch (_) {
+          cookie = io.Cookie(wc.name, CookieValueCodec.encode(wc.value))
+            ..path = wc.path ?? '/'
+            ..secure = wc.isSecure ?? false
+            ..httpOnly = wc.isHttpOnly ?? false;
+        }
+
+        if (domainAttr != null) {
+          cookie.domain = domainAttr;
+        }
+        final expires = CookieJarService.parseWebViewCookieExpires(
+          wc.expiresDate,
+        );
+        if (expires != null) {
+          cookie.expires = expires;
+        }
+
+        // 跳过已过期的 cookie
+        if (cookie.expires != null &&
+            cookie.expires!.isBefore(DateTime.now())) {
+          debugPrint(
+            '[CookieJar] syncFromWebView: 跳过已过期 cookie ${cookie.name}',
+          );
+          continue;
+        }
+
+        // 跳过空值的关键 cookie
+        if (cookie.value.isEmpty &&
+            CookieJarService.isCriticalCookie(cookie.name)) {
+          debugPrint(
+            '[CookieJar] syncFromWebView: 跳过空值关键 cookie ${cookie.name}',
+          );
+          continue;
+        }
+
+        final bucketUri = Uri(scheme: ctx.baseUri.scheme, host: hostForUri);
+        final dedupeKey =
+            '${cookie.name}|${cookie.path}|${cookie.domain ?? hostForUri}';
+        bucketedCookies.putIfAbsent(
+          bucketUri,
+          () => <String, io.Cookie>{},
+        )[dedupeKey] = cookie;
+      }
+
+      // Bug #5 fix：先清掉 CookieJar 中关键 cookie 旧值，再写入新值
+      // 确保同名不存在 domain 类型冲突的副本
+      final namesAboutToSync = <String>{};
+      for (final cookies in bucketedCookies.values) {
+        for (final cookie in cookies.values) {
+          if (CookieJarService.isCriticalCookie(cookie.name)) {
+            namesAboutToSync.add(cookie.name);
+          }
+        }
+      }
+      for (final name in namesAboutToSync) {
+        await jar.deleteCookie(name);
+      }
+
+      var totalSynced = 0;
+      for (final entry in bucketedCookies.entries) {
+        final cookies = entry.value.values.toList();
+        if (cookies.isEmpty) continue;
+        await jar.cookieJar.saveFromResponse(entry.key, cookies);
+        totalSynced += cookies.length;
+      }
+
+      // Bug #5 fix：写入后再次检查关键 cookie，清理残留的冲突副本
+      await _cleanupConflictingCriticalCookies(namesAboutToSync, ctx);
+
+      debugPrint('[CookieJar] Synced $totalSynced cookies from WebView');
+      if (io.Platform.isWindows) {
+        await CookieDiagnostics.logWindowsCookieSyncStatus(
+          'syncFromWebView',
+          jar: jar,
+          ctx: ctx,
+          webViewCookies: webViewCookies.map((s) => s.cookie).toList(),
+        );
+      }
+    } catch (e) {
+      debugPrint('[CookieJar] Failed to sync from WebView: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // syncToWebView：CookieJar → WebView（Bug #2 fix：增量更新）
+  // ---------------------------------------------------------------------------
+
+  /// 从 CookieJar 同步 Cookie 到 WebView
+  /// Bug #2 fix：改为增量更新，避免先全清再全写的窗口期
+  Future<void> syncToWebView(CookieSyncContext ctx) async {
+    try {
+      // 1. 从 CookieJar 收集所有要同步的 cookie
+      final seen = <String>{};
+      final windowsCriticalCookies = <String, (io.Cookie, String)>{};
+      final jarCookies = <(io.Cookie, String)>[];
+      for (final host in ctx.relatedHosts) {
+        final hostCookies = await jar.cookieJar.loadForRequest(
+          Uri.parse('https://$host'),
+        );
+        for (final c in hostCookies) {
+          if (io.Platform.isWindows &&
+              CookieJarService.isCriticalCookie(c.name)) {
+            final selectionKey = '${c.name}|${c.path ?? "/"}';
+            final existing = windowsCriticalCookies[selectionKey];
+            if (existing == null ||
+                WindowsCookieStrategy.compareWindowsCriticalCookieCandidates(
+                      c,
+                      existing.$1,
+                      requestHost: host,
+                    ) >
+                    0) {
+              windowsCriticalCookies[selectionKey] = (c, host);
+            }
+            continue;
+          }
+          final dedupeKey = _buildJarToWebViewSyncKey(c, host);
+          if (seen.add(dedupeKey)) {
+            jarCookies.add((c, host));
+          }
+        }
+      }
+      jarCookies.insertAll(0, windowsCriticalCookies.values);
+
+      if (jarCookies.isEmpty) return;
+
+      // 2. 从 WebView 读取当前 cookie
+      final webViewCookies = await strategy.readCookiesFromWebView(ctx);
+
+      // 3. 计算增量 diff
+      //    WebView 可能存在同 name|domain|path 但 SameSite 不同的重复 cookie
+      //    （例如 CF 设 SameSite=None，我们的 sync 写入时未指定 SameSite）。
+      //    先检测重复，保留值与 CookieJar 匹配的那个，其余标记删除。
+      final toDelete = <(String name, String url, String? domain, String path)>[];
+      final toWrite = <(io.Cookie, String)>[];
+
+      final jarIndex = <String, (io.Cookie, String)>{};
+      for (final (cookie, sourceHost) in jarCookies) {
+        final normalizedDomain =
+            CookieJarService.normalizeWebViewCookieDomain(cookie.domain) ??
+            sourceHost;
+        final key = '${cookie.name}|$normalizedDomain|${cookie.path ?? '/'}';
+        jarIndex[key] = (cookie, sourceHost);
+      }
+
+      final webViewIndex = <String, CollectedWebViewCookie>{};
+      final webViewDuplicates = <String, List<CollectedWebViewCookie>>{};
+      for (final snapshot in webViewCookies) {
+        final wc = snapshot.cookie;
+        final normalizedDomain =
+            CookieJarService.normalizeWebViewCookieDomain(wc.domain) ??
+            snapshot.primaryHost;
+        final key = '${wc.name}|$normalizedDomain|${wc.path ?? '/'}';
+        webViewDuplicates.putIfAbsent(key, () => []).add(snapshot);
+        webViewIndex[key] = snapshot;
+      }
+
+      // 清理 WebView 中同 name|domain|path 的重复 cookie
+      for (final entry in webViewDuplicates.entries) {
+        if (entry.value.length <= 1) continue;
+        final jarEntry = jarIndex[entry.key];
+        final jarValue = jarEntry != null
+            ? CookieValueCodec.decode(jarEntry.$1.value)
+            : null;
+        for (final snapshot in entry.value) {
+          final wc = snapshot.cookie;
+          // 保留与 CookieJar 值匹配的那个（如果有），其余标记删除
+          if (jarValue != null && wc.value == jarValue) {
+            webViewIndex[entry.key] = snapshot; // 确保 index 中是匹配的那个
+            continue;
+          }
+          final normalizedDomain =
+              CookieJarService.normalizeWebViewCookieDomain(wc.domain) ??
+              snapshot.primaryHost;
+          if (CookieJarService.matchesAppHost(wc.domain)) {
+            toDelete.add((
+              wc.name,
+              'https://$normalizedDomain',
+              wc.domain,
+              wc.path ?? '/',
+            ));
+          }
+        }
+        debugPrint(
+          '[CookieJar] Detected ${entry.value.length} duplicate WebView cookies '
+          'for ${entry.key}, marking extras for deletion',
+        );
+      }
+
+      // stale：WebView 有但 CookieJar 没有 → 删除
+      for (final entry in webViewIndex.entries) {
+        if (!jarIndex.containsKey(entry.key)) {
+          final wc = entry.value.cookie;
+          final normalizedDomain =
+              CookieJarService.normalizeWebViewCookieDomain(wc.domain) ??
+              entry.value.primaryHost;
+          // 只删除与应用相关域名的 cookie
+          if (CookieJarService.matchesAppHost(wc.domain)) {
+            toDelete.add((
+              wc.name,
+              'https://$normalizedDomain',
+              wc.domain,
+              wc.path ?? '/',
+            ));
+          }
+        }
+      }
+
+      // changed/new：CookieJar 有但 WebView 没有或值不同 → 处理
+      for (final entry in jarIndex.entries) {
+        final webViewEntry = webViewIndex[entry.key];
+        final (cookie, sourceHost) = entry.value;
+
+        if (webViewEntry == null) {
+          // new：WebView 没有 → 写入
+          toWrite.add((cookie, sourceHost));
+        }
+        // WebView 已有（不论值是否相同）→ 跳过写入
+        // 原因：通过页面加载设置的 cookie 可能带分区键（Partition Key），
+        // 而 CookieManager.setCookie 从原生侧写入的 cookie 不带分区键，
+        // 两者会被浏览器视为不同的 cookie 而产生重复。
+        // 值不同时由 syncFromWebView 反向更新 CookieJar 即可。
+      }
+
+      // 4. 执行删除
+      for (final (name, url, domain, path) in toDelete) {
+        try {
+          final domainVariants = strategy.buildDeleteDomainVariants(domain);
+          for (final variant in domainVariants) {
+            await _webViewCookieManager.deleteCookie(
+              url: WebUri(url),
+              name: name,
+              domain: variant,
+              path: path,
+            );
+          }
+        } catch (e) {
+          debugPrint('[CookieJar] Failed to delete stale cookie $name: $e');
+        }
+      }
+
+      if (CfChallengeLogger.isEnabled) {
+        CfChallengeLogger.logCookieSync(
+          direction: 'CookieJar -> WebView',
+          cookies: jarCookies
+              .map(
+                (e) => CookieLogEntry(
+                  name: e.$1.name,
+                  domain: e.$1.domain,
+                  path: e.$1.path,
+                  expires: e.$1.expires,
+                  valueLength: e.$1.value.length,
+                ),
+              )
+              .toList(),
+        );
+      }
+
+      // 5. 执行写入
+      if (toWrite.isNotEmpty) {
+        await strategy.writeCookiesToWebView(toWrite, ctx);
+      }
+
+      debugPrint(
+        '[CookieJar] Synced to WebView: ${toWrite.length} written, '
+        '${toDelete.length} deleted (total jar: ${jarCookies.length})',
+      );
+      if (io.Platform.isWindows) {
+        await CookieDiagnostics.logWindowsDuplicateCriticalCookies(
+          'syncToWebView',
+          ctx.relatedHosts,
+          _webViewCookieManager,
+        );
+        await CookieDiagnostics.logWindowsCookieSyncStatus(
+          'syncToWebView',
+          jar: jar,
+          ctx: ctx,
+        );
+      }
+    } catch (e) {
+      debugPrint('[CookieJar] Failed to sync to WebView: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 通过 controller 同步（Windows 专用入口）
+  // ---------------------------------------------------------------------------
+
+  /// 通过页面级 controller 的 CDP 直接写入 CookieJar 中的 cookie
+  Future<void> syncToWebViewViaController(
+    InAppWebViewController controller,
+    CookieSyncContext ctx,
+  ) async {
+    if (!io.Platform.isWindows) return;
+
+    try {
+      // 按 name|path 去重：同名 cookie 只保留一份，优先 domain 版本
+      final bestCookies = <String, (io.Cookie, String)>{};
+      for (final host in ctx.relatedHosts) {
+        final hostCookies = await jar.cookieJar.loadForRequest(
+          Uri.parse('https://$host'),
+        );
+        for (final c in hostCookies) {
+          final key = '${c.name}|${c.path ?? "/"}';
+          final existing = bestCookies[key];
+          if (existing == null) {
+            bestCookies[key] = (c, host);
+          } else if (existing.$1.domain == null && c.domain != null) {
+            bestCookies[key] = (c, host);
+          }
+        }
+      }
+      final cookies = bestCookies.values.toList();
+
+      if (cookies.isEmpty) return;
+
+      await strategy.writeViaController(controller, cookies, ctx);
+    } catch (e) {
+      debugPrint('[CookieJar][Windows] syncToWebViewViaController failed: $e');
+    }
+  }
+
+  /// 将当前 WebView 控制器里的关键实时 Cookie 直接回写到 CookieJar
+  Future<void> syncCriticalCookiesFromController(
+    InAppWebViewController controller,
+    CookieSyncContext ctx, {
+    Set<String>? cookieNames,
+  }) async {
+    if (!io.Platform.isWindows && !io.Platform.isLinux) return;
+
+    final names = cookieNames ?? const {'_t', '_forum_session', 'cf_clearance'};
+    await strategy.syncCriticalFromController(controller, names, ctx, jar);
+  }
+
+  /// 从当前 WebView 控制器的实时 Cookie 中读取指定值
+  Future<String?> readCookieValueFromController(
+    InAppWebViewController controller,
+    String name, {
+    String? currentUrl,
+  }) async {
+    return strategy.readLiveCookieValue(
+      controller,
+      name,
+      currentUrl: currentUrl,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 私有辅助方法
+  // ---------------------------------------------------------------------------
+
+  /// Windows CDP 同步
+  Future<void> _syncFromWebViewViaCDP(CookieSyncContext ctx) async {
+    final controller = ctx.controller!;
+    final resolvedCurrentUrl =
+        ctx.currentUrl ?? (await controller.getUrl())?.toString();
+    final cdpUrls = <String>{
+      AppConstants.baseUrl,
+      '${AppConstants.baseUrl}/',
+      if (resolvedCurrentUrl != null && resolvedCurrentUrl.isNotEmpty)
+        resolvedCurrentUrl,
+      for (final host in ctx.relatedHosts) 'https://$host',
+    }.toList();
+
+    try {
+      final result = await controller.callDevToolsProtocolMethod(
+        methodName: 'Network.getCookies',
+        parameters: {'urls': cdpUrls},
+      );
+      final rawCookies = result is Map<String, dynamic>
+          ? result['cookies']
+          : null;
+      if (rawCookies is! List || rawCookies.isEmpty) {
+        debugPrint(
+          '[CookieJar][Windows] syncFromWebView(controller): no cookies',
+        );
+        return;
+      }
+
+      // 按 name|path 去重，优先 domain 版本
+      final bestCookies = <String, Map<String, dynamic>>{};
+      for (final raw in rawCookies.whereType<Map>()) {
+        final name = raw['name']?.toString();
+        final domain = raw['domain']?.toString() ?? '';
+        if (name == null) continue;
+        final normalized = domain.replaceFirst(RegExp(r'^\.'), '');
+        if (normalized.isNotEmpty &&
+            normalized != ctx.baseUri.host &&
+            !normalized.endsWith('.${ctx.baseUri.host}') &&
+            !ctx.baseUri.host.endsWith('.$normalized')) {
+          continue;
+        }
+        final path = raw['path']?.toString() ?? '/';
+        final key = '$name|$path';
+        final existing = bestCookies[key];
+        if (existing == null ||
+            (!(existing['domain']?.toString().startsWith('.') ?? false) &&
+                domain.startsWith('.'))) {
+          bestCookies[key] = Map<String, dynamic>.from(
+            raw.map((k, v) => MapEntry(k.toString(), v)),
+          );
+        }
+      }
+
+      // 存入 CookieJar
+      final bucketedCookies = <Uri, Map<String, io.Cookie>>{};
+      for (final raw in bestCookies.values) {
+        final name = raw['name'].toString();
+        if (ctx.cookieNames != null && !ctx.cookieNames!.contains(name)) {
+          continue;
+        }
+        final value = raw['value']?.toString() ?? '';
+        final rawDomain = raw['domain']?.toString().trim();
+        final isDomainCookie =
+            rawDomain != null && rawDomain.startsWith('.');
+        final normalizedDomain = rawDomain != null
+            ? (rawDomain.startsWith('.')
+                ? rawDomain.substring(1)
+                : rawDomain)
+            : null;
+
+        io.Cookie cookie;
+        try {
+          cookie = io.Cookie(name, value);
+        } catch (_) {
+          cookie = io.Cookie(name, CookieValueCodec.encode(value));
+        }
+        cookie
+          ..path = raw['path']?.toString() ?? '/'
+          ..secure = raw['secure'] == true
+          ..httpOnly = raw['httpOnly'] == true;
+
+        if (isDomainCookie && normalizedDomain != null) {
+          cookie.domain = '.$normalizedDomain';
+        }
+
+        final expiresRaw = raw['expires'];
+        if (expiresRaw is num && expiresRaw > 0) {
+          cookie.expires = DateTime.fromMillisecondsSinceEpoch(
+            (expiresRaw * 1000).round(),
+          );
+        }
+
+        if (cookie.expires != null &&
+            cookie.expires!.isBefore(DateTime.now())) {
+          continue;
+        }
+        if (cookie.value.isEmpty &&
+            CookieJarService.isCriticalCookie(cookie.name)) {
+          continue;
+        }
+
+        final hostForUri = normalizedDomain ?? ctx.baseUri.host;
+        final bucketUri = Uri(scheme: ctx.baseUri.scheme, host: hostForUri);
+        final dedupeKey =
+            '${cookie.name}|${cookie.path}|${cookie.domain ?? hostForUri}';
+        bucketedCookies.putIfAbsent(
+          bucketUri,
+          () => <String, io.Cookie>{},
+        )[dedupeKey] = cookie;
+      }
+
+      // 先清掉关键 cookie 旧值
+      final namesAboutToSync = <String>{};
+      for (final cookies in bucketedCookies.values) {
+        for (final cookie in cookies.values) {
+          if (CookieJarService.isCriticalCookie(cookie.name)) {
+            namesAboutToSync.add(cookie.name);
+          }
+        }
+      }
+      for (final name in namesAboutToSync) {
+        await jar.deleteCookie(name);
+      }
+
+      var totalSynced = 0;
+      for (final entry in bucketedCookies.entries) {
+        final cookies = entry.value.values.toList();
+        if (cookies.isEmpty) continue;
+        await jar.cookieJar.saveFromResponse(entry.key, cookies);
+        totalSynced += cookies.length;
+      }
+
+      // Bug #5 fix：写入后清理冲突副本
+      await _cleanupConflictingCriticalCookies(namesAboutToSync, ctx);
+
+      debugPrint(
+        '[CookieJar][Windows] syncFromWebView(controller): $totalSynced cookies',
+      );
+      await CookieDiagnostics.logWindowsCookieSyncStatus(
+        'syncFromWebView(controller)',
+        jar: jar,
+        ctx: ctx,
+      );
+    } catch (e) {
+      debugPrint(
+        '[CookieJar][Windows] syncFromWebView(controller) failed: $e',
+      );
+    }
+  }
+
+  /// Bug #5 fix：写入后检查关键 cookie，确保同名不存在 domain 类型冲突的副本
+  Future<void> _cleanupConflictingCriticalCookies(
+    Set<String> cookieNames,
+    CookieSyncContext ctx,
+  ) async {
+    if (cookieNames.isEmpty) return;
+
+    for (final name in cookieNames) {
+      // 收集所有同名 cookie 副本
+      final copies = <(io.Cookie, Uri)>[];
+      for (final host in ctx.relatedHosts) {
+        final hostUri = Uri.parse('https://$host');
+        final cookies = await jar.cookieJar.loadForRequest(hostUri);
+        for (final cookie in cookies) {
+          if (cookie.name == name) {
+            copies.add((cookie, hostUri));
+          }
+        }
+      }
+
+      if (copies.length <= 1) continue;
+
+      // 按 domain 类型分组：domain cookie 和 host-only cookie
+      final domainCopies =
+          copies.where((c) => c.$1.domain != null).toList();
+      final hostOnlyCopies =
+          copies.where((c) => c.$1.domain == null).toList();
+
+      // 两种类型都存在时，清除 host-only 副本（domain cookie 更权威）
+      if (domainCopies.isNotEmpty && hostOnlyCopies.isNotEmpty) {
+        final expired = DateTime.now().subtract(const Duration(days: 1));
+        for (final (cookie, uri) in hostOnlyCopies) {
+          final expiredCookie = io.Cookie(cookie.name, '')
+            ..path = cookie.path ?? '/'
+            ..expires = expired;
+          await jar.cookieJar.saveFromResponse(uri, [expiredCookie]);
+        }
+        debugPrint(
+          '[CookieJar] Cleaned ${hostOnlyCopies.length} conflicting '
+          'host-only copies of $name',
+        );
+      }
+    }
+  }
+
+  bool _shouldPersistWebViewDomainCookie({
+    required String? rawDomain,
+    required String? normalizedDomain,
+    required Set<String> sourceHosts,
+  }) {
+    if (normalizedDomain == null) return false;
+    if (rawDomain != null && rawDomain.trim().startsWith('.')) return true;
+    for (final sourceHost in sourceHosts) {
+      if (sourceHost != normalizedDomain &&
+          sourceHost.endsWith('.$normalizedDomain')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// CookieJar -> WebView 同步去重键
+  String _buildJarToWebViewSyncKey(io.Cookie cookie, String sourceHost) {
+    final normalizedDomain = cookie.domain?.trim();
+    final normalizedPath = cookie.path ?? '/';
+    if (normalizedDomain != null && normalizedDomain.isNotEmpty) {
+      return '${cookie.name}|$normalizedDomain|$normalizedPath';
+    }
+    return '${cookie.name}|host-only|${sourceHost.trim().toLowerCase()}|$normalizedPath';
+  }
+}

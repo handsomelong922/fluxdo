@@ -545,7 +545,7 @@ class DohProxyFfi {
 
   /// Check if FFI is available on this platform
   static bool get isAvailable {
-    return Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+    return Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows;
   }
 
   /// 桌面平台 FFI 失败时可以回退到进程模式

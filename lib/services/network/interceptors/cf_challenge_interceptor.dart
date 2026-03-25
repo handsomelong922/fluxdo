@@ -35,10 +35,21 @@ class CfChallengeInterceptor extends Interceptor {
   }
 
   Future<bool> _doSync() async {
+    // showManualVerify 内部已通过 CDP 将新 cf_clearance 同步到 CookieJar，
+    // 先检查是否已存在，避免后续 syncFromWebView 在 Windows 上通过
+    // CookieManager.getCookies() 读取到旧值并覆盖（Bug #5 fix 会先删后写）。
+    String? cfClearance = await cookieJarService.getCfClearance();
+    if (cfClearance != null && cfClearance.isNotEmpty) {
+      CfChallengeLogger.log(
+        '[INTERCEPTOR] cf_clearance already in CookieJar: ${cfClearance.length} chars',
+      );
+      return true;
+    }
+
+    // CookieJar 中未找到 cf_clearance，走 WebView 同步兜底
     await Future.delayed(const Duration(milliseconds: 1500));
     await cookieJarService.syncFromWebView(cookieNames: const {'cf_clearance'});
 
-    String? cfClearance;
     for (var i = 0; i < 3; i++) {
       cfClearance = await cookieJarService.getCfClearance();
       if (cfClearance != null && cfClearance.isNotEmpty) break;

@@ -211,20 +211,9 @@ class CfChallengeService {
     await cookieJarService.deleteCookie('cf_clearance');
     // 2. 同步到 WebView（此时 CookieJar 中已无 cf_clearance）
     await cookieJarService.syncToWebView();
-    // 3. 双重保障：直接从 WebView 中删除 cf_clearance
+    // 3. 双重保障：通过策略接口删除 WebView 中所有 domain 变体的 cf_clearance
     //    避免 syncToWebView 的竞态导致旧值残留
-    await _cfCookieManager.deleteCookie(
-      url: WebUri(AppConstants.baseUrl),
-      name: 'cf_clearance',
-      path: '/',
-    );
-    // 同时删除带前导点 domain 的变体
-    await _cfCookieManager.deleteCookie(
-      url: WebUri(AppConstants.baseUrl),
-      name: 'cf_clearance',
-      domain: '.${Uri.parse(AppConstants.baseUrl).host}',
-      path: '/',
-    );
+    await cookieJarService.deleteWebViewCookie('cf_clearance');
     if (!overlayState.mounted) {
       debugPrint('[CfChallenge] Overlay no longer mounted');
       CfChallengeLogger.log('[VERIFY] Overlay not mounted');
@@ -297,6 +286,9 @@ class CfChallengeService {
         startInBackground: !forceForeground,
         onResult: finish,
         onPromoteRequest: () => onPromoteToForeground(context),
+        oldCfClearanceValue: backupCfClearance != null
+            ? CookieValueCodec.decode(backupCfClearance.value)
+            : null,
       ),
     );
     overlayState.insert(entry);
@@ -359,6 +351,7 @@ class CfChallengePage extends StatefulWidget {
     this.startInBackground = false,
     this.onResult,
     this.onPromoteRequest,
+    this.oldCfClearanceValue,
   });
 
   final String verifyUrl;
@@ -367,6 +360,10 @@ class CfChallengePage extends StatefulWidget {
   final bool startInBackground;
   final ValueChanged<bool>? onResult;
   final VoidCallback? onPromoteRequest;
+
+  /// showManualVerify 在删除前备份的旧 cf_clearance 值（已解码）
+  /// 用于可靠过滤 Windows 上 WebView 中未完全删除的残留旧值
+  final String? oldCfClearanceValue;
 
   @override
   State<CfChallengePage> createState() => _CfChallengePageState();
@@ -404,8 +401,23 @@ class _CfChallengePageState extends State<CfChallengePage> {
     _snapshotInitialClearance();
   }
 
-  /// 记录验证开始时 WebView 中的 cf_clearance（应为空，因为 showManualVerify 已删除）
+  /// 记录验证开始时的旧 cf_clearance 值
+  /// 优先使用 showManualVerify 传入的备份值（可靠），WebView 读取作为补充
+  /// 解决 Windows 上 initState 时 controller 为 null 导致 _initialCfClearance
+  /// 为 null，进而无法过滤残留旧值、误判为验证成功的问题
   Future<void> _snapshotInitialClearance() async {
+    // 优先使用从 showManualVerify 传入的备份旧值（最可靠）
+    if (widget.oldCfClearanceValue != null &&
+        widget.oldCfClearanceValue!.isNotEmpty) {
+      _initialCfClearance = widget.oldCfClearanceValue;
+      debugPrint(
+        '[CfChallenge] 使用备份的旧 cf_clearance 作为初始快照 '
+        '(${_initialCfClearance!.length} chars)',
+      );
+      return;
+    }
+
+    // 兜底：从 WebView 读取（可能不可靠，但聊胜于无）
     try {
       final cookieValue = await _readCookieValue('cf_clearance');
       _initialCfClearance = cookieValue;
