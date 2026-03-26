@@ -26,7 +26,7 @@ class LinuxCookieStrategy extends DefaultCookieStrategy {
             CookieJarService.normalizeWebViewCookieDomain(wc.domain) ??
             ctx.baseUri.host;
         final key =
-            '${wc.name}|$normalizedDomain|${wc.path ?? '/'}|${wc.value.hashCode}';
+            '${wc.name}|$normalizedDomain|${wc.path ?? '/'}';
         final snapshot = collected.putIfAbsent(
           key,
           () => CollectedWebViewCookie(

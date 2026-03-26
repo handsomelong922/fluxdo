@@ -63,7 +63,7 @@ class CdkOAuthService {
         options: Options(
           followRedirects: false,
           validateStatus: (status) => status != null && status < 500,
-          extra: {'skipCsrf': true},
+          extra: {'skipCsrf': true, 'allowRedirectSetCookie': true},
         ),
       );
 
@@ -82,7 +82,11 @@ class CdkOAuthService {
               options: Options(
                 followRedirects: false,
                 validateStatus: (status) => status != null && status < 500,
-                extra: {'skipCsrf': true, 'skipRedirect': true},
+                extra: {
+                  'skipCsrf': true,
+                  'skipRedirect': true,
+                  'allowRedirectSetCookie': true,
+                },
               ),
             );
 

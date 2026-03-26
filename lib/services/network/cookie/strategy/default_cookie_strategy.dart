@@ -5,6 +5,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../cookie_jar_service.dart';
 import '../cookie_sync_context.dart';
+import '../raw_cookie_writer.dart';
 import 'platform_cookie_strategy.dart';
 
 /// 默认 Cookie 策略
@@ -25,7 +26,7 @@ class DefaultCookieStrategy extends PlatformCookieStrategy {
         final normalizedDomain =
             CookieJarService.normalizeWebViewCookieDomain(wc.domain) ?? host;
         final key =
-            '${wc.name}|$normalizedDomain|${wc.path ?? '/'}|${wc.value.hashCode}';
+            '${wc.name}|$normalizedDomain|${wc.path ?? '/'}';
         final snapshot = collected.putIfAbsent(
           key,
           () => CollectedWebViewCookie(cookie: wc, primaryHost: host),
@@ -42,6 +43,18 @@ class DefaultCookieStrategy extends PlatformCookieStrategy {
     List<(io.Cookie, String)> cookies,
     CookieSyncContext ctx,
   ) async {
+    final rawWriter = RawCookieWriter.instance;
+
+    // 批量加载所有 cookie 的 Set-Cookie 头，避免循环内逐个查 jar
+    final rawHeaders = <String, String?>{};
+    if (rawWriter.isSupported) {
+      for (final (cookie, _) in cookies) {
+        if (!rawHeaders.containsKey(cookie.name)) {
+          rawHeaders[cookie.name] = await loadSetCookieHeader(cookie.name);
+        }
+      }
+    }
+
     var written = 0;
     for (final (cookie, sourceHost) in cookies) {
       final value = CookieValueCodec.decode(cookie.value);
@@ -49,8 +62,6 @@ class DefaultCookieStrategy extends PlatformCookieStrategy {
       WebViewCookieWriteAttempt? appliedAttempt;
 
       for (final attempt in attempts) {
-        // 写入前先删除已有 cookie（含所有 domain 变体），
-        // 防止 SameSite 属性差异导致 WebView 产生重复 cookie
         for (final domain in buildDeleteDomainVariants(attempt.domain)) {
           await ctx.webViewCookieManager.deleteCookie(
             url: WebUri(attempt.url),
@@ -60,6 +71,15 @@ class DefaultCookieStrategy extends PlatformCookieStrategy {
           );
         }
 
+        final rawHeader = rawHeaders[cookie.name];
+        if (rawHeader != null && rawWriter.isSupported) {
+          if (await rawWriter.setRawCookie(attempt.url, rawHeader)) {
+            appliedAttempt = attempt;
+            break;
+          }
+        }
+
+        // Fallback：结构化 API
         final didSet = await ctx.webViewCookieManager.setCookie(
           url: WebUri(attempt.url),
           name: cookie.name,
@@ -69,8 +89,6 @@ class DefaultCookieStrategy extends PlatformCookieStrategy {
           isSecure: cookie.secure,
           isHttpOnly: cookie.httpOnly,
           expiresDate: cookie.expires?.millisecondsSinceEpoch,
-          // HttpOnly + Secure 的 cookie 服务端通常设 SameSite=None，
-          // 必须匹配 SameSite 否则 WebView 会创建重复 cookie
           sameSite: (cookie.httpOnly && cookie.secure)
               ? HTTPCookieSameSitePolicy.NONE
               : null,
@@ -90,6 +108,18 @@ class DefaultCookieStrategy extends PlatformCookieStrategy {
       written++;
     }
     return written;
+  }
+
+  /// 从 EnhancedPersistCookieJar 获取 cookie 的 Set-Cookie 头
+  /// 优先返回原始头（rawSetCookie），没有时从字段重建
+  Future<String?> loadSetCookieHeader(String name) async {
+    try {
+      final jar = CookieJarService();
+      final canonical = await jar.getCanonicalCookie(name);
+      return canonical?.toSetCookieHeader();
+    } catch (_) {
+      return null;
+    }
   }
 
   @override

@@ -49,9 +49,9 @@ class _PreheatGateState extends State<PreheatGate> {
 
   Future<bool> _preload() async {
     try {
-      // 迁移已在 main() 中执行完毕，这里只展示提示
-      if (MigrationService.didMigrate && mounted) {
-        _showMigrationToast();
+      // 迁移已在 main() 中执行完毕，这里展示提示
+      if (MigrationService.requiresRelogin && mounted) {
+        await _showReloginDialog();
       }
 
       await PreloadedDataService().ensureLoaded();
@@ -68,16 +68,24 @@ class _PreheatGateState extends State<PreheatGate> {
     }
   }
 
-  void _showMigrationToast() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(
-          content: Text(S.current.migration_cookieUpgrade),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    });
+  /// 弹出重新登录提示，用户确认后继续
+  Future<void> _showReloginDialog() async {
+    MigrationService.requiresRelogin = false; // 只弹一次
+    await showDialog(
+      // ignore: use_build_context_synchronously
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text(S.current.migration_title),
+        content: Text(S.current.migration_reloginRequired),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(S.current.common_confirm),
+          ),
+        ],
+      ),
+    );
   }
 
   void _retry() {

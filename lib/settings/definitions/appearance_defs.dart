@@ -53,18 +53,23 @@ List<SettingsGroup> buildAppearanceGroups(BuildContext context) {
           builder: (context, ref) {
             final themeState = ref.watch(themeProvider);
             final currentMode = themeState.mode;
-            final seedColor = themeState.seedColor;
+            final effectiveSeed = themeState.useDynamicColor
+                ? (themeState.dynamicPrimary ?? themeState.seedColor)
+                : themeState.seedColor;
             final theme = Theme.of(context);
             final l10n = context.l10n;
 
             // 为每种模式生成预览配色
+            final variant = themeState.schemeVariant;
             final lightScheme = ColorScheme.fromSeed(
-              seedColor: seedColor,
+              seedColor: effectiveSeed,
               brightness: Brightness.light,
+              dynamicSchemeVariant: variant,
             );
             final darkScheme = ColorScheme.fromSeed(
-              seedColor: seedColor,
+              seedColor: effectiveSeed,
               brightness: Brightness.dark,
+              dynamicSchemeVariant: variant,
             );
 
             final modes = [
@@ -73,27 +78,33 @@ List<SettingsGroup> buildAppearanceGroups(BuildContext context) {
               (ThemeMode.dark, Icons.dark_mode, l10n.appearance_modeDark, darkScheme),
             ];
 
-            return Row(
-              children: [
-                for (int i = 0; i < modes.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 12),
-                  Expanded(
-                    child: _ThemeModeCard(
-                      mode: modes[i].$1,
-                      icon: modes[i].$2,
-                      label: modes[i].$3,
-                      previewScheme: modes[i].$4,
-                      lightScheme: lightScheme,
-                      darkScheme: darkScheme,
-                      isSelected: modes[i].$1 == currentMode,
-                      currentTheme: theme,
-                      onTap: () => ref
-                          .read(themeProvider.notifier)
-                          .setThemeMode(modes[i].$1),
-                    ),
-                  ),
-                ],
-              ],
+            return Align(
+              alignment: Alignment.centerLeft,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Row(
+                  children: [
+                    for (int i = 0; i < modes.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 12),
+                      Expanded(
+                        child: _ThemeModeCard(
+                          mode: modes[i].$1,
+                          icon: modes[i].$2,
+                          label: modes[i].$3,
+                          previewScheme: modes[i].$4,
+                          lightScheme: lightScheme,
+                          darkScheme: darkScheme,
+                          isSelected: modes[i].$1 == currentMode,
+                          currentTheme: theme,
+                          onTap: () => ref
+                              .read(themeProvider.notifier)
+                              .setThemeMode(modes[i].$1),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             );
           },
         ),
@@ -679,7 +690,7 @@ class _SplitThemePreviewPainter extends CustomPainter {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// 主题色选择器（含方案变体 + 自定义色 + 长按删除）
+// 主题色选择器
 // ══════════════════════════════════════════════════════════════════
 
 class _ThemeColorSection extends ConsumerStatefulWidget {
@@ -691,6 +702,31 @@ class _ThemeColorSection extends ConsumerStatefulWidget {
 
 class _ThemeColorSectionState extends ConsumerState<_ThemeColorSection> {
   Color? _removableColor;
+  final ScrollController _variantScrollCtrl = ScrollController();
+  bool _didInitialScroll = false;
+
+  @override
+  void dispose() {
+    _variantScrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _scrollToSelectedVariant(DynamicSchemeVariant variant) {
+    if (!_variantScrollCtrl.hasClients) return;
+    final index = DynamicSchemeVariant.values.indexOf(variant);
+    const itemW = 96.0;
+    const gap = 10.0;
+    final targetOffset = index * (itemW + gap);
+    final viewport = _variantScrollCtrl.position.viewportDimension;
+    final maxScroll = _variantScrollCtrl.position.maxScrollExtent;
+    // 尽量让选中项居中显示
+    final centered = (targetOffset - (viewport - itemW) / 2).clamp(0.0, maxScroll);
+    _variantScrollCtrl.animateTo(
+      centered,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -701,53 +737,88 @@ class _ThemeColorSectionState extends ConsumerState<_ThemeColorSection> {
     final currentColor = themeState.seedColor;
     final variant = themeState.schemeVariant;
     final customColors = themeState.customColors;
+    final dynamicPrimary = themeState.dynamicPrimary;
+
+    final effectiveSeed = isDynamic
+        ? (dynamicPrimary ?? cs.primary)
+        : currentColor;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 方案变体 chip
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final v in DynamicSchemeVariant.values)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: ChoiceChip(
-                    label: Text(_variantLabel(context, v)),
-                    selected: v == variant,
-                    onSelected: (_) =>
-                        ref.read(themeProvider.notifier).setSchemeVariant(v),
-                    visualDensity: VisualDensity.compact,
-                    labelStyle: theme.textTheme.labelSmall,
-                  ),
-                ),
-            ],
+        // ── 配色风格横向滚动 ──
+        Text(
+          context.l10n.appearance_schemeVariant,
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: cs.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 12),
+        SizedBox(
+          height: 76,
+          child: ShaderMask(
+            shaderCallback: (Rect rect) {
+              return const LinearGradient(
+                colors: [Colors.black, Colors.black, Colors.transparent],
+                stops: [0.0, 0.88, 1.0],
+              ).createShader(rect);
+            },
+            blendMode: BlendMode.dstIn,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // 首次构建后自动滚动到选中项
+                if (!_didInitialScroll) {
+                  _didInitialScroll = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _scrollToSelectedVariant(variant);
+                  });
+                }
+                return ListView.separated(
+                  controller: _variantScrollCtrl,
+                  scrollDirection: Axis.horizontal,
+                  itemCount: DynamicSchemeVariant.values.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 10),
+                  // 右侧额外留白让渐隐效果下最后一项完整可见
+                  padding: const EdgeInsets.only(right: 48),
+                  itemBuilder: (context, index) {
+                    final v = DynamicSchemeVariant.values[index];
+                    return _VariantChip(
+                      variant: v,
+                      seedColor: effectiveSeed,
+                      isSelected: v == variant,
+                      label: _variantLabel(context, v),
+                      onTap: () {
+                        ref.read(themeProvider.notifier).setSchemeVariant(v);
+                        _scrollToSelectedVariant(v);
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
 
-        // 颜色网格
+        // ── 颜色网格 ──
         LayoutBuilder(
           builder: (context, constraints) {
-            const itemSize = 64.0;
-            const spacing = 12.0;
-            final columns =
-                ((constraints.maxWidth + spacing) / (itemSize + spacing))
-                    .floor()
-                    .clamp(3, 10);
-            final actualSpacing =
-                (constraints.maxWidth - columns * itemSize) / (columns - 1);
+            final maxWidth = constraints.maxWidth;
+            final columns = (maxWidth / 88).floor().clamp(3, 6);
+            const spacing = 14.0;
+            final itemWidth =
+                (maxWidth - (columns - 1) * spacing) / columns;
 
             return Wrap(
-              spacing: actualSpacing,
-              runSpacing: actualSpacing,
+              spacing: spacing,
+              runSpacing: spacing,
               children: [
                 // 动态色
-                _ColorTile(
-                  size: itemSize,
+                _ColorSwatchCard(
+                  size: itemWidth,
                   isSelected: isDynamic,
                   isDynamic: true,
+                  dynamicPrimary: dynamicPrimary,
                   variant: variant,
                   onTap: () {
                     setState(() => _removableColor = null);
@@ -756,8 +827,8 @@ class _ThemeColorSectionState extends ConsumerState<_ThemeColorSection> {
                 ),
                 // 预设色
                 for (final color in ThemeNotifier.presetColors)
-                  _ColorTile(
-                    size: itemSize,
+                  _ColorSwatchCard(
+                    size: itemWidth,
                     seedColor: color,
                     isSelected: !isDynamic &&
                         color.toARGB32() == currentColor.toARGB32(),
@@ -769,56 +840,59 @@ class _ThemeColorSectionState extends ConsumerState<_ThemeColorSection> {
                   ),
                 // 自定义色
                 for (final color in customColors)
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      _ColorTile(
-                        size: itemSize,
-                        seedColor: color,
-                        isSelected: !isDynamic &&
-                            color.toARGB32() == currentColor.toARGB32(),
-                        variant: variant,
-                        onTap: () {
-                          setState(() => _removableColor = null);
-                          ref.read(themeProvider.notifier).setSeedColor(color);
-                        },
-                        onLongPress: () =>
-                            setState(() => _removableColor = color),
-                      ),
-                      if (_removableColor?.toARGB32() == color.toARGB32())
-                        Positioned.fill(
-                          child: GestureDetector(
-                            onTap: () async {
-                              ref
-                                  .read(themeProvider.notifier)
-                                  .removeCustomColor(color);
-                              setState(() => _removableColor = null);
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.black45,
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Icon(Icons.delete_rounded,
-                                  color: Colors.white, size: 22),
+                  SizedBox(
+                    width: itemWidth,
+                    height: itemWidth,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      clipBehavior: Clip.none,
+                      children: [
+                        _ColorSwatchCard(
+                          size: itemWidth,
+                          seedColor: color,
+                          isSelected: !isDynamic &&
+                              color.toARGB32() == currentColor.toARGB32(),
+                          variant: variant,
+                          onTap: () {
+                            setState(() => _removableColor = null);
+                            ref
+                                .read(themeProvider.notifier)
+                                .setSeedColor(color);
+                          },
+                          onLongPress: () =>
+                              setState(() => _removableColor = color),
+                        ),
+                        if (_removableColor?.toARGB32() == color.toARGB32())
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black45,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: IconButton.filledTonal(
+                              onPressed: () {
+                                ref
+                                    .read(themeProvider.notifier)
+                                    .removeCustomColor(color);
+                                setState(() => _removableColor = null);
+                              },
+                              iconSize: 28,
+                              icon: Icon(Icons.delete, color: cs.primary),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 // 添加按钮
                 if (_removableColor == null)
                   SizedBox(
-                    width: itemSize,
-                    height: itemSize,
-                    child: Material(
-                      color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(14),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(14),
-                        onTap: () => _showColorPicker(context),
-                        child: Icon(Icons.add_rounded,
-                            color: cs.onSurfaceVariant, size: 24),
+                    width: itemWidth,
+                    height: itemWidth,
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: IconButton.filledTonal(
+                        onPressed: () => _showColorPicker(context),
+                        iconSize: 28,
+                        icon: Icon(Icons.add, color: cs.primary),
                       ),
                     ),
                   ),
@@ -830,20 +904,41 @@ class _ThemeColorSectionState extends ConsumerState<_ThemeColorSection> {
     );
   }
 
+  // ── 自定义取色弹框 ──
+
   void _showColorPicker(BuildContext context) {
     double hue = 0;
     double saturation = 0.8;
     double value = 0.9;
+    final hexController = TextEditingController(text: 'E57373');
+
+    void syncHex() {
+      final color =
+          HSVColor.fromAHSV(1.0, hue, saturation, value).toColor();
+      hexController.text = color
+          .toARGB32()
+          .toRadixString(16)
+          .substring(2)
+          .toUpperCase();
+    }
+
+    syncHex();
 
     showModalBottomSheet<Color>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             final color =
                 HSVColor.fromAHSV(1.0, hue, saturation, value).toColor();
-            final scheme = ColorScheme.fromSeed(seedColor: color);
+            final variant = ref.read(themeProvider).schemeVariant;
+            final scheme = ColorScheme.fromSeed(
+              seedColor: color,
+              dynamicSchemeVariant: variant,
+              brightness: Theme.of(context).brightness,
+            );
 
             return SafeArea(
               child: Padding(
@@ -851,55 +946,165 @@ class _ThemeColorSectionState extends ConsumerState<_ThemeColorSection> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 预览
+                    // 配色预览 + HEX
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _SchemePreviewTile(scheme: scheme, size: 48),
+                        // 迷你色卡（与网格色卡完全一致的比例和样式）
+                        Container(
+                          width: 60,
+                          height: 60,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            color: scheme.surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: scheme.primary,
+                              width: 2,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                flex: 7,
+                                child: ColoredBox(color: scheme.primary),
+                              ),
+                              Expanded(
+                                flex: 3,
+                                child: Center(
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _miniDot(scheme.primary),
+                                      const SizedBox(width: 5),
+                                      _miniDot(scheme.secondary),
+                                      const SizedBox(width: 5),
+                                      _miniDot(scheme.tertiary),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         const SizedBox(width: 16),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                            Text(
-                              'H:${hue.round()} S:${(saturation * 100).round()}% V:${(value * 100).round()}%',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // HEX 输入
+                              Row(
+                                children: [
+                                  Text(
+                                    '#',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: hexController,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            fontFamily: 'monospace',
+                                          ),
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        border: InputBorder.none,
+                                        contentPadding: EdgeInsets.zero,
+                                      ),
+                                      onSubmitted: (hex) {
+                                        final parsed = int.tryParse(
+                                            'FF$hex', radix: 16);
+                                        if (parsed != null) {
+                                          final c = Color(parsed);
+                                          final hsv = HSVColor.fromColor(c);
+                                          setSheetState(() {
+                                            hue = hsv.hue;
+                                            saturation = hsv.saturation;
+                                            value = hsv.value;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'H:${hue.round()}\u00B0  '
+                                'S:${(saturation * 100).round()}%  '
+                                'B:${(value * 100).round()}%',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
 
-                    // 色相
-                    _buildSliderRow(
-                      context, 'H', hue, 0, 360,
-                      activeColor: HSVColor.fromAHSV(1, hue, 1, 1).toColor(),
-                      onChanged: (v) => setSheetState(() => hue = v),
+                    // 色相条
+                    _HueBar(
+                      hue: hue,
+                      onChanged: (h) {
+                        setSheetState(() => hue = h);
+                        syncHex();
+                      },
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 16),
+
                     // 饱和度
-                    _buildSliderRow(
-                      context, 'S', saturation, 0, 1,
-                      activeColor: HSVColor.fromAHSV(1, hue, saturation, 1).toColor(),
-                      onChanged: (v) => setSheetState(() => saturation = v),
+                    _GradientSlider(
+                      label: 'S',
+                      value: saturation,
+                      thumbColor: HSVColor.fromAHSV(1, hue, saturation, 1)
+                          .toColor(),
+                      gradientColors: [
+                        HSVColor.fromAHSV(1, hue, 0, value).toColor(),
+                        HSVColor.fromAHSV(1, hue, 1, value).toColor(),
+                      ],
+                      onChanged: (s) {
+                        setSheetState(() => saturation = s);
+                        syncHex();
+                      },
                     ),
-                    const SizedBox(height: 8),
-                    // 明度
-                    _buildSliderRow(
-                      context, 'V', value, 0, 1,
-                      activeColor: HSVColor.fromAHSV(1, hue, 0, value).toColor(),
-                      onChanged: (v) => setSheetState(() => value = v),
-                    ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
 
-                    // 确认按钮
+                    // 明度
+                    _GradientSlider(
+                      label: 'B',
+                      value: value,
+                      thumbColor: HSVColor.fromAHSV(1, hue, saturation, value)
+                          .toColor(),
+                      gradientColors: [
+                        HSVColor.fromAHSV(1, hue, saturation, 0).toColor(),
+                        HSVColor.fromAHSV(1, hue, saturation, 1).toColor(),
+                      ],
+                      onChanged: (v) {
+                        setSheetState(() => value = v);
+                        syncHex();
+                      },
+                    ),
+                    const SizedBox(height: 24),
+
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
@@ -915,6 +1120,7 @@ class _ThemeColorSectionState extends ConsumerState<_ThemeColorSection> {
         );
       },
     ).then((color) {
+      hexController.dispose();
       if (color != null) {
         ref.read(themeProvider.notifier).addCustomColor(color);
         ref.read(themeProvider.notifier).setSeedColor(color);
@@ -922,41 +1128,11 @@ class _ThemeColorSectionState extends ConsumerState<_ThemeColorSection> {
     });
   }
 
-  Widget _buildSliderRow(
-    BuildContext context,
-    String label,
-    double value,
-    double min,
-    double max, {
-    required Color activeColor,
-    required ValueChanged<double> onChanged,
-  }) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 16,
-          child: Text(label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  )),
-        ),
-        Expanded(
-          child: SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 6,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-              activeTrackColor: activeColor,
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-            ),
-            child: Slider(
-              value: value,
-              min: min,
-              max: max,
-              onChanged: onChanged,
-            ),
-          ),
-        ),
-      ],
+  static Widget _miniDot(Color color) {
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 
@@ -976,21 +1152,120 @@ class _ThemeColorSectionState extends ConsumerState<_ThemeColorSection> {
   }
 }
 
-/// 单个颜色方格：三色预览（primary/secondary/tertiary）
-class _ColorTile extends StatelessWidget {
+// ══════════════════════════════════════════════════════════════════
+// 配色风格横向滚动卡片
+// ══════════════════════════════════════════════════════════════════
+
+class _VariantChip extends StatelessWidget {
+  final DynamicSchemeVariant variant;
+  final Color seedColor;
+  final bool isSelected;
+  final String label;
+  final VoidCallback onTap;
+
+  const _VariantChip({
+    required this.variant,
+    required this.seedColor,
+    required this.isSelected,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final scheme = ColorScheme.fromSeed(
+      seedColor: seedColor,
+      dynamicSchemeVariant: variant,
+      brightness: Theme.of(context).brightness,
+    );
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 96,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? scheme.primary : cs.outlineVariant.withValues(alpha: 0.3),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // primary 色块 — 填满剩余空间
+            Expanded(child: ColoredBox(color: scheme.primary)),
+            // 配色圆点
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _dot(scheme.primary, 5),
+                  const SizedBox(width: 3),
+                  _dot(scheme.secondary, 5),
+                  const SizedBox(width: 3),
+                  _dot(scheme.tertiary, 5),
+                ],
+              ),
+            ),
+            // 标签
+            Padding(
+              padding: const EdgeInsets.only(bottom: 5, left: 4, right: 4),
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: isSelected ? scheme.primary : cs.onSurfaceVariant,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Widget _dot(Color color, double d) {
+    return Container(
+      width: d,
+      height: d,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 色卡（选色网格中的单张色卡，上方 primary 填充，下方 3 配色圆点）
+// ══════════════════════════════════════════════════════════════════
+
+class _ColorSwatchCard extends StatelessWidget {
   final double size;
   final Color? seedColor;
   final bool isSelected;
   final bool isDynamic;
+  final Color? dynamicPrimary;
   final DynamicSchemeVariant variant;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
-  const _ColorTile({
+  const _ColorSwatchCard({
     required this.size,
     this.seedColor,
     required this.isSelected,
     this.isDynamic = false,
+    this.dynamicPrimary,
     required this.variant,
     required this.onTap,
     this.onLongPress,
@@ -998,7 +1273,14 @@ class _ColorTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final effectiveSeed = isDynamic
+        ? (dynamicPrimary ?? Theme.of(context).colorScheme.primary)
+        : seedColor!;
+    final tileScheme = ColorScheme.fromSeed(
+      seedColor: effectiveSeed,
+      dynamicSchemeVariant: variant,
+      brightness: Theme.of(context).brightness,
+    );
 
     return GestureDetector(
       onTap: onTap,
@@ -1007,170 +1289,261 @@ class _ColorTile extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         width: size,
         height: size,
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
+          color: tileScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? cs.primary : cs.outlineVariant.withValues(alpha: 0.3),
+            color: isSelected ? tileScheme.primary : tileScheme.outlineVariant.withValues(alpha: 0.3),
             width: isSelected ? 2 : 1,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: cs.primary.withValues(alpha: 0.3),
-                    blurRadius: 6,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : null,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(isSelected ? 12 : 13),
-          child: isDynamic ? _buildDynamicPreview() : _buildSchemePreview(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDynamicPreview() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: SweepGradient(
-          colors: [
-            Colors.blue,
-            Colors.purple,
-            Colors.pink,
-            Colors.orange,
-            Colors.amber,
-            Colors.green,
-            Colors.teal,
-            Colors.blue,
+          child: Column(
+          children: [
+            // 上方 ~70%: primary 色填充
+            Expanded(
+              flex: 7,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ColoredBox(color: tileScheme.primary),
+                  if (isSelected)
+                    Container(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.check_circle_rounded,
+                        color: tileScheme.onPrimary,
+                        size: 26,
+                      ),
+                    ),
+                  // 动态色标识（右上角）
+                  if (isDynamic)
+                    Positioned(
+                      top: 5,
+                      right: 5,
+                      child: Icon(
+                        Icons.auto_awesome,
+                        size: 14,
+                        color: tileScheme.onPrimary.withValues(alpha: 0.85),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // 下方 ~30%: 配色圆点（所有色卡样式统一）
+            Expanded(
+              flex: 3,
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _colorDot(tileScheme.primary),
+                    const SizedBox(width: 5),
+                    _colorDot(tileScheme.secondary),
+                    const SizedBox(width: 5),
+                    _colorDot(tileScheme.tertiary),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
-      child: const Center(
-        child: Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-      ),
     );
   }
 
-  Widget _buildSchemePreview() {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: seedColor!,
-      dynamicSchemeVariant: variant,
-    );
-
+  static Widget _colorDot(Color color) {
     return Container(
-      color: scheme.primary,
-      child: Stack(
-        children: [
-          // 底部两个圆角药丸：secondary + tertiary
-          Positioned(
-            left: 5,
-            right: 5,
-            bottom: 5,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: scheme.secondary,
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Container(
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: scheme.tertiary,
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 色相条（彩虹渐变 + 滑块）
+// ══════════════════════════════════════════════════════════════════
+
+class _HueBar extends StatelessWidget {
+  final double hue;
+  final ValueChanged<double> onChanged;
+
+  const _HueBar({required this.hue, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 36,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFFFF0000),
+            Color(0xFFFFFF00),
+            Color(0xFF00FF00),
+            Color(0xFF00FFFF),
+            Color(0xFF0000FF),
+            Color(0xFFFF00FF),
+            Color(0xFFFF0000),
+          ],
+        ),
+      ),
+      child: SliderTheme(
+        data: SliderTheme.of(context).copyWith(
+          trackHeight: 36,
+          trackShape: const _TransparentTrackShape(),
+          thumbShape: _HueThumbShape(
+            color: HSVColor.fromAHSV(1, hue, 1, 1).toColor(),
           ),
-          // 右上角 primaryContainer 小圆点
-          Positioned(
-            top: 6,
-            right: 6,
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: scheme.primaryContainer,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        ],
+          overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
+        ),
+        child: Slider(
+          value: hue,
+          min: 0,
+          max: 360,
+          onChanged: onChanged,
+        ),
       ),
     );
   }
 }
 
-/// 调色板预览方格（与 _ColorTile 风格一致）
-class _SchemePreviewTile extends StatelessWidget {
-  final ColorScheme scheme;
-  final double size;
+class _HueThumbShape extends SliderComponentShape {
+  final Color color;
+  const _HueThumbShape({required this.color});
 
-  const _SchemePreviewTile({required this.scheme, required this.size});
+  @override
+  Size getPreferredSize(bool isEnabled, bool isDiscrete) =>
+      const Size(28, 28);
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset center, {
+    required Animation<double> activationAnimation,
+    required Animation<double> enableAnimation,
+    required bool isDiscrete,
+    required TextPainter labelPainter,
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required TextDirection textDirection,
+    required double value,
+    required double textScaleFactor,
+    required Size sizeWithOverflow,
+  }) {
+    final canvas = context.canvas;
+    // 外圈白色描边
+    canvas.drawCircle(
+      center,
+      14,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+    );
+    canvas.drawCircle(center, 14, Paint()..color = Colors.white);
+    // 内圈填充色
+    canvas.drawCircle(center, 11, Paint()..color = color);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 渐变滑块（饱和度 / 明度）
+// ══════════════════════════════════════════════════════════════════
+
+class _GradientSlider extends StatelessWidget {
+  final String label;
+  final double value;
+  final Color thumbColor;
+  final List<Color> gradientColors;
+  final ValueChanged<double> onChanged;
+
+  const _GradientSlider({
+    required this.label,
+    required this.value,
+    required this.thumbColor,
+    required this.gradientColors,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: scheme.primary,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            left: 4,
-            right: 4,
-            bottom: 4,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: scheme.secondary,
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 3),
-                Expanded(
-                  child: Container(
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: scheme.tertiary,
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                  ),
-                ),
-              ],
+    final theme = Theme.of(context);
+
+    return Row(
+      children: [
+        SizedBox(
+          width: 20,
+          child: Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          Positioned(
-            top: 5,
-            right: 5,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: scheme.primaryContainer,
-                shape: BoxShape.circle,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Container(
+            height: 28,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              gradient: LinearGradient(colors: gradientColors),
+            ),
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 28,
+                trackShape: const _TransparentTrackShape(),
+                thumbShape: _HueThumbShape(color: thumbColor),
+                overlayShape:
+                    const RoundSliderOverlayShape(overlayRadius: 18),
+              ),
+              child: Slider(
+                value: value,
+                onChanged: onChanged,
               ),
             ),
           ),
-        ],
-      ),
+        ),
+        SizedBox(
+          width: 44,
+          child: Text(
+            '${(value * 100).round()}%',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
+            ),
+            textAlign: TextAlign.end,
+          ),
+        ),
+      ],
     );
+  }
+}
+
+/// 透明轨道，让渐变背景可见
+class _TransparentTrackShape extends RoundedRectSliderTrackShape {
+  const _TransparentTrackShape();
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required TextDirection textDirection,
+    required Offset thumbCenter,
+    Offset? secondaryOffset,
+    bool isDiscrete = false,
+    bool isEnabled = false,
+    double additionalActiveTrackHeight = 0,
+  }) {
+    // 不绘制，让背景渐变可见
   }
 }

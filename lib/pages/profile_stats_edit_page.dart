@@ -1,46 +1,58 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/profile_stats_config.dart';
 import '../models/user.dart';
-import '../models/directory_item.dart';
 import '../models/connect_stats.dart';
 import '../providers/core_providers.dart';
 import '../providers/directory_providers.dart';
 import '../providers/profile_stats_provider.dart';
 import '../widgets/profile_stats_card.dart';
+import '../widgets/common/loading_spinner.dart';
 import '../l10n/s.dart';
 
 /// 统计卡片编辑页
-class ProfileStatsEditPage extends ConsumerWidget {
+class ProfileStatsEditPage extends ConsumerStatefulWidget {
   const ProfileStatsEditPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfileStatsEditPage> createState() => _ProfileStatsEditPageState();
+}
+
+class _ProfileStatsEditPageState extends ConsumerState<ProfileStatsEditPage> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final config = ref.watch(profileStatsConfigProvider);
-    final theme = Theme.of(context);
+    final notifier = ref.read(profileStatsConfigProvider.notifier);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(S.current.profileStats_editTitle),
         actions: [
-          // 重置按钮
           TextButton(
-            onPressed: () {
-              ref.read(profileStatsConfigProvider.notifier).update(
-                const ProfileStatsConfig(),
-              );
-            },
+            onPressed: () => notifier.update(const ProfileStatsConfig()),
             child: Text(S.current.common_reset),
           ),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 48),
         children: [
-          // 实时预览
-          _SectionHeader(title: S.current.common_preview),
-          const SizedBox(height: 8),
-          _PreviewSection(config: config),
+          // 预览（可拖拽排序）
+          _PreviewSection(
+            config: config,
+            onReorder: notifier.reorderStats,
+            scrollController: _scrollController,
+          ),
           const SizedBox(height: 24),
 
           // 数据源
@@ -49,33 +61,24 @@ class ProfileStatsEditPage extends ConsumerWidget {
           _DataSourceSelector(config: config),
           const SizedBox(height: 24),
 
+          // 统计项选择
+          _SectionHeader(
+            title: S.current.profileStats_selectItems,
+            trailing: Text(
+              '${config.enabledStats.length}',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _StatChipGrid(config: config),
+          const SizedBox(height: 24),
+
           // 布局设置
           _SectionHeader(title: S.current.profileStats_layoutSettings),
           const SizedBox(height: 8),
           _LayoutSettings(config: config),
-          const SizedBox(height: 24),
-
-          // 已添加项目
-          _SectionHeader(
-            title: S.current.profileStats_enabledItems,
-            trailing: config.enabledStats.isNotEmpty
-                ? Text(
-                    '${config.enabledStats.length}',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(height: 8),
-          _EnabledStatsSection(config: config),
-          const SizedBox(height: 24),
-
-          // 可添加项目
-          _SectionHeader(title: S.current.profileStats_availableItems),
-          const SizedBox(height: 8),
-          _AvailableStatsSection(config: config),
-          const SizedBox(height: 48),
         ],
       ),
     );
@@ -95,52 +98,97 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Row(
         children: [
-          Text(
-            title,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          if (trailing != null) ...[
-            const Spacer(),
-            trailing!,
-          ],
+          Text(title, style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.onSurfaceVariant,
+          )),
+          if (trailing != null) ...[const Spacer(), trailing!],
         ],
       ),
     );
   }
 }
 
-/// 预览区域
-class _PreviewSection extends ConsumerWidget {
+/// 预览区域（带防抖 + 拖拽排序支持）
+class _PreviewSection extends ConsumerStatefulWidget {
   final ProfileStatsConfig config;
-  const _PreviewSection({required this.config});
+  final void Function(int oldIndex, int newIndex)? onReorder;
+  final ScrollController? scrollController;
+  const _PreviewSection({required this.config, this.onReorder, this.scrollController});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final values = _resolvePreviewValues(ref, config);
-    return ProfileStatsCardPreview(
-      config: config,
-      values: values,
+  ConsumerState<_PreviewSection> createState() => _PreviewSectionState();
+}
+
+class _PreviewSectionState extends ConsumerState<_PreviewSection> {
+  late StatsDataSource _effectiveSource;
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _effectiveSource = widget.config.dataSource;
+  }
+
+  @override
+  void didUpdateWidget(_PreviewSection old) {
+    super.didUpdateWidget(old);
+    if (old.config.dataSource != widget.config.dataSource) {
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 300), () {
+        if (mounted) setState(() => _effectiveSource = widget.config.dataSource);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final displayConfig = widget.config.copyWith(dataSource: _effectiveSource);
+    final providerState = _watchSourceState(ref);
+    final isLoading = providerState.isLoading && !providerState.hasValue;
+    final hasError = providerState.hasError && !providerState.hasValue;
+
+    return Stack(
+      children: [
+        ProfileStatsCardPreview(
+          config: widget.config,
+          values: _resolveValues(ref, displayConfig),
+          onReorder: widget.onReorder,
+          scrollController: widget.scrollController,
+        ),
+        if (isLoading)
+          const Positioned(right: 12, bottom: 8, child: LoadingSpinner(size: 16)),
+        if (hasError)
+          Positioned(
+            right: 8, bottom: 6,
+            child: Tooltip(
+              message: S.current.profileStats_loadError,
+              child: Icon(Icons.error_outline_rounded, size: 16,
+                color: Theme.of(context).colorScheme.error.withValues(alpha: 0.6)),
+            ),
+          ),
+      ],
     );
   }
 
-  Map<ProfileStatType, int> _resolvePreviewValues(
-    WidgetRef ref,
-    ProfileStatsConfig config,
-  ) {
+  AsyncValue _watchSourceState(WidgetRef ref) {
+    switch (_effectiveSource) {
+      case StatsDataSource.summary:
+        return ref.watch(userSummaryProvider);
+      case StatsDataSource.connect:
+        return ref.watch(connectStatsProvider);
+    }
+  }
+
+  Map<ProfileStatType, int> _resolveValues(WidgetRef ref, ProfileStatsConfig config) {
     switch (config.dataSource) {
       case StatsDataSource.summary:
-        return _fromSummary(ref.watch(userSummaryProvider).value);
-      case StatsDataSource.daily:
-      case StatsDataSource.weekly:
-      case StatsDataSource.monthly:
-      case StatsDataSource.quarterly:
-      case StatsDataSource.yearly:
-        final period = getDirectoryPeriod(config.dataSource)!;
-        final d = ref.watch(directoryItemProvider(period)).value;
-        if (d != null) return _fromDirectory(d);
         return _fromSummary(ref.watch(userSummaryProvider).value);
       case StatsDataSource.connect:
         final c = ref.watch(connectStatsProvider).value;
@@ -165,19 +213,6 @@ class _PreviewSection extends ConsumerWidget {
     };
   }
 
-  Map<ProfileStatType, int> _fromDirectory(DirectoryItem d) {
-    return {
-      ProfileStatType.daysVisited: d.daysVisited,
-      ProfileStatType.postsReadCount: d.postsRead,
-      ProfileStatType.likesReceived: d.likesReceived,
-      ProfileStatType.likesGiven: d.likesGiven,
-      ProfileStatType.topicCount: d.topicCount,
-      ProfileStatType.postCount: d.postCount,
-      ProfileStatType.topicsEntered: d.topicsEntered,
-      if (d.timeRead != null) ProfileStatType.timeRead: d.timeRead!,
-    };
-  }
-
   Map<ProfileStatType, int> _fromConnect(ConnectStats c) {
     return {
       ProfileStatType.daysVisited: c.daysVisited,
@@ -192,7 +227,7 @@ class _PreviewSection extends ConsumerWidget {
   }
 }
 
-/// 数据源选择（横向 Chip 列表）
+/// 数据源选择
 class _DataSourceSelector extends ConsumerWidget {
   final ProfileStatsConfig config;
   const _DataSourceSelector({required this.config});
@@ -200,28 +235,68 @@ class _DataSourceSelector extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(profileStatsConfigProvider.notifier);
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final source in StatsDataSource.values) ...[
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(getDataSourceLabel(source)),
-                selected: config.dataSource == source,
-                onSelected: (_) => notifier.setDataSource(source),
-              ),
+    return Row(
+      children: [
+        for (final source in StatsDataSource.values)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(getDataSourceLabel(source)),
+              selected: config.dataSource == source,
+              onSelected: (_) => notifier.setDataSource(source),
             ),
-          ],
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
 
-/// 布局设置（紧凑的 Chip 行）
+/// 统计项 Chip 网格（点击切换选中/取消，排序通过预览卡片拖拽）
+class _StatChipGrid extends ConsumerWidget {
+  final ProfileStatsConfig config;
+  const _StatChipGrid({required this.config});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(profileStatsConfigProvider.notifier);
+    final selected = config.enabledStats;
+    final unselected = ProfileStatType.values
+        .where((s) => !selected.contains(s))
+        .toList();
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final stat in selected)
+          FilterChip(
+            label: Text(getStatLabel(stat)),
+            selected: true,
+            onSelected: (_) => notifier.removeStat(stat),
+            showCheckmark: false,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+          ),
+        for (final stat in unselected)
+          FilterChip(
+            label: Text(getStatLabel(stat)),
+            selected: false,
+            onSelected: !isStatCompatible(stat, config.dataSource)
+                ? null
+                : (_) => notifier.addStat(stat),
+            showCheckmark: false,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+            tooltip: !isStatCompatible(stat, config.dataSource)
+                ? S.current.profileStats_incompatibleSource
+                : null,
+          ),
+      ],
+    );
+  }
+}
+
+/// 布局设置
 class _LayoutSettings extends ConsumerWidget {
   final ProfileStatsConfig config;
   const _LayoutSettings({required this.config});
@@ -237,7 +312,6 @@ class _LayoutSettings extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // 布局模式
             _SettingRow(
               label: S.current.profileStats_layoutMode,
               child: SegmentedButton<StatsLayoutMode>(
@@ -254,8 +328,7 @@ class _LayoutSettings extends ConsumerWidget {
                   ),
                 ],
                 selected: {config.layoutMode},
-                onSelectionChanged: (set) =>
-                    notifier.setLayoutMode(set.first),
+                onSelectionChanged: (set) => notifier.setLayoutMode(set.first),
                 showSelectedIcon: false,
                 style: SegmentedButton.styleFrom(
                   visualDensity: VisualDensity.compact,
@@ -263,14 +336,9 @@ class _LayoutSettings extends ConsumerWidget {
                 ),
               ),
             ),
-
-            // 每行数量（仅网格模式）
             if (config.layoutMode == StatsLayoutMode.grid) ...[
-              Divider(
-                height: 24,
-                thickness: 0.5,
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
-              ),
+              Divider(height: 24, thickness: 0.5,
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
               _SettingRow(
                 label: S.current.profileStats_columnsPerRow,
                 child: SegmentedButton<int>(
@@ -280,8 +348,7 @@ class _LayoutSettings extends ConsumerWidget {
                     ButtonSegment(value: 4, label: Text('4')),
                   ],
                   selected: {config.columnsPerRow},
-                  onSelectionChanged: (set) =>
-                      notifier.setColumnsPerRow(set.first),
+                  onSelectionChanged: (set) => notifier.setColumnsPerRow(set.first),
                   showSelectedIcon: false,
                   style: SegmentedButton.styleFrom(
                     visualDensity: VisualDensity.compact,
@@ -297,7 +364,6 @@ class _LayoutSettings extends ConsumerWidget {
   }
 }
 
-/// 设置行（标签 + 控件）
 class _SettingRow extends StatelessWidget {
   final String label;
   final Widget child;
@@ -307,220 +373,11 @@ class _SettingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
+        Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          fontWeight: FontWeight.w500,
+        ))),
         child,
       ],
-    );
-  }
-}
-
-/// 已添加项目（可拖拽排序）
-class _EnabledStatsSection extends ConsumerWidget {
-  final ProfileStatsConfig config;
-  const _EnabledStatsSection({required this.config});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final notifier = ref.read(profileStatsConfigProvider.notifier);
-
-    if (config.enabledStats.isEmpty) {
-      return Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Center(
-            child: Column(
-              children: [
-                Icon(
-                  Icons.inbox_rounded,
-                  size: 32,
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  S.current.profileStats_noItemsSelected,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
-      child: ReorderableListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: config.enabledStats.length,
-        onReorder: notifier.reorderStats,
-        proxyDecorator: (child, index, animation) {
-          return AnimatedBuilder(
-            animation: animation,
-            builder: (context, child) {
-              return Material(
-                elevation: 2,
-                borderRadius: BorderRadius.circular(8),
-                child: child,
-              );
-            },
-            child: child,
-          );
-        },
-        itemBuilder: (context, index) {
-          final stat = config.enabledStats[index];
-          return Material(
-            key: ValueKey(stat),
-            color: Colors.transparent,
-            child: ListTile(
-              leading: ReorderableDragStartListener(
-                index: index,
-                child: Icon(
-                  Icons.drag_handle_rounded,
-                  color: theme.colorScheme.onSurfaceVariant
-                      .withValues(alpha: 0.4),
-                ),
-              ),
-              title: Text(
-                getStatLabel(stat),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              trailing: IconButton(
-                icon: Icon(
-                  Icons.remove_circle_outline_rounded,
-                  color: theme.colorScheme.error.withValues(alpha: 0.6),
-                  size: 22,
-                ),
-                onPressed: () => notifier.removeStat(stat),
-              ),
-              dense: true,
-              visualDensity: VisualDensity.compact,
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// 可添加项目
-class _AvailableStatsSection extends ConsumerWidget {
-  final ProfileStatsConfig config;
-  const _AvailableStatsSection({required this.config});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final notifier = ref.read(profileStatsConfigProvider.notifier);
-
-    final available = ProfileStatType.values
-        .where((stat) => !config.enabledStats.contains(stat))
-        .toList();
-
-    if (available.isEmpty) {
-      return Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Center(
-            child: Text(
-              S.current.profileStats_allItemsAdded,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          for (int i = 0; i < available.length; i++) ...[
-            if (i > 0)
-              Divider(
-                height: 1,
-                thickness: 0.5,
-                indent: 16,
-                endIndent: 16,
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
-              ),
-            _AvailableStatTile(
-              stat: available[i],
-              config: config,
-              notifier: notifier,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _AvailableStatTile extends StatelessWidget {
-  final ProfileStatType stat;
-  final ProfileStatsConfig config;
-  final ProfileStatsConfigNotifier notifier;
-  const _AvailableStatTile({
-    required this.stat,
-    required this.config,
-    required this.notifier,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final compatible = isStatCompatible(stat, config.dataSource);
-
-    return ListTile(
-      enabled: compatible,
-      title: Text(
-        getStatLabel(stat),
-        style: theme.textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w500,
-          color: compatible
-              ? null
-              : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
-        ),
-      ),
-      subtitle: compatible
-          ? null
-          : Text(
-              S.current.profileStats_incompatibleSource,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
-                fontSize: 11,
-              ),
-            ),
-      trailing: IconButton(
-        icon: Icon(
-          Icons.add_circle_outline_rounded,
-          color: compatible
-              ? theme.colorScheme.primary
-              : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.2),
-          size: 22,
-        ),
-        onPressed: compatible ? () => notifier.addStat(stat) : null,
-      ),
-      dense: true,
-      visualDensity: VisualDensity.compact,
     );
   }
 }

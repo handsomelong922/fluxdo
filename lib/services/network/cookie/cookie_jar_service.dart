@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io' as io;
 import 'package:cookie_jar/cookie_jar.dart';
+import 'package:enhanced_cookie_jar/enhanced_cookie_jar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
@@ -55,9 +56,9 @@ class CookieJarService {
         await cookieDir.create(recursive: true);
       }
 
-      _cookieJar = PersistCookieJar(
+      _cookieJar = EnhancedPersistCookieJar(
         ignoreExpires: false,
-        storage: FileStorage(cookiePath),
+        store: FileCookieStore(cookiePath),
       );
 
       _initialized = true;
@@ -107,8 +108,9 @@ class CookieJarService {
     for (final entry in collected.entries) {
       final sorted = [...entry.value]
         ..sort((a, b) {
-          if (a.domain != null && b.domain == null) return -1;
-          if (a.domain == null && b.domain != null) return 1;
+          // host-only（domain == null）优先，与 _mergeCookies 策略一致
+          if (a.domain == null && b.domain != null) return -1;
+          if (a.domain != null && b.domain == null) return 1;
           return 0;
         });
       final seen = <String>{};
@@ -144,6 +146,35 @@ class CookieJarService {
       cookieNames: cookieNames,
     );
     await _coordinator!.syncFromWebView(ctx);
+  }
+
+  /// 从 CookieJar 同步 Cookie 到 WebView
+  Future<void> syncToWebView({
+    String? currentUrl,
+    InAppWebViewController? controller,
+  }) async {
+    if (!_initialized) await initialize();
+
+    final ctx = await _buildSyncContext(
+      currentUrl: currentUrl,
+      controller: controller,
+    );
+    await _coordinator!.syncToWebView(ctx);
+  }
+
+  /// Windows 专用：通过页面级 controller 的 CDP 直接写入 CookieJar 中的 cookie
+  Future<void> syncToWebViewViaController(
+    InAppWebViewController controller, {
+    String? currentUrl,
+  }) async {
+    if (!io.Platform.isWindows) return;
+    if (!_initialized) await initialize();
+
+    final ctx = await _buildSyncContext(
+      currentUrl: currentUrl,
+      controller: controller,
+    );
+    await _coordinator!.syncToWebViewViaController(controller, ctx);
   }
 
   /// 从当前 WebView 控制器的实时 Cookie 中读取指定值
@@ -206,6 +237,46 @@ class CookieJarService {
       debugPrint('[CookieJar] Failed to get cookie $name: $e');
     }
     return null;
+  }
+
+  Future<List<CanonicalCookie>> loadCanonicalCookiesForRequest(Uri uri) async {
+    if (!_initialized) await initialize();
+    final jar = _cookieJar;
+    if (jar is EnhancedPersistCookieJar) {
+      return jar.loadCanonicalForRequest(uri);
+    }
+    final cookies = await _cookieJar!.loadForRequest(uri);
+    return cookies
+        .map(
+          (cookie) => CanonicalCookie(
+            name: cookie.name,
+            value: CookieValueCodec.decode(cookie.value),
+            domain: cookie.domain,
+            path: cookie.path ?? '/',
+            expiresAt: cookie.expires?.toUtc(),
+            maxAge: cookie.maxAge,
+            secure: cookie.secure,
+            httpOnly: cookie.httpOnly,
+            hostOnly: cookie.domain == null || cookie.domain!.trim().isEmpty,
+            persistent: cookie.expires != null || cookie.maxAge != null,
+            originUrl: uri.toString(),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<CanonicalCookie?> getCanonicalCookie(String name) async {
+    if (!_initialized) await initialize();
+    final uri = Uri.parse(AppConstants.baseUrl);
+    final cookies = await loadCanonicalCookiesForRequest(uri);
+
+    CanonicalCookie? fallback;
+    for (final cookie in cookies) {
+      if (cookie.name != name) continue;
+      if (cookie.domain == null) return cookie;
+      fallback ??= cookie;
+    }
+    return fallback;
   }
 
   /// 设置 Cookie
@@ -406,6 +477,7 @@ class CookieJarService {
   Future<String?> getCfClearance() => getCookieValue('cf_clearance');
 
   /// 获取 cf_clearance 的原始 Cookie 对象
+  /// 优先 host-only cookie（与 getCookieValue 策略一致）
   Future<io.Cookie?> getCfClearanceCookie() async {
     if (!_initialized) await initialize();
     try {
@@ -414,7 +486,7 @@ class CookieJarService {
       io.Cookie? fallback;
       for (final cookie in cookies) {
         if (cookie.name == 'cf_clearance') {
-          if (cookie.domain != null) return cookie;
+          if (cookie.domain == null) return cookie;
           fallback ??= cookie;
         }
       }
@@ -552,6 +624,21 @@ class CookieJarService {
         }
       } catch (e) {
         debugPrint('[CookieJar] Failed to read cookie index: $e');
+      }
+    }
+    if (jar is EnhancedPersistCookieJar) {
+      try {
+        final cookies = await jar.readAllCookies();
+        for (final cookie in cookies) {
+          final normalizedHost = cookie.normalizedDomain;
+          if (normalizedHost != null &&
+              normalizedHost.isNotEmpty &&
+              isRelatedHost(normalizedHost)) {
+            hosts.add(normalizedHost);
+          }
+        }
+      } catch (e) {
+        debugPrint('[CookieJar] Failed to read enhanced cookie store: $e');
       }
     }
     final relatedHosts = hosts.toList()..sort();

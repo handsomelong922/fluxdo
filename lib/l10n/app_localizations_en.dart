@@ -3516,6 +3516,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearance_colorAmber => 'Amber';
 
   @override
+  String get appearance_schemeVariant => 'Color Scheme';
+
+  @override
   String get appearance_font => 'Font';
 
   @override
@@ -5650,6 +5653,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileStats_availableItems => 'Available Items';
 
   @override
+  String get profileStats_selectItems => 'Stats Items';
+
+  @override
   String get profileStats_noItemsSelected => 'No items selected';
 
   @override
@@ -5665,6 +5671,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get profileStats_incompatibleSource =>
       'Incompatible with current data source';
+
+  @override
+  String get profileStats_loadError =>
+      'Failed to load, fell back to all-time stats';
 
   @override
   String get profileStats_daysVisited => 'Days Visited';
@@ -5725,4 +5735,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileStats_sourceConnect => 'Trust Period';
+
+  @override
+  String get migration_reloginRequired =>
+      'Cookie storage has been upgraded. Your login session was cleared. Please log in again.';
 }

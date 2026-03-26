@@ -3460,6 +3460,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearance_colorAmber => '琥珀';
 
   @override
+  String get appearance_schemeVariant => '配色风格';
+
+  @override
   String get appearance_font => '字体';
 
   @override
@@ -5524,6 +5527,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileStats_availableItems => '可添加项目';
 
   @override
+  String get profileStats_selectItems => '统计项目';
+
+  @override
   String get profileStats_noItemsSelected => '未选择任何统计项';
 
   @override
@@ -5537,6 +5543,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get profileStats_incompatibleSource => '不兼容当前数据源';
+
+  @override
+  String get profileStats_loadError => '数据加载失败，已回退到全量统计';
 
   @override
   String get profileStats_daysVisited => '访问天数';
@@ -5597,6 +5606,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get profileStats_sourceConnect => '信任等级周期';
+
+  @override
+  String get migration_reloginRequired =>
+      '本次版本升级优化了 Cookie 存储机制，已清除旧的登录状态。请重新登录。';
 }
 
 /// The translations for Chinese, as used in Hong Kong (`zh_HK`).
@@ -9055,6 +9068,9 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get appearance_colorAmber => '琥珀';
 
   @override
+  String get appearance_schemeVariant => '配色風格';
+
+  @override
   String get appearance_font => '字體';
 
   @override
@@ -10998,6 +11014,9 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get profileStats_availableItems => '可添加項目';
 
   @override
+  String get profileStats_selectItems => '統計項目';
+
+  @override
   String get profileStats_noItemsSelected => '未選擇任何統計項';
 
   @override
@@ -11011,6 +11030,9 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
 
   @override
   String get profileStats_incompatibleSource => '不兼容當前數據來源';
+
+  @override
+  String get profileStats_loadError => '數據加載失敗，已回退到全量統計';
 
   @override
   String get profileStats_daysVisited => '訪問天數';
@@ -11071,6 +11093,10 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
 
   @override
   String get profileStats_sourceConnect => '信任等級週期';
+
+  @override
+  String get migration_reloginRequired =>
+      '本次版本升級優化了 Cookie 儲存機制，已清除舊的登入狀態。請重新登入。';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -14529,6 +14555,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get appearance_colorAmber => '琥珀';
 
   @override
+  String get appearance_schemeVariant => '配色風格';
+
+  @override
   String get appearance_font => '字體';
 
   @override
@@ -16472,6 +16501,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get profileStats_availableItems => '可新增項目';
 
   @override
+  String get profileStats_selectItems => '統計項目';
+
+  @override
   String get profileStats_noItemsSelected => '未選擇任何統計項';
 
   @override
@@ -16485,6 +16517,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get profileStats_incompatibleSource => '不相容目前資料來源';
+
+  @override
+  String get profileStats_loadError => '資料載入失敗，已回退到全量統計';
 
   @override
   String get profileStats_daysVisited => '造訪天數';
@@ -16545,4 +16580,8 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get profileStats_sourceConnect => '信任等級週期';
+
+  @override
+  String get migration_reloginRequired =>
+      '本次版本升級優化了 Cookie 儲存機制，已清除舊的登入狀態。請重新登入。';
 }

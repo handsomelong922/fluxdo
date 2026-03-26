@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/profile_stats_config.dart';
 import 'theme_provider.dart'; // sharedPreferencesProvider
@@ -6,6 +7,7 @@ const String _configKey = 'profile_stats_config';
 
 /// 统计卡片配置 Provider
 class ProfileStatsConfigNotifier extends Notifier<ProfileStatsConfig> {
+  Timer? _saveTimer;
   @override
   ProfileStatsConfig build() {
     final prefs = ref.watch(sharedPreferencesProvider);
@@ -70,9 +72,13 @@ class ProfileStatsConfigNotifier extends Notifier<ProfileStatsConfig> {
     update(state.copyWith(enabledStats: stats));
   }
 
+  /// 防抖保存（300ms 内多次操作只写一次磁盘）
   void _save(ProfileStatsConfig config) {
-    final prefs = ref.read(sharedPreferencesProvider);
-    prefs.setString(_configKey, config.toJsonString());
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 300), () {
+      final prefs = ref.read(sharedPreferencesProvider);
+      prefs.setString(_configKey, config.toJsonString());
+    });
   }
 }
 

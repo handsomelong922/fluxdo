@@ -65,7 +65,8 @@ class _SettingsGroupPageState extends ConsumerState<SettingsGroupPage> {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
-          for (final group in groups) ...[
+          for (final group in groups)
+            if (_hasVisibleItems(group)) ...[
             _buildSectionHeader(theme, group.title, group.icon),
             const SizedBox(height: 12),
             if (group.wrapInCard)
@@ -92,15 +93,19 @@ class _SettingsGroupPageState extends ConsumerState<SettingsGroupPage> {
     }).toList();
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (int i = 0; i < effectiveItems.length; i++) ...[
           _buildItem(theme, effectiveItems[i]),
           if (i < effectiveItems.length - 1)
-            Divider(
-              height: 1,
-              indent: 56,
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
-            ),
+            if (group.wrapInCard)
+              Divider(
+                height: 1,
+                indent: 56,
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+              )
+            else
+              const SizedBox(height: 12),
         ],
       ],
     );
@@ -119,6 +124,13 @@ class _SettingsGroupPageState extends ConsumerState<SettingsGroupPage> {
           : Colors.transparent,
       child: SettingsRenderer(model: model),
     );
+  }
+
+  bool _hasVisibleItems(SettingsGroup group) {
+    return group.items.any((item) {
+      if (item is PlatformConditionalModel) return item.shouldShow;
+      return true;
+    });
   }
 
   Widget _buildSectionHeader(ThemeData theme, String title, IconData icon) {

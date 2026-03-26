@@ -1,5 +1,6 @@
 import Cocoa
 import FlutterMacOS
+import WebKit
 
 @main
 class AppDelegate: FlutterAppDelegate {
@@ -19,5 +20,44 @@ class AppDelegate: FlutterAppDelegate {
 
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
     return true
+  }
+
+  override func applicationDidFinishLaunching(_ notification: Notification) {
+    guard let controller = mainFlutterWindow?.contentViewController as? FlutterViewController else {
+      super.applicationDidFinishLaunching(notification)
+      return
+    }
+
+    // Raw Set-Cookie 写入通道
+    let rawCookieChannel = FlutterMethodChannel(
+      name: "com.fluxdo/raw_cookie",
+      binaryMessenger: controller.engine.binaryMessenger
+    )
+    rawCookieChannel.setMethodCallHandler { (call, result) in
+      switch call.method {
+      case "setRawCookie":
+        guard let args = call.arguments as? [String: Any],
+              let urlString = args["url"] as? String,
+              let rawSetCookie = args["rawSetCookie"] as? String,
+              let url = URL(string: urlString) else {
+          result(false)
+          return
+        }
+        let headers = ["Set-Cookie": rawSetCookie]
+        let cookies = HTTPCookie.cookies(withResponseHeaderFields: headers, for: url)
+        guard let cookie = cookies.first else {
+          result(false)
+          return
+        }
+        let store = WKWebsiteDataStore.default().httpCookieStore
+        store.setCookie(cookie) {
+          result(true)
+        }
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+
+    super.applicationDidFinishLaunching(notification)
   }
 }

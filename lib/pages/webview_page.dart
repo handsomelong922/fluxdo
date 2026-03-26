@@ -243,10 +243,11 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
                     onWebViewCreated: (controller) async {
                       _controller = controller;
                       if (io.Platform.isWindows && widget.url.isNotEmpty) {
-                        await CookieWriteThrough.instance.seedCriticalCookies(
-                          controller: controller,
+                        // Windows：只走 CDP 路径，不需要再 syncToWebView 双写
+                        await CookieJarService().syncToWebViewViaController(
+                          controller,
+                          currentUrl: widget.url,
                         );
-                        await CookieWriteThrough.instance.barrier();
                         await controller.loadUrl(
                           urlRequest: URLRequest(url: WebUri(widget.url)),
                         );
@@ -390,8 +391,8 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
 
   Future<void> _seedAndBarrier() async {
     if (io.Platform.isWindows) return; // Windows 在 onWebViewCreated 中处理
-    await CookieWriteThrough.instance.seedCriticalCookies();
     await CookieWriteThrough.instance.barrier();
+    await CookieJarService().syncToWebView(currentUrl: widget.url);
   }
 
   bool _shouldSyncCookiesForUrl(String url) {

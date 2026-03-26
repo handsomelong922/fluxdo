@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import WebKit
 import workmanager_apple
 
 @main
@@ -137,6 +138,39 @@ import workmanager_apple
           let url = (call.arguments as? String) ?? ""
           self?.clearCookiesFromSharedStorage(url: url)
           result(true)
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
+    }
+
+      // Raw Set-Cookie 写入通道
+      // 用 HTTPCookie.cookies(withResponseHeaderFields:for:) 从原始头构造 cookie
+      // 保留 host-only 等完整语义
+      let rawCookieChannel = FlutterMethodChannel(
+        name: "com.fluxdo/raw_cookie",
+        binaryMessenger: controller.binaryMessenger
+      )
+      rawCookieChannel.setMethodCallHandler { (call, result) in
+        switch call.method {
+        case "setRawCookie":
+          guard let args = call.arguments as? [String: Any],
+                let urlString = args["url"] as? String,
+                let rawSetCookie = args["rawSetCookie"] as? String,
+                let url = URL(string: urlString) else {
+            result(false)
+            return
+          }
+          let headers = ["Set-Cookie": rawSetCookie]
+          let cookies = HTTPCookie.cookies(withResponseHeaderFields: headers, for: url)
+          guard let cookie = cookies.first else {
+            result(false)
+            return
+          }
+          let store = WKWebsiteDataStore.default().httpCookieStore
+          store.setCookie(cookie) {
+            result(true)
+          }
         default:
           result(FlutterMethodNotImplemented)
         }

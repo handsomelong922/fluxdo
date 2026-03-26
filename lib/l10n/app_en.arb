@@ -1110,6 +1110,7 @@
   "appearance_colorIndigo": "Indigo",
   "appearance_colorAmber": "Amber",
 
+  "appearance_schemeVariant": "Color Scheme",
   "appearance_font": "Font",
   "appearance_fontSystem": "System default",
 
@@ -1887,11 +1888,13 @@
   "profileStats_dataSource": "Data Source",
   "profileStats_enabledItems": "Enabled Items",
   "profileStats_availableItems": "Available Items",
+  "profileStats_selectItems": "Stats Items",
   "profileStats_noItemsSelected": "No items selected",
   "profileStats_addItems": "Tap to add stats",
   "profileStats_guideMessage": "Tap the stats card to customize items, layout, and data source",
   "profileStats_allItemsAdded": "All items added",
   "profileStats_incompatibleSource": "Incompatible with current data source",
+  "profileStats_loadError": "Failed to load, fell back to all-time stats",
 
   "profileStats_daysVisited": "Days Visited",
   "profileStats_postsRead": "Posts Read",
@@ -1913,5 +1916,7 @@
   "profileStats_sourceMonthly": "Monthly",
   "profileStats_sourceQuarterly": "Quarterly",
   "profileStats_sourceYearly": "Yearly",
-  "profileStats_sourceConnect": "Trust Period"
+  "profileStats_sourceConnect": "Trust Period",
+
+  "migration_reloginRequired": "Cookie storage has been upgraded. Your login session was cleared. Please log in again."
 }

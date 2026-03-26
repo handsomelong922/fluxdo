@@ -2147,6 +2147,7 @@
   "appearance_colorIndigo": "靛藍",
   "appearance_colorAmber": "琥珀",
 
+  "appearance_schemeVariant": "配色風格",
   "appearance_font": "字體",
   "appearance_fontSystem": "系統預設",
 
@@ -3094,11 +3095,13 @@
   "profileStats_dataSource": "數據來源",
   "profileStats_enabledItems": "已添加項目",
   "profileStats_availableItems": "可添加項目",
+  "profileStats_selectItems": "統計項目",
   "profileStats_noItemsSelected": "未選擇任何統計項",
   "profileStats_addItems": "點擊添加統計項",
   "profileStats_guideMessage": "點擊統計卡片可自訂展示項目、佈局和數據來源",
   "profileStats_allItemsAdded": "所有統計項已添加",
   "profileStats_incompatibleSource": "不兼容當前數據來源",
+  "profileStats_loadError": "數據加載失敗，已回退到全量統計",
 
   "profileStats_daysVisited": "訪問天數",
   "profileStats_postsRead": "已讀帖子",
@@ -3120,5 +3123,7 @@
   "profileStats_sourceMonthly": "本月",
   "profileStats_sourceQuarterly": "本季",
   "profileStats_sourceYearly": "本年",
-  "profileStats_sourceConnect": "信任等級週期"
+  "profileStats_sourceConnect": "信任等級週期",
+
+  "migration_reloginRequired": "本次版本升級優化了 Cookie 儲存機制，已清除舊的登入狀態。請重新登入。"
 }

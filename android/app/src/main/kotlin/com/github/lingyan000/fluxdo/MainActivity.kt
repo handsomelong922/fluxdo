@@ -12,6 +12,7 @@ import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import android.webkit.CookieManager as WebCookieManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -21,6 +22,7 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val TAG = "AppLink"
+        private const val RAW_COOKIE_CHANNEL = "com.fluxdo/raw_cookie"
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -88,6 +90,31 @@ class MainActivity : FlutterActivity() {
                     } catch (e: Exception) {
                         Log.e("AppIcon", "切换图标失败: ${e.message}", e)
                         result.error("ICON_CHANGE_FAILED", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Raw Set-Cookie 写入通道
+        // 直接传原始 Set-Cookie 头给 Android CookieManager，保留 host-only 等完整语义
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, RAW_COOKIE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setRawCookie" -> {
+                    val url = call.argument<String>("url")
+                    val rawSetCookie = call.argument<String>("rawSetCookie")
+                    if (url != null && rawSetCookie != null) {
+                        try {
+                            val cookieManager = WebCookieManager.getInstance()
+                            cookieManager.setCookie(url, rawSetCookie)
+                            cookieManager.flush()
+                            result.success(true)
+                        } catch (e: Exception) {
+                            Log.e("RawCookie", "setCookie failed: ${e.message}", e)
+                            result.success(false)
+                        }
+                    } else {
+                        result.error("INVALID_ARGS", "url and rawSetCookie required", null)
                     }
                 }
                 else -> result.notImplemented()

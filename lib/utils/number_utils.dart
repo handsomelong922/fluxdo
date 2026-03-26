@@ -11,9 +11,9 @@ class NumberUtils {
     return count.toString();
   }
 
-  /// 格式化持续时间（秒 → 可读字符串）
+  /// 格式化持续时间（秒 → 完整可读字符串，用于 Tooltip）
   /// 例：90061 → "1天1小时", 3661 → "1小时1分钟", 120 → "2分钟"
-  static String formatDuration(int seconds) {
+  static String formatDurationLong(int seconds) {
     if (seconds <= 0) return '0分钟';
     final days = seconds ~/ 86400;
     final hours = (seconds % 86400) ~/ 3600;
@@ -28,5 +28,19 @@ class NumberUtils {
       return '$hours小时';
     }
     return '$minutes分钟';
+  }
+
+  /// 格式化持续时间（秒 → 紧凑字符串，用于卡片展示）
+  /// 风格与 formatCount 一致：只保留最大单位 + 后缀
+  /// 例：90061 → "25h", 259200 → "3.0d", 120 → "2m"
+  static String formatDuration(int seconds) {
+    if (seconds <= 0) return '0m';
+    final totalMinutes = seconds / 60;
+    final totalHours = seconds / 3600;
+    final totalDays = seconds / 86400;
+
+    if (totalDays >= 1) return '${totalDays.toStringAsFixed(totalDays >= 10 ? 0 : 1)}d';
+    if (totalHours >= 1) return '${totalHours.toStringAsFixed(totalHours >= 10 ? 0 : 1)}h';
+    return '${totalMinutes.toInt()}m';
   }
 }

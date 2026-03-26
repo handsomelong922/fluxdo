@@ -1,5 +1,6 @@
 import 'dart:io' as io;
 
+import 'package:enhanced_cookie_jar/enhanced_cookie_jar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
@@ -85,7 +86,7 @@ class WindowsCookieStrategy extends DefaultCookieStrategy {
       }
 
       final host = normalized.isNotEmpty ? normalized : ctx.baseUri.host;
-      final key = '$name|${normalized.isEmpty ? host : normalized}|$path|${value.hashCode}';
+      final key = '$name|${normalized.isEmpty ? host : normalized}|$path';
       final snapshot = collected.putIfAbsent(
         key,
         () => CollectedWebViewCookie(cookie: wc, primaryHost: host),
@@ -510,6 +511,28 @@ class WindowsCookieStrategy extends DefaultCookieStrategy {
     }
 
     return cookies;
+  }
+
+  Future<void> _persistRawCdpCookies(
+    ioCookieJar,
+    List rawCookies, {
+    String? currentUrl,
+  }) async {
+    if (ioCookieJar is! EnhancedPersistCookieJar) return;
+
+    final cookies = rawCookies
+        .whereType<Map>()
+        .map((raw) => raw.map((key, value) => MapEntry(key.toString(), value)))
+        .cast<Map<String, dynamic>>()
+        .toList(growable: false);
+    if (cookies.isEmpty) return;
+
+    final uri = Uri.tryParse(currentUrl ?? '') ?? Uri.parse(AppConstants.baseUrl);
+    try {
+      await ioCookieJar.saveFromCdpCookies(uri, cookies);
+    } catch (e) {
+      debugPrint('[CookieJar][Windows] Failed to persist CDP cookies: $e');
+    }
   }
 }
 

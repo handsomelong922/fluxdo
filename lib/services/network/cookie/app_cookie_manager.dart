@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
+import 'package:enhanced_cookie_jar/enhanced_cookie_jar.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../log/log_writer.dart';
@@ -34,7 +35,8 @@ class AppCookieManager extends Interceptor {
   /// 代表服务器最新轮换的值（如 _t 会话 token）。
   /// domain cookie 来自 syncFromWebView（WKWebView 自动添加 domain），
   /// 可能是旧值。优先 host-only 确保发送服务器最新认可的值。
-  static String _mergeCookies(List<Cookie> cookies) {
+  static String _mergeCookies(List<Cookie> cookies, Uri uri) {
+    final requestHost = uri.host.toLowerCase();
     cookies.sort((a, b) {
       if (a.path == null && b.path == null) {
         return 0;
@@ -46,22 +48,68 @@ class AppCookieManager extends Interceptor {
         return b.path!.length.compareTo(a.path!.length);
       }
     });
-    // 按 name+path 去重，优先保留 host-only cookie（服务器最新值）
-    final seen = <String>{};
-    final deduped = <Cookie>[];
-    // 先收集 host-only cookie（来自服务器直接 Set-Cookie 响应，是最新值）
+
+    final selected = <String, Cookie>{};
     for (final cookie in cookies) {
-      if (cookie.domain == null && seen.add('${cookie.name}|${cookie.path}')) {
-        deduped.add(cookie);
+      final key = '${cookie.name}|${cookie.path ?? '/'}';
+      final existing = selected[key];
+      if (existing == null ||
+          _compareCookiePriority(cookie, existing, requestHost) > 0) {
+        selected[key] = cookie;
       }
     }
-    // 再收集没有 host-only 对应的 domain cookie（兜底）
-    for (final cookie in cookies) {
-      if (cookie.domain != null && seen.add('${cookie.name}|${cookie.path}')) {
-        deduped.add(cookie);
-      }
-    }
+
+    final deduped = selected.values.toList()
+      ..sort((a, b) {
+        final pathA = a.path?.length ?? 0;
+        final pathB = b.path?.length ?? 0;
+        final pathCompare = pathB.compareTo(pathA);
+        if (pathCompare != 0) return pathCompare;
+        return _compareCookiePriority(b, a, requestHost);
+      });
+
     return deduped.map((cookie) => '${cookie.name}=${CookieValueCodec.decode(cookie.value)}').join('; ');
+  }
+
+  static int _compareCookiePriority(
+    Cookie candidate,
+    Cookie existing,
+    String requestHost,
+  ) {
+    final scoreDiff =
+        _cookiePriorityScore(candidate, requestHost) -
+        _cookiePriorityScore(existing, requestHost);
+    if (scoreDiff != 0) return scoreDiff;
+
+    final candidateDomainLength =
+        candidate.domain?.replaceFirst(RegExp(r'^\.'), '').length ?? 0;
+    final existingDomainLength =
+        existing.domain?.replaceFirst(RegExp(r'^\.'), '').length ?? 0;
+    final domainLengthDiff =
+        candidateDomainLength.compareTo(existingDomainLength);
+    if (domainLengthDiff != 0) return domainLengthDiff;
+
+    final candidateValueLength = candidate.value.length;
+    final existingValueLength = existing.value.length;
+    return candidateValueLength.compareTo(existingValueLength);
+  }
+
+  static int _cookiePriorityScore(Cookie cookie, String requestHost) {
+    final normalizedDomain = cookie.domain
+        ?.trim()
+        .toLowerCase()
+        .replaceFirst(RegExp(r'^\.'), '');
+
+    if (normalizedDomain == null || normalizedDomain.isEmpty) {
+      return 10000;
+    }
+    if (normalizedDomain == requestHost) {
+      return 9000 + normalizedDomain.length;
+    }
+    if (requestHost.endsWith('.$normalizedDomain')) {
+      return 1000 + normalizedDomain.length;
+    }
+    return normalizedDomain.length;
   }
 
   @override
@@ -140,7 +188,24 @@ class AppCookieManager extends Interceptor {
 
   /// Load cookies in cookie string for the request.
   Future<String> loadCookies(RequestOptions options) async {
-    final savedCookies = await cookieJar.loadForRequest(options.uri);
+    List<Cookie> savedCookies;
+    try {
+      savedCookies = await cookieJar.loadForRequest(options.uri);
+    } on FormatException catch (e) {
+      debugPrint(
+        '[CookieManager] loadForRequest format fallback for '
+        '${options.uri}: $e',
+      );
+      if (cookieJar is EnhancedPersistCookieJar) {
+        final canonicalCookies = await (cookieJar as EnhancedPersistCookieJar)
+            .loadCanonicalForRequest(options.uri);
+        savedCookies = canonicalCookies
+            .map((cookie) => cookie.toIoCookie())
+            .toList(growable: false);
+      } else {
+        rethrow;
+      }
+    }
     final previousCookies =
         options.headers[HttpHeaders.cookieHeader] as String?;
     final allCookies = [
@@ -160,7 +225,27 @@ class AppCookieManager extends Interceptor {
           'uri=${options.uri.host}${options.uri.path}');
     }
 
-    final cookies = _mergeCookies(allCookies);
+    final cookies = _mergeCookies(allCookies, options.uri);
+
+    if (options.uri.host == 'connect.linux.do') {
+      final authCookies = allCookies
+          .where((cookie) => cookie.name == 'auth.session-token')
+          .map(
+            (cookie) =>
+                '${cookie.domain ?? '<host-only>'}|${cookie.path ?? '/'}|len=${cookie.value.length}',
+          )
+          .toList(growable: false);
+      if (authCookies.isNotEmpty) {
+        debugPrint(
+          '[CookieManager] request cookies for connect.linux.do: $authCookies',
+        );
+      } else {
+        debugPrint(
+          '[CookieManager] request cookies for connect.linux.do: <none>',
+        );
+      }
+    }
+
     return cookies;
   }
 
@@ -171,10 +256,32 @@ class AppCookieManager extends Interceptor {
       return;
     }
 
-    final List<Cookie> cookies = setCookies
+    final flattenedSetCookies = setCookies
         .map((str) => str.split(_setCookieReg))
         .expand((cookie) => cookie)
         .where((cookie) => cookie.isNotEmpty)
+        .toList(growable: false);
+
+    final locationHeader = response.headers.value(HttpHeaders.locationHeader);
+    final requestUri = response.requestOptions.uri;
+    final hasAuthSessionToken = flattenedSetCookies.any(
+      (header) => header.toLowerCase().startsWith('auth.session-token='),
+    );
+    if (hasAuthSessionToken) {
+      debugPrint(
+        '[CookieManager] auth.session-token Set-Cookie from '
+        '${response.requestOptions.method} ${requestUri.toString()} '
+        '(status=${response.statusCode}, location=$locationHeader, '
+        'allowRedirectSetCookie=${response.requestOptions.extra['allowRedirectSetCookie'] == true})',
+      );
+      for (final header in flattenedSetCookies.where(
+        (item) => item.toLowerCase().startsWith('auth.session-token='),
+      )) {
+        debugPrint('[CookieManager] auth.session-token raw: $header');
+      }
+    }
+
+    final List<Cookie> cookies = flattenedSetCookies
         .map((str) => Cookie.fromSetCookieValue(str))
         .toList();
 
@@ -183,7 +290,9 @@ class AppCookieManager extends Interceptor {
     // 如果无条件写入 CookieJar，会导致验证机制还没判断完 _t 就已经丢了。
     // 只过滤「删除」操作，正常的「更新」（有值且未过期）仍然放行。
     final filteredCookies = <Cookie>[];
-    for (final cookie in cookies) {
+    final filteredSetCookieHeaders = <String>[];
+    for (var i = 0; i < cookies.length; i++) {
+      final cookie = cookies[i];
       final isSessionCookie = cookie.name == '_t' || cookie.name == '_forum_session';
       if (isSessionCookie) {
         final isExpired = cookie.expires != null &&
@@ -216,19 +325,46 @@ class AppCookieManager extends Interceptor {
         }
       }
       filteredCookies.add(cookie);
+      filteredSetCookieHeaders.add(flattenedSetCookies[i]);
     }
 
     // Save cookies for the original site.
     final originalUri = response.requestOptions.uri;
-    await cookieJar.saveFromResponse(
-      originalUri.resolveUri(response.realUri),
-      filteredCookies,
-    );
+    final resolvedUri = originalUri.resolveUri(response.realUri);
+    final enhancedJar = cookieJar is EnhancedPersistCookieJar
+        ? cookieJar as EnhancedPersistCookieJar
+        : null;
+    if (enhancedJar != null) {
+      await enhancedJar.saveFromSetCookieHeaders(
+        resolvedUri,
+        filteredSetCookieHeaders,
+      );
+    } else {
+      await cookieJar.saveFromResponse(
+        resolvedUri,
+        filteredCookies,
+      );
+    }
+
+    if (hasAuthSessionToken) {
+      debugPrint(
+        '[CookieManager] auth.session-token primary save uri: '
+        '${resolvedUri.toString()}',
+      );
+    }
 
     // 实时推送关键 cookie 到 WebView（不阻塞 Dio 响应链）
+    // 同时传递原始 Set-Cookie 头，优先用 raw 写入保留 host-only 等语义
+    final rawHeaders = <String, String>{};
+    for (var i = 0; i < filteredCookies.length; i++) {
+      if (i < filteredSetCookieHeaders.length) {
+        rawHeaders[filteredCookies[i].name] = filteredSetCookieHeaders[i];
+      }
+    }
     unawaited(CookieWriteThrough.instance.writeThrough(
       filteredCookies,
       originalUri,
+      rawSetCookieHeaders: rawHeaders,
     ));
 
     // Optionally save cookies for redirected locations.
@@ -244,12 +380,22 @@ class AppCookieManager extends Interceptor {
       final baseUri = response.realUri;
       await Future.wait(
         locations.map(
-          (location) => cookieJar.saveFromResponse(
-            baseUri.resolve(location),
-            cookies,
-          ),
+          (location) async {
+            final redirectUri = baseUri.resolve(location);
+            if (hasAuthSessionToken) {
+              debugPrint(
+                '[CookieManager] auth.session-token redirect save uri: '
+                '${redirectUri.toString()}',
+              );
+            }
+            await cookieJar.saveFromResponse(
+              redirectUri,
+              filteredCookies,
+            );
+          },
         ),
       );
     }
   }
+
 }

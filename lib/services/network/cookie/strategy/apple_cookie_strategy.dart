@@ -7,6 +7,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../../../../constants.dart';
 import '../cookie_jar_service.dart';
 import '../cookie_sync_context.dart';
+import '../raw_cookie_writer.dart';
 import 'default_cookie_strategy.dart';
 
 /// Apple 平台（iOS/macOS）Cookie 策略
@@ -24,6 +25,18 @@ class AppleCookieStrategy extends DefaultCookieStrategy {
     List<(io.Cookie, String)> cookies,
     CookieSyncContext ctx,
   ) async {
+    final rawWriter = RawCookieWriter.instance;
+
+    // 批量加载所有 cookie 的 Set-Cookie 头
+    final rawHeaders = <String, String?>{};
+    if (rawWriter.isSupported) {
+      for (final (cookie, _) in cookies) {
+        if (!rawHeaders.containsKey(cookie.name)) {
+          rawHeaders[cookie.name] = await loadSetCookieHeader(cookie.name);
+        }
+      }
+    }
+
     var written = 0;
     final cookieMaps = <Map<String, dynamic>>[];
 
@@ -33,8 +46,6 @@ class AppleCookieStrategy extends DefaultCookieStrategy {
       WebViewCookieWriteAttempt? appliedAttempt;
 
       for (final attempt in attempts) {
-        // 写入前先删除已有 cookie（含所有 domain 变体），
-        // 防止 SameSite 属性差异导致 WebView 产生重复 cookie
         for (final domain in buildDeleteDomainVariants(attempt.domain)) {
           await ctx.webViewCookieManager.deleteCookie(
             url: WebUri(attempt.url),
@@ -44,6 +55,15 @@ class AppleCookieStrategy extends DefaultCookieStrategy {
           );
         }
 
+        final rawHeader = rawHeaders[cookie.name];
+        if (rawHeader != null && rawWriter.isSupported) {
+          if (await rawWriter.setRawCookie(attempt.url, rawHeader)) {
+            written++;
+            continue; // 跳过 cookieMaps，避免 postSyncToWebView 重复写
+          }
+        }
+
+        // Fallback：结构化 API
         final didSet = await ctx.webViewCookieManager.setCookie(
           url: WebUri(attempt.url),
           name: cookie.name,
@@ -83,18 +103,17 @@ class AppleCookieStrategy extends DefaultCookieStrategy {
       });
     }
 
-    // Bug #4 fix：批量写入后延迟，等待 WKHTTPCookieStore completionHandler 完成
     if (written > 0) {
       await Future.delayed(const Duration(milliseconds: 50));
     }
 
-    // 同时写入 HTTPCookieStorage.shared 供后续 postSyncToWebView 使用
     if (cookieMaps.isNotEmpty) {
       await postSyncToWebView(cookieMaps, ctx);
     }
 
     return written;
   }
+
 
   @override
   Future<void> postSyncToWebView(
@@ -132,11 +151,10 @@ class AppleCookieStrategy extends DefaultCookieStrategy {
     io.Cookie cookie,
     String sourceHost,
   ) {
-    // Apple 平台：iOS setCookie 的 domain 必须带前导点，否则静默失败
-    // （flutter_inappwebview #338）
     final normalizedCookieDomain =
         CookieJarService.normalizeWebViewCookieDomain(cookie.domain);
     if (normalizedCookieDomain != null) {
+      // domain cookie：iOS setCookie 的 domain 必须带前导点（flutter_inappwebview #338）
       return [
         WebViewCookieWriteAttempt(
           url: 'https://$normalizedCookieDomain',
@@ -144,10 +162,11 @@ class AppleCookieStrategy extends DefaultCookieStrategy {
         ),
       ];
     }
+    // host-only cookie：domain 传 null，让 WebView 按 URL host 自动绑定
     return [
       WebViewCookieWriteAttempt(
         url: 'https://$sourceHost',
-        domain: sourceHost,
+        domain: null,
       ),
     ];
   }

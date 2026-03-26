@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io' as io;
 
+import 'package:enhanced_cookie_jar/enhanced_cookie_jar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../../../constants.dart';
 import '../../windows_webview_environment_service.dart';
 import 'cookie_jar_service.dart';
+import 'raw_cookie_writer.dart';
 import 'strategy/platform_cookie_strategy.dart';
 
 /// Cookie Write-Through 服务
@@ -15,64 +17,88 @@ class CookieWriteThrough {
   static final instance = CookieWriteThrough._();
   CookieWriteThrough._();
 
+  /// 删除 WebView 中指定 cookie 的所有 domain 变体（去重后执行）
+  Future<void> _deleteFromWebView(
+    CookieManager webViewCookieManager,
+    String host,
+    String name,
+    String path,
+  ) async {
+    // 合并所有 domain 变体到 Set 去重，避免重复调用 deleteCookie
+    final variants = <String?>{
+      ..._strategy.buildDeleteDomainVariants('.$host'),
+      ..._strategy.buildDeleteDomainVariants(host),
+      null, // host-only 变体（无 domain）
+    };
+    final url = WebUri('https://$host');
+    for (final domain in variants) {
+      try {
+        if (domain != null) {
+          await webViewCookieManager.deleteCookie(url: url, name: name, domain: domain, path: path);
+        } else {
+          await webViewCookieManager.deleteCookie(url: url, name: name, path: path);
+        }
+      } catch (_) {}
+    }
+  }
+
+  int _pendingWriteCount = 0;
   Completer<void>? _pendingWrite;
+  late final PlatformCookieStrategy _strategy = PlatformCookieStrategy.create();
 
   /// Dio 收到 Set-Cookie 后调用（在 AppCookieManager.saveCookies 内）
   /// 只处理关键 cookie，非关键 cookie 不推送
-  Future<void> writeThrough(List<io.Cookie> cookies, Uri uri) async {
+  /// [rawSetCookieHeaders] — cookie name → 原始 Set-Cookie 头，优先用 raw 写入
+  Future<void> writeThrough(
+    List<io.Cookie> cookies,
+    Uri uri, {
+    Map<String, String>? rawSetCookieHeaders,
+  }) async {
     final criticals =
         cookies.where((c) => CookieJarService.isCriticalCookie(c.name)).toList();
     if (criticals.isEmpty) return;
 
-    final completer = Completer<void>();
-    _pendingWrite = completer;
+    _pendingWriteCount++;
+    _pendingWrite ??= Completer<void>();
     try {
-      final strategy = PlatformCookieStrategy.create();
+      final rawWriter = RawCookieWriter.instance;
       final webViewCookieManager =
           WindowsWebViewEnvironmentService.instance.cookieManager;
       final baseHost = Uri.parse(AppConstants.baseUrl).host;
 
       for (final cookie in criticals) {
-        final value = CookieValueCodec.decode(cookie.value);
         final normalizedDomain =
             CookieJarService.normalizeWebViewCookieDomain(cookie.domain);
         final host = normalizedDomain ?? baseHost;
-        final url = WebUri('https://$host');
+        final cookieUrl = 'https://$host';
+        final webUri = WebUri(cookieUrl);
 
-        // 先删除旧值（含 domain 变体）
-        for (final domain in strategy.buildDeleteDomainVariants('.$host')) {
+        await _deleteFromWebView(webViewCookieManager, host, cookie.name, cookie.path ?? '/');
+
+        // 优先用 Set-Cookie 头写入（保留 host-only 等完整语义）
+        var rawHeader = rawSetCookieHeaders?[cookie.name];
+        // 没有原始头时从 jar 中的 canonical cookie 重建
+        if (rawHeader == null) {
           try {
-            await webViewCookieManager.deleteCookie(
-              url: url,
-              name: cookie.name,
-              domain: domain,
-              path: cookie.path ?? '/',
-            );
+            final jar = CookieJarService();
+            final canonical = await jar.getCanonicalCookie(cookie.name);
+            rawHeader = canonical?.toSetCookieHeader();
           } catch (_) {}
         }
-        for (final domain in strategy.buildDeleteDomainVariants(host)) {
+        if (rawHeader != null && rawWriter.isSupported) {
           try {
-            await webViewCookieManager.deleteCookie(
-              url: url,
-              name: cookie.name,
-              domain: domain,
-              path: cookie.path ?? '/',
-            );
-          } catch (_) {}
+            await rawWriter.setRawCookie(cookieUrl, rawHeader);
+            continue;
+          } catch (e) {
+            debugPrint('[CookieWriteThrough] raw 写入 ${cookie.name} 失败，fallback: $e');
+          }
         }
-        // 删除 host-only 变体
-        try {
-          await webViewCookieManager.deleteCookie(
-            url: url,
-            name: cookie.name,
-            path: cookie.path ?? '/',
-          );
-        } catch (_) {}
 
-        // 写入新值
+        // Fallback：结构化 API
+        final value = CookieValueCodec.decode(cookie.value);
         try {
           await webViewCookieManager.setCookie(
-            url: url,
+            url: webUri,
             name: cookie.name,
             value: value.isEmpty ? ' ' : value,
             domain: cookie.domain,
@@ -95,8 +121,12 @@ class CookieWriteThrough {
     } catch (e) {
       debugPrint('[CookieWriteThrough] writeThrough 失败: $e');
     } finally {
-      completer.complete();
-      _pendingWrite = null;
+      _pendingWriteCount--;
+      if (_pendingWriteCount <= 0) {
+        _pendingWriteCount = 0;
+        _pendingWrite?.complete();
+        _pendingWrite = null;
+      }
     }
   }
 
@@ -114,64 +144,53 @@ class CookieWriteThrough {
     final jar = CookieJarService();
     if (!jar.isInitialized) await jar.initialize();
 
-    final strategy = PlatformCookieStrategy.create();
     final webViewCookieManager =
         WindowsWebViewEnvironmentService.instance.cookieManager;
     final baseHost = Uri.parse(AppConstants.baseUrl).host;
 
     for (final name in const ['_t', '_forum_session', 'cf_clearance']) {
-      final cookie = await _loadCriticalCookie(jar, name);
+      final canonical = await jar.getCanonicalCookie(name);
+      final cookie = canonical?.toIoCookie() ?? await _loadCriticalCookie(jar, name);
       if (cookie == null) continue;
 
-      final value = CookieValueCodec.decode(cookie.value);
+      final value = canonical?.value ?? CookieValueCodec.decode(cookie.value);
       if (value.isEmpty) continue;
 
       final normalizedDomain =
-          CookieJarService.normalizeWebViewCookieDomain(cookie.domain);
+          CookieJarService.normalizeWebViewCookieDomain(canonical?.domain ?? cookie.domain);
       final host = normalizedDomain ?? baseHost;
 
       // Windows 通过 CDP 写入
       if (io.Platform.isWindows && controller != null) {
-        await _seedViaCDP(controller, cookie, value, host, strategy);
+        await _seedViaCDP(
+          controller,
+          cookie,
+          value,
+          host,
+          _strategy,
+          canonical: canonical,
+        );
         continue;
       }
 
-      // 其他平台通过 CookieManager 写入
-      final url = WebUri('https://$host');
+      // 其他平台：先删旧值，再写入
+      final cookieUrl = 'https://$host';
+      final webUri = WebUri(cookieUrl);
+      await _deleteFromWebView(webViewCookieManager, host, name, cookie.path ?? '/');
 
-      // 先删除旧值
-      for (final domain in strategy.buildDeleteDomainVariants('.$host')) {
+      // 优先用 raw Set-Cookie 头写入（保留 host-only 语义）
+      final rawWriter = RawCookieWriter.instance;
+      final rawHeader = canonical?.toSetCookieHeader();
+      if (rawHeader != null && rawWriter.isSupported) {
         try {
-          await webViewCookieManager.deleteCookie(
-            url: url,
-            name: name,
-            domain: domain,
-            path: cookie.path ?? '/',
-          );
+          if (await rawWriter.setRawCookie(cookieUrl, rawHeader)) continue;
         } catch (_) {}
       }
-      for (final domain in strategy.buildDeleteDomainVariants(host)) {
-        try {
-          await webViewCookieManager.deleteCookie(
-            url: url,
-            name: name,
-            domain: domain,
-            path: cookie.path ?? '/',
-          );
-        } catch (_) {}
-      }
-      try {
-        await webViewCookieManager.deleteCookie(
-          url: url,
-          name: name,
-          path: cookie.path ?? '/',
-        );
-      } catch (_) {}
 
-      // 写入新值
+      // Fallback：结构化 API
       try {
         await webViewCookieManager.setCookie(
-          url: url,
+          url: webUri,
           name: name,
           value: value,
           domain: cookie.domain,
@@ -203,8 +222,8 @@ class CookieWriteThrough {
       io.Cookie? fallback;
       for (final cookie in cookies) {
         if (cookie.name == name && cookie.value.isNotEmpty) {
-          // 优先返回 domain cookie（WebView 同步来源更权威）
-          if (cookie.domain != null) return cookie;
+          // 优先返回 host-only cookie（服务端直接下发，最新值）
+          if (cookie.domain == null) return cookie;
           fallback ??= cookie;
         }
       }
@@ -221,10 +240,12 @@ class CookieWriteThrough {
     io.Cookie cookie,
     String value,
     String host,
-    PlatformCookieStrategy strategy,
+    PlatformCookieStrategy strategy, {
+    CanonicalCookie? canonical,
+  }
   ) async {
     final normalizedDomain =
-        CookieJarService.normalizeWebViewCookieDomain(cookie.domain);
+        CookieJarService.normalizeWebViewCookieDomain(canonical?.domain ?? cookie.domain);
 
     String cdpUrl;
     String? cdpDomain;
@@ -273,8 +294,23 @@ class CookieWriteThrough {
       if (cookie.expires != null) {
         params['expires'] = cookie.expires!.millisecondsSinceEpoch / 1000.0;
       }
-      if (cookie.httpOnly && cookie.secure) {
+      final sameSite = _canonicalSameSite(canonical);
+      if (sameSite != null) {
+        params['sameSite'] = sameSite;
+      } else if (cookie.httpOnly && cookie.secure) {
         params['sameSite'] = 'None';
+      }
+      if (canonical?.priority case final priority?) {
+        params['priority'] = priority;
+      }
+      if (canonical?.sourceScheme case final sourceScheme?) {
+        params['sourceScheme'] = sourceScheme;
+      }
+      if (canonical?.sourcePort case final sourcePort?) {
+        params['sourcePort'] = sourcePort;
+      }
+      if (canonical?.partitionKey case final partitionKey?) {
+        params['partitionKey'] = partitionKey;
       }
 
       await controller.callDevToolsProtocolMethod(
@@ -283,6 +319,20 @@ class CookieWriteThrough {
       );
     } catch (e) {
       debugPrint('[CookieWriteThrough] CDP seed ${cookie.name} 失败: $e');
+    }
+  }
+
+  String? _canonicalSameSite(CanonicalCookie? canonical) {
+    switch (canonical?.sameSite) {
+      case CookieSameSite.lax:
+        return 'Lax';
+      case CookieSameSite.strict:
+        return 'Strict';
+      case CookieSameSite.none:
+        return 'None';
+      case CookieSameSite.unspecified:
+      case null:
+        return null;
     }
   }
 

@@ -21,6 +21,7 @@ import 'providers/app_state_refresher.dart';
 import 'services/highlighter_service.dart';
 import 'widgets/common/smart_avatar.dart';
 import 'widgets/common/notification_icon_button.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'services/network/cookie/cookie_sync_service.dart';
 import 'services/network/cookie/cookie_jar_service.dart';
 import 'services/network/adapters/cronet_fallback_service.dart';
@@ -89,6 +90,11 @@ Future<void> main() async {
 
   // 初始化本地通知服务（请求权限）
   LocalNotificationService().initialize(); // 不需要 await，后台初始化
+
+  // Android：启用 WebView DevTools 调试，允许通过 CDP 读取完整 cookie 属性
+  if (Platform.isAndroid) {
+    InAppWebViewController.setWebContentsDebuggingEnabled(true);
+  }
 
   // 阶段 1：并行执行所有不相互依赖的初始化
   final futures = <Future<dynamic>>[
@@ -298,6 +304,12 @@ class MainApp extends ConsumerWidget {
 
     return DynamicColorBuilder(
       builder: (lightDynamic, darkDynamic) {
+        // 把系统动态色原始 primary 存到 ThemeState 中
+        final rawDynamicPrimary = lightDynamic?.primary;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(themeProvider.notifier).setDynamicPrimary(rawDynamicPrimary);
+        });
+
         ColorScheme lightScheme;
         ColorScheme darkScheme;
 

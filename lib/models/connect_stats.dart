@@ -25,60 +25,46 @@ class ConnectStats {
   });
 
   /// 从 connect.linux.do HTML 解析
+  /// 与 trust_level_requirements_page 使用完全相同的 CSS --val 解析方式
   factory ConnectStats.fromHtml(String htmlContent) {
     final document = html_parser.parse(htmlContent);
     final cardDiv = document.querySelector('div.card');
     if (cardDiv == null) {
+
       throw Exception('未找到统计卡片');
     }
 
-    // 从 ring 圈获取：访问天数 / 回复主题数 / 浏览话题
-    final rings = cardDiv.querySelectorAll('.tl3-ring');
-    int daysVisited = 0;
-    int topicsRepliedTo = 0;
-    int topicsViewed = 0;
+    // 收集所有指标：label → value
+    final metrics = <String, int>{};
 
-    for (final ring in rings) {
-      final label = ring.querySelector('.tl3-ring-label')?.text.trim() ?? '';
-      final circle = ring.querySelector('.tl3-ring-circle');
+    // 环形指标（ring）—— 与 trust_level_requirements_page 完全一致
+    final ringEls = cardDiv.querySelectorAll('.tl3-ring');
+
+    for (final el in ringEls) {
+      final label = el.querySelector('.tl3-ring-label')?.text.trim() ?? '';
+      final circle = el.querySelector('.tl3-ring-circle');
       final style = circle?.attributes['style'] ?? '';
-      final val = _parseCssVar(style, '--val').toInt();
+      final val = _parseCssVar(style, '--val');
 
-      if (label.contains('访问天数') || label.contains('days visited')) {
-        daysVisited = val;
-      } else if (label.contains('回复主题') || label.contains('topics replied')) {
-        topicsRepliedTo = val;
-      } else if (label.contains('浏览话题') || label.contains('topics viewed')) {
-        topicsViewed = val;
-      }
+      if (label.isNotEmpty) metrics[label] = val;
     }
 
-    // 从 bar 条获取：已读帖子 / 送赞 / 获赞 / 获赞天数 / 获赞人数
-    final bars = cardDiv.querySelectorAll('.tl3-bar-item');
-    int postsRead = 0;
-    int likesGiven = 0;
-    int likesReceived = 0;
-    int likesReceivedDays = 0;
-    int likesReceivedUsers = 0;
+    // 条形指标（bar）—— 与 trust_level_requirements_page 完全一致
+    final barEls = cardDiv.querySelectorAll('.tl3-bar-item');
 
-    for (final bar in bars) {
-      final label = bar.querySelector('.tl3-bar-label')?.text.trim() ?? '';
-      final fill = bar.querySelector('.tl3-bar-fill');
+    for (final el in barEls) {
+      final label = el.querySelector('.tl3-bar-label')?.text.trim() ?? '';
+      final fill = el.querySelector('.tl3-bar-fill');
       final style = fill?.attributes['style'] ?? '';
-      final val = _parseCssVar(style, '--val').toInt();
+      final val = _parseCssVar(style, '--val');
+      // 同时尝试 nums 文本
+      final numsText = el.querySelector('.tl3-bar-nums')?.text.trim() ?? '';
+      final numsVal = _parseFirstNumber(numsText);
+      final finalVal = numsVal > 0 ? numsVal : val;
 
-      if (label.contains('已读帖子') || label.contains('posts read')) {
-        postsRead = val;
-      } else if (label.contains('送赞') || label.contains('likes given')) {
-        likesGiven = val;
-      } else if (label.contains('获赞天数') || label.contains('liked days')) {
-        likesReceivedDays = val;
-      } else if (label.contains('获赞人数') || label.contains('liked users')) {
-        likesReceivedUsers = val;
-      } else if (label.contains('获赞') || label.contains('likes received')) {
-        likesReceived = val;
-      }
+      if (label.isNotEmpty) metrics[label] = finalVal;
     }
+
 
     // 从副标题解析时间周期
     int timePeriod = 100;
@@ -88,24 +74,62 @@ class ConnectStats {
       timePeriod = int.tryParse(periodMatch.group(1) ?? '100') ?? 100;
     }
 
+    // 通过标签名模糊匹配字段
     return ConnectStats(
-      daysVisited: daysVisited,
-      topicsRepliedTo: topicsRepliedTo,
-      topicsViewed: topicsViewed,
-      postsRead: postsRead,
-      likesGiven: likesGiven,
-      likesReceived: likesReceived,
-      likesReceivedDays: likesReceivedDays,
-      likesReceivedUsers: likesReceivedUsers,
+      daysVisited: _match(metrics, ['访问天数', 'days visited']),
+      topicsRepliedTo: _match(metrics, ['回复话题', '回复主题', 'topics replied']),
+      topicsViewed: _match(metrics, ['浏览话题', 'topics viewed', '浏览主题']),
+      postsRead: _match(metrics, ['浏览帖子', '已读帖子', 'posts read']),
+      likesGiven: _matchExclude(metrics, ['点赞', '送赞', 'likes given'], ['获', 'received']),
+      likesReceived: _matchExclude(metrics, ['获赞', 'likes received'], ['天数', '用户', '人数', 'days', 'users']),
+      likesReceivedDays: _match(metrics, ['获赞天数', 'liked days']),
+      likesReceivedUsers: _match(metrics, ['获赞用户', '获赞人数', 'liked users']),
       timePeriod: timePeriod,
     );
   }
 
-  static double _parseCssVar(String style, String varName) {
+  /// 解析 CSS 变量 —— 与 trust_level_requirements_page._parseCssVar 完全一致
+  static int _parseCssVar(String style, String varName) {
     final regex = RegExp('$varName:\\s*([0-9.]+)');
     final match = regex.firstMatch(style);
     if (match != null) {
-      return double.tryParse(match.group(1) ?? '0') ?? 0;
+      return double.tryParse(match.group(1) ?? '0')?.toInt() ?? 0;
+    }
+    return 0;
+  }
+
+  /// 从文本中提取第一个整数
+  static int _parseFirstNumber(String text) {
+    if (text.isEmpty) return 0;
+    final cleaned = text.replaceAll(RegExp(r'[,，\s]'), '');
+    final match = RegExp(r'-?\d+').firstMatch(cleaned);
+    return match != null ? (int.tryParse(match.group(0)!) ?? 0) : 0;
+  }
+
+  /// 模糊匹配 label
+  static int _match(Map<String, int> data, List<String> keywords) {
+    for (final entry in data.entries) {
+      final lower = entry.key.toLowerCase();
+      if (keywords.any((kw) => lower.contains(kw.toLowerCase()))) {
+        return entry.value;
+      }
+    }
+    return 0;
+  }
+
+  /// 模糊匹配 label，排除含特定关键词的项
+  static int _matchExclude(
+    Map<String, int> data,
+    List<String> keywords,
+    List<String> exclude,
+  ) {
+    for (final entry in data.entries) {
+      final lower = entry.key.toLowerCase();
+      final matched = keywords.any((kw) => lower.contains(kw.toLowerCase()));
+      if (!matched) continue;
+      final excluded = exclude.any((ex) => lower.contains(ex.toLowerCase()));
+      if (excluded) continue;
+      return entry.value;
     }
     return 0;
   }

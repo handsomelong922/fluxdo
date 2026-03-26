@@ -1256,6 +1256,7 @@
   "appearance_colorIndigo": "靛蓝",
   "appearance_colorAmber": "琥珀",
 
+  "appearance_schemeVariant": "配色风格",
   "appearance_font": "字体",
   "appearance_fontSystem": "系统默认",
 
@@ -2069,11 +2070,13 @@
   "profileStats_dataSource": "数据源",
   "profileStats_enabledItems": "已添加项目",
   "profileStats_availableItems": "可添加项目",
+  "profileStats_selectItems": "统计项目",
   "profileStats_noItemsSelected": "未选择任何统计项",
   "profileStats_addItems": "点击添加统计项",
   "profileStats_guideMessage": "点击统计卡片可自定义展示项目、布局和数据源",
   "profileStats_allItemsAdded": "所有统计项已添加",
   "profileStats_incompatibleSource": "不兼容当前数据源",
+  "profileStats_loadError": "数据加载失败，已回退到全量统计",
 
   "profileStats_daysVisited": "访问天数",
   "profileStats_postsRead": "已读帖子",
@@ -2095,5 +2098,7 @@
   "profileStats_sourceMonthly": "本月",
   "profileStats_sourceQuarterly": "本季",
   "profileStats_sourceYearly": "本年",
-  "profileStats_sourceConnect": "信任等级周期"
+  "profileStats_sourceConnect": "信任等级周期",
+
+  "migration_reloginRequired": "本次版本升级优化了 Cookie 存储机制，已清除旧的登录状态。请重新登录。"
 }

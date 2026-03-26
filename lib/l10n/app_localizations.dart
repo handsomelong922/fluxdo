@@ -6401,6 +6401,12 @@ abstract class AppLocalizations {
   /// **'琥珀'**
   String get appearance_colorAmber;
 
+  /// No description provided for @appearance_schemeVariant.
+  ///
+  /// In zh, this message translates to:
+  /// **'配色风格'**
+  String get appearance_schemeVariant;
+
   /// No description provided for @appearance_font.
   ///
   /// In zh, this message translates to:
@@ -10313,6 +10319,12 @@ abstract class AppLocalizations {
   /// **'可添加项目'**
   String get profileStats_availableItems;
 
+  /// No description provided for @profileStats_selectItems.
+  ///
+  /// In zh, this message translates to:
+  /// **'统计项目'**
+  String get profileStats_selectItems;
+
   /// No description provided for @profileStats_noItemsSelected.
   ///
   /// In zh, this message translates to:
@@ -10342,6 +10354,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'不兼容当前数据源'**
   String get profileStats_incompatibleSource;
+
+  /// No description provided for @profileStats_loadError.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据加载失败，已回退到全量统计'**
+  String get profileStats_loadError;
 
   /// No description provided for @profileStats_daysVisited.
   ///
@@ -10462,6 +10480,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'信任等级周期'**
   String get profileStats_sourceConnect;
+
+  /// No description provided for @migration_reloginRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'本次版本升级优化了 Cookie 存储机制，已清除旧的登录状态。请重新登录。'**
+  String get migration_reloginRequired;
 }
 
 class _AppLocalizationsDelegate

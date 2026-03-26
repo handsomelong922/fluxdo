@@ -23,6 +23,9 @@ class ThemeState {
   /// 用户自定义颜色列表
   final List<Color> customColors;
 
+  /// 系统动态色原始 primary（由 DynamicColorBuilder 提供）
+  final Color? dynamicPrimary;
+
   const ThemeState({
     required this.mode,
     required this.seedColor,
@@ -30,6 +33,7 @@ class ThemeState {
     this.fontFamily = AppFontFamily.system,
     this.schemeVariant = DynamicSchemeVariant.tonalSpot,
     this.customColors = const [],
+    this.dynamicPrimary,
   });
 
   /// 获取实际用于 ThemeData 的 fontFamily 字符串
@@ -49,6 +53,7 @@ class ThemeState {
     AppFontFamily? fontFamily,
     DynamicSchemeVariant? schemeVariant,
     List<Color>? customColors,
+    Color? dynamicPrimary,
   }) {
     return ThemeState(
       mode: mode ?? this.mode,
@@ -57,6 +62,7 @@ class ThemeState {
       fontFamily: fontFamily ?? this.fontFamily,
       schemeVariant: schemeVariant ?? this.schemeVariant,
       customColors: customColors ?? this.customColors,
+      dynamicPrimary: dynamicPrimary ?? this.dynamicPrimary,
     );
   }
 }
@@ -162,6 +168,12 @@ class ThemeNotifier extends StateNotifier<ThemeState> {
   Future<void> setUseDynamicColor(bool value) async {
     state = state.copyWith(useDynamicColor: value);
     await _prefs.setBool(_dynamicColorKey, value);
+  }
+
+  void setDynamicPrimary(Color? color) {
+    if (state.dynamicPrimary != color) {
+      state = state.copyWith(dynamicPrimary: color);
+    }
   }
 
   Future<void> setSchemeVariant(DynamicSchemeVariant variant) async {

@@ -22,6 +22,7 @@ List<SettingsGroup> buildNetworkGroups(BuildContext context) {
     SettingsGroup(
       title: l10n.networkSettings_engine,
       icon: Icons.speed_outlined,
+      wrapInCard: false,
       items: [
         CustomModel(
           id: 'rhttpEngine',
@@ -36,6 +37,7 @@ List<SettingsGroup> buildNetworkGroups(BuildContext context) {
     SettingsGroup(
       title: l10n.networkSettings_proxy,
       icon: Icons.dns_outlined,
+      wrapInCard: false,
       items: [
         CustomModel(
           id: 'dohSettings',
@@ -56,6 +58,7 @@ List<SettingsGroup> buildNetworkGroups(BuildContext context) {
     SettingsGroup(
       title: l10n.networkSettings_auxiliary,
       icon: Icons.tune_outlined,
+      wrapInCard: false,
       items: [
         CustomModel(
           id: 'vpnAutoToggle',
@@ -85,6 +88,7 @@ List<SettingsGroup> buildNetworkGroups(BuildContext context) {
     SettingsGroup(
       title: l10n.networkSettings_advanced,
       icon: Icons.settings_outlined,
+      wrapInCard: false,
       items: [
         CustomModel(
           id: 'advancedSettings',
@@ -105,6 +109,7 @@ List<SettingsGroup> buildNetworkGroups(BuildContext context) {
     SettingsGroup(
       title: l10n.networkSettings_debug,
       icon: Icons.bug_report_outlined,
+      wrapInCard: false,
       items: [
         CustomModel(
           id: 'debugTools',

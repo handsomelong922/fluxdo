@@ -12,7 +12,6 @@ import '../services/discourse/discourse_service.dart';
 import '../services/preloaded_data_service.dart';
 import '../services/network/cookie/cookie_jar_service.dart';
 import '../services/network/cookie/cookie_sync_service.dart';
-import '../services/network/cookie/cookie_write_through.dart';
 import '../services/toast_service.dart';
 import '../services/hcaptcha_accessibility_service.dart';
 import '../services/webview_settings.dart';
@@ -50,7 +49,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   @override
   void initState() {
     super.initState();
-    CookieWriteThrough.instance.seedCriticalCookies();
+    _cookieJar.syncToWebView();
     HCaptchaAccessibilityService().syncToWebView();
     _loadSavedUsername();
   }

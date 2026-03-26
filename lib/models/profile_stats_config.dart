@@ -25,11 +25,6 @@ enum StatsLayoutMode { grid, scroll }
 /// 数据源
 enum StatsDataSource {
   summary,   // 全量（Summary API）
-  daily,     // 本日（Directory）
-  weekly,    // 本周（Directory）
-  monthly,   // 本月（Directory）
-  quarterly, // 本季（Directory）
-  yearly,    // 本年（Directory）
   connect,   // 信任等级周期（connect.linux.do）
 }
 
@@ -47,51 +42,6 @@ const Map<StatsDataSource, Set<ProfileStatType>> supportedStatsPerSource = {
     ProfileStatType.bookmarkCount,
     ProfileStatType.topicsEntered,
   },
-  StatsDataSource.daily: {
-    ProfileStatType.daysVisited,
-    ProfileStatType.postsReadCount,
-    ProfileStatType.likesReceived,
-    ProfileStatType.likesGiven,
-    ProfileStatType.topicCount,
-    ProfileStatType.postCount,
-    ProfileStatType.topicsEntered,
-  },
-  StatsDataSource.weekly: {
-    ProfileStatType.daysVisited,
-    ProfileStatType.postsReadCount,
-    ProfileStatType.likesReceived,
-    ProfileStatType.likesGiven,
-    ProfileStatType.topicCount,
-    ProfileStatType.postCount,
-    ProfileStatType.topicsEntered,
-  },
-  StatsDataSource.monthly: {
-    ProfileStatType.daysVisited,
-    ProfileStatType.postsReadCount,
-    ProfileStatType.likesReceived,
-    ProfileStatType.likesGiven,
-    ProfileStatType.topicCount,
-    ProfileStatType.postCount,
-    ProfileStatType.topicsEntered,
-  },
-  StatsDataSource.quarterly: {
-    ProfileStatType.daysVisited,
-    ProfileStatType.postsReadCount,
-    ProfileStatType.likesReceived,
-    ProfileStatType.likesGiven,
-    ProfileStatType.topicCount,
-    ProfileStatType.postCount,
-    ProfileStatType.topicsEntered,
-  },
-  StatsDataSource.yearly: {
-    ProfileStatType.daysVisited,
-    ProfileStatType.postsReadCount,
-    ProfileStatType.likesReceived,
-    ProfileStatType.likesGiven,
-    ProfileStatType.topicCount,
-    ProfileStatType.postCount,
-    ProfileStatType.topicsEntered,
-  },
   StatsDataSource.connect: {
     ProfileStatType.daysVisited,
     ProfileStatType.postsReadCount,
@@ -107,24 +57,6 @@ const Map<StatsDataSource, Set<ProfileStatType>> supportedStatsPerSource = {
 /// 判断某统计项是否兼容指定数据源
 bool isStatCompatible(ProfileStatType stat, StatsDataSource source) {
   return supportedStatsPerSource[source]?.contains(stat) ?? false;
-}
-
-/// 获取 Directory API 的 period 参数
-String? getDirectoryPeriod(StatsDataSource source) {
-  switch (source) {
-    case StatsDataSource.daily:
-      return 'daily';
-    case StatsDataSource.weekly:
-      return 'weekly';
-    case StatsDataSource.monthly:
-      return 'monthly';
-    case StatsDataSource.quarterly:
-      return 'quarterly';
-    case StatsDataSource.yearly:
-      return 'yearly';
-    default:
-      return null;
-  }
 }
 
 /// 统计卡片配置
