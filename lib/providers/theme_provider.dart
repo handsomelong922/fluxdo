@@ -18,12 +18,18 @@ class ThemeState {
   final Color seedColor;
   final bool useDynamicColor;
   final AppFontFamily fontFamily;
+  final DynamicSchemeVariant schemeVariant;
+
+  /// 用户自定义颜色列表
+  final List<Color> customColors;
 
   const ThemeState({
     required this.mode,
     required this.seedColor,
     this.useDynamicColor = false,
     this.fontFamily = AppFontFamily.system,
+    this.schemeVariant = DynamicSchemeVariant.tonalSpot,
+    this.customColors = const [],
   });
 
   /// 获取实际用于 ThemeData 的 fontFamily 字符串
@@ -41,12 +47,16 @@ class ThemeState {
     Color? seedColor,
     bool? useDynamicColor,
     AppFontFamily? fontFamily,
+    DynamicSchemeVariant? schemeVariant,
+    List<Color>? customColors,
   }) {
     return ThemeState(
       mode: mode ?? this.mode,
       seedColor: seedColor ?? this.seedColor,
       useDynamicColor: useDynamicColor ?? this.useDynamicColor,
       fontFamily: fontFamily ?? this.fontFamily,
+      schemeVariant: schemeVariant ?? this.schemeVariant,
+      customColors: customColors ?? this.customColors,
     );
   }
 }
@@ -57,6 +67,8 @@ class ThemeNotifier extends StateNotifier<ThemeState> {
   static const String _seedColorKey = 'seed_color';
   static const String _dynamicColorKey = 'use_dynamic_color';
   static const String _fontFamilyKey = 'font_family';
+  static const String _schemeVariantKey = 'scheme_variant';
+  static const String _customColorsKey = 'custom_colors';
   final SharedPreferences _prefs;
 
   // Preset Colors
@@ -102,11 +114,31 @@ class ThemeNotifier extends StateNotifier<ThemeState> {
       fontFamily = AppFontFamily.miSans;
     }
 
+    // Load Scheme Variant
+    final savedVariant = prefs.getString(_schemeVariantKey);
+    DynamicSchemeVariant schemeVariant = DynamicSchemeVariant.tonalSpot;
+    for (final v in DynamicSchemeVariant.values) {
+      if (v.name == savedVariant) {
+        schemeVariant = v;
+        break;
+      }
+    }
+
+    // Load Custom Colors
+    final savedCustomColors = prefs.getStringList(_customColorsKey) ?? [];
+    final customColors = savedCustomColors
+        .map((s) => int.tryParse(s))
+        .where((v) => v != null)
+        .map((v) => Color(v!))
+        .toList();
+
     return ThemeState(
       mode: mode,
       seedColor: seedColor,
       useDynamicColor: useDynamicColor,
       fontFamily: fontFamily,
+      schemeVariant: schemeVariant,
+      customColors: customColors,
     );
   }
 
@@ -130,6 +162,37 @@ class ThemeNotifier extends StateNotifier<ThemeState> {
   Future<void> setUseDynamicColor(bool value) async {
     state = state.copyWith(useDynamicColor: value);
     await _prefs.setBool(_dynamicColorKey, value);
+  }
+
+  Future<void> setSchemeVariant(DynamicSchemeVariant variant) async {
+    state = state.copyWith(schemeVariant: variant);
+    await _prefs.setString(_schemeVariantKey, variant.name);
+  }
+
+  Future<void> addCustomColor(Color color) async {
+    final newColors = [...state.customColors, color];
+    state = state.copyWith(customColors: newColors);
+    await _saveCustomColors(newColors);
+  }
+
+  Future<void> removeCustomColor(Color color) async {
+    final newColors = state.customColors
+        .where((c) => c.toARGB32() != color.toARGB32())
+        .toList();
+    state = state.copyWith(customColors: newColors);
+    // 如果删除的正好是当前选中色，回退到默认蓝色
+    if (state.seedColor.toARGB32() == color.toARGB32() &&
+        !state.useDynamicColor) {
+      await setSeedColor(Colors.blue);
+    }
+    await _saveCustomColors(newColors);
+  }
+
+  Future<void> _saveCustomColors(List<Color> colors) async {
+    await _prefs.setStringList(
+      _customColorsKey,
+      colors.map((c) => c.toARGB32().toString()).toList(),
+    );
   }
 
   Future<void> setFontFamily(AppFontFamily fontFamily) async {

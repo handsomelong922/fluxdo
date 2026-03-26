@@ -139,7 +139,10 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          PostLinks(linkCounts: widget.post.linkCounts),
+          PostLinks(
+            linkCounts: widget.post.linkCounts,
+            defaultExpanded: ref.watch(preferencesProvider).expandRelatedLinks,
+          ),
           if (widget.post.postNumber == 1 &&
               widget.topicHasAcceptedAnswer &&
               widget.acceptedAnswerPostNumber != null)

@@ -3056,5 +3056,30 @@
   "hcaptcha_pasteLinkInvalid": "剪貼簿中沒有有效的 hCaptcha 連結",
 
   "migration_title": "資料升級",
-  "migration_cookieUpgrade": "正在升級 Cookie 儲存..."
+  "migration_cookieUpgrade": "正在升級 Cookie 儲存...",
+
+  "settings_title": "應用設定",
+  "settings_appearance": "外觀設定",
+  "settings_reading": "閱讀設定",
+  "settings_network": "網路設定",
+  "settings_preferences": "功能設定",
+  "settings_dataManagement": "資料管理",
+  "settings_about": "關於 FluxDO",
+  "settings_searchHint": "搜尋設定項...",
+  "settings_searchEmpty": "未找到符合的設定項",
+  "profile_settings": "應用設定",
+
+  "reading_title": "閱讀設定",
+  "reading_expandRelatedLinks": "預設展開相關連結",
+  "reading_expandRelatedLinksDesc": "帖子中的相關連結區域預設展開顯示",
+
+  "schemeVariant_tonalSpot": "柔和色調",
+  "schemeVariant_fidelity": "高保真",
+  "schemeVariant_monochrome": "單色",
+  "schemeVariant_neutral": "中性",
+  "schemeVariant_vibrant": "鮮明",
+  "schemeVariant_expressive": "表現力",
+  "schemeVariant_content": "內容",
+  "schemeVariant_rainbow": "彩虹",
+  "schemeVariant_fruitSalad": "繽紛"
 }

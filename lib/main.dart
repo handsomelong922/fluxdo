@@ -309,19 +309,23 @@ class MainApp extends ConsumerWidget {
           lightScheme = ColorScheme.fromSeed(
             seedColor: lightDynamic.primary,
             brightness: Brightness.light,
+            dynamicSchemeVariant: themeState.schemeVariant,
           );
           darkScheme = ColorScheme.fromSeed(
             seedColor: darkDynamic.primary,
             brightness: Brightness.dark,
+            dynamicSchemeVariant: themeState.schemeVariant,
           );
         } else {
           lightScheme = ColorScheme.fromSeed(
             seedColor: themeState.seedColor,
             brightness: Brightness.light,
+            dynamicSchemeVariant: themeState.schemeVariant,
           );
           darkScheme = ColorScheme.fromSeed(
             seedColor: themeState.seedColor,
             brightness: Brightness.dark,
+            dynamicSchemeVariant: themeState.schemeVariant,
           );
         }
 

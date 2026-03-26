@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../l10n/s.dart';
 import '../../../services/network_logger.dart';
@@ -9,15 +10,30 @@ import '../../../services/toast_service.dart';
 
 /// 调试工具卡片
 class DebugToolsCard extends StatefulWidget {
-  const DebugToolsCard({super.key, required this.isDeveloperMode});
-
-  final bool isDeveloperMode;
+  const DebugToolsCard({super.key});
 
   @override
   State<DebugToolsCard> createState() => _DebugToolsCardState();
 }
 
 class _DebugToolsCardState extends State<DebugToolsCard> {
+  bool _isDeveloperMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDeveloperMode();
+  }
+
+  Future<void> _loadDeveloperMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _isDeveloperMode = prefs.getBool('developer_mode') ?? false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -50,7 +66,7 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
             onTap: _clearLogs,
           ),
           // CF 验证日志（开发者模式）
-          if (widget.isDeveloperMode) ...[
+          if (_isDeveloperMode) ...[
             Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2)),
             ListTile(
               leading: const Icon(Icons.bug_report_outlined),

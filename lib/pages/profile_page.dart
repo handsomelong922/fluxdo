@@ -6,7 +6,6 @@ import '../providers/discourse_providers.dart';
 import '../services/discourse_cache_manager.dart';
 import 'webview_page.dart';
 import 'webview_login_page.dart';
-import 'appearance_page.dart';
 import 'browsing_history_page.dart';
 import 'bookmarks_page.dart';
 import 'my_browser_page.dart';
@@ -14,10 +13,7 @@ import 'my_topics_page.dart';
 import 'my_badges_page.dart';
 import 'user_profile_page.dart';
 import 'trust_level_requirements_page.dart';
-import 'about_page.dart';
-import 'data_management_page.dart';
-import 'network_settings_page/network_settings_page.dart';
-import 'preferences_page.dart';
+import 'settings_page.dart';
 import '../widgets/common/loading_spinner.dart';
 import '../widgets/common/loading_dialog.dart';
 import '../widgets/common/notification_icon_button.dart';
@@ -792,35 +788,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ))),
           ),
           _buildOptionTile(
-            icon: Icons.color_lens_rounded,
-            iconColor: Colors.teal,
-            title: context.l10n.profile_appearance,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppearancePage()))
-          ),
-          _buildOptionTile(
-            icon: Icons.network_check_rounded,
+            icon: Icons.settings_rounded,
             iconColor: Colors.blueGrey,
-            title: context.l10n.profile_networkSettings,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NetworkSettingsPage())),
-          ),
-          _buildOptionTile(
-            icon: Icons.tune_rounded,
-            iconColor: Colors.deepPurple,
-            title: context.l10n.profile_preferences,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PreferencesPage())),
-          ),
-          _buildOptionTile(
-            icon: Icons.storage_rounded,
-            iconColor: Colors.brown,
-            title: context.l10n.profile_dataManagement,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DataManagementPage())),
-          ),
-          _buildOptionTile(
-            icon: Icons.info_rounded,
-            iconColor: Colors.indigo,
-            title: context.l10n.profile_aboutFluxDO,
+            title: context.l10n.profile_settings,
             showDivider: false,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutPage())),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage())),
           ),
         ],
       ),

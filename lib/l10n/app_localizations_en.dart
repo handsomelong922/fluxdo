@@ -5547,4 +5547,71 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get migration_cookieUpgrade => 'Upgrading cookie storage...';
+
+  @override
+  String get settings_title => 'App Settings';
+
+  @override
+  String get settings_appearance => 'Appearance';
+
+  @override
+  String get settings_reading => 'Reading';
+
+  @override
+  String get settings_network => 'Network';
+
+  @override
+  String get settings_preferences => 'Preferences';
+
+  @override
+  String get settings_dataManagement => 'Data Management';
+
+  @override
+  String get settings_about => 'About FluxDO';
+
+  @override
+  String get settings_searchHint => 'Search settings...';
+
+  @override
+  String get settings_searchEmpty => 'No matching settings found';
+
+  @override
+  String get profile_settings => 'App Settings';
+
+  @override
+  String get reading_title => 'Reading Settings';
+
+  @override
+  String get reading_expandRelatedLinks => 'Expand related links by default';
+
+  @override
+  String get reading_expandRelatedLinksDesc =>
+      'Show related links expanded in posts';
+
+  @override
+  String get schemeVariant_tonalSpot => 'Tonal Spot';
+
+  @override
+  String get schemeVariant_fidelity => 'Fidelity';
+
+  @override
+  String get schemeVariant_monochrome => 'Mono';
+
+  @override
+  String get schemeVariant_neutral => 'Neutral';
+
+  @override
+  String get schemeVariant_vibrant => 'Vibrant';
+
+  @override
+  String get schemeVariant_expressive => 'Expressive';
+
+  @override
+  String get schemeVariant_content => 'Content';
+
+  @override
+  String get schemeVariant_rainbow => 'Rainbow';
+
+  @override
+  String get schemeVariant_fruitSalad => 'Fruit Salad';
 }

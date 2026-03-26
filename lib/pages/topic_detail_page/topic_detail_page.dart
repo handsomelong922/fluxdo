@@ -19,6 +19,7 @@ import '../../models/topic.dart';
 import '../../utils/responsive.dart';
 import '../../utils/share_utils.dart';
 import '../../providers/preferences_provider.dart';
+import '../reading_settings_page.dart';
 import '../../providers/selected_topic_provider.dart';
 import '../../providers/discourse_providers.dart';
 import '../../providers/message_bus_providers.dart';
@@ -631,6 +632,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             _handleBookmark(notifier);
           } else if (value == 'read_later') {
             _handleReadLater();
+          } else if (value == 'reading_settings') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ReadingSettingsPage()),
+            );
           }
         },
         itemBuilder: (context) => [
@@ -711,6 +717,22 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                 ),
                 const SizedBox(width: 12),
                 Text(context.l10n.topic_notificationSettings),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(),
+          PopupMenuItem(
+            value: 'reading_settings',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.auto_stories_rounded,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+                const SizedBox(width: 12),
+                Text(context.l10n.settings_reading),
               ],
             ),
           ),

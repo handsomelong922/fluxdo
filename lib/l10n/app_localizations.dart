@@ -10114,6 +10114,138 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'正在升级 Cookie 存储...'**
   String get migration_cookieUpgrade;
+
+  /// No description provided for @settings_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用设置'**
+  String get settings_title;
+
+  /// No description provided for @settings_appearance.
+  ///
+  /// In zh, this message translates to:
+  /// **'外观设置'**
+  String get settings_appearance;
+
+  /// No description provided for @settings_reading.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读设置'**
+  String get settings_reading;
+
+  /// No description provided for @settings_network.
+  ///
+  /// In zh, this message translates to:
+  /// **'网络设置'**
+  String get settings_network;
+
+  /// No description provided for @settings_preferences.
+  ///
+  /// In zh, this message translates to:
+  /// **'功能设置'**
+  String get settings_preferences;
+
+  /// No description provided for @settings_dataManagement.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据管理'**
+  String get settings_dataManagement;
+
+  /// No description provided for @settings_about.
+  ///
+  /// In zh, this message translates to:
+  /// **'关于 FluxDO'**
+  String get settings_about;
+
+  /// No description provided for @settings_searchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索设置项...'**
+  String get settings_searchHint;
+
+  /// No description provided for @settings_searchEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'未找到匹配的设置项'**
+  String get settings_searchEmpty;
+
+  /// No description provided for @profile_settings.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用设置'**
+  String get profile_settings;
+
+  /// No description provided for @reading_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读设置'**
+  String get reading_title;
+
+  /// No description provided for @reading_expandRelatedLinks.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认展开相关链接'**
+  String get reading_expandRelatedLinks;
+
+  /// No description provided for @reading_expandRelatedLinksDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'帖子中的相关链接区域默认展开显示'**
+  String get reading_expandRelatedLinksDesc;
+
+  /// No description provided for @schemeVariant_tonalSpot.
+  ///
+  /// In zh, this message translates to:
+  /// **'柔和色调'**
+  String get schemeVariant_tonalSpot;
+
+  /// No description provided for @schemeVariant_fidelity.
+  ///
+  /// In zh, this message translates to:
+  /// **'高保真'**
+  String get schemeVariant_fidelity;
+
+  /// No description provided for @schemeVariant_monochrome.
+  ///
+  /// In zh, this message translates to:
+  /// **'单色'**
+  String get schemeVariant_monochrome;
+
+  /// No description provided for @schemeVariant_neutral.
+  ///
+  /// In zh, this message translates to:
+  /// **'中性'**
+  String get schemeVariant_neutral;
+
+  /// No description provided for @schemeVariant_vibrant.
+  ///
+  /// In zh, this message translates to:
+  /// **'鲜明'**
+  String get schemeVariant_vibrant;
+
+  /// No description provided for @schemeVariant_expressive.
+  ///
+  /// In zh, this message translates to:
+  /// **'表现力'**
+  String get schemeVariant_expressive;
+
+  /// No description provided for @schemeVariant_content.
+  ///
+  /// In zh, this message translates to:
+  /// **'内容'**
+  String get schemeVariant_content;
+
+  /// No description provided for @schemeVariant_rainbow.
+  ///
+  /// In zh, this message translates to:
+  /// **'彩虹'**
+  String get schemeVariant_rainbow;
+
+  /// No description provided for @schemeVariant_fruitSalad.
+  ///
+  /// In zh, this message translates to:
+  /// **'缤纷'**
+  String get schemeVariant_fruitSalad;
 }
 
 class _AppLocalizationsDelegate

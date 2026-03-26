@@ -5,23 +5,46 @@ import 'package:share_plus/share_plus.dart';
 import 'package:ai_model_manager/ai_model_manager.dart';
 
 import '../l10n/s.dart';
-import '../providers/preferences_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/data_management/cache_size_service.dart';
 import '../services/data_management/data_backup_service.dart';
 import '../services/discourse_cache_manager.dart';
 import '../services/network/cookie/cookie_jar_service.dart';
 import '../services/toast_service.dart';
+import '../settings/definitions/data_management_defs.dart';
+import '../widgets/settings/settings_group_page.dart';
 
-/// 数据管理页面
-class DataManagementPage extends ConsumerStatefulWidget {
-  const DataManagementPage({super.key});
+/// 数据管理页面（数据驱动版）
+class DataManagementPage extends StatelessWidget {
+  final String? highlightId;
+
+  const DataManagementPage({super.key, this.highlightId});
 
   @override
-  ConsumerState<DataManagementPage> createState() => _DataManagementPageState();
+  Widget build(BuildContext context) {
+    return SettingsGroupPage(
+      title: context.l10n.dataManagement_title,
+      groupsBuilder: buildDataManagementGroups,
+      highlightId: highlightId,
+    );
+  }
 }
 
-class _DataManagementPageState extends ConsumerState<DataManagementPage> {
+// ─────────────────────────────────────────────
+// 缓存管理区块（有状态，被 CustomModel 包装）
+// ─────────────────────────────────────────────
+
+/// 缓存管理区块，封装了缓存大小加载和清除逻辑
+class CacheManagementSection extends ConsumerStatefulWidget {
+  const CacheManagementSection({super.key});
+
+  @override
+  ConsumerState<CacheManagementSection> createState() =>
+      _CacheManagementSectionState();
+}
+
+class _CacheManagementSectionState
+    extends ConsumerState<CacheManagementSection> {
   int _imageCacheSize = -1;
   int _aiChatDataSize = -1;
   int _cookieCacheSize = -1;
@@ -170,66 +193,6 @@ class _DataManagementPageState extends ConsumerState<DataManagementPage> {
     }
   }
 
-  Future<void> _exportData() async {
-    try {
-      final prefs = ref.read(sharedPreferencesProvider);
-      final filePath = await DataBackupService.exportToFile(prefs);
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(filePath, mimeType: 'application/json')],
-          subject: S.current.dataManagement_backupSubject,
-        ),
-      );
-    } catch (e) {
-      ToastService.showError(S.current.dataManagement_exportFailed(e.toString()));
-    }
-  }
-
-  Future<void> _importData() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
-      if (result == null || result.files.isEmpty) return;
-
-      final filePath = result.files.single.path;
-      if (filePath == null) return;
-
-      final backup = await DataBackupService.parseBackupFile(filePath);
-      final data = backup['data'] as Map<String, dynamic>;
-      final apiKeys = backup['apiKeys'] as Map<String, dynamic>?;
-      final appVersion = backup['appVersion'] as String? ?? S.current.common_unknown;
-      final exportTime = backup['exportTime'] as String? ?? S.current.common_unknown;
-
-      if (!mounted) return;
-
-      final details = StringBuffer()
-        ..writeln(S.current.dataManagement_backupSource(appVersion))
-        ..writeln(S.current.dataManagement_exportTime(exportTime))
-        ..writeln(S.current.dataManagement_settingsCount(data.length));
-      if (apiKeys != null && apiKeys.isNotEmpty) {
-        details.writeln(S.current.dataManagement_apiKeysCount(apiKeys.length));
-      }
-      details.write('\n${S.current.dataManagement_importWarning}');
-
-      final confirmed = await _showConfirmDialog(
-        title: S.current.dataManagement_confirmImport,
-        content: details.toString(),
-        confirmText: S.current.dataManagement_importAndRestart,
-      );
-      if (confirmed != true) return;
-
-      final prefs = ref.read(sharedPreferencesProvider);
-      await DataBackupService.importData(prefs, backup);
-      ToastService.showSuccess(S.current.dataManagement_importSuccess);
-    } on FormatException catch (e) {
-      ToastService.showError(e.message);
-    } catch (e) {
-      ToastService.showError(S.current.dataManagement_importFailed(e.toString()));
-    }
-  }
-
   Future<bool?> _showConfirmDialog({
     required String title,
     required String content,
@@ -263,133 +226,43 @@ class _DataManagementPageState extends ConsumerState<DataManagementPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final preferences = ref.watch(preferencesProvider);
-
-    return Scaffold(
-      appBar: AppBar(title: Text(context.l10n.dataManagement_title)),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        children: [
-          // Section 1 — 缓存管理
-          _buildSectionHeader(theme, Icons.cleaning_services_rounded, context.l10n.dataManagement_cacheManagement),
-          const SizedBox(height: 12),
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: [
-                _buildCacheTile(
-                  icon: Icons.image_rounded,
-                  title: context.l10n.dataManagement_imageCache,
-                  size: _imageCacheSize,
-                  onClear: _isClearing ? null : _clearImageCache,
-                ),
-                _buildDivider(theme),
-                _buildCacheTile(
-                  icon: Icons.smart_toy_rounded,
-                  title: context.l10n.dataManagement_aiChatData,
-                  size: _aiChatDataSize,
-                  onClear: _isClearing ? null : _clearAiChatData,
-                ),
-                _buildDivider(theme),
-                _buildCacheTile(
-                  icon: Icons.cookie_rounded,
-                  title: context.l10n.dataManagement_cookieCache,
-                  size: _cookieCacheSize,
-                  onClear: _isClearing ? null : _clearCookieCache,
-                ),
-                _buildDivider(theme),
-                ListTile(
-                  leading: Icon(
-                    Icons.delete_sweep_rounded,
-                    color: theme.colorScheme.error,
-                  ),
-                  title: Text(context.l10n.dataManagement_clearAllCache),
-                  subtitle: Text(_formatCacheSize(_totalCacheSize)),
-                  trailing: TextButton(
-                    onPressed: _isClearing || _totalCacheSize <= 0
-                        ? null
-                        : _clearAllCache,
-                    child: Text(context.l10n.common_clear),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Section 2 — 自动管理
-          _buildSectionHeader(theme, Icons.auto_delete_rounded, context.l10n.dataManagement_autoManagement),
-          const SizedBox(height: 12),
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            clipBehavior: Clip.antiAlias,
-            child: SwitchListTile(
-              title: Text(context.l10n.dataManagement_clearOnExit),
-              subtitle: Text(context.l10n.dataManagement_clearOnExitDesc),
-              secondary: Icon(
-                Icons.auto_delete_rounded,
-                color: preferences.clearCacheOnExit
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant,
-              ),
-              value: preferences.clearCacheOnExit,
-              onChanged: (value) {
-                ref.read(preferencesProvider.notifier).setClearCacheOnExit(value);
-              },
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Section 3 — 数据备份
-          _buildSectionHeader(theme, Icons.backup_rounded, context.l10n.dataManagement_dataBackup),
-          const SizedBox(height: 12),
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.upload_rounded),
-                  title: Text(context.l10n.dataManagement_exportData),
-                  subtitle: Text(context.l10n.dataManagement_exportDesc),
-                  trailing: Icon(
-                    Icons.chevron_right_rounded,
-                    color: theme.colorScheme.outline.withValues(alpha: 0.4),
-                    size: 20,
-                  ),
-                  onTap: _exportData,
-                ),
-                _buildDivider(theme),
-                ListTile(
-                  leading: const Icon(Icons.download_rounded),
-                  title: Text(context.l10n.dataManagement_importData),
-                  subtitle: Text(context.l10n.dataManagement_importDesc),
-                  trailing: Icon(
-                    Icons.chevron_right_rounded,
-                    color: theme.colorScheme.outline.withValues(alpha: 0.4),
-                    size: 20,
-                  ),
-                  onTap: _importData,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(ThemeData theme, IconData icon, String title) {
-    return Row(
+    return Column(
       children: [
-        Icon(icon, size: 18, color: theme.colorScheme.primary),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
+        _buildCacheTile(
+          theme: theme,
+          icon: Icons.image_rounded,
+          title: context.l10n.dataManagement_imageCache,
+          size: _imageCacheSize,
+          onClear: _isClearing ? null : _clearImageCache,
+        ),
+        _buildDivider(theme),
+        _buildCacheTile(
+          theme: theme,
+          icon: Icons.smart_toy_rounded,
+          title: context.l10n.dataManagement_aiChatData,
+          size: _aiChatDataSize,
+          onClear: _isClearing ? null : _clearAiChatData,
+        ),
+        _buildDivider(theme),
+        _buildCacheTile(
+          theme: theme,
+          icon: Icons.cookie_rounded,
+          title: context.l10n.dataManagement_cookieCache,
+          size: _cookieCacheSize,
+          onClear: _isClearing ? null : _clearCookieCache,
+        ),
+        _buildDivider(theme),
+        ListTile(
+          leading: Icon(
+            Icons.delete_sweep_rounded,
+            color: theme.colorScheme.error,
+          ),
+          title: Text(context.l10n.dataManagement_clearAllCache),
+          subtitle: Text(_formatCacheSize(_totalCacheSize)),
+          trailing: TextButton(
+            onPressed:
+                _isClearing || _totalCacheSize <= 0 ? null : _clearAllCache,
+            child: Text(context.l10n.common_clear),
           ),
         ),
       ],
@@ -397,6 +270,7 @@ class _DataManagementPageState extends ConsumerState<DataManagementPage> {
   }
 
   Widget _buildCacheTile({
+    required ThemeData theme,
     required IconData icon,
     required String title,
     required int size,
@@ -418,6 +292,127 @@ class _DataManagementPageState extends ConsumerState<DataManagementPage> {
       height: 1,
       indent: 56,
       color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// 数据备份区块（被 CustomModel 包装）
+// ─────────────────────────────────────────────
+
+/// 数据备份区块，封装了导出和导入逻辑
+class DataBackupSection extends ConsumerWidget {
+  const DataBackupSection({super.key});
+
+  Future<void> _exportData(BuildContext context, WidgetRef ref) async {
+    try {
+      final prefs = ref.read(sharedPreferencesProvider);
+      final filePath = await DataBackupService.exportToFile(prefs);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(filePath, mimeType: 'application/json')],
+          subject: S.current.dataManagement_backupSubject,
+        ),
+      );
+    } catch (e) {
+      ToastService.showError(
+          S.current.dataManagement_exportFailed(e.toString()));
+    }
+  }
+
+  Future<void> _importData(BuildContext context, WidgetRef ref) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final filePath = result.files.single.path;
+      if (filePath == null) return;
+
+      final backup = await DataBackupService.parseBackupFile(filePath);
+      final data = backup['data'] as Map<String, dynamic>;
+      final apiKeys = backup['apiKeys'] as Map<String, dynamic>?;
+      final appVersion =
+          backup['appVersion'] as String? ?? S.current.common_unknown;
+      final exportTime =
+          backup['exportTime'] as String? ?? S.current.common_unknown;
+
+      if (!context.mounted) return;
+
+      final details = StringBuffer()
+        ..writeln(S.current.dataManagement_backupSource(appVersion))
+        ..writeln(S.current.dataManagement_exportTime(exportTime))
+        ..writeln(S.current.dataManagement_settingsCount(data.length));
+      if (apiKeys != null && apiKeys.isNotEmpty) {
+        details.writeln(S.current.dataManagement_apiKeysCount(apiKeys.length));
+      }
+      details.write('\n${S.current.dataManagement_importWarning}');
+
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(S.current.dataManagement_confirmImport),
+          content: Text(details.toString()),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ctx.l10n.common_cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(S.current.dataManagement_importAndRestart),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+
+      final prefs = ref.read(sharedPreferencesProvider);
+      await DataBackupService.importData(prefs, backup);
+      ToastService.showSuccess(S.current.dataManagement_importSuccess);
+    } on FormatException catch (e) {
+      ToastService.showError(e.message);
+    } catch (e) {
+      ToastService.showError(
+          S.current.dataManagement_importFailed(e.toString()));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        ListTile(
+          leading: const Icon(Icons.upload_rounded),
+          title: Text(context.l10n.dataManagement_exportData),
+          subtitle: Text(context.l10n.dataManagement_exportDesc),
+          trailing: Icon(
+            Icons.chevron_right_rounded,
+            color: theme.colorScheme.outline.withValues(alpha: 0.4),
+            size: 20,
+          ),
+          onTap: () => _exportData(context, ref),
+        ),
+        Divider(
+          height: 1,
+          indent: 56,
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+        ),
+        ListTile(
+          leading: const Icon(Icons.download_rounded),
+          title: Text(context.l10n.dataManagement_importData),
+          subtitle: Text(context.l10n.dataManagement_importDesc),
+          trailing: Icon(
+            Icons.chevron_right_rounded,
+            color: theme.colorScheme.outline.withValues(alpha: 0.4),
+            size: 20,
+          ),
+          onTap: () => _importData(context, ref),
+        ),
+      ],
     );
   }
 }

@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:flutter_dynamic_icon_plus/flutter_dynamic_icon_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'theme_provider.dart';
@@ -42,7 +41,7 @@ class AppIconState {
 /// 应用图标管理
 class AppIconNotifier extends StateNotifier<AppIconState> {
   static const String _prefKey = 'pref_app_icon';
-  static const _androidChannel =
+  static const _platformChannel =
       MethodChannel('com.github.lingyan000.fluxdo/app_icon');
   final SharedPreferences _prefs;
 
@@ -50,16 +49,48 @@ class AppIconNotifier extends StateNotifier<AppIconState> {
     _init();
   }
 
-  void _init() {
-    // 兼容旧值：'default'/'default_dark' → classic，'modern'/'modern_light' → modern
-    final saved = _prefs.getString(_prefKey);
-    final AppIconStyle style;
+  AppIconStyle _styleFromSavedValue(String? saved) {
     switch (saved) {
       case 'modern':
       case 'modern_light':
-        style = AppIconStyle.modern;
+      case 'ModernIcon':
+        return AppIconStyle.modern;
       default:
-        style = AppIconStyle.classic;
+        return AppIconStyle.classic;
+    }
+  }
+
+  AppIconStyle _styleFromIconName(String? iconName) {
+    switch (iconName) {
+      case 'ModernIcon':
+      case 'modern':
+      case 'modern_light':
+        return AppIconStyle.modern;
+      default:
+        return AppIconStyle.classic;
+    }
+  }
+
+  String _styleToPrefValue(AppIconStyle style) {
+    return style == AppIconStyle.modern ? 'modern' : 'classic';
+  }
+
+  Future<void> _init() async {
+    var style = _styleFromSavedValue(_prefs.getString(_prefKey));
+
+    if (!kIsWeb && Platform.isIOS) {
+      try {
+        if (await _supportsAlternateIcons()) {
+          final currentIconName = await _getCurrentIconName();
+          style = _styleFromIconName(currentIconName);
+          final prefValue = _styleToPrefValue(style);
+          if (_prefs.getString(_prefKey) != prefValue) {
+            await _prefs.setString(_prefKey, prefValue);
+          }
+        }
+      } catch (e) {
+        debugPrint('读取当前应用图标失败: $e');
+      }
     }
 
     state = state.copyWith(currentStyle: style);
@@ -69,42 +100,94 @@ class AppIconNotifier extends StateNotifier<AppIconState> {
   String? _getIconName(AppIconStyle style) {
     switch (style) {
       case AppIconStyle.classic:
-        return null; // null = 主图标
+        return null;
       case AppIconStyle.modern:
         return 'ModernIcon';
     }
   }
 
   /// 调用平台 API 切换图标
-  Future<void> _setPlatformIcon(String? iconName) async {
-    if (kIsWeb) return;
+  Future<String?> _setPlatformIcon(String? iconName) async {
+    if (kIsWeb) return null;
     if (Platform.isAndroid) {
-      await _androidChannel
+      await _platformChannel
           .invokeMethod('setAlternateIcon', {'iconName': iconName});
+      return iconName;
     } else if (Platform.isIOS) {
-      await FlutterDynamicIconPlus.setAlternateIconName(iconName: iconName);
+      return await _platformChannel.invokeMethod<String>('setAlternateIcon', {
+        'iconName': iconName,
+      });
     }
+    return iconName;
+  }
+
+  Future<bool> _supportsAlternateIcons() async {
+    if (kIsWeb) return false;
+    if (Platform.isIOS) {
+      return (await _platformChannel.invokeMethod<bool>('supportsAlternateIcons')) ??
+          false;
+    }
+    return true;
+  }
+
+  Future<String?> _getCurrentIconName() async {
+    if (kIsWeb) return null;
+    if (Platform.isIOS) {
+      return await _platformChannel.invokeMethod<String>('getAlternateIconName');
+    }
+    return _getIconName(state.currentStyle);
+  }
+
+  Future<bool> _isPlatformIconApplied(AppIconStyle style) async {
+    if (kIsWeb) return true;
+    if (Platform.isIOS) {
+      try {
+        if (!await _supportsAlternateIcons()) {
+          return style == AppIconStyle.classic;
+        }
+        return await _getCurrentIconName() == _getIconName(style);
+      } catch (e) {
+        debugPrint('校验当前应用图标失败: $e');
+        return false;
+      }
+    }
+    return style == state.currentStyle;
+  }
+
+  void _logPlatformIconException(PlatformException error) {
+    debugPrint(
+      '切换应用图标失败: '
+      'code=${error.code}, '
+      'message=${error.message}, '
+      'details=${error.details}',
+    );
   }
 
   /// 切换应用图标风格
   Future<bool> setIconStyle(AppIconStyle style) async {
-    if (state.isChanging || style == state.currentStyle) return true;
+    if (state.isChanging) return true;
+    if (style == state.currentStyle && await _isPlatformIconApplied(style)) {
+      return true;
+    }
 
     state = state.copyWith(isChanging: true);
 
     try {
       final iconName = _getIconName(style);
       await _setPlatformIcon(iconName);
-      await _prefs.setString(
-        _prefKey,
-        style == AppIconStyle.modern ? 'modern' : 'classic',
-      );
+
+      await _prefs.setString(_prefKey, _styleToPrefValue(style));
 
       state = state.copyWith(
         currentStyle: style,
         isChanging: false,
       );
       return true;
+    } on PlatformException catch (e) {
+      _logPlatformIconException(e);
+
+      state = state.copyWith(isChanging: false);
+      return false;
     } catch (e) {
       debugPrint('切换应用图标失败: $e');
       state = state.copyWith(isChanging: false);

@@ -10,6 +10,7 @@ import '../../utils/discourse_url_parser.dart';
 /// 默认折叠，点击标题栏展开/收起
 class PostLinks extends StatefulWidget {
   final List<LinkCount>? linkCounts;
+  final bool defaultExpanded;
 
   /// 最大折叠显示数量
   static const int maxCollapsedLinks = 5;
@@ -17,6 +18,7 @@ class PostLinks extends StatefulWidget {
   const PostLinks({
     super.key,
     this.linkCounts,
+    this.defaultExpanded = false,
   });
 
   @override
@@ -24,7 +26,7 @@ class PostLinks extends StatefulWidget {
 }
 
 class _PostLinksState extends State<PostLinks> with SingleTickerProviderStateMixin {
-  bool _expanded = false;
+  late bool _expanded = widget.defaultExpanded;
   bool _showAll = false; // 链接列表内部的"查看更多"
 
   /// 获取内部入站链接（reflection links）

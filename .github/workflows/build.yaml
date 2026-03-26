@@ -423,7 +423,7 @@ jobs:
               range="${prev:+$prev..}$curr"
 
               echo -e "## $curr\n" >> "$temp"
-              git log --no-merges --pretty=format:"- %s" "$range" | \
+              git log --no-merges --pretty=format:"- %s%n" "$range" | \
                 grep -v 'Update changelog' | \
                 grep -v 'Co-Authored-By: Release Script' | \
                 grep -v '^- chore: bump version to ' >> "$temp"
@@ -494,7 +494,7 @@ jobs:
             prev="${tags[i+1]}"
             range="${prev:+$prev..}$curr"
 
-            git log --no-merges --pretty=format:"- %s" "$range" | \
+            git log --no-merges --pretty=format:"- %s%n" "$range" | \
               grep -v 'Update changelog' | \
               grep -v 'Co-Authored-By: Release Script' | \
               grep -v '^- chore: bump version to ' >> "$out"

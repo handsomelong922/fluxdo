@@ -31,6 +31,8 @@ class AppPreferences {
   final bool clearCacheOnExit;
   /// cf_clearance 自动续期
   final bool cfClearanceRefresh;
+  /// 相关链接默认展开
+  final bool expandRelatedLinks;
   /// 最大并发请求数
   final int maxConcurrent;
   /// 滑动窗口内最大请求数
@@ -52,6 +54,7 @@ class AppPreferences {
     required this.hideBarOnScroll,
     required this.clearCacheOnExit,
     required this.cfClearanceRefresh,
+    required this.expandRelatedLinks,
     required this.maxConcurrent,
     required this.maxPerWindow,
     required this.windowSeconds,
@@ -71,6 +74,7 @@ class AppPreferences {
     bool? hideBarOnScroll,
     bool? clearCacheOnExit,
     bool? cfClearanceRefresh,
+    bool? expandRelatedLinks,
     int? maxConcurrent,
     int? maxPerWindow,
     int? windowSeconds,
@@ -90,6 +94,7 @@ class AppPreferences {
       hideBarOnScroll: hideBarOnScroll ?? this.hideBarOnScroll,
       clearCacheOnExit: clearCacheOnExit ?? this.clearCacheOnExit,
       cfClearanceRefresh: cfClearanceRefresh ?? this.cfClearanceRefresh,
+      expandRelatedLinks: expandRelatedLinks ?? this.expandRelatedLinks,
       maxConcurrent: maxConcurrent ?? this.maxConcurrent,
       maxPerWindow: maxPerWindow ?? this.maxPerWindow,
       windowSeconds: windowSeconds ?? this.windowSeconds,
@@ -113,6 +118,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _clearCacheOnExitKey = 'pref_clear_cache_on_exit';
   static const String _cfClearanceRefreshKey =
       CfClearanceRefreshService.prefKeyEnabled;
+  static const String _expandRelatedLinksKey = 'pref_expand_related_links';
   static const String _maxConcurrentKey = 'pref_max_concurrent';
   static const String _maxPerWindowKey = 'pref_max_per_window';
   static const String _windowSecondsKey = 'pref_window_seconds';
@@ -138,6 +144,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
             clearCacheOnExit: _prefs.getBool(_clearCacheOnExitKey) ?? false,
             cfClearanceRefresh:
                 _prefs.getBool(_cfClearanceRefreshKey) ?? false,
+            expandRelatedLinks:
+                _prefs.getBool(_expandRelatedLinksKey) ?? false,
             maxConcurrent: _prefs.getInt(_maxConcurrentKey) ?? 3,
             maxPerWindow: _prefs.getInt(_maxPerWindowKey) ?? 6,
             windowSeconds: _prefs.getInt(_windowSecondsKey) ?? 3,
@@ -229,6 +237,11 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setCfClearanceRefresh(bool enabled) async {
     state = state.copyWith(cfClearanceRefresh: enabled);
     await CfClearanceRefreshService().setEnabled(enabled);
+  }
+
+  Future<void> setExpandRelatedLinks(bool enabled) async {
+    state = state.copyWith(expandRelatedLinks: enabled);
+    await _prefs.setBool(_expandRelatedLinksKey, enabled);
   }
 
   Future<void> setMaxConcurrent(int value) async {

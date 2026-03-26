@@ -5423,6 +5423,72 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get migration_cookieUpgrade => '正在升级 Cookie 存储...';
+
+  @override
+  String get settings_title => '应用设置';
+
+  @override
+  String get settings_appearance => '外观设置';
+
+  @override
+  String get settings_reading => '阅读设置';
+
+  @override
+  String get settings_network => '网络设置';
+
+  @override
+  String get settings_preferences => '功能设置';
+
+  @override
+  String get settings_dataManagement => '数据管理';
+
+  @override
+  String get settings_about => '关于 FluxDO';
+
+  @override
+  String get settings_searchHint => '搜索设置项...';
+
+  @override
+  String get settings_searchEmpty => '未找到匹配的设置项';
+
+  @override
+  String get profile_settings => '应用设置';
+
+  @override
+  String get reading_title => '阅读设置';
+
+  @override
+  String get reading_expandRelatedLinks => '默认展开相关链接';
+
+  @override
+  String get reading_expandRelatedLinksDesc => '帖子中的相关链接区域默认展开显示';
+
+  @override
+  String get schemeVariant_tonalSpot => '柔和色调';
+
+  @override
+  String get schemeVariant_fidelity => '高保真';
+
+  @override
+  String get schemeVariant_monochrome => '单色';
+
+  @override
+  String get schemeVariant_neutral => '中性';
+
+  @override
+  String get schemeVariant_vibrant => '鲜明';
+
+  @override
+  String get schemeVariant_expressive => '表现力';
+
+  @override
+  String get schemeVariant_content => '内容';
+
+  @override
+  String get schemeVariant_rainbow => '彩虹';
+
+  @override
+  String get schemeVariant_fruitSalad => '缤纷';
 }
 
 /// The translations for Chinese, as used in Hong Kong (`zh_HK`).
@@ -10723,6 +10789,72 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
 
   @override
   String get migration_cookieUpgrade => '正在升級 Cookie 儲存...';
+
+  @override
+  String get settings_title => '應用設定';
+
+  @override
+  String get settings_appearance => '外觀設定';
+
+  @override
+  String get settings_reading => '閱讀設定';
+
+  @override
+  String get settings_network => '網絡設定';
+
+  @override
+  String get settings_preferences => '功能設定';
+
+  @override
+  String get settings_dataManagement => '資料管理';
+
+  @override
+  String get settings_about => '關於 FluxDO';
+
+  @override
+  String get settings_searchHint => '搜尋設定項...';
+
+  @override
+  String get settings_searchEmpty => '未找到匹配的設定項';
+
+  @override
+  String get profile_settings => '應用設定';
+
+  @override
+  String get reading_title => '閱讀設定';
+
+  @override
+  String get reading_expandRelatedLinks => '預設展開相關鏈接';
+
+  @override
+  String get reading_expandRelatedLinksDesc => '帖子中的相關鏈接區域預設展開顯示';
+
+  @override
+  String get schemeVariant_tonalSpot => '柔和色調';
+
+  @override
+  String get schemeVariant_fidelity => '高保真';
+
+  @override
+  String get schemeVariant_monochrome => '單色';
+
+  @override
+  String get schemeVariant_neutral => '中性';
+
+  @override
+  String get schemeVariant_vibrant => '鮮明';
+
+  @override
+  String get schemeVariant_expressive => '表現力';
+
+  @override
+  String get schemeVariant_content => '內容';
+
+  @override
+  String get schemeVariant_rainbow => '彩虹';
+
+  @override
+  String get schemeVariant_fruitSalad => '繽紛';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -16023,4 +16155,70 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get migration_cookieUpgrade => '正在升級 Cookie 儲存...';
+
+  @override
+  String get settings_title => '應用設定';
+
+  @override
+  String get settings_appearance => '外觀設定';
+
+  @override
+  String get settings_reading => '閱讀設定';
+
+  @override
+  String get settings_network => '網路設定';
+
+  @override
+  String get settings_preferences => '功能設定';
+
+  @override
+  String get settings_dataManagement => '資料管理';
+
+  @override
+  String get settings_about => '關於 FluxDO';
+
+  @override
+  String get settings_searchHint => '搜尋設定項...';
+
+  @override
+  String get settings_searchEmpty => '未找到符合的設定項';
+
+  @override
+  String get profile_settings => '應用設定';
+
+  @override
+  String get reading_title => '閱讀設定';
+
+  @override
+  String get reading_expandRelatedLinks => '預設展開相關連結';
+
+  @override
+  String get reading_expandRelatedLinksDesc => '帖子中的相關連結區域預設展開顯示';
+
+  @override
+  String get schemeVariant_tonalSpot => '柔和色調';
+
+  @override
+  String get schemeVariant_fidelity => '高保真';
+
+  @override
+  String get schemeVariant_monochrome => '單色';
+
+  @override
+  String get schemeVariant_neutral => '中性';
+
+  @override
+  String get schemeVariant_vibrant => '鮮明';
+
+  @override
+  String get schemeVariant_expressive => '表現力';
+
+  @override
+  String get schemeVariant_content => '內容';
+
+  @override
+  String get schemeVariant_rainbow => '彩虹';
+
+  @override
+  String get schemeVariant_fruitSalad => '繽紛';
 }

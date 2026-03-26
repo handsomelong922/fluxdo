@@ -85,6 +85,41 @@ import workmanager_apple
         }
       }
 
+      let appIconChannel = FlutterMethodChannel(
+        name: "com.github.lingyan000.fluxdo/app_icon",
+        binaryMessenger: controller.binaryMessenger
+      )
+      appIconChannel.setMethodCallHandler { (call, result) in
+        switch call.method {
+        case "supportsAlternateIcons":
+          if #available(iOS 10.3, *) {
+            result(UIApplication.shared.supportsAlternateIcons)
+          } else {
+            result(false)
+          }
+
+        case "getAlternateIconName":
+          if #available(iOS 10.3, *) {
+            result(UIApplication.shared.alternateIconName)
+          } else {
+            result(nil)
+          }
+
+        case "setAlternateIcon":
+          guard #available(iOS 10.3, *) else {
+            result(FlutterError(code: "UNAVAILABLE", message: "Alternate icons require iOS 10.3+", details: nil))
+            return
+          }
+
+          let args = call.arguments as? [String: Any]
+          let iconName = args?["iconName"] as? String
+          self.setAlternateIcon(iconName, result: result)
+
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
+
       let channel = FlutterMethodChannel(
         name: "com.fluxdo/cookie_storage",
         binaryMessenger: controller.binaryMessenger
@@ -109,6 +144,98 @@ import workmanager_apple
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  private func isRequestedIconApplied(_ iconName: String?) -> Bool {
+    if #available(iOS 10.3, *) {
+      return UIApplication.shared.alternateIconName == iconName
+    }
+    return iconName == nil
+  }
+
+  private func makeAlternateIconError(
+    message: String,
+    application: UIApplication,
+    iconName: String?,
+    error: NSError? = nil
+  ) -> FlutterError {
+    var details: [String: Any] = [
+      "applicationState": application.applicationState.rawValue,
+      "currentIconName": application.alternateIconName as Any,
+      "requestedIconName": iconName as Any,
+      "systemVersion": UIDevice.current.systemVersion,
+      "isSimulator": {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+      }(),
+    ]
+
+    if let error {
+      details["domain"] = error.domain
+      details["code"] = error.code
+      details["userInfo"] = error.userInfo
+    }
+
+    return FlutterError(
+      code: "SET_ICON_FAILED",
+      message: message,
+      details: details
+    )
+  }
+
+  private func setAlternateIcon(_ iconName: String?, result: @escaping FlutterResult) {
+    if #available(iOS 10.3, *) {
+      let application = UIApplication.shared
+
+      guard application.supportsAlternateIcons else {
+        result(
+          FlutterError(
+            code: "UNSUPPORTED",
+            message: "Alternate icons are not supported on this device.",
+            details: [
+              "applicationState": application.applicationState.rawValue,
+              "currentIconName": application.alternateIconName as Any,
+              "requestedIconName": iconName as Any,
+            ]
+          )
+        )
+        return
+      }
+
+      if isRequestedIconApplied(iconName) {
+        result(application.alternateIconName)
+        return
+      }
+
+      DispatchQueue.main.async {
+        application.setAlternateIconName(iconName) { [weak self] error in
+          guard let self else { return }
+
+          if let error = error as NSError? {
+            if self.isRequestedIconApplied(iconName) {
+              result(application.alternateIconName)
+              return
+            }
+
+            result(
+              self.makeAlternateIconError(
+                message: error.localizedDescription,
+                application: application,
+                iconName: iconName,
+                error: error
+              )
+            )
+          } else {
+            result(application.alternateIconName)
+          }
+        }
+      }
+    } else {
+      result(FlutterError(code: "UNAVAILABLE", message: "Alternate icons require iOS 10.3+", details: nil))
+    }
   }
 
   /// 将 cookie 写入 HTTPCookieStorage.shared

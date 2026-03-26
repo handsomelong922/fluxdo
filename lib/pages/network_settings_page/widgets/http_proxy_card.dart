@@ -1,14 +1,46 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/s.dart';
+import '../../../services/network/doh/network_settings_service.dart';
 import '../../../services/network/proxy/proxy_settings_service.dart';
 import '../../../services/network/proxy/shadowsocks_uri_parser.dart';
 import '../../../services/network/vpn_auto_toggle_service.dart';
 import '../../../services/toast_service.dart';
 
 class HttpProxyCard extends StatelessWidget {
-  const HttpProxyCard({
-    super.key,
+  const HttpProxyCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final proxyService = ProxySettingsService.instance;
+    final networkService = NetworkSettingsService.instance;
+    final vpnService = VpnAutoToggleService.instance;
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        proxyService.notifier,
+        proxyService.isTesting,
+        proxyService.testResultNotifier,
+        networkService.notifier,
+        vpnService.enabledNotifier,
+        vpnService.vpnActiveNotifier,
+      ]),
+      builder: (context, _) {
+        final proxySettings = proxyService.notifier.value;
+        final dohEnabled = networkService.notifier.value.dohEnabled;
+        final isSuppressedByVpn = vpnService.enabled && vpnService.isProxySuppressed;
+        return _HttpProxyCardInner(
+          proxySettings: proxySettings,
+          dohEnabled: dohEnabled,
+          isSuppressedByVpn: isSuppressedByVpn,
+        );
+      },
+    );
+  }
+}
+
+class _HttpProxyCardInner extends StatelessWidget {
+  const _HttpProxyCardInner({
     required this.proxySettings,
     required this.dohEnabled,
     this.isSuppressedByVpn = false,

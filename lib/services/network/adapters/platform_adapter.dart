@@ -149,6 +149,14 @@ HttpClientAdapter _createNativeAdapter() {
     debugPrint('[DIO] Dynamic adapter -> IOHttpClientAdapter (debug mode)');
     return IOHttpClientAdapter();
   }
+  if (Platform.isMacOS && _macOSNeedsNativeFallback) {
+    // objective_c 原生库编译产物的 LC_BUILD_VERSION minos 可能与构建机器一致，
+    // 在低版本 macOS 上 dlopen 时 dyld 无法处理 __DATA_CONST 段保护，
+    // 触发 SIGBUS 崩溃 (KERN_PROTECTION_FAILURE in map_images_nolock)。
+    // 参见 https://github.com/dart-lang/native/issues/3011
+    debugPrint('[DIO] Dynamic adapter -> IOHttpClientAdapter (macOS < 14)');
+    return IOHttpClientAdapter();
+  }
   if (Platform.isIOS || Platform.isMacOS) {
     // Release 模式: URLSession 默认会自动管理 Cookie（httpShouldSetCookies=true），
     // 会与 AppCookieManager 拦截器冲突。禁用 URLSession 的 Cookie 自动管理。
@@ -158,6 +166,22 @@ HttpClientAdapter _createNativeAdapter() {
   }
   return NativeAdapter();
 }
+
+/// macOS 版本 < 14 时需要降级为 IO 适配器。
+/// objective_c 框架在构建时 minos 可能被设为构建机器的 OS 版本，
+/// 导致在低版本 macOS 上 dlopen 崩溃 (dart-lang/native#3011)。
+final bool _macOSNeedsNativeFallback = () {
+  if (!Platform.isMacOS) return false;
+  try {
+    // Platform.operatingSystemVersion 格式: "Version 14.5 (Build 23F79)"
+    final ver = Platform.operatingSystemVersion;
+    final match = RegExp(r'Version (\d+)\.').firstMatch(ver);
+    if (match != null) {
+      return int.parse(match.group(1)!) < 14;
+    }
+  } catch (_) {}
+  return false;
+}();
 
 /// Gateway 适配器包装器：在传输层透明改写 URL
 ///

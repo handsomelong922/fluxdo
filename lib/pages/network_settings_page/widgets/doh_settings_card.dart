@@ -14,8 +14,36 @@ import 'ios_cert_install_dialog.dart';
 
 /// DOH 设置卡片（简化版：开关 + 状态 + "更多设置"入口）
 class DohSettingsCard extends StatelessWidget {
-  const DohSettingsCard({
-    super.key,
+  const DohSettingsCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final service = NetworkSettingsService.instance;
+    final vpnService = VpnAutoToggleService.instance;
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        service.notifier,
+        service.isApplying,
+        vpnService.enabledNotifier,
+        vpnService.vpnActiveNotifier,
+      ]),
+      builder: (context, _) {
+        final settings = service.notifier.value;
+        final isApplying = service.isApplying.value;
+        final isSuppressedByVpn = vpnService.enabled && vpnService.isDohSuppressed;
+        return _DohSettingsCardInner(
+          settings: settings,
+          isApplying: isApplying,
+          isSuppressedByVpn: isSuppressedByVpn,
+        );
+      },
+    );
+  }
+}
+
+class _DohSettingsCardInner extends StatelessWidget {
+  const _DohSettingsCardInner({
     required this.settings,
     required this.isApplying,
     this.isSuppressedByVpn = false,
