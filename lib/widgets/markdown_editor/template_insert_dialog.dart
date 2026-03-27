@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/discourse/discourse_service.dart';
 import '../../models/template.dart';
+import '../../utils/dialog_utils.dart';
 import '../common/loading_spinner.dart';
 import '../../../../../l10n/s.dart';
 
@@ -243,7 +244,7 @@ class _TemplateInsertDialogState extends State<TemplateInsertDialog> {
 
 /// 显示模板选择底部弹窗
 Future<Template?> showTemplateInsertDialog(BuildContext context) {
-  return showModalBottomSheet<Template>(
+  return showAppBottomSheet<Template>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,

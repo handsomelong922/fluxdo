@@ -15,6 +15,7 @@ import 'package:fluxdo/services/draft_controller.dart';
 import 'package:fluxdo/services/preloaded_data_service.dart';
 import 'package:fluxdo/widgets/topic/topic_editor_helpers.dart';
 import '../l10n/s.dart';
+import '../utils/dialog_utils.dart';
 
 class CreateTopicPage extends ConsumerStatefulWidget {
   final int? initialCategoryId;
@@ -97,7 +98,7 @@ class _CreateTopicPageState extends ConsumerState<CreateTopicPage> {
 
   /// 显示恢复草稿对话框
   Future<bool?> _showRestoreDraftDialog() async {
-    return showDialog<bool>(
+    return showAppDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
@@ -166,7 +167,7 @@ class _CreateTopicPageState extends ConsumerState<CreateTopicPage> {
 
   /// 舍弃草稿
   Future<void> _discardDraft() async {
-    final confirm = await showDialog<bool>(
+    final confirm = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.createTopic_discardPost),
@@ -324,7 +325,7 @@ class _CreateTopicPageState extends ConsumerState<CreateTopicPage> {
 
     if (_templateContent != null &&
         _contentController.text.trim() == _templateContent!.trim()) {
-      final confirm = await showDialog<bool>(
+      final confirm = await showAppDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
           title: Text(context.l10n.common_hint),

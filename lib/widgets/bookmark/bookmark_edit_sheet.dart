@@ -3,6 +3,7 @@ import '../../models/bookmark.dart';
 import '../../services/discourse/discourse_service.dart';
 import '../../services/toast_service.dart';
 import '../../services/app_error_handler.dart';
+import '../../utils/dialog_utils.dart';
 import '../../utils/time_utils.dart';
 import 'package:dio/dio.dart';
 import '../../../../../l10n/s.dart';
@@ -36,7 +37,7 @@ class BookmarkEditSheet extends StatefulWidget {
     String? initialName,
     DateTime? initialReminderAt,
   }) {
-    return showModalBottomSheet<BookmarkEditResult>(
+    return showAppBottomSheet<BookmarkEditResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -114,7 +115,7 @@ class _BookmarkEditSheetState extends State<BookmarkEditSheet> {
   Future<void> _delete() async {
     if (_isDeleting) return;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(S.current.common_deleteBookmark),

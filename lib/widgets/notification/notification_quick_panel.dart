@@ -1,7 +1,10 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/s.dart';
 import '../../providers/discourse_providers.dart';
+import '../../providers/preferences_provider.dart';
 import '../../pages/notifications_page.dart';
 import '../../utils/responsive.dart';
 import '../../utils/notification_navigation.dart';
@@ -133,6 +136,10 @@ class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
           return const SizedBox.shrink();
         }
 
+        final dialogBlur = ProviderScope.containerOf(context, listen: false)
+            .read(preferencesProvider)
+            .dialogBlur;
+
         final panel = Material(
           color: Theme.of(context).colorScheme.surface,
           clipBehavior: Clip.antiAlias,
@@ -160,20 +167,46 @@ class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
         );
 
         return showRail
-            ? _buildSidebarLayout(panel)
-            : _buildMobileLayout(panel);
+            ? _buildSidebarLayout(panel, dialogBlur)
+            : _buildMobileLayout(panel, dialogBlur);
       },
     );
   }
 
   /// 侧栏模式：从左边缘滑出
-  Widget _buildSidebarLayout(Widget child) {
+  Widget _buildSidebarLayout(Widget child, bool blur) {
     final screenSize = MediaQuery.sizeOf(context);
     const panelWidth = 420.0;
     final panelHeight = (screenSize.height * 0.9).clamp(0.0, 900.0);
+    final actualPanelWidth = panelWidth.clamp(0.0, screenSize.width);
+
+    // 面板可见区域（随动画展开）
+    final visiblePanelWidth = actualPanelWidth * _animation.value;
+    final panelRect = Rect.fromLTWH(
+      0,
+      screenSize.height - panelHeight,
+      visiblePanelWidth,
+      panelHeight,
+    );
 
     return Stack(
       children: [
+        // 模糊层：裁剪掉面板区域，不影响面板
+        if (blur)
+          Positioned.fill(
+            child: ClipPath(
+              clipper: _ExcludeRectClipper(panelRect),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(
+                  sigmaX: 10 * _animation.value,
+                  sigmaY: 10 * _animation.value,
+                  tileMode: TileMode.mirror,
+                ),
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        // 暗色遮罩 + 点击关闭（全屏，面板自身遮盖）
         Positioned.fill(
           child: GestureDetector(
             onTap: NotificationQuickPanel.dismiss,
@@ -185,7 +218,7 @@ class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
         Positioned(
           left: 0,
           bottom: 0,
-          width: panelWidth.clamp(0.0, screenSize.width),
+          width: actualPanelWidth,
           height: panelHeight,
           child: ClipRect(
             child: FractionalTranslation(
@@ -199,15 +232,41 @@ class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
   }
 
   /// 手机模式：从底部滑出 + 下滑关闭
-  Widget _buildMobileLayout(Widget child) {
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    final panelHeight = screenHeight * 0.8;
+  Widget _buildMobileLayout(Widget child, bool blur) {
+    final screenSize = MediaQuery.sizeOf(context);
+    final panelHeight = screenSize.height * 0.8;
     final slideOffset = (1 - _animation.value) * panelHeight;
     final dragOffset = _dragOffset.clamp(0.0, panelHeight);
+
+    // 面板可见高度（随动画和拖拽变化）
+    final visibleHeight =
+        (panelHeight * _animation.value - dragOffset).clamp(0.0, panelHeight);
+    final panelRect = Rect.fromLTWH(
+      0,
+      screenSize.height - visibleHeight,
+      screenSize.width,
+      visibleHeight,
+    );
 
     return Stack(
       clipBehavior: Clip.none,
       children: [
+        // 模糊层：裁剪掉面板区域
+        if (blur)
+          Positioned.fill(
+            child: ClipPath(
+              clipper: _ExcludeRectClipper(panelRect),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(
+                  sigmaX: 10 * _animation.value,
+                  sigmaY: 10 * _animation.value,
+                  tileMode: TileMode.mirror,
+                ),
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        // 暗色遮罩 + 点击关闭
         Positioned.fill(
           child: GestureDetector(
             onTap: NotificationQuickPanel.dismiss,
@@ -230,6 +289,23 @@ class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
       ],
     );
   }
+}
+
+/// 裁剪路径：全屏减去指定矩形区域（EvenOdd 填充规则）
+class _ExcludeRectClipper extends CustomClipper<Path> {
+  final Rect excludeRect;
+  const _ExcludeRectClipper(this.excludeRect);
+
+  @override
+  Path getClip(Size size) {
+    return Path()
+      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..addRect(excludeRect)
+      ..fillType = PathFillType.evenOdd;
+  }
+
+  @override
+  bool shouldReclip(_ExcludeRectClipper old) => excludeRect != old.excludeRect;
 }
 
 /// 手机模式 BottomSheet 面板

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/s.dart';
 import '../../../services/discourse_cache_manager.dart';
+import '../../../utils/dialog_utils.dart';
 import '../../../services/toast_service.dart';
 import '../providers/ldc_reward_provider.dart';
 
@@ -27,7 +28,7 @@ class RewardTargetInfo {
 
 /// 显示打赏底部弹窗
 void showLdcRewardSheet(BuildContext context, RewardTargetInfo target) {
-  showModalBottomSheet(
+  showAppBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -93,7 +94,7 @@ class _LdcRewardSheetState extends ConsumerState<_LdcRewardSheet> {
     final target = widget.target;
 
     // 二次确认
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(context.l10n.reward_confirmTitle),

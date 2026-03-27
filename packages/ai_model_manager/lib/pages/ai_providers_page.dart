@@ -6,6 +6,7 @@ import '../providers/ai_chat_providers.dart';
 import '../providers/ai_provider_providers.dart';
 import '../services/ai_chat_storage_service.dart';
 import '../l10n/ai_l10n.dart';
+import '../utils/dialog_utils.dart';
 import '../widgets/swipe_action_cell.dart';
 import 'ai_chat_history_page.dart';
 import 'ai_provider_edit_page.dart';
@@ -121,7 +122,7 @@ class AiProvidersPage extends ConsumerWidget {
 
   void _confirmDelete(
       BuildContext context, WidgetRef ref, AiProvider provider) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(AiL10n.current.confirmDelete),
@@ -376,7 +377,7 @@ class _ChatSettingsSection extends StatelessWidget {
     List<({AiProvider provider, AiModel model})> allModels,
     ({AiProvider provider, AiModel model})? current,
   ) {
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       showDragHandle: true,
       builder: (ctx) {
@@ -425,7 +426,7 @@ class _ChatSettingsSection extends StatelessWidget {
   ) {
     final options = [10, 20, 30, 50, 100, 200];
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       showDragHandle: true,
       builder: (ctx) {

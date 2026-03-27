@@ -10,6 +10,7 @@ import '../../providers/preferences_provider.dart';
 import '../../services/discourse/discourse_service.dart';
 import '../../l10n/s.dart';
 import '../../services/toast_service.dart';
+import '../../utils/dialog_utils.dart';
 import '../../utils/screenshot_utils.dart';
 import 'ai_share_image_widget.dart';
 import 'share_image_preview.dart';
@@ -69,7 +70,7 @@ class AiShareImagePreview extends ConsumerStatefulWidget {
     String? topicSlug,
     void Function(String imageMarkdown)? onReplyToTopic,
   }) {
-    return showModalBottomSheet(
+    return showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

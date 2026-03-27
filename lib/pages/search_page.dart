@@ -15,6 +15,7 @@ import 'package:dio/dio.dart';
 import '../services/app_error_handler.dart';
 import '../l10n/s.dart';
 import 'user_profile_page.dart';
+import '../utils/dialog_utils.dart';
 
 /// 搜索页面
 class SearchPage extends ConsumerStatefulWidget {
@@ -194,7 +195,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   void _openFilterPanel() {
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

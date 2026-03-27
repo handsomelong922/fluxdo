@@ -8,6 +8,7 @@ import '../../models/category.dart';
 import '../../models/search_result.dart';
 import '../../providers/discourse_providers.dart';
 import '../../providers/preferences_provider.dart';
+import '../../utils/dialog_utils.dart';
 import '../../utils/font_awesome_helper.dart';
 import '../../utils/share_utils.dart';
 import '../../utils/url_helper.dart';
@@ -36,7 +37,7 @@ class SearchPreviewDialog extends ConsumerWidget {
     // 触觉反馈
     HapticFeedback.mediumImpact();
 
-    return showGeneralDialog(
+    return showAppGeneralDialog(
       context: context,
       barrierDismissible: true,
       barrierLabel: S.current.common_closePreview,

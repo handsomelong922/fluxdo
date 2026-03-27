@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../l10n/s.dart';
 import '../../../services/network/doh/network_settings_service.dart';
+import '../../../utils/dialog_utils.dart';
 import '../../../services/network/proxy/proxy_settings_service.dart';
 import '../../../services/network/proxy/shadowsocks_uri_parser.dart';
 import '../../../services/network/vpn_auto_toggle_service.dart';
@@ -273,7 +274,7 @@ class _HttpProxyCardInner extends StatelessWidget {
         ? proxySettings.cipher
         : ProxySettingsService.supportedShadowsocksCiphers[1];
 
-    final result = await showDialog<bool>(
+    final result = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
@@ -508,7 +509,7 @@ class _HttpProxyCardInner extends StatelessWidget {
     BuildContext context,
   ) async {
     final linkController = TextEditingController();
-    final value = await showDialog<String>(
+    final value = await showAppDialog<String>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(

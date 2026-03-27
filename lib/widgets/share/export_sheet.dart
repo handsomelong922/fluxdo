@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/topic.dart';
 import '../../l10n/s.dart';
 import '../../services/toast_service.dart';
+import '../../utils/dialog_utils.dart';
 import '../../utils/export_utils.dart';
 
 /// 导出选项 Sheet
@@ -16,7 +17,7 @@ class ExportSheet extends StatefulWidget {
 
   /// 显示导出 Sheet
   static Future<void> show(BuildContext context, TopicDetail detail) {
-    return showModalBottomSheet(
+    return showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../utils/dialog_utils.dart';
 
 /// 滑动操作按钮数据
 class SwipeAction {
@@ -242,7 +243,7 @@ class _SwipeActionCellState extends State<SwipeActionCell>
     if (actions.isEmpty) return;
     final theme = Theme.of(context);
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) {

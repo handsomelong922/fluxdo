@@ -7,6 +7,7 @@ import '../../models/topic.dart';
 import '../../pages/image_viewer_page.dart';
 import '../../services/discourse_cache_manager.dart';
 import '../../services/toast_service.dart';
+import '../../utils/dialog_utils.dart';
 import '../../utils/quote_builder.dart';
 import '../content/discourse_html_content/image_utils.dart';
 
@@ -33,7 +34,7 @@ class ImageContextMenu {
   }) {
     final originalUrl = DiscourseImageUtils.getOriginalUrl(imageUrl);
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       builder: (ctx) {
         return SafeArea(

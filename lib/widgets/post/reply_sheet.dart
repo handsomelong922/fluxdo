@@ -15,6 +15,7 @@ import '../../services/toast_service.dart';
 import '../../services/preloaded_data_service.dart';
 import '../common/smart_avatar.dart';
 import '../../l10n/s.dart';
+import '../../utils/dialog_utils.dart';
 import '../common/loading_spinner.dart';
 
 /// 显示回复底部弹框
@@ -34,7 +35,7 @@ Future<Post?> showReplySheet({
   Future<Draft?>? preloadedDraftFuture,
   String? initialContent,
 }) async {
-  final result = await showModalBottomSheet<Post?>(
+  final result = await showAppBottomSheet<Post?>(
     context: context,
     isScrollControlled: true,
     useSafeArea: false,
@@ -62,7 +63,7 @@ Future<Post?> showEditSheet({
   required Post post,
   int? categoryId,
 }) async {
-  final result = await showModalBottomSheet<Post?>(
+  final result = await showAppBottomSheet<Post?>(
     context: context,
     isScrollControlled: true,
     useSafeArea: false,
@@ -216,7 +217,7 @@ class _ReplySheetState extends ConsumerState<ReplySheet> {
 
   /// 舍弃草稿
   Future<void> _discardDraft() async {
-    final confirm = await showDialog<bool>(
+    final confirm = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.post_discardTitle),
@@ -337,7 +338,7 @@ class _ReplySheetState extends ConsumerState<ReplySheet> {
   }
 
   void _showError(String message) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.common_hint),

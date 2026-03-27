@@ -3469,6 +3469,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearance_fontSystem => '系统默认';
 
   @override
+  String get appearance_dialogBlur => '对话框模糊';
+
+  @override
+  String get appearance_dialogBlurDesc => '对话框弹出时模糊背景';
+
+  @override
   String get appLogs_title => '应用日志';
 
   @override
@@ -9082,6 +9088,12 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get appearance_fontSystem => '系統預設';
 
   @override
+  String get appearance_dialogBlur => '對話框模糊';
+
+  @override
+  String get appearance_dialogBlurDesc => '對話框彈出時模糊背景';
+
+  @override
   String get appLogs_title => '應用日誌';
 
   @override
@@ -14572,6 +14584,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get appearance_fontSystem => '系統預設';
+
+  @override
+  String get appearance_dialogBlur => '對話框模糊';
+
+  @override
+  String get appearance_dialogBlurDesc => '對話框彈出時模糊背景';
 
   @override
   String get appLogs_title => '應用日誌';

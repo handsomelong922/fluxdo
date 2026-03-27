@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/s.dart';
 import '../../../models/topic.dart';
+import '../../../utils/dialog_utils.dart';
 import '../../../services/discourse/discourse_service.dart';
 import '../../../services/toast_service.dart';
 import '../../../widgets/share/ai_share_image_preview.dart';
@@ -740,7 +741,7 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
     TopicAiChatState chatState,
     TopicAiChatNotifier notifier,
   ) {
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (ctx) {
@@ -760,7 +761,7 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
   }
 
   void _confirmClear(BuildContext context, TopicAiChatNotifier notifier) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(context.l10n.ai_clearChatTitle),

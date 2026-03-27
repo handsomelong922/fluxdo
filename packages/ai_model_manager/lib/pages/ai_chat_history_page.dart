@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/ai_l10n.dart';
 import '../models/ai_chat_message.dart';
 import '../providers/ai_provider_providers.dart';
+import '../utils/dialog_utils.dart';
 
 /// 打开会话回调类型
 typedef OpenSessionCallback = void Function(
@@ -108,7 +109,7 @@ class _AiChatHistoryPageState extends ConsumerState<AiChatHistoryPage> {
   }
 
   void _confirmDeleteAll(BuildContext context) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(AiL10n.current.clearAllConversations),
@@ -229,7 +230,7 @@ class _TopicGroupTile extends StatelessWidget {
   }
 
   void _confirmDeleteTopic(BuildContext context, String topicTitle) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(AiL10n.current.deleteTopicSessions),

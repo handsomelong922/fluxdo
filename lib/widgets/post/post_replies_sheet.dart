@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/s.dart';
+import '../../utils/dialog_utils.dart';
 import '../../models/topic.dart';
 import '../../providers/discourse_providers.dart';
 import '../../services/app_error_handler.dart';
@@ -26,7 +27,7 @@ void showPostRepliesSheet({
   required int topicId,
   void Function(int postNumber)? onJumpToPost,
 }) {
-  showModalBottomSheet(
+  showAppBottomSheet(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/s.dart';
 import '../../../pages/webview_page.dart';
+import '../../../utils/dialog_utils.dart';
 import '../../../services/toast_service.dart';
 import '../providers/ldc_reward_provider.dart';
 
@@ -86,7 +87,7 @@ class LdcRewardConfigTile extends ConsumerWidget {
     final clientSecretController = TextEditingController();
     final theme = Theme.of(context);
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(context.l10n.reward_configDialogTitle),

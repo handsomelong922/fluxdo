@@ -6,6 +6,7 @@ import '../models/ai_provider.dart';
 import '../providers/ai_provider_providers.dart';
 import '../services/ai_provider_service.dart';
 import '../services/toast_delegate.dart';
+import '../utils/dialog_utils.dart';
 
 /// AI 供应商添加/编辑页面
 class AiProviderEditPage extends ConsumerStatefulWidget {
@@ -172,7 +173,7 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
 
   void _addModelManually() {
     final controller = TextEditingController();
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(AiL10n.current.addModelManually),

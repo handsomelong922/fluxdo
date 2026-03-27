@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../utils/dialog_utils.dart';
 import '../../../../../l10n/s.dart';
 
 /// 话题进度指示器，类似 Discourse 的 topic-progress 组件
@@ -586,7 +587,7 @@ Future<void> showTopicTimelineSheet({
 }) {
   // 在 modal 外部获取状态栏高度，因为 showModalBottomSheet 会清零 padding.top
   final topPadding = MediaQuery.of(context).padding.top;
-  return showModalBottomSheet(
+  return showAppBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

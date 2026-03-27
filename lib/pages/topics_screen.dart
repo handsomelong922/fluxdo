@@ -1,8 +1,11 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../l10n/s.dart';
+import '../providers/preferences_provider.dart';
 import '../providers/selected_topic_provider.dart';
 import '../providers/discourse_providers.dart';
 import '../widgets/layout/master_detail_layout.dart';
@@ -259,6 +262,9 @@ class _TopicsFabState extends ConsumerState<_TopicsFab>
   void _showOverlay() {
     _removeOverlay();
     final theme = Theme.of(context);
+    final dialogBlur = ProviderScope.containerOf(context, listen: false)
+        .read(preferencesProvider)
+        .dialogBlur;
     _overlayEntry = OverlayEntry(
       builder: (context) => Stack(
         children: [
@@ -268,12 +274,45 @@ class _TopicsFabState extends ConsumerState<_TopicsFab>
             behavior: HitTestBehavior.opaque,
             child: FadeTransition(
               opacity: _expandAnimation,
-              child: const ColoredBox(
-                color: Colors.black26,
-                child: SizedBox.expand(),
-              ),
+              child: dialogBlur
+                  ? AnimatedBuilder(
+                      animation: _expandAnimation,
+                      builder: (context, child) => BackdropFilter(
+                        filter: ImageFilter.blur(
+                          sigmaX: 10 * _expandAnimation.value,
+                          sigmaY: 10 * _expandAnimation.value,
+                          tileMode: TileMode.mirror,
+                        ),
+                        child: child,
+                      ),
+                      child: const ColoredBox(
+                        color: Colors.black26,
+                        child: SizedBox.expand(),
+                      ),
+                    )
+                  : const ColoredBox(
+                      color: Colors.black26,
+                      child: SizedBox.expand(),
+                    ),
             ),
           ),
+          // 主 FAB 副本（在模糊层之上，保持清晰）
+          if (dialogBlur)
+            CompositedTransformFollower(
+              link: _layerLink,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.center,
+              followerAnchor: Alignment.center,
+              child: FloatingActionButton(
+                heroTag: null,
+                onPressed: _close,
+                child: AnimatedRotation(
+                  turns: 0.125,
+                  duration: const Duration(milliseconds: 200),
+                  child: const Icon(Icons.add),
+                ),
+              ),
+            ),
           // 子按钮：定位到主 FAB 上方
           CompositedTransformFollower(
             link: _layerLink,
@@ -344,15 +383,24 @@ class _TopicsFabState extends ConsumerState<_TopicsFab>
     }
 
     // 主 FAB（作为锚点，子按钮在 Overlay 中定位到它上方）
+    // 模糊开启时，展开后隐藏真实 FAB（overlay 中有 sharp 副本）
+    final dialogBlur = ref.watch(
+      preferencesProvider.select((p) => p.dialogBlur),
+    );
+    final hideFab = _isExpanded && dialogBlur;
+
     return CompositedTransformTarget(
       link: _layerLink,
-      child: FloatingActionButton(
-        heroTag: 'createTopic',
-        onPressed: _toggle,
-        child: AnimatedRotation(
-          turns: _isExpanded ? 0.125 : 0,
-          duration: const Duration(milliseconds: 200),
-          child: const Icon(Icons.add),
+      child: Opacity(
+        opacity: hideFab ? 0 : 1,
+        child: FloatingActionButton(
+          heroTag: 'createTopic',
+          onPressed: _toggle,
+          child: AnimatedRotation(
+            turns: _isExpanded ? 0.125 : 0,
+            duration: const Duration(milliseconds: 200),
+            child: const Icon(Icons.add),
+          ),
         ),
       ),
     );

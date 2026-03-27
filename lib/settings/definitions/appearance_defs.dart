@@ -8,8 +8,10 @@ import 'package:ai_model_manager/ai_model_manager.dart';
 import '../../l10n/s.dart';
 import '../../providers/app_icon_provider.dart';
 import '../../providers/locale_provider.dart';
+import '../../providers/preferences_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/toast_service.dart';
+import '../../utils/dialog_utils.dart';
 import '../settings_model.dart';
 
 /// 外观设置数据声明
@@ -224,6 +226,23 @@ List<SettingsGroup> buildAppearanceGroups(BuildContext context) {
         ),
       ],
     ),
+
+    // ── 对话框模糊 ──────────────────────────────────────────────────
+    SettingsGroup(
+      title: l10n.appearance_dialogBlur,
+      icon: Icons.blur_on_outlined,
+      items: [
+        SwitchModel(
+          id: 'dialogBlur',
+          title: l10n.appearance_dialogBlur,
+          subtitle: l10n.appearance_dialogBlurDesc,
+          icon: Icons.blur_on_rounded,
+          getValue: (ref) => ref.watch(preferencesProvider).dialogBlur,
+          onChanged: (ref, v) =>
+              ref.read(preferencesProvider.notifier).setDialogBlur(v),
+        ),
+      ],
+    ),
   ];
 }
 
@@ -243,7 +262,7 @@ void _showLanguagePicker(
     (l10n.appearance_languageEn, const Locale('en', 'US')),
   ];
 
-  showModalBottomSheet<void>(
+  showAppBottomSheet<void>(
     context: context,
     showDragHandle: true,
     builder: (sheetContext) {
@@ -924,7 +943,7 @@ class _ThemeColorSectionState extends ConsumerState<_ThemeColorSection> {
 
     syncHex();
 
-    showModalBottomSheet<Color>(
+    showAppBottomSheet<Color>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,

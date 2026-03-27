@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/s.dart';
 import '../../services/network/doh/doh_resolver.dart';
+import '../../utils/dialog_utils.dart';
 import '../../services/network/doh/network_settings_service.dart';
 import '../../services/toast_service.dart';
 import '../../widgets/common/dismissible_popup_menu.dart';
@@ -476,7 +477,7 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
   }
 
   Future<void> _showEchServerDialog(List<DohServer> servers, String? currentEch) async {
-    final result = await showDialog<String?>(
+    final result = await showAppDialog<String?>(
       context: context,
       builder: (context) {
         return SimpleDialog(
@@ -564,7 +565,7 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
     final urlController = TextEditingController();
     final bootstrapIpsController = TextEditingController();
 
-    final result = await showDialog<DohServer>(
+    final result = await showAppDialog<DohServer>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -651,7 +652,7 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
       text: server.bootstrapIps.join(', '),
     );
 
-    final result = await showDialog<DohServer>(
+    final result = await showAppDialog<DohServer>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -737,7 +738,7 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
       text: settings.serverIp ?? '',
     );
 
-    final result = await showDialog<String?>(
+    final result = await showAppDialog<String?>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -776,7 +777,7 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
   }
 
   Future<void> _confirmDeleteServer(DohServer server) async {
-    final confirm = await showDialog<bool>(
+    final confirm = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.dohDetail_deleteServer),

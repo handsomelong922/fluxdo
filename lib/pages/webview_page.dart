@@ -17,6 +17,7 @@ import '../providers/web_history_provider.dart';
 import '../providers/download_provider.dart';
 import '../widgets/common/dismissible_popup_menu.dart';
 import '../l10n/s.dart';
+import '../utils/dialog_utils.dart';
 
 /// 通用内置浏览器页面
 class WebViewPage extends ConsumerStatefulWidget {
@@ -421,7 +422,7 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
 
   void _showUrlInput() {
     final controller = TextEditingController(text: _currentUrl);
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(S.current.webview_inputUrl),

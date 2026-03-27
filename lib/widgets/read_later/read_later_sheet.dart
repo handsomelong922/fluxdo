@@ -6,6 +6,7 @@ import '../../models/read_later_item.dart';
 import '../../providers/read_later_provider.dart';
 import '../../pages/topic_detail_page/topic_detail_page.dart';
 import '../../services/local_notification_service.dart'; // navigatorKey
+import '../../utils/dialog_utils.dart';
 import '../../utils/time_utils.dart';
 
 /// 稍后阅读列表 BottomSheet
@@ -16,7 +17,7 @@ class ReadLaterSheet extends ConsumerWidget {
   static Future<void> show() {
     final context = navigatorKey.currentContext;
     if (context == null) return Future.value();
-    return showModalBottomSheet<void>(
+    return showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

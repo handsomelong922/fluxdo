@@ -6,6 +6,7 @@ import '../../models/emoji.dart';
 import '../../providers/discourse_providers.dart';
 import '../../services/emoji_handler.dart';
 import '../../services/discourse_cache_manager.dart';
+import '../../utils/dialog_utils.dart';
 import '../common/cached_image.dart';
 import '../common/loading_spinner.dart';
 import '../../../../../l10n/s.dart';
@@ -164,7 +165,7 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
     final allEmojis = emojiGroups.values.expand((e) => e).toList();
     final onSelected = widget.onEmojiSelected;
 
-    final selectedEmoji = await showModalBottomSheet<Emoji>(
+    final selectedEmoji = await showAppBottomSheet<Emoji>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,

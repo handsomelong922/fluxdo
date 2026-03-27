@@ -5,6 +5,7 @@ import '../../l10n/s.dart';
 import '../../models/category.dart';
 import '../../models/search_filter.dart';
 import '../../providers/category_provider.dart';
+import '../../utils/dialog_utils.dart';
 import '../../utils/font_awesome_helper.dart';
 import '../../utils/tag_icon_list.dart';
 import '../common/tag_selection_sheet.dart';
@@ -118,7 +119,7 @@ class _SearchFilterPanelState extends ConsumerState<SearchFilterPanel> {
       error: (e, s) => <String>[],
     );
 
-    final result = await showModalBottomSheet<List<String>>(
+    final result = await showAppBottomSheet<List<String>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

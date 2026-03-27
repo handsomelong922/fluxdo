@@ -13,6 +13,7 @@ import '../services/local_notification_service.dart';
 import '../services/toast_service.dart';
 import '../utils/time_utils.dart';
 import '../l10n/s.dart';
+import '../utils/dialog_utils.dart';
 
 /// 下载管理页面
 class DownloadListPage extends ConsumerStatefulWidget {
@@ -198,7 +199,7 @@ class _DownloadListPageState extends ConsumerState<DownloadListPage> {
   }
 
   void _confirmClear(BuildContext context) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(S.current.myBrowser_clearCompleted),

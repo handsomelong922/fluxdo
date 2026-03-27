@@ -35,6 +35,8 @@ class AppPreferences {
   final bool expandRelatedLinks;
   /// AI 助手左滑入口（PageView 模式）
   final bool aiSwipeEntry;
+  /// 对话框背景高斯模糊
+  final bool dialogBlur;
   /// 最大并发请求数
   final int maxConcurrent;
   /// 滑动窗口内最大请求数
@@ -58,6 +60,7 @@ class AppPreferences {
     required this.cfClearanceRefresh,
     required this.expandRelatedLinks,
     required this.aiSwipeEntry,
+    required this.dialogBlur,
     required this.maxConcurrent,
     required this.maxPerWindow,
     required this.windowSeconds,
@@ -79,6 +82,7 @@ class AppPreferences {
     bool? cfClearanceRefresh,
     bool? expandRelatedLinks,
     bool? aiSwipeEntry,
+    bool? dialogBlur,
     int? maxConcurrent,
     int? maxPerWindow,
     int? windowSeconds,
@@ -100,6 +104,7 @@ class AppPreferences {
       cfClearanceRefresh: cfClearanceRefresh ?? this.cfClearanceRefresh,
       expandRelatedLinks: expandRelatedLinks ?? this.expandRelatedLinks,
       aiSwipeEntry: aiSwipeEntry ?? this.aiSwipeEntry,
+      dialogBlur: dialogBlur ?? this.dialogBlur,
       maxConcurrent: maxConcurrent ?? this.maxConcurrent,
       maxPerWindow: maxPerWindow ?? this.maxPerWindow,
       windowSeconds: windowSeconds ?? this.windowSeconds,
@@ -125,6 +130,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
       CfClearanceRefreshService.prefKeyEnabled;
   static const String _expandRelatedLinksKey = 'pref_expand_related_links';
   static const String _aiSwipeEntryKey = 'pref_ai_swipe_entry';
+  static const String _dialogBlurKey = 'pref_dialog_blur';
   static const String _maxConcurrentKey = 'pref_max_concurrent';
   static const String _maxPerWindowKey = 'pref_max_per_window';
   static const String _windowSecondsKey = 'pref_window_seconds';
@@ -153,6 +159,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
             expandRelatedLinks:
                 _prefs.getBool(_expandRelatedLinksKey) ?? false,
             aiSwipeEntry: _prefs.getBool(_aiSwipeEntryKey) ?? false,
+            dialogBlur: _prefs.getBool(_dialogBlurKey) ?? true,
             maxConcurrent: _prefs.getInt(_maxConcurrentKey) ?? 3,
             maxPerWindow: _prefs.getInt(_maxPerWindowKey) ?? 6,
             windowSeconds: _prefs.getInt(_windowSecondsKey) ?? 3,
@@ -254,6 +261,11 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setAiSwipeEntry(bool enabled) async {
     state = state.copyWith(aiSwipeEntry: enabled);
     await _prefs.setBool(_aiSwipeEntryKey, enabled);
+  }
+
+  Future<void> setDialogBlur(bool enabled) async {
+    state = state.copyWith(dialogBlur: enabled);
+    await _prefs.setBool(_dialogBlurKey, enabled);
   }
 
   Future<void> setMaxConcurrent(int value) async {

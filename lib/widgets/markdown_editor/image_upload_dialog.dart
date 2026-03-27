@@ -8,6 +8,7 @@ import 'package:pro_image_editor/pro_image_editor.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/toast_service.dart';
+import '../../utils/dialog_utils.dart';
 import 'image_compression_strategy.dart';
 import 'image_editor_i18n_zh.dart';
 import '../../../../../l10n/s.dart';
@@ -333,7 +334,7 @@ Future<ImageUploadResult?> showImageUploadDialog(
   required String imagePath,
   String? imageName,
 }) {
-  return showDialog<ImageUploadResult>(
+  return showAppDialog<ImageUploadResult>(
     context: context,
     barrierDismissible: false,
     builder: (context) => ImageUploadDialog(
@@ -699,7 +700,7 @@ Future<List<ImageUploadResult>?> showMultiImageUploadDialog(
   required List<String> imagePaths,
   required List<String> imageNames,
 }) {
-  return showDialog<List<ImageUploadResult>>(
+  return showAppDialog<List<ImageUploadResult>>(
     context: context,
     barrierDismissible: false,
     builder: (context) => MultiImageUploadDialog(

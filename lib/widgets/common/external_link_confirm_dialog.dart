@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../config/site_customization.dart';
 import '../../l10n/s.dart';
 import '../../services/toast_service.dart';
+import '../../utils/dialog_utils.dart';
 
 /// 显示外部链接确认对话框
 ///
@@ -12,7 +13,7 @@ Future<bool?> showExternalLinkConfirmDialog(
   String url,
   LinkRiskLevel riskLevel,
 ) {
-  return showModalBottomSheet<bool>(
+  return showAppBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -25,7 +26,7 @@ Future<bool?> showExternalLinkConfirmDialog(
 
 /// 显示链接被阻止的提示
 Future<void> showLinkBlockedDialog(BuildContext context, String url) {
-  return showModalBottomSheet(
+  return showAppBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

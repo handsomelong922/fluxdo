@@ -6,6 +6,7 @@ import 'package:ai_model_manager/ai_model_manager.dart';
 
 import '../l10n/s.dart';
 import '../providers/theme_provider.dart';
+import '../utils/dialog_utils.dart';
 import '../services/data_management/cache_size_service.dart';
 import '../services/data_management/data_backup_service.dart';
 import '../services/discourse_cache_manager.dart';
@@ -199,7 +200,7 @@ class _CacheManagementSectionState
     String? confirmText,
     bool isDestructive = false,
   }) {
-    return showDialog<bool>(
+    return showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
@@ -350,7 +351,7 @@ class DataBackupSection extends ConsumerWidget {
       }
       details.write('\n${S.current.dataManagement_importWarning}');
 
-      final confirmed = await showDialog<bool>(
+      final confirmed = await showAppDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: Text(S.current.dataManagement_confirmImport),

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/sticker.dart';
 import '../../providers/sticker_provider.dart';
 import '../../services/discourse_cache_manager.dart';
+import '../../utils/dialog_utils.dart';
 import '../common/cached_image.dart';
 import '../common/loading_spinner.dart';
 import 'sticker_market_sheet.dart';
@@ -68,7 +69,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
   }
 
   void _openMarket() {
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,

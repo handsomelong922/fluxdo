@@ -6,6 +6,7 @@ import '../services/log/logger_utils.dart';
 import '../services/toast_service.dart';
 import '../widgets/common/dismissible_popup_menu.dart';
 import '../l10n/s.dart';
+import '../utils/dialog_utils.dart';
 
 /// 日志筛选类型
 enum _LogFilter { all, error, request, lifecycle }
@@ -77,7 +78,7 @@ class _AppLogsPageState extends State<AppLogsPage> {
   }
 
   Future<void> _clearLogs() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.appLogs_clearTitle),
@@ -220,7 +221,7 @@ class _AppLogsPageState extends State<AppLogsPage> {
       _ => event,
     };
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
@@ -284,7 +285,7 @@ class _AppLogsPageState extends State<AppLogsPage> {
     final tag = entry['tag']?.toString();
     final appVersion = entry['appVersion']?.toString();
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
@@ -379,7 +380,7 @@ class _AppLogsPageState extends State<AppLogsPage> {
     final duration = entry['duration'];
     final level = entry['level']?.toString() ?? 'info';
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Row(

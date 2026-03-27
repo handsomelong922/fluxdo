@@ -19,6 +19,7 @@ import '../services/windows_webview_environment_service.dart';
 import '../services/log/log_writer.dart';
 import '../widgets/common/dismissible_popup_menu.dart';
 import '../l10n/s.dart';
+import '../utils/dialog_utils.dart';
 
 /// WebView 登录页面（统一使用 flutter_inappwebview）
 class WebViewLoginPage extends ConsumerStatefulWidget {
@@ -221,7 +222,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   }
 
   Future<void> _clearCredentials() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.webviewLogin_clearSavedTitle),

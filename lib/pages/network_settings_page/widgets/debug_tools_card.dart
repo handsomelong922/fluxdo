@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../l10n/s.dart';
 import '../../../services/network_logger.dart';
+import '../../../utils/dialog_utils.dart';
 import '../../../services/cf_challenge_logger.dart';
 import '../../../services/toast_service.dart';
 
@@ -100,7 +101,7 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
     if (!mounted) return;
 
     final theme = Theme.of(context);
-    await showModalBottomSheet(
+    await showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -234,7 +235,7 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
   }
 
   Future<void> _clearLogs() async {
-    final confirm = await showDialog<bool>(
+    final confirm = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.appLogs_clearTitle),
@@ -268,7 +269,7 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
     if (!mounted) return;
 
     final theme = Theme.of(context);
-    await showModalBottomSheet(
+    await showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -402,7 +403,7 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
   }
 
   Future<void> _clearCfChallengeLogs() async {
-    final confirm = await showDialog<bool>(
+    final confirm = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.appLogs_clearTitle),

@@ -9,6 +9,7 @@ import '../widgets/post/reply_sheet.dart';
 import '../services/toast_service.dart';
 import '../widgets/common/relative_time_text.dart';
 import '../l10n/s.dart';
+import '../utils/dialog_utils.dart';
 import 'topic_detail_page/topic_detail_page.dart';
 import 'create_topic_page.dart';
 
@@ -144,7 +145,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
 
   /// 删除草稿
   Future<void> _onDraftDelete(Draft draft) async {
-    final confirm = await showDialog<bool>(
+    final confirm = await showAppDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {

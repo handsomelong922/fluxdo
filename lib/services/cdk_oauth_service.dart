@@ -4,6 +4,7 @@ import 'package:html/parser.dart' as html_parser;
 import 'network/discourse_dio.dart';
 import 'network/exceptions/oauth_exception.dart';
 import '../l10n/s.dart';
+import '../utils/dialog_utils.dart';
 import 'toast_service.dart';
 import '../models/cdk_user_info.dart';
 
@@ -72,7 +73,7 @@ class CdkOAuthService {
 
       if (approveLink == null || !context.mounted) return false;
 
-      final confirmed = await showDialog<bool>(
+      final confirmed = await showAppDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (context) => _AuthDialog(

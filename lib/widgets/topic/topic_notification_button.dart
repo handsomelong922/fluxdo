@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/topic.dart';
 import '../../models/category.dart';
+import '../../utils/dialog_utils.dart';
 import '../../../../../l10n/s.dart';
 
 enum TopicNotificationButtonStyle {
@@ -14,7 +15,7 @@ void showNotificationLevelSheet(
   TopicNotificationLevel currentLevel,
   ValueChanged<TopicNotificationLevel> onSelected,
 ) {
-  showModalBottomSheet(
+  showAppBottomSheet(
     context: context,
     builder: (context) => _NotificationLevelSheet(
       currentLevel: currentLevel,
@@ -282,7 +283,7 @@ class CategoryNotificationButton extends StatelessWidget {
 
   void _showSheet(BuildContext context) {
     if (onChanged == null) return;
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       builder: (context) => _CategoryNotificationLevelSheet(
         currentLevel: level,

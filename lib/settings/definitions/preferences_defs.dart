@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/s.dart';
 import '../../providers/preferences_provider.dart';
+import '../../utils/dialog_utils.dart';
 import '../../providers/sticker_provider.dart';
 import '../../services/sticker_market_service.dart';
 import '../settings_model.dart';
@@ -104,7 +105,7 @@ void _showStickerBaseUrlDialog(BuildContext context, WidgetRef ref) {
   final service = ref.read(stickerMarketServiceProvider);
   final controller = TextEditingController(text: service.baseUrl);
 
-  showDialog(
+  showAppDialog(
     context: context,
     builder: (dialogContext) => AlertDialog(
       title: Text(context.l10n.preferences_stickerSource),

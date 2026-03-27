@@ -8,6 +8,7 @@ import '../providers/web_bookmark_provider.dart';
 import '../providers/web_history_provider.dart';
 import '../utils/time_utils.dart';
 import '../l10n/s.dart';
+import '../utils/dialog_utils.dart';
 import 'webview_page.dart';
 import 'download_list_page.dart';
 
@@ -322,7 +323,7 @@ class _BookmarkListPage extends ConsumerWidget {
     final urlController = TextEditingController();
     final titleController = TextEditingController();
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(S.current.myBrowser_addManually),
@@ -380,7 +381,7 @@ class _BookmarkListPage extends ConsumerWidget {
       BuildContext context, WidgetRef ref, WebBookmark item) {
     final titleController = TextEditingController(text: item.title);
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(S.current.myBrowser_editTitle),
@@ -416,7 +417,7 @@ class _BookmarkListPage extends ConsumerWidget {
 
   void _confirmDelete(
       BuildContext context, WidgetRef ref, WebBookmark item) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(S.current.myBrowser_delete),
@@ -521,7 +522,7 @@ class _WebHistoryPage extends ConsumerWidget {
   }
 
   void _confirmClear(BuildContext context, WidgetRef ref) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(S.current.myBrowser_clearHistory),

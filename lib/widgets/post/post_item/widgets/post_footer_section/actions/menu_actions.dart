@@ -7,7 +7,7 @@ extension _PostFooterMenuActions on _PostFooterSectionState {
   }
 
   void _showFlagDialog(BuildContext context) {
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -21,7 +21,7 @@ extension _PostFooterMenuActions on _PostFooterSectionState {
   }
 
   void _showDeleteConfirmDialog(BuildContext context, ThemeData theme) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(context.l10n.post_deleteReplyTitle),
@@ -49,7 +49,7 @@ extension _PostFooterMenuActions on _PostFooterSectionState {
   void _showMoreMenu(BuildContext context, ThemeData theme) {
     final isGuest = ref.read(currentUserProvider).value == null;
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,

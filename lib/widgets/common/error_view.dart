@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/s.dart';
 import '../../services/toast_service.dart';
+import '../../utils/dialog_utils.dart';
 import '../../utils/error_utils.dart';
 
 /// 通用错误页面组件
@@ -101,7 +102,7 @@ class ErrorView extends StatelessWidget {
   void _showErrorDetails(BuildContext context) {
     final details = ErrorUtils.getErrorDetails(error, stackTrace);
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,

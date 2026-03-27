@@ -34,6 +34,7 @@ import 'image_viewer_page.dart';
 import 'badge_page.dart';
 import '../widgets/common/dismissible_popup_menu.dart';
 import '../l10n/s.dart';
+import '../utils/dialog_utils.dart';
 
 /// 用户个人页
 class UserProfilePage extends ConsumerStatefulWidget {
@@ -303,7 +304,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
       (S.current.userProfile_permanent, Duration(days: 365000)),
     ];
 
-    return showModalBottomSheet<String>(
+    return showAppBottomSheet<String>(
       context: context,
       builder: (context) {
         final theme = Theme.of(context);
@@ -361,7 +362,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
 
     if (!hasBio && !hasLocation && !hasWebsite && !hasJoinedAt && !isSuspended && !isSilenced) return;
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

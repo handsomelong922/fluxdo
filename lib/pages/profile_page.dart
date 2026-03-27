@@ -37,6 +37,7 @@ import '../services/ldc_oauth_service.dart';
 import '../services/cdk_oauth_service.dart';
 import '../l10n/s.dart';
 import '../services/toast_service.dart';
+import '../utils/dialog_utils.dart';
 import '../utils/responsive.dart';
 import '../services/emoji_handler.dart';
 import '../services/log/log_writer.dart';
@@ -172,7 +173,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
   
   Future<void> _logout() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.profile_confirmLogout),

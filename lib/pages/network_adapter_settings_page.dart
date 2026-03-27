@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../l10n/s.dart';
 import '../services/network/adapters/cronet_fallback_service.dart';
+import '../utils/dialog_utils.dart';
 import '../services/network/adapters/platform_adapter.dart';
 import '../services/toast_service.dart';
 
@@ -334,7 +335,7 @@ class _NetworkAdapterSettingsPageState
   }
 
   Future<void> _showFailureReasonDialog(String reason) async {
-    await showDialog(
+    await showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.networkAdapter_degradeReason),
@@ -364,7 +365,7 @@ class _NetworkAdapterSettingsPageState
   Future<void> _resetFallbackState(
     CronetFallbackService fallbackService,
   ) async {
-    final confirm = await showDialog<bool>(
+    final confirm = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.networkAdapter_resetFallback),
@@ -393,7 +394,7 @@ class _NetworkAdapterSettingsPageState
   Future<void> _simulateCronetError(
     CronetFallbackService fallbackService,
   ) async {
-    final confirm = await showDialog<bool>(
+    final confirm = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.networkAdapter_simulateError),

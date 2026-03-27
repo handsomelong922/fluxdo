@@ -5,6 +5,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../l10n/s.dart';
 import '../../../services/network/doh_proxy/per_device_cert_service.dart';
 import '../../../services/toast_service.dart';
+import '../../../utils/dialog_utils.dart';
 
 /// 打开 iOS CA 证书安装引导对话框
 ///
@@ -15,7 +16,7 @@ import '../../../services/toast_service.dart';
 /// }
 /// ```
 Future<bool?> showIosCertInstallDialog(BuildContext context) {
-  return showModalBottomSheet<bool>(
+  return showAppBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,

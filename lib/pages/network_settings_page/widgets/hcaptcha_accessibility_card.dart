@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../l10n/s.dart';
 import '../../../services/hcaptcha_accessibility_service.dart';
+import '../../../utils/dialog_utils.dart';
 import '../../../services/toast_service.dart';
 import '../../hcaptcha_accessibility_page.dart';
 
@@ -148,7 +149,7 @@ class _HCaptchaAccessibilityCardState extends State<HCaptchaAccessibilityCard> {
 
   Future<void> _pasteCookie(BuildContext context) async {
     final controller = TextEditingController();
-    final result = await showDialog<String>(
+    final result = await showAppDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.hcaptcha_pasteDialogTitle),
@@ -193,7 +194,7 @@ class _HCaptchaAccessibilityCardState extends State<HCaptchaAccessibilityCard> {
   }
 
   Future<void> _clearCookie(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         content: Text(context.l10n.hcaptcha_clearConfirm),

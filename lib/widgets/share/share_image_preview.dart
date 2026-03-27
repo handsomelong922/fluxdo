@@ -6,6 +6,7 @@ import '../../providers/preferences_provider.dart';
 import '../../services/discourse/discourse_service.dart';
 import '../../l10n/s.dart';
 import '../../services/toast_service.dart';
+import '../../utils/dialog_utils.dart';
 import '../../utils/screenshot_utils.dart';
 import 'share_image_widget.dart';
 
@@ -105,7 +106,7 @@ class ShareImagePreview extends ConsumerStatefulWidget {
 
   /// 显示预览 Sheet
   static Future<void> show(BuildContext context, TopicDetail detail, {Post? post}) {
-    return showModalBottomSheet(
+    return showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

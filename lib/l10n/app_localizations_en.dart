@@ -3525,6 +3525,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearance_fontSystem => 'System default';
 
   @override
+  String get appearance_dialogBlur => 'Dialog Blur';
+
+  @override
+  String get appearance_dialogBlurDesc => 'Blur background when dialog appears';
+
+  @override
   String get appLogs_title => 'App Logs';
 
   @override

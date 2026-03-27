@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../utils/dialog_utils.dart';
 import '../widgets/download_progress_dialog.dart';
 import '../widgets/update_dialog.dart';
 import 'apk_download_service.dart';
@@ -31,7 +32,7 @@ class UpdateCheckerHelper {
     UpdateInfo updateInfo,
     UpdateService updateService,
   ) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => UpdateDialog(
         updateInfo: updateInfo,
@@ -83,7 +84,7 @@ class UpdateCheckerHelper {
 
     if (!context.mounted) return;
 
-    showDialog(
+    showAppDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => DownloadProgressDialog(

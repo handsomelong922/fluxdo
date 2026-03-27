@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../l10n/s.dart';
+import '../../utils/dialog_utils.dart';
 
 /// 链接插入对话框
 /// 返回 {text: '链接文本', url: 'https://...'}
@@ -111,7 +112,7 @@ Future<Map<String, String>?> showLinkInsertDialog(
   String? initialText,
   String? initialUrl,
 }) {
-  return showDialog<Map<String, String>>(
+  return showAppDialog<Map<String, String>>(
     context: context,
     builder: (context) => LinkInsertDialog(
       initialText: initialText,

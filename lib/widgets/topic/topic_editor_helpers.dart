@@ -4,6 +4,7 @@ import 'package:pangutext/pangutext.dart';
 
 import '../../models/category.dart';
 import '../../services/discourse_cache_manager.dart';
+import '../../utils/dialog_utils.dart';
 import '../../utils/font_awesome_helper.dart';
 import '../../utils/url_helper.dart';
 import '../common/category_selection_sheet.dart';
@@ -241,7 +242,7 @@ class CategoryTrigger extends StatelessWidget {
   });
 
   Future<void> _showPicker(BuildContext context) async {
-    final result = await showModalBottomSheet<Category>(
+    final result = await showAppBottomSheet<Category>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -366,7 +367,7 @@ class TagsArea extends StatelessWidget {
 
   Future<void> _showPicker(BuildContext context, List<String> availableTags) async {
     final minTags = selectedCategory?.minimumRequiredTags ?? 0;
-    final result = await showModalBottomSheet<List<String>>(
+    final result = await showAppBottomSheet<List<String>>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,

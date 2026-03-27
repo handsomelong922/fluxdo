@@ -20,6 +20,7 @@ import 'package:dio/dio.dart';
 import '../services/app_error_handler.dart';
 import '../l10n/s.dart';
 import 'create_topic_page.dart';
+import '../utils/dialog_utils.dart';
 
 /// 分类话题列表页面（独立页面，不影响首页筛选）
 class CategoryTopicsPage extends ConsumerStatefulWidget {
@@ -266,7 +267,7 @@ class _CategoryTopicsPageState extends ConsumerState<CategoryTopicsPage> {
       error: (e, s) => <String>[],
     );
 
-    final result = await showModalBottomSheet<List<String>>(
+    final result = await showAppBottomSheet<List<String>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

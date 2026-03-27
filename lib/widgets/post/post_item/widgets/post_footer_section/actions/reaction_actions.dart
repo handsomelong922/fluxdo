@@ -81,7 +81,7 @@ extension _PostFooterReactionActions on _PostFooterSectionState {
   }
 
   void _showReactionUsers(BuildContext context, {String? reactionId}) {
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

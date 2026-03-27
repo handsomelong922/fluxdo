@@ -10,6 +10,7 @@ import '../services/cf_challenge_logger.dart';
 import '../services/toast_service.dart';
 import '../services/update_service.dart';
 import '../l10n/s.dart';
+import '../utils/dialog_utils.dart';
 import '../widgets/download_progress_dialog.dart';
 import '../widgets/update_dialog.dart';
 import 'app_logs_page.dart';
@@ -95,7 +96,7 @@ class _AboutPageState extends State<AboutPage> {
     if (!mounted) return;
 
     // 显示加载提示
-    showDialog(
+    showAppDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(
@@ -115,7 +116,7 @@ class _AboutPageState extends State<AboutPage> {
       Navigator.of(context).pop(); // 关闭加载对话框
 
       if (updateInfo.hasUpdate) {
-        showDialog(
+        showAppDialog(
           context: context,
           builder: (context) => UpdateDialog(
             updateInfo: updateInfo,
@@ -161,7 +162,7 @@ class _AboutPageState extends State<AboutPage> {
 
     if (!mounted) return;
 
-    showDialog(
+    showAppDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => DownloadProgressDialog(
@@ -180,7 +181,7 @@ class _AboutPageState extends State<AboutPage> {
   }
 
   void _showNoUpdateDialog(String currentVersion) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.check_circle_outline, size: 48, color: Colors.green),
@@ -197,7 +198,7 @@ class _AboutPageState extends State<AboutPage> {
   }
 
   void _showErrorDialog(String error) {
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.error_outline, size: 48, color: Colors.red),

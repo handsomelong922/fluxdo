@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/dialog_utils.dart';
 import 'loading_spinner.dart';
 
 /// 显示 Loading 对话框
@@ -11,7 +12,7 @@ import 'loading_spinner.dart';
 /// ```
 class LoadingDialog {
   static void show(BuildContext context, {String? message}) {
-    showDialog(
+    showAppDialog(
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.black26,

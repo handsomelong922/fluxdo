@@ -14,6 +14,7 @@ import '../../services/discourse_cache_manager.dart';
 import '../../pages/topic_detail_page/topic_detail_page.dart';
 import '../common/loading_spinner.dart';
 import '../common/relative_time_text.dart';
+import '../../utils/dialog_utils.dart';
 import '../../utils/number_utils.dart';
 import '../common/emoji_text.dart';
 import '../common/smart_avatar.dart';
@@ -64,7 +65,7 @@ class TopicPreviewDialog extends ConsumerStatefulWidget {
     // 触觉反馈
     HapticFeedback.mediumImpact();
 
-    return showGeneralDialog(
+    return showAppGeneralDialog(
       context: context,
       barrierDismissible: true,
       barrierLabel: S.current.common_closePreview,

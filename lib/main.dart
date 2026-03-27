@@ -58,6 +58,7 @@ import 'services/windows_webview_environment_service.dart';
 import 'models/user.dart';
 import 'constants.dart';
 import 'providers/connectivity_provider.dart';
+import 'utils/dialog_utils.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ai_model_manager/ai_model_manager.dart';
@@ -560,7 +561,7 @@ class _MainPageState extends ConsumerState<MainPage>
     if (prefs.getBool('crashlytics_notice_shown') ?? false) return;
     await prefs.setBool('crashlytics_notice_shown', true);
     if (!mounted) return;
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
@@ -669,7 +670,7 @@ class _MainPageState extends ConsumerState<MainPage>
   Future<void> _handleAuthError(String message) async {
     if (!mounted) return;
 
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(

@@ -6419,6 +6419,18 @@ abstract class AppLocalizations {
   /// **'系统默认'**
   String get appearance_fontSystem;
 
+  /// No description provided for @appearance_dialogBlur.
+  ///
+  /// In zh, this message translates to:
+  /// **'对话框模糊'**
+  String get appearance_dialogBlur;
+
+  /// No description provided for @appearance_dialogBlurDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'对话框弹出时模糊背景'**
+  String get appearance_dialogBlurDesc;
+
   /// No description provided for @appLogs_title.
   ///
   /// In zh, this message translates to:

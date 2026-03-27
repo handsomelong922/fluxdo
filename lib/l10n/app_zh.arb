@@ -1259,6 +1259,8 @@
   "appearance_schemeVariant": "配色风格",
   "appearance_font": "字体",
   "appearance_fontSystem": "系统默认",
+  "appearance_dialogBlur": "对话框模糊",
+  "appearance_dialogBlurDesc": "对话框弹出时模糊背景",
 
   "appLogs_title": "应用日志",
   "appLogs_noLogs": "暂无日志",

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/s.dart';
 import '../../models/search_filter.dart';
 import '../../providers/user_content_search_provider.dart';
+import '../../utils/dialog_utils.dart';
 import '../common/loading_spinner.dart';
 import '../../pages/topic_detail_page/topic_detail_page.dart';
 import 'search_filter_panel.dart';
@@ -292,7 +293,7 @@ void showSearchFilterPanel(
   SearchInType inType,
 ) {
   final searchState = ref.read(userContentSearchProvider(inType));
-  showModalBottomSheet(
+  showAppBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

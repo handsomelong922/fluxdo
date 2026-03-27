@@ -2150,6 +2150,8 @@
   "appearance_schemeVariant": "配色風格",
   "appearance_font": "字體",
   "appearance_fontSystem": "系統預設",
+  "appearance_dialogBlur": "對話框模糊",
+  "appearance_dialogBlurDesc": "對話框彈出時模糊背景",
 
   "appLogs_title": "應用日誌",
   "appLogs_noLogs": "暫無日誌",

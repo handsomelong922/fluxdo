@@ -56,6 +56,7 @@ import '../../providers/topic_search_provider.dart';
 import '../edit_topic_page.dart';
 import 'widgets/ai_chat_page.dart';
 import 'widgets/ai_chat_guide.dart';
+import '../../utils/dialog_utils.dart';
 
 part 'actions/_scroll_actions.dart';
 part 'actions/_user_actions.dart';
@@ -1015,7 +1016,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   void _showAiAssistantSheet(TopicDetail detail) {
     // 在 modal 外部获取状态栏高度，因为 showModalBottomSheet 会清零 padding.top
     final topPadding = MediaQuery.of(context).padding.top;
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

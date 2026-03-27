@@ -13,6 +13,7 @@ import '../services/discourse/discourse_service.dart';
 import '../services/emoji_handler.dart';
 import '../services/log/log_writer.dart';
 import '../services/migration_service.dart';
+import '../utils/dialog_utils.dart';
 import '../utils/error_utils.dart';
 import '../widgets/common/error_view.dart';
 
@@ -71,7 +72,7 @@ class _PreheatGateState extends State<PreheatGate> {
   /// 弹出重新登录提示，用户确认后继续
   Future<void> _showReloginDialog() async {
     MigrationService.requiresRelogin = false; // 只弹一次
-    await showDialog(
+    await showAppDialog(
       // ignore: use_build_context_synchronously
       context: context,
       barrierDismissible: false,
@@ -311,7 +312,7 @@ class _PreheatFailed extends StatelessWidget {
   }
 
   Future<void> _confirmLogout(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.common_logout),
@@ -344,7 +345,7 @@ class _PreheatFailed extends StatelessWidget {
 
   void _showErrorDetails(BuildContext context) {
     final details = ErrorUtils.getErrorDetails(error, null);
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,

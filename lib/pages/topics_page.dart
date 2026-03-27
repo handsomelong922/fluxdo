@@ -37,6 +37,7 @@ import '../widgets/common/fading_edge_scroll_view.dart';
 import '../widgets/offline_indicator.dart';
 import '../l10n/s.dart';
 import '../services/toast_service.dart';
+import '../utils/dialog_utils.dart';
 
 class ScrollToTopNotifier extends StateNotifier<int> {
   ScrollToTopNotifier() : super(0);
@@ -222,7 +223,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage> with TickerProviderStat
 
   void _showTopicIdDialog(BuildContext context) {
     final controller = TextEditingController();
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.topics_jumpToTopic),
@@ -264,7 +265,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage> with TickerProviderStat
   }
 
   void _openCategoryManager() async {
-    final categoryId = await showModalBottomSheet<int>(
+    final categoryId = await showAppBottomSheet<int>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -291,7 +292,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage> with TickerProviderStat
       error: (e, s) => <String>[],
     );
 
-    final result = await showModalBottomSheet<List<String>>(
+    final result = await showAppBottomSheet<List<String>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -375,7 +376,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage> with TickerProviderStat
 
   void _showDismissConfirmDialog(TopicListFilter currentFilter) {
     final label = currentFilter == TopicListFilter.newTopics ? context.l10n.topics_newTopics : context.l10n.topics_unreadTopics;
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.topics_dismissConfirmTitle),
