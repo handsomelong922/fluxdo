@@ -22,6 +22,7 @@ import 'services/highlighter_service.dart';
 import 'widgets/common/smart_avatar.dart';
 import 'widgets/common/notification_icon_button.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'services/network/cookie/android_cdp_feature.dart';
 import 'services/network/cookie/cookie_sync_service.dart';
 import 'services/network/cookie/cookie_jar_service.dart';
 import 'services/network/adapters/cronet_fallback_service.dart';
@@ -149,6 +150,7 @@ Future<void> main() async {
     CfChallengeLogger.setEnabled(prefs.getBool('developer_mode') ?? false),
     CronetFallbackService.instance.initialize(prefs),
     ProxySettingsService.instance.initialize(prefs),
+    if (Platform.isAndroid) AndroidCdpFeature.initialize(prefs),
     if (Platform.isAndroid)
       MethodChannel(
         'com.github.lingyan000.fluxdo/crashlytics',

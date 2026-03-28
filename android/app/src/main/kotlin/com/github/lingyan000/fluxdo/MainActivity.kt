@@ -145,14 +145,30 @@ class MainActivity : FlutterActivity() {
                     val urls = call.argument<List<String>>("urls")
                     Log.i("AndroidCdp", "handling getCookies urls=${urls?.size ?: 0}")
                     if (urls == null || urls.isEmpty()) {
-                        result.error("INVALID_ARGS", "urls required", null)
+                        result.error(
+                            "INVALID_ARGS",
+                            "urls required",
+                            mapOf(
+                                "method" to "getCookies",
+                                "urlCount" to (urls?.size ?: 0),
+                            ),
+                        )
                     } else {
                         ioExecutor.execute {
                             try {
                                 result.success(androidCdpBridge.getCookies(urls))
                             } catch (e: Exception) {
                                 Log.e("AndroidCdp", "getCookies failed: ${e.message}", e)
-                                result.error("CDP_FAILED", e.message, null)
+                                result.error(
+                                    "CDP_FAILED",
+                                    e.message,
+                                    mapOf(
+                                        "method" to "getCookies",
+                                        "urlCount" to urls.size,
+                                        "errorType" to e.javaClass.name,
+                                        "retryableDisconnect" to androidCdpBridge.isRetryableDisconnectError(e),
+                                    ),
+                                )
                             }
                         }
                     }
@@ -165,7 +181,16 @@ class MainActivity : FlutterActivity() {
                             result.success(androidCdpBridge.awaitTargetReady(timeoutMs))
                         } catch (e: Exception) {
                             Log.e("AndroidCdp", "awaitTargetReady failed: ${e.message}", e)
-                            result.success(false)
+                                result.error(
+                                    "CDP_FAILED",
+                                    e.message,
+                                    mapOf(
+                                        "method" to "awaitTargetReady",
+                                        "timeoutMs" to timeoutMs,
+                                        "errorType" to e.javaClass.name,
+                                        "retryableDisconnect" to androidCdpBridge.isRetryableDisconnectError(e),
+                                    ),
+                                )
                         }
                     }
                 }
@@ -173,14 +198,32 @@ class MainActivity : FlutterActivity() {
                     val params = call.arguments<Map<String, Any?>>()
                     Log.i("AndroidCdp", "handling setCookie keys=${params?.keys ?: emptySet<String>()}")
                     if (params == null || params.isEmpty()) {
-                        result.error("INVALID_ARGS", "params required", null)
+                        result.error(
+                            "INVALID_ARGS",
+                            "params required",
+                            mapOf(
+                                "method" to "setCookie",
+                                "keys" to (params?.keys?.toList() ?: emptyList<String>()),
+                            ),
+                        )
                     } else {
                         ioExecutor.execute {
                             try {
                                 result.success(androidCdpBridge.setCookie(params))
                             } catch (e: Exception) {
                                 Log.e("AndroidCdp", "setCookie failed: ${e.message}", e)
-                                result.error("CDP_FAILED", e.message, null)
+                                result.error(
+                                    "CDP_FAILED",
+                                    e.message,
+                                    mapOf(
+                                        "method" to "setCookie",
+                                        "keys" to params.keys.toList(),
+                                        "cookieName" to params["name"],
+                                        "url" to params["url"],
+                                        "errorType" to e.javaClass.name,
+                                        "retryableDisconnect" to androidCdpBridge.isRetryableDisconnectError(e),
+                                    ),
+                                )
                             }
                         }
                     }
@@ -189,14 +232,32 @@ class MainActivity : FlutterActivity() {
                     val params = call.arguments<Map<String, Any?>>()
                     Log.i("AndroidCdp", "handling deleteCookies keys=${params?.keys ?: emptySet<String>()}")
                     if (params == null || params.isEmpty()) {
-                        result.error("INVALID_ARGS", "params required", null)
+                        result.error(
+                            "INVALID_ARGS",
+                            "params required",
+                            mapOf(
+                                "method" to "deleteCookies",
+                                "keys" to (params?.keys?.toList() ?: emptyList<String>()),
+                            ),
+                        )
                     } else {
                         ioExecutor.execute {
                             try {
                                 result.success(androidCdpBridge.deleteCookies(params))
                             } catch (e: Exception) {
                                 Log.e("AndroidCdp", "deleteCookies failed: ${e.message}", e)
-                                result.error("CDP_FAILED", e.message, null)
+                                result.error(
+                                    "CDP_FAILED",
+                                    e.message,
+                                    mapOf(
+                                        "method" to "deleteCookies",
+                                        "keys" to params.keys.toList(),
+                                        "cookieName" to params["name"],
+                                        "url" to params["url"],
+                                        "errorType" to e.javaClass.name,
+                                        "retryableDisconnect" to androidCdpBridge.isRetryableDisconnectError(e),
+                                    ),
+                                )
                             }
                         }
                     }

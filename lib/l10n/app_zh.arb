@@ -1319,6 +1319,8 @@
   "preferences_stickerSource": "表情包数据源",
   "preferences_enterUrl": "输入 URL",
   "preferences_advanced": "高级",
+  "preferences_androidNativeCdp": "WebView Cookie 同步",
+  "preferences_androidNativeCdpDesc": "优先使用原生 CDP；异常时可关闭并回退兼容模式。",
   "preferences_crashlytics": "崩溃日志上报",
   "preferences_crashlyticsDesc": "发生崩溃时自动上报日志，帮助开发者定位问题",
   "preferences_enableCrashlyticsTitle": "数据收集说明",

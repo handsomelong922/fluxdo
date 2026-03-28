@@ -6,6 +6,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:enhanced_cookie_jar/enhanced_cookie_jar.dart';
 
 import '../../../../constants.dart';
+import '../android_cdp_feature.dart';
 import '../android_cdp_service.dart';
 import '../cookie_jar_service.dart';
 import '../cookie_sync_context.dart';
@@ -16,6 +17,7 @@ import 'default_cookie_strategy.dart';
 class AndroidCookieStrategy extends DefaultCookieStrategy {
   Future<bool>? _pendingTargetReady;
   bool? _targetReady;
+  DateTime? _targetReadyFailedAt;
 
   @override
   Future<List<CollectedWebViewCookie>> readCookiesFromWebView(
@@ -227,7 +229,17 @@ class AndroidCookieStrategy extends DefaultCookieStrategy {
   }
 
   Future<bool> _ensureTargetReady() async {
+    if (!AndroidCdpFeature.isEnabled) return false;
     if (_targetReady == true) return true;
+    if (_targetReady == false) {
+      final failedAt = _targetReadyFailedAt;
+      if (failedAt != null &&
+          DateTime.now().difference(failedAt) < const Duration(seconds: 3)) {
+        return false;
+      }
+      _targetReady = null;
+      _targetReadyFailedAt = null;
+    }
 
     final pending = _pendingTargetReady;
     if (pending != null) {
@@ -241,6 +253,7 @@ class AndroidCookieStrategy extends DefaultCookieStrategy {
     try {
       final ready = await future;
       _targetReady = ready;
+      _targetReadyFailedAt = ready ? null : DateTime.now();
       if (!ready) {
         debugPrint('[CookieJar][Android] Native CDP target not ready before writeCookiesToWebView');
       }
@@ -275,6 +288,7 @@ class AndroidCookieStrategy extends DefaultCookieStrategy {
     WebViewCookieWriteAttempt attempt,
     String? rawHeader,
   ) async {
+    if (!AndroidCdpFeature.isEnabled) return false;
     final value = CookieValueCodec.decode(cookie.value);
     final params = <String, dynamic>{
       'url': attempt.url,
@@ -314,6 +328,7 @@ class AndroidCookieStrategy extends DefaultCookieStrategy {
     io.Cookie cookie,
     WebViewCookieWriteAttempt attempt,
   ) async {
+    if (!AndroidCdpFeature.isEnabled) return false;
     final params = <String, dynamic>{
       'name': cookie.name,
       'url': attempt.url,
@@ -349,6 +364,9 @@ class AndroidCookieStrategy extends DefaultCookieStrategy {
     InAppWebViewController controller, {
     String? currentUrl,
   }) async {
+    if (!AndroidCdpFeature.isEnabled) {
+      return const [];
+    }
     final resolvedCurrentUrl =
         currentUrl ?? (await controller.getUrl())?.toString();
 

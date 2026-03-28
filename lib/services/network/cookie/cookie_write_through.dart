@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../../../constants.dart';
 import '../../windows_webview_environment_service.dart';
+import 'android_cdp_feature.dart';
 import 'android_cdp_service.dart';
 import 'cookie_jar_service.dart';
 import 'raw_cookie_writer.dart';
@@ -21,6 +22,7 @@ class CookieWriteThrough {
   static const Duration _androidTargetReadyTimeout = Duration(seconds: 4);
   bool? _androidTargetReady;
   Future<bool>? _pendingAndroidTargetReady;
+  DateTime? _androidTargetReadyFailedAt;
 
   /// 删除 WebView 中指定 cookie 的所有 domain 变体（去重后执行）
   Future<void> _deleteFromWebView(
@@ -53,7 +55,17 @@ class CookieWriteThrough {
 
   Future<bool> _ensureAndroidTargetReady() async {
     if (!io.Platform.isAndroid) return false;
+    if (!AndroidCdpFeature.isEnabled) return false;
     if (_androidTargetReady == true) return true;
+    if (_androidTargetReady == false) {
+      final failedAt = _androidTargetReadyFailedAt;
+      if (failedAt != null &&
+          DateTime.now().difference(failedAt) < const Duration(seconds: 3)) {
+        return false;
+      }
+      _androidTargetReady = null;
+      _androidTargetReadyFailedAt = null;
+    }
 
     final pending = _pendingAndroidTargetReady;
     if (pending != null) {
@@ -67,6 +79,7 @@ class CookieWriteThrough {
     try {
       final ready = await future;
       _androidTargetReady = ready;
+      _androidTargetReadyFailedAt = ready ? null : DateTime.now();
       if (!ready) {
         debugPrint('[CookieWriteThrough] Android CDP target not ready within ${_androidTargetReadyTimeout.inMilliseconds}ms');
       }
@@ -83,6 +96,7 @@ class CookieWriteThrough {
     String name,
     String path,
   ) async {
+    if (!AndroidCdpFeature.isEnabled) return false;
     final variants = <String?>{
       ..._strategy.buildDeleteDomainVariants('.$host'),
       ..._strategy.buildDeleteDomainVariants(host),
@@ -110,6 +124,7 @@ class CookieWriteThrough {
     CanonicalCookie? canonical,
     String? rawHeader,
   }) async {
+    if (!AndroidCdpFeature.isEnabled) return false;
     final normalizedDomain =
         CookieJarService.normalizeWebViewCookieDomain(canonical?.domain ?? cookie.domain);
     final value = canonical?.value ?? CookieValueCodec.decode(cookie.value);

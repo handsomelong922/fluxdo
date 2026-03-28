@@ -223,9 +223,48 @@ class AppCookieManager extends Interceptor {
       final domain = tCookies.where((c) => c.domain != null).map((c) => '${c.domain}:${c.value.length}');
       debugPrint('[CookieManager] _t 多副本: hostOnly=$hostOnly, domain=$domain, '
           'uri=${options.uri.host}${options.uri.path}');
+      LogWriter.instance.write({
+        'timestamp': DateTime.now().toIso8601String(),
+        'level': 'warning',
+        'type': 'cookie_conflict',
+        'event': 'duplicate_t_cookie_on_request',
+        'message': '_t 在请求前存在多副本',
+        'host': options.uri.host,
+        'path': options.uri.path,
+        'cookies': tCookies
+            .map(
+              (cookie) => {
+                'domain': cookie.domain,
+                'path': cookie.path,
+                'valueLength': cookie.value.length,
+                'hostOnly': cookie.domain == null,
+              },
+            )
+            .toList(growable: false),
+      });
     }
 
     final cookies = _mergeCookies(allCookies, options.uri);
+    if (tCookies.isNotEmpty) {
+      final selectedTCookies = cookies
+          .split('; ')
+          .where((entry) => entry.startsWith('_t='))
+          .toList(growable: false);
+      LogWriter.instance.write({
+        'timestamp': DateTime.now().toIso8601String(),
+        'level': tCookies.length > 1 ? 'warning' : 'info',
+        'type': 'cookie_conflict',
+        'event': 't_cookie_selected_for_request',
+        'message': '请求发送前已完成 _t 选优',
+        'host': options.uri.host,
+        'path': options.uri.path,
+        'duplicateCount': tCookies.length,
+        'selectedCount': selectedTCookies.length,
+        'selectedTokenLengths': selectedTCookies
+            .map((entry) => entry.length - 3)
+            .toList(growable: false),
+      });
+    }
 
     if (options.uri.host == 'connect.linux.do') {
       final authCookies = allCookies

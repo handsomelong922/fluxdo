@@ -426,7 +426,7 @@ jobs:
               git log --no-merges --pretty=format:"- %s%n" "$range" | \
                 grep -v 'Update changelog' | \
                 grep -v 'Co-Authored-By: Release Script' | \
-                grep -v '^- chore: bump version to ' >> "$temp"
+                grep -v '^- chore: bump version to ' >> "$temp" || true
               echo "" >> "$temp"
           done
 
@@ -497,7 +497,7 @@ jobs:
             git log --no-merges --pretty=format:"- %s%n" "$range" | \
               grep -v 'Update changelog' | \
               grep -v 'Co-Authored-By: Release Script' | \
-              grep -v '^- chore: bump version to ' >> "$out"
+              grep -v '^- chore: bump version to ' >> "$out" || true
             echo "" >> "$out"
           done
 

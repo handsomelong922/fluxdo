@@ -6767,6 +6767,18 @@ abstract class AppLocalizations {
   /// **'高级'**
   String get preferences_advanced;
 
+  /// No description provided for @preferences_androidNativeCdp.
+  ///
+  /// In zh, this message translates to:
+  /// **'WebView Cookie 同步'**
+  String get preferences_androidNativeCdp;
+
+  /// No description provided for @preferences_androidNativeCdpDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'优先使用原生 CDP；异常时可关闭并回退兼容模式。'**
+  String get preferences_androidNativeCdpDesc;
+
   /// No description provided for @preferences_crashlytics.
   ///
   /// In zh, this message translates to:

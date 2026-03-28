@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../constants.dart';
+import '../../log/log_writer.dart';
 import '../../windows_webview_environment_service.dart';
 import 'cookie_sync_context.dart';
 import 'cookie_sync_coordinator.dart';
@@ -287,6 +288,12 @@ class CookieJarService {
     return fallback;
   }
 
+  Future<List<String>> getRelatedHosts() async {
+    if (!_initialized) await initialize();
+    final uri = Uri.parse(AppConstants.baseUrl);
+    return _getRelatedHosts(uri.host);
+  }
+
   /// 设置 Cookie
   Future<void> setCookie(
     String name,
@@ -331,6 +338,7 @@ class CookieJarService {
       final uri = Uri.parse(AppConstants.baseUrl);
       final expired = DateTime.now().subtract(const Duration(days: 1));
       final relatedHosts = await _getRelatedHosts(uri.host);
+      final deletedEntries = <Map<String, dynamic>>[];
 
       for (final host in relatedHosts) {
         final hostUri = Uri.parse('https://$host');
@@ -346,12 +354,31 @@ class CookieJarService {
               expired0.domain = cookie.domain;
             }
             expiredCookies.add(expired0);
+            deletedEntries.add({
+              'host': host,
+              'domain': cookie.domain,
+              'path': cookie.path ?? '/',
+              'valueLength': cookie.value.length,
+              'hostOnly': cookie.domain == null,
+            });
           }
         }
 
         if (expiredCookies.isNotEmpty) {
           await _cookieJar!.saveFromResponse(hostUri, expiredCookies);
         }
+      }
+
+      if (deletedEntries.isNotEmpty && isCriticalCookie(name)) {
+        LogWriter.instance.write({
+          'timestamp': DateTime.now().toIso8601String(),
+          'level': 'warning',
+          'type': 'cookie_change',
+          'event': 'critical_cookie_deleted_from_jar',
+          'message': '关键 Cookie 已从 CookieJar 删除',
+          'cookieName': name,
+          'deletedEntries': deletedEntries,
+        });
       }
     } catch (e) {
       debugPrint('[CookieJar] Failed to delete cookie $name: $e');

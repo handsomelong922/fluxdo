@@ -65,81 +65,126 @@ class AndroidCdpBridge {
 
     fun getCookies(urls: List<String>): Map<String, Any?> {
         Log.i(TAG, "getCookies urls=$urls")
-        val targets = queryTargets()
-        Log.i(TAG, "getCookies discoveredTargets=${targets.size}")
-        val target = pickTarget(targets, urls)
-            ?: return mapOf(
-                "ok" to false,
-                "error" to "No matching devtools target",
-                "targets" to targets.map { it.toMap() },
-            ).also {
-                Log.w(TAG, "No matching devtools target for urls=$urls targets=${targets.map { t -> t.url }}")
-            }
-
-        Log.i(TAG, "Selected target id=${target.id} type=${target.type} title=${target.title} url=${target.url} ws=${target.webSocketPath}")
-
-        val ws = openWebSocket(target.webSocketPath)
-        try {
+        return executeWithTargetRetry(
+            operation = "getCookies",
+            urls = urls,
+        ) { target, ws ->
             call(ws, "Network.enable", JSONObject())
             Log.i(TAG, "Network.enable succeeded for target=${target.id}")
             val params = JSONObject().put("urls", JSONArray(urls))
             val response = call(ws, "Network.getCookies", params)
             val cookies = response.optJSONArray("cookies") ?: JSONArray()
             Log.i(TAG, "Network.getCookies returned count=${cookies.length()} for target=${target.id}")
-            return mapOf(
+            mapOf(
                 "ok" to true,
                 "target" to target.toMap(),
                 "cookies" to jsonArrayToList(cookies),
                 "count" to cookies.length(),
             )
-        } finally {
-            ws.close()
         }
     }
 
     fun setCookie(params: Map<String, Any?>): Map<String, Any?> {
         Log.i(TAG, "setCookie paramsKeys=${params.keys}")
-        val target = queryTargets().firstOrNull { it.type == "page" }
-            ?: return mapOf(
-                "ok" to false,
-                "error" to "No page target available",
-            )
-
-        Log.i(TAG, "setCookie selected target=${target.id} url=${target.url}")
-        val ws = openWebSocket(target.webSocketPath)
-        try {
+        return executeWithTargetRetry(operation = "setCookie") { target, ws ->
+            Log.i(TAG, "setCookie selected target=${target.id} url=${target.url}")
             call(ws, "Network.enable", JSONObject())
             val result = call(ws, "Network.setCookie", params.toJsonObject())
             val success = result.optBoolean("success", false)
             Log.i(TAG, "Network.setCookie success=$success")
-            return mapOf(
+            mapOf(
                 "ok" to success,
                 "result" to jsonObjectToMap(result),
             )
-        } finally {
-            ws.close()
         }
     }
 
     fun deleteCookies(params: Map<String, Any?>): Map<String, Any?> {
         Log.i(TAG, "deleteCookies paramsKeys=${params.keys}")
-        val target = queryTargets().firstOrNull { it.type == "page" }
-            ?: return mapOf(
-                "ok" to false,
-                "error" to "No page target available",
-            )
-
-        val ws = openWebSocket(target.webSocketPath)
-        try {
+        return executeWithTargetRetry(operation = "deleteCookies") { _, ws ->
             call(ws, "Network.enable", JSONObject())
             val result = call(ws, "Network.deleteCookies", params.toJsonObject())
             Log.i(TAG, "Network.deleteCookies succeeded")
-            return mapOf(
+            mapOf(
                 "ok" to true,
                 "result" to jsonObjectToMap(result),
             )
-        } finally {
-            ws.close()
+        }
+    }
+
+    private fun executeWithTargetRetry(
+        operation: String,
+        urls: List<String> = emptyList(),
+        block: (DevToolsTarget, WebSocketConnection) -> Map<String, Any?>,
+    ): Map<String, Any?> {
+        var lastError: Exception? = null
+        repeat(2) { attempt ->
+            val targets = queryTargets()
+            Log.i(TAG, "$operation discoveredTargets=${targets.size} attempt=${attempt + 1}/2")
+            val target = pickTargetForOperation(operation, targets, urls)
+                ?: return buildNoTargetResult(operation, urls, targets)
+
+            Log.i(TAG, "$operation selected target id=${target.id} type=${target.type} title=${target.title} url=${target.url} ws=${target.webSocketPath}")
+            val ws = openWebSocket(target.webSocketPath)
+            try {
+                return block(target, ws)
+            } catch (e: Exception) {
+                lastError = e
+                if (attempt == 0 && isRetryableDisconnectError(e)) {
+                    Log.w(TAG, "$operation websocket dropped, retrying once: ${e.message}", e)
+                } else {
+                    throw e
+                }
+            } finally {
+                ws.close()
+            }
+        }
+        throw lastError ?: IllegalStateException("$operation failed without error")
+    }
+
+    private fun pickTargetForOperation(
+        operation: String,
+        targets: List<DevToolsTarget>,
+        urls: List<String>,
+    ): DevToolsTarget? {
+        return when (operation) {
+            "getCookies" -> pickTarget(targets, urls)
+            else -> targets.firstOrNull { it.type == "page" }
+        }
+    }
+
+    private fun buildNoTargetResult(
+        operation: String,
+        urls: List<String>,
+        targets: List<DevToolsTarget>,
+    ): Map<String, Any?> {
+        val error = when (operation) {
+            "getCookies" -> "No matching devtools target"
+            else -> "No page target available"
+        }
+        if (operation == "getCookies") {
+            Log.w(TAG, "No matching devtools target for urls=$urls targets=${targets.map { t -> t.url }}")
+        } else {
+            Log.w(TAG, "$operation no page target available targets=${targets.map { t -> t.url }}")
+        }
+        return mapOf(
+            "ok" to false,
+            "error" to error,
+            "targets" to targets.map { it.toMap() },
+        )
+    }
+
+    fun isRetryableDisconnectError(error: Exception): Boolean {
+        return when (error) {
+            is EOFException,
+            is IOException -> true
+            is IllegalStateException -> {
+                val message = error.message.orEmpty()
+                message.contains("WebSocket closed", ignoreCase = true) ||
+                    message.contains("Unexpected EOF", ignoreCase = true) ||
+                    message.contains("handshake failed", ignoreCase = true)
+            }
+            else -> false
         }
     }
 

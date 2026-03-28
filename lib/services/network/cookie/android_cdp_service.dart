@@ -1,9 +1,11 @@
-import 'dart:io' show Platform;
-
 import 'package:flutter/services.dart';
+
+import '../../app_logger.dart';
+import 'android_cdp_feature.dart';
 
 class AndroidCdpService {
   static const Duration _getCookiesCacheTtl = Duration(milliseconds: 350);
+  static const String _tag = 'AndroidCdp';
 
   AndroidCdpService._();
 
@@ -17,21 +19,52 @@ class AndroidCdpService {
   DateTime? _lastGetCookiesAt;
 
   Future<bool> isAvailable() async {
-    if (!Platform.isAndroid) return false;
-    final result = await _channel.invokeMethod<bool>('isAvailable');
-    return result ?? false;
+    if (!AndroidCdpFeature.isEnabled) return false;
+    try {
+      final result = await _channel.invokeMethod<bool>('isAvailable');
+      final available = result ?? false;
+      if (!available) {
+        AppLogger.warning('Native CDP isAvailable returned false', tag: _tag);
+      }
+      return available;
+    } on PlatformException catch (e, stackTrace) {
+      _logPlatformError('isAvailable', e, stackTrace);
+      return false;
+    } catch (e, stackTrace) {
+      _logUnexpectedError('isAvailable', e, stackTrace);
+      return false;
+    }
   }
 
   Future<bool> awaitTargetReady({Duration timeout = const Duration(milliseconds: 2500)}) async {
-    if (!Platform.isAndroid) return false;
-    final result = await _channel.invokeMethod<bool>('awaitTargetReady', {
-      'timeoutMs': timeout.inMilliseconds,
-    });
-    return result ?? false;
+    if (!AndroidCdpFeature.isEnabled) return false;
+    try {
+      final result = await _channel.invokeMethod<bool>('awaitTargetReady', {
+        'timeoutMs': timeout.inMilliseconds,
+      });
+      final ready = result ?? false;
+      if (!ready) {
+        AppLogger.warning(
+          'Native CDP target not ready',
+          tag: _tag,
+        );
+      }
+      return ready;
+    } on PlatformException catch (e, stackTrace) {
+      _logPlatformError('awaitTargetReady', e, stackTrace, extras: {
+        'timeoutMs': timeout.inMilliseconds,
+      });
+      return false;
+    } catch (e, stackTrace) {
+      _logUnexpectedError('awaitTargetReady', e, stackTrace, extras: {
+        'timeoutMs': timeout.inMilliseconds,
+      });
+      return false;
+    }
   }
 
   Future<Map<String, dynamic>?> getCookies(List<String> urls) async {
-    if (!Platform.isAndroid || urls.isEmpty) return null;
+    if (!AndroidCdpFeature.isEnabled || urls.isEmpty) return null;
     final normalizedUrls = urls.toSet().toList(growable: false)..sort();
     final key = normalizedUrls.join('\n');
     final now = DateTime.now();
@@ -67,28 +100,142 @@ class AndroidCdpService {
   }
 
   Future<Map<String, dynamic>?> _invokeGetCookies(List<String> urls) async {
-    final result = await _channel.invokeMapMethod<String, dynamic>(
-      'getCookies',
-      {'urls': urls},
-    );
-    return result == null ? null : Map<String, dynamic>.from(result);
+    try {
+      final result = await _channel.invokeMapMethod<String, dynamic>(
+        'getCookies',
+        {'urls': urls},
+      );
+      final map = result == null ? null : Map<String, dynamic>.from(result);
+      if (map == null) {
+        AppLogger.warning('Native CDP getCookies returned null', tag: _tag);
+        return null;
+      }
+      if (map['ok'] != true) {
+        AppLogger.warning(
+          'Native CDP getCookies returned ok=false: ${map['error'] ?? 'unknown'}',
+          tag: _tag,
+        );
+      }
+      return map;
+    } on PlatformException catch (e, stackTrace) {
+      _logPlatformError('getCookies', e, stackTrace, extras: {
+        'urlCount': urls.length,
+      });
+      rethrow;
+    } catch (e, stackTrace) {
+      _logUnexpectedError('getCookies', e, stackTrace, extras: {
+        'urlCount': urls.length,
+      });
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>?> setCookie(Map<String, dynamic> params) async {
-    if (!Platform.isAndroid || params.isEmpty) return null;
-    final result = await _channel.invokeMapMethod<String, dynamic>(
-      'setCookie',
-      params,
-    );
-    return result == null ? null : Map<String, dynamic>.from(result);
+    if (!AndroidCdpFeature.isEnabled || params.isEmpty) return null;
+    try {
+      final result = await _channel.invokeMapMethod<String, dynamic>(
+        'setCookie',
+        params,
+      );
+      final map = result == null ? null : Map<String, dynamic>.from(result);
+      if (map == null) {
+        AppLogger.warning('Native CDP setCookie returned null', tag: _tag);
+        return null;
+      }
+      if (map['ok'] != true) {
+        AppLogger.warning(
+          'Native CDP setCookie returned ok=false: ${map['error'] ?? 'unknown'}',
+          tag: _tag,
+        );
+      }
+      return map;
+    } on PlatformException catch (e, stackTrace) {
+      _logPlatformError('setCookie', e, stackTrace, extras: {
+        'cookieName': params['name'],
+        'url': params['url'],
+      });
+      rethrow;
+    } catch (e, stackTrace) {
+      _logUnexpectedError('setCookie', e, stackTrace, extras: {
+        'cookieName': params['name'],
+        'url': params['url'],
+      });
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>?> deleteCookies(Map<String, dynamic> params) async {
-    if (!Platform.isAndroid || params.isEmpty) return null;
-    final result = await _channel.invokeMapMethod<String, dynamic>(
-      'deleteCookies',
-      params,
+    if (!AndroidCdpFeature.isEnabled || params.isEmpty) return null;
+    try {
+      final result = await _channel.invokeMapMethod<String, dynamic>(
+        'deleteCookies',
+        params,
+      );
+      final map = result == null ? null : Map<String, dynamic>.from(result);
+      if (map == null) {
+        AppLogger.warning('Native CDP deleteCookies returned null', tag: _tag);
+        return null;
+      }
+      if (map['ok'] != true) {
+        AppLogger.warning(
+          'Native CDP deleteCookies returned ok=false: ${map['error'] ?? 'unknown'}',
+          tag: _tag,
+        );
+      }
+      return map;
+    } on PlatformException catch (e, stackTrace) {
+      _logPlatformError('deleteCookies', e, stackTrace, extras: {
+        'cookieName': params['name'],
+        'url': params['url'],
+      });
+      rethrow;
+    } catch (e, stackTrace) {
+      _logUnexpectedError('deleteCookies', e, stackTrace, extras: {
+        'cookieName': params['name'],
+        'url': params['url'],
+      });
+      rethrow;
+    }
+  }
+
+  void _logPlatformError(
+    String operation,
+    PlatformException error,
+    StackTrace stackTrace, {
+    Map<String, Object?>? extras,
+  }) {
+    final details = error.details;
+    AppLogger.error(
+      'Native CDP $operation failed: ${error.message ?? error.code}',
+      tag: _tag,
+      error: {
+        'operation': operation,
+        'code': error.code,
+        'message': error.message,
+        'details': details is Map
+            ? Map<String, Object?>.from(details.cast<String, Object?>())
+            : details,
+        if (extras != null) ...extras,
+      },
+      stackTrace: stackTrace,
     );
-    return result == null ? null : Map<String, dynamic>.from(result);
+  }
+
+  void _logUnexpectedError(
+    String operation,
+    Object error,
+    StackTrace stackTrace, {
+    Map<String, Object?>? extras,
+  }) {
+    AppLogger.error(
+      'Native CDP $operation threw unexpected error',
+      tag: _tag,
+      error: {
+        'operation': operation,
+        'error': error.toString(),
+        if (extras != null) ...extras,
+      },
+      stackTrace: stackTrace,
+    );
   }
 }

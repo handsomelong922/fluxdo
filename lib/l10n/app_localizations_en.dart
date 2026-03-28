@@ -3707,6 +3707,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get preferences_advanced => 'Advanced';
 
   @override
+  String get preferences_androidNativeCdp => 'WebView cookie sync';
+
+  @override
+  String get preferences_androidNativeCdpDesc =>
+      'Uses native CDP first. Disable to fall back to compatibility mode.';
+
+  @override
   String get preferences_crashlytics => 'Crash reporting';
 
   @override

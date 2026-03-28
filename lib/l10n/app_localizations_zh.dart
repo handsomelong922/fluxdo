@@ -3644,6 +3644,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get preferences_advanced => '高级';
 
   @override
+  String get preferences_androidNativeCdp => 'WebView Cookie 同步';
+
+  @override
+  String get preferences_androidNativeCdpDesc => '优先使用原生 CDP；异常时可关闭并回退兼容模式。';
+
+  @override
   String get preferences_crashlytics => '崩溃日志上报';
 
   @override
@@ -9263,6 +9269,12 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get preferences_advanced => '高級';
 
   @override
+  String get preferences_androidNativeCdp => 'WebView Cookie 同步';
+
+  @override
+  String get preferences_androidNativeCdpDesc => '優先使用原生 CDP；異常時可關閉並回退相容模式。';
+
+  @override
   String get preferences_crashlytics => '崩潰日誌上報';
 
   @override
@@ -14759,6 +14771,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get preferences_advanced => '高階';
+
+  @override
+  String get preferences_androidNativeCdp => 'WebView Cookie 同步';
+
+  @override
+  String get preferences_androidNativeCdpDesc => '優先使用原生 CDP；異常時可關閉並回退相容模式。';
 
   @override
   String get preferences_crashlytics => '崩潰日誌上報';

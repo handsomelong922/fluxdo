@@ -15,9 +15,34 @@ mixin _AuthMixin on _DiscourseServiceBase {
             _credentialsLoaded = true;
           }
 
+          final liveToken = await _cookieJar.getTToken();
+          if (liveToken != _tToken) {
+            if ((liveToken == null || liveToken.isEmpty) &&
+                _tToken != null &&
+                _tToken!.isNotEmpty) {
+              LogWriter.instance.write({
+                'timestamp': DateTime.now().toIso8601String(),
+                'level': 'warning',
+                'type': 'auth',
+                'event': 'token_desync_before_request',
+                'message': '请求前检测到内存 token 与 CookieJar 不一致，已按 CookieJar 修正',
+                'method': options.method,
+                'url': options.uri.toString(),
+                'memTokenLen': _tToken?.length,
+                'jarTokenLen': liveToken?.length,
+              });
+            }
+            _tToken = (liveToken != null && liveToken.isNotEmpty)
+                ? liveToken
+                : null;
+          }
+
           if (_tToken != null && _tToken!.isNotEmpty) {
             options.headers['Discourse-Logged-In'] = 'true';
             options.headers['Discourse-Present'] = 'true';
+          } else {
+            options.headers.remove('Discourse-Logged-In');
+            options.headers.remove('Discourse-Present');
           }
 
           debugPrint('[DIO] ${options.method} ${options.uri}');
@@ -46,6 +71,18 @@ mixin _AuthMixin on _DiscourseServiceBase {
           final tToken = await _cookieJar.getTToken();
           if (tToken != null && tToken.isNotEmpty) {
             _tToken = tToken;
+          } else if (_tToken != null && _tToken!.isNotEmpty) {
+            LogWriter.instance.write({
+              'timestamp': DateTime.now().toIso8601String(),
+              'level': 'warning',
+              'type': 'auth',
+              'event': 'token_missing_after_response',
+              'message': '响应后 CookieJar 中未检测到 _t，已清空内存 token',
+              'method': response.requestOptions.method,
+              'url': response.requestOptions.uri.toString(),
+              'memTokenLen': _tToken?.length,
+            });
+            _tToken = null;
           }
 
           final username = response.headers.value('x-discourse-username');

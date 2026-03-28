@@ -5,6 +5,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../../constants.dart';
 import '../../cf_challenge_logger.dart';
+import '../../log/log_writer.dart';
 import '../../windows_webview_environment_service.dart';
 import 'cookie_diagnostics.dart';
 import 'package:enhanced_cookie_jar/enhanced_cookie_jar.dart';
@@ -168,27 +169,20 @@ class CookieSyncCoordinator {
         )[dedupeKey] = cookie;
       }
 
-      // Bug #5 fix：先清掉 CookieJar 中关键 cookie 旧值，再写入新值
-      // 确保同名不存在 domain 类型冲突的副本
-      final namesAboutToSync = <String>{};
-      for (final cookies in bucketedCookies.values) {
-        for (final cookie in cookies.values) {
-          if (CookieJarService.isCriticalCookie(cookie.name)) {
-            namesAboutToSync.add(cookie.name);
-          }
-        }
-      }
-      for (final name in namesAboutToSync) {
-        await jar.deleteCookie(name);
-      }
-
       var totalSynced = 0;
       for (final entry in bucketedCookies.entries) {
-        final cookies = entry.value.values.toList();
+        final cookies = entry.value.values
+            .where((cookie) => !CookieJarService.isCriticalCookie(cookie.name))
+            .toList();
         if (cookies.isEmpty) continue;
         await jar.cookieJar.saveFromResponse(entry.key, cookies);
         totalSynced += cookies.length;
       }
+      totalSynced += await _replaceCriticalCookiesInJar(
+        bucketedCookies,
+        source: 'webview_manager',
+        currentUrl: ctx.currentUrl,
+      );
 
 
 
@@ -587,26 +581,20 @@ class CookieSyncCoordinator {
         )[dedupeKey] = cookie;
       }
 
-      // 先清掉关键 cookie 旧值
-      final namesAboutToSync = <String>{};
-      for (final cookies in bucketedCookies.values) {
-        for (final cookie in cookies.values) {
-          if (CookieJarService.isCriticalCookie(cookie.name)) {
-            namesAboutToSync.add(cookie.name);
-          }
-        }
-      }
-      for (final name in namesAboutToSync) {
-        await jar.deleteCookie(name);
-      }
-
       var totalSynced = 0;
       for (final entry in bucketedCookies.entries) {
-        final cookies = entry.value.values.toList();
+        final cookies = entry.value.values
+            .where((cookie) => !CookieJarService.isCriticalCookie(cookie.name))
+            .toList();
         if (cookies.isEmpty) continue;
         await jar.cookieJar.saveFromResponse(entry.key, cookies);
         totalSynced += cookies.length;
       }
+      totalSynced += await _replaceCriticalCookiesInJar(
+        bucketedCookies,
+        source: 'webview_cdp',
+        currentUrl: resolvedCurrentUrl,
+      );
 
 
       debugPrint(
@@ -650,5 +638,135 @@ class CookieSyncCoordinator {
     final normalizedPath = cookie.path ?? '/';
     return '${cookie.name}|$normalizedDomain|$normalizedPath';
   }
+
+  Future<int> _replaceCriticalCookiesInJar(
+    Map<Uri, Map<String, io.Cookie>> bucketedCookies, {
+    required String source,
+    String? currentUrl,
+  }) async {
+    final incomingCritical = <CanonicalCookie>[];
+    final incomingNames = <String>{};
+
+    for (final entry in bucketedCookies.entries) {
+      for (final cookie in entry.value.values) {
+        if (!CookieJarService.isCriticalCookie(cookie.name)) continue;
+        incomingNames.add(cookie.name);
+        incomingCritical.add(
+          CanonicalCookie(
+            name: cookie.name,
+            value: CookieValueCodec.decode(cookie.value),
+            domain: cookie.domain,
+            path: cookie.path ?? '/',
+            expiresAt: cookie.expires?.toUtc(),
+            maxAge: cookie.maxAge,
+            secure: cookie.secure,
+            httpOnly: cookie.httpOnly,
+            hostOnly: cookie.domain == null || cookie.domain!.trim().isEmpty,
+            persistent: cookie.expires != null || cookie.maxAge != null,
+            originUrl: entry.key.toString(),
+            source: source == 'webview_cdp'
+                ? CookieSource.webViewCdp
+                : CookieSource.webViewManager,
+            lastSyncedFromWebViewAt: DateTime.now().toUtc(),
+          ),
+        );
+      }
+    }
+
+    if (incomingCritical.isEmpty) return 0;
+
+    final enhancedJar = jar.cookieJar;
+    if (enhancedJar is! EnhancedPersistCookieJar) {
+      for (final name in incomingNames) {
+        await jar.deleteCookie(name);
+      }
+      for (final entry in bucketedCookies.entries) {
+        final cookies = entry.value.values
+            .where((cookie) => CookieJarService.isCriticalCookie(cookie.name))
+            .toList();
+        if (cookies.isEmpty) continue;
+        await jar.cookieJar.saveFromResponse(entry.key, cookies);
+      }
+      return incomingCritical.length;
+    }
+
+    final existing = await enhancedJar.readAllCookies();
+    final relatedHosts = await jar.getRelatedHosts();
+    final relatedHostSet = relatedHosts.map((e) => e.toLowerCase()).toSet();
+    final existingCritical = existing.where((cookie) {
+      if (!incomingNames.contains(cookie.name)) return false;
+      final host = cookie.normalizedDomain;
+      return host != null && relatedHostSet.contains(host);
+    }).toList(growable: false);
+
+    final incomingKeys = incomingCritical.map((cookie) => cookie.storageKey).toSet();
+    final removalMarkers = existingCritical
+        .where((cookie) => !incomingKeys.contains(cookie.storageKey))
+        .map(
+          (cookie) => cookie.copyWith(
+            expiresAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+            maxAge: null,
+          ),
+        )
+        .toList(growable: false);
+
+    _logCriticalCookieReplacement(
+      source: source,
+      currentUrl: currentUrl,
+      existing: existingCritical,
+      incoming: incomingCritical,
+      removed: removalMarkers,
+    );
+
+    if (removalMarkers.isNotEmpty) {
+      await enhancedJar.saveCanonicalCookies(
+        Uri.parse(AppConstants.baseUrl),
+        removalMarkers,
+      );
+    }
+    await enhancedJar.saveCanonicalCookies(
+      Uri.parse(currentUrl ?? AppConstants.baseUrl),
+      incomingCritical,
+    );
+    return incomingCritical.length;
+  }
+
+  void _logCriticalCookieReplacement({
+    required String source,
+    required List<CanonicalCookie> existing,
+    required List<CanonicalCookie> incoming,
+    required List<CanonicalCookie> removed,
+    String? currentUrl,
+  }) {
+    final names = {
+      ...existing.map((cookie) => cookie.name),
+      ...incoming.map((cookie) => cookie.name),
+    }.toList()
+      ..sort();
+    LogWriter.instance.write({
+      'timestamp': DateTime.now().toIso8601String(),
+      'level': 'info',
+      'type': 'cookie_sync',
+      'event': 'critical_cookie_replace',
+      'message': '关键 Cookie 已按快照精确替换',
+      'source': source,
+      'currentUrl': currentUrl,
+      'cookieNames': names,
+      'existing': existing.map(_cookieSnapshot).toList(growable: false),
+      'incoming': incoming.map(_cookieSnapshot).toList(growable: false),
+      'removed': removed.map(_cookieSnapshot).toList(growable: false),
+    });
+  }
+
+  Map<String, dynamic> _cookieSnapshot(CanonicalCookie cookie) => {
+    'name': cookie.name,
+    'domain': cookie.domain,
+    'normalizedDomain': cookie.normalizedDomain,
+    'path': cookie.path,
+    'hostOnly': cookie.hostOnly,
+    'valueLength': cookie.value.length,
+    'persistent': cookie.persistent,
+    'source': cookie.source.name,
+  };
 
 }

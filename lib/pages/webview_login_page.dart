@@ -464,6 +464,20 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         ? jarToken
         : webViewToken;
     final tokenMatch = jarToken == webViewToken;
+    LogWriter.instance.write({
+      'timestamp': DateTime.now().toIso8601String(),
+      'level': tokenMatch ? 'info' : 'warning',
+      'type': 'auth',
+      'event': 'login_cookie_finalize',
+      'message': tokenMatch ? '登录收口 Cookie 对齐' : '登录收口 Cookie 不一致',
+      'currentUrl': currentUrl,
+      'username': username,
+      'webViewTokenLen': webViewToken.length,
+      'jarTokenLen': jarToken?.length,
+      'finalTokenLen': finalToken.length,
+      'tokenMatch': tokenMatch,
+      'jarTokenMissing': jarToken == null || jarToken.isEmpty,
+    });
     if (!tokenMatch) {
       debugPrint(
         '[Login] _t 不一致! WebView=${webViewToken.length}chars, Jar=${jarToken?.length}chars',

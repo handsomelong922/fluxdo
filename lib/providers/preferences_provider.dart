@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/network/request_scheduler_config.dart';
 import '../services/cf_clearance_refresh_service.dart';
+import '../services/network/cookie/android_cdp_feature.dart';
 import 'theme_provider.dart';
 
 class AppPreferences {
@@ -23,6 +24,8 @@ class AppPreferences {
   final bool autoFillLogin;
   /// 崩溃日志上报（仅 Android）
   final bool crashlytics;
+  /// Android 原生 CDP Cookie 同步
+  final bool androidNativeCdp;
   /// 竖屏锁定
   final bool portraitLock;
   /// 滚动时收起顶栏和底栏
@@ -54,6 +57,7 @@ class AppPreferences {
     required this.shareImageThemeIndex,
     required this.autoFillLogin,
     required this.crashlytics,
+    required this.androidNativeCdp,
     required this.portraitLock,
     required this.hideBarOnScroll,
     required this.clearCacheOnExit,
@@ -76,6 +80,7 @@ class AppPreferences {
     int? shareImageThemeIndex,
     bool? autoFillLogin,
     bool? crashlytics,
+    bool? androidNativeCdp,
     bool? portraitLock,
     bool? hideBarOnScroll,
     bool? clearCacheOnExit,
@@ -98,6 +103,7 @@ class AppPreferences {
       shareImageThemeIndex: shareImageThemeIndex ?? this.shareImageThemeIndex,
       autoFillLogin: autoFillLogin ?? this.autoFillLogin,
       crashlytics: crashlytics ?? this.crashlytics,
+      androidNativeCdp: androidNativeCdp ?? this.androidNativeCdp,
       portraitLock: portraitLock ?? this.portraitLock,
       hideBarOnScroll: hideBarOnScroll ?? this.hideBarOnScroll,
       clearCacheOnExit: clearCacheOnExit ?? this.clearCacheOnExit,
@@ -123,6 +129,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _shareImageThemeIndexKey = 'pref_share_image_theme_index';
   static const String _autoFillLoginKey = 'pref_auto_fill_login';
   static const String _crashlyticsKey = 'pref_crashlytics';
+  static const String _androidNativeCdpKey = AndroidCdpFeature.prefKey;
   static const String _portraitLockKey = 'pref_portrait_lock';
   static const String _hideBarOnScrollKey = 'pref_hide_bar_on_scroll';
   static const String _clearCacheOnExitKey = 'pref_clear_cache_on_exit';
@@ -151,6 +158,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
             shareImageThemeIndex: _prefs.getInt(_shareImageThemeIndexKey) ?? 0,
             autoFillLogin: _prefs.getBool(_autoFillLoginKey) ?? true,
             crashlytics: _prefs.getBool(_crashlyticsKey) ?? true,
+            androidNativeCdp: _prefs.getBool(_androidNativeCdpKey) ?? true,
             portraitLock: _prefs.getBool(_portraitLockKey) ?? false,
             hideBarOnScroll: _prefs.getBool(_hideBarOnScrollKey) ?? true,
             clearCacheOnExit: _prefs.getBool(_clearCacheOnExitKey) ?? false,
@@ -222,6 +230,11 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
         {'enabled': enabled},
       );
     }
+  }
+
+  Future<void> setAndroidNativeCdp(bool enabled) async {
+    state = state.copyWith(androidNativeCdp: enabled);
+    await AndroidCdpFeature.setEnabled(enabled);
   }
 
   Future<void> setPortraitLock(bool enabled) async {
