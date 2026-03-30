@@ -209,6 +209,7 @@ class CfChallengeService {
     // Dio 请求已经 403，说明当前 cf_clearance 可能失效了。
     // 必须确保 WebView 中也没有旧的 cf_clearance，否则 CF 直接放行不显示盾。
     await cookieJarService.deleteCookie('cf_clearance');
+    await cookieJarService.deleteWebViewCookie('cf_clearance');
     if (!overlayState.mounted) {
       debugPrint('[CfChallenge] Overlay no longer mounted');
       CfChallengeLogger.log('[VERIFY] Overlay not mounted');
@@ -451,7 +452,19 @@ class _CfChallengePageState extends State<CfChallengePage> {
       debugPrint('[CfChallenge] CookieManager 读取 $name 失败: $e');
     }
 
-    // Windows/Linux：从 CookieJar 读取
+    // Windows：通过当前页面 controller 读取实时 cookie，再回退到 CookieJar
+    if (io.Platform.isWindows && _controller != null) {
+      final liveValue = await CookieJarService().readCookieValueFromController(
+        _controller!,
+        name,
+        currentUrl: widget.verifyUrl,
+      );
+      if (liveValue != null && liveValue.isNotEmpty) {
+        return liveValue;
+      }
+      return CookieJarService().getCookieValue(name);
+    }
+
     if (io.Platform.isWindows) {
       return CookieJarService().getCookieValue(name);
     }
@@ -467,7 +480,9 @@ class _CfChallengePageState extends State<CfChallengePage> {
           }
         }
       } catch (e) {
-        debugPrint('[CfChallenge] Linux getAllCookies fallback 读取 $name 失败: $e');
+        debugPrint(
+          '[CfChallenge] Linux getAllCookies fallback 读取 $name 失败: $e',
+        );
       }
     }
 
@@ -478,6 +493,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
   Future<void> _syncLiveCookiesToCookieJar() async {
     await BoundarySyncService.instance.syncFromWebView(
       currentUrl: widget.verifyUrl,
+      controller: _controller,
       cookieNames: const {'cf_clearance'},
     );
   }
@@ -584,6 +600,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
       await _syncLiveCookiesToCookieJar();
       await BoundarySyncService.instance.syncFromWebView(
         currentUrl: widget.verifyUrl,
+        controller: _controller,
         cookieNames: {'cf_clearance'},
       );
       // 验证 cf_clearance 是否真正写入了 CookieJar
@@ -683,6 +700,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
           await _syncLiveCookiesToCookieJar();
           await BoundarySyncService.instance.syncFromWebView(
             currentUrl: widget.verifyUrl,
+            controller: _controller,
             cookieNames: {'cf_clearance'},
           );
           _timeoutTimer?.cancel();
@@ -731,6 +749,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
       await _syncLiveCookiesToCookieJar();
       await BoundarySyncService.instance.syncFromWebView(
         currentUrl: widget.verifyUrl,
+        controller: _controller,
         cookieNames: {'cf_clearance'},
       );
       _timeoutTimer?.cancel();
@@ -950,70 +969,79 @@ class _CfChallengePageState extends State<CfChallengePage> {
                       children: [
                         IgnorePointer(
                           ignoring: _isBackground,
-                          child: WebViewSettings.wrapWithScrollFix(InAppWebView(
-                            webViewEnvironment: WindowsWebViewEnvironmentService
-                                .instance
-                                .environment,
-                            initialUrlRequest: URLRequest(
-                              url: WebUri(widget.verifyUrl),
-                            ),
-                            initialSettings: InAppWebViewSettings(
-                              javaScriptEnabled: true,
-                              userAgent: AppConstants.webViewUserAgentOverride,
-                              mediaPlaybackRequiresUserGesture: false,
-                            ),
-                            onReceivedServerTrustAuthRequest: (_, challenge) =>
-                                WebViewSettings.handleServerTrustAuthRequest(challenge),
-                            onWebViewCreated: (controller) {
-                              _controller = controller;
-                              // 注册 JS Handler，challenge-platform 响应到达时触发
-                              controller.addJavaScriptHandler(
-                                handlerName: 'onChallengeComplete',
-                                callback: _onChallengeComplete,
-                              );
-                            },
-                            onLoadStart: (controller, url) {
-                              _loadStopFallbackTimer?.cancel();
-                              _pageReadyFallbackTimer?.cancel();
-                              _hasMarkedPageReady = false;
-                              _schedulePageReadyFallback(controller);
-                              setState(() {
-                                _isLoading = true;
-                                _progress = 0;
-                              });
-                            },
-                            onPageCommitVisible: (controller, url) {
-                              _handlePageReady(
-                                controller,
-                                reason: 'onPageCommitVisible',
-                              );
-                            },
-                            onProgressChanged: (controller, progress) {
-                              _progress = progress / 100;
-                              _scheduleLoadStopFallback(controller, progress);
-                              if (showUi) {
-                                setState(() {});
-                              }
-                            },
-                            onLoadStop: (controller, url) {
-                              WebViewSettings.injectScrollFix(controller);
-                              _handlePageReady(
-                                controller,
-                                reason: 'onLoadStop',
-                              );
-                            },
-                            onReceivedError: (controller, request, error) {
-                              _pageReadyFallbackTimer?.cancel();
-                              if (mounted) {
-                                setState(() => _isLoading = false);
-                              }
-                              if (showUi) {
-                                _showError(
-                                  context.l10n.cf_loadFailed(error.description),
+                          child: WebViewSettings.wrapWithScrollFix(
+                            InAppWebView(
+                              webViewEnvironment:
+                                  WindowsWebViewEnvironmentService
+                                      .instance
+                                      .environment,
+                              initialUrlRequest: URLRequest(
+                                url: WebUri(widget.verifyUrl),
+                              ),
+                              initialSettings: InAppWebViewSettings(
+                                javaScriptEnabled: true,
+                                userAgent:
+                                    AppConstants.webViewUserAgentOverride,
+                                mediaPlaybackRequiresUserGesture: false,
+                              ),
+                              onReceivedServerTrustAuthRequest: (_, challenge) =>
+                                  WebViewSettings.handleServerTrustAuthRequest(
+                                    challenge,
+                                  ),
+                              onWebViewCreated: (controller) {
+                                _controller = controller;
+                                // 注册 JS Handler，challenge-platform 响应到达时触发
+                                controller.addJavaScriptHandler(
+                                  handlerName: 'onChallengeComplete',
+                                  callback: _onChallengeComplete,
                                 );
-                              }
-                            },
-                          ), getController: () => _controller),
+                              },
+                              onLoadStart: (controller, url) {
+                                _loadStopFallbackTimer?.cancel();
+                                _pageReadyFallbackTimer?.cancel();
+                                _hasMarkedPageReady = false;
+                                _schedulePageReadyFallback(controller);
+                                setState(() {
+                                  _isLoading = true;
+                                  _progress = 0;
+                                });
+                              },
+                              onPageCommitVisible: (controller, url) {
+                                _handlePageReady(
+                                  controller,
+                                  reason: 'onPageCommitVisible',
+                                );
+                              },
+                              onProgressChanged: (controller, progress) {
+                                _progress = progress / 100;
+                                _scheduleLoadStopFallback(controller, progress);
+                                if (showUi) {
+                                  setState(() {});
+                                }
+                              },
+                              onLoadStop: (controller, url) {
+                                WebViewSettings.injectScrollFix(controller);
+                                _handlePageReady(
+                                  controller,
+                                  reason: 'onLoadStop',
+                                );
+                              },
+                              onReceivedError: (controller, request, error) {
+                                _pageReadyFallbackTimer?.cancel();
+                                if (mounted) {
+                                  setState(() => _isLoading = false);
+                                }
+                                if (showUi) {
+                                  _showError(
+                                    context.l10n.cf_loadFailed(
+                                      error.description,
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                            getController: () => _controller,
+                          ),
                         ),
 
                         // 警告卡片

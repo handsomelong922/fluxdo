@@ -6,7 +6,6 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../../../constants.dart';
 import 'cookie_jar_service.dart';
 import 'cookie_logger.dart';
-import 'cookie_value_codec.dart';
 import 'strategy/platform_cookie_strategy.dart';
 
 /// 边界同步服务：在登录成功、CF 验证成功等关键时机，
@@ -27,6 +26,7 @@ class BoundarySyncService {
   /// [cookieNames] 只同步指定的 cookie 名；null 表示同步所有。
   Future<void> syncFromWebView({
     String? currentUrl,
+    InAppWebViewController? controller,
     Set<String>? cookieNames,
   }) async {
     final url = currentUrl ?? AppConstants.baseUrl;
@@ -34,9 +34,27 @@ class BoundarySyncService {
     final host = uri.host;
 
     try {
+      if (io.Platform.isWindows && controller != null) {
+        final synced = await _jar.syncCriticalCookiesFromController(
+          controller,
+          currentUrl: url,
+          cookieNames: cookieNames,
+        );
+        if (synced > 0) {
+          CookieLogger.sync(
+            direction: 'WebView(CDP) → CookieJar',
+            count: synced,
+            names: cookieNames?.toList() ?? const [],
+            source: 'boundary_sync',
+            url: url,
+          );
+          return;
+        }
+      }
+
       // 通过 strategy 读取（Linux 用 getAllCookies 兜底）
       final webViewCookies = await _strategy.readCookiesFromWebView(
-        CookieManager.instance(),
+        _jar.webViewCookieManager,
         url,
       );
 
@@ -67,9 +85,7 @@ class BoundarySyncService {
             // jar 也没有 → 兜底为 .{host}（domain cookie）
             // 宁可多发到子域名，不能因为 host-only 导致子域名拿不到关键 cookie
             domain = '.$host';
-            debugPrint(
-              '[BoundarySync] ${wc.name}: domain=null, 兜底为 .$host',
-            );
+            debugPrint('[BoundarySync] ${wc.name}: domain=null, 兜底为 .$host');
           }
         }
 
@@ -87,8 +103,7 @@ class BoundarySyncService {
           ..httpOnly = wc.isHttpOnly ?? false;
 
         if (wc.expiresDate != null) {
-          cookie.expires =
-              DateTime.fromMillisecondsSinceEpoch(wc.expiresDate!);
+          cookie.expires = DateTime.fromMillisecondsSinceEpoch(wc.expiresDate!);
         }
 
         toSave.add(cookie);
@@ -110,10 +125,7 @@ class BoundarySyncService {
         url: url,
       );
     } catch (e) {
-      CookieLogger.error(
-        operation: 'boundary_sync',
-        error: e.toString(),
-      );
+      CookieLogger.error(operation: 'boundary_sync', error: e.toString());
     }
   }
 }

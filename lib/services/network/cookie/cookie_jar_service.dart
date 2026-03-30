@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../constants.dart';
-import '../../log/log_writer.dart';
+import '../../windows_webview_environment_service.dart';
 import 'cookie_logger.dart';
 import 'cookie_value_codec.dart';
 import 'raw_set_cookie_queue.dart';
@@ -32,7 +32,14 @@ class CookieJarService {
   late final PlatformCookieStrategy _strategy;
 
   /// 可配置的关键 cookie 名集合
-  static Set<String> criticalCookieNames = {'_t', '_forum_session', 'cf_clearance'};
+  static Set<String> criticalCookieNames = {
+    '_t',
+    '_forum_session',
+    'cf_clearance',
+  };
+
+  CookieManager get webViewCookieManager =>
+      WindowsWebViewEnvironmentService.instance.cookieManager;
 
   /// 获取 CookieJar 实例（用于 Dio CookieManager）
   CookieJar get cookieJar {
@@ -239,11 +246,42 @@ class CookieJarService {
       await RawSetCookieQueue.instance.clear();
 
       // WebView cookie store 清理（平台策略处理差异）
-      await _strategy.clearWebViewCookies(CookieManager.instance(), knownHosts);
+      await _strategy.clearWebViewCookies(webViewCookieManager, knownHosts);
 
       CookieLogger.delete(name: '*', source: 'clearAll');
     } catch (e) {
       debugPrint('[CookieJar] Failed to clear cookies: $e');
+    }
+  }
+
+  /// 从 WebView cookie store 删除指定名称的 cookie。
+  /// Windows 上同时尝试 host-only / host / .host 三种变体，避免 WebView2 domain 形态不一致导致残留。
+  Future<void> deleteWebViewCookie(String name) async {
+    if (!_initialized) await initialize();
+
+    try {
+      final baseHost = Uri.parse(AppConstants.baseUrl).host;
+      final hosts = await getKnownHostsForDomain(baseHost);
+
+      for (final host in hosts) {
+        final url = WebUri('https://$host');
+        for (final domain in <String?>{null, host, '.$host'}) {
+          try {
+            await webViewCookieManager.deleteCookie(
+              url: url,
+              name: name,
+              domain: domain,
+              path: '/',
+            );
+          } catch (e) {
+            debugPrint(
+              '[CookieJar] Failed to delete WebView cookie $name for host=$host domain=$domain: $e',
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[CookieJar] Failed to delete WebView cookie $name: $e');
     }
   }
 
@@ -371,7 +409,8 @@ class CookieJarService {
   }
 
   /// 是否是关键 cookie
-  static bool isCriticalCookie(String name) => criticalCookieNames.contains(name);
+  static bool isCriticalCookie(String name) =>
+      criticalCookieNames.contains(name);
 
   /// 检查 domain 是否匹配应用主域
   static bool matchesAppHost(String? domain) {
@@ -381,4 +420,153 @@ class CookieJarService {
     return normalized == baseHost || normalized.endsWith('.$baseHost');
   }
 
+  /// Windows：通过页面级 controller 的 CDP 读取实时 cookie 值。
+  Future<String?> readCookieValueFromController(
+    InAppWebViewController controller,
+    String name, {
+    String? currentUrl,
+  }) async {
+    if (!io.Platform.isWindows) return null;
+
+    try {
+      final rawCookies = await _readWindowsCookiesFromController(
+        controller,
+        currentUrl: currentUrl,
+      );
+      String? fallback;
+      for (final raw in rawCookies) {
+        final cookieName = raw['name']?.toString();
+        final value = raw['value']?.toString() ?? '';
+        final domain = raw['domain']?.toString();
+        if (cookieName != name || value.isEmpty) continue;
+        if (matchesAppHost(domain)) {
+          return value;
+        }
+        fallback ??= value;
+      }
+      return fallback;
+    } catch (e) {
+      debugPrint('[CookieJar][Windows] Failed to read live cookie $name: $e');
+      return null;
+    }
+  }
+
+  /// Windows：通过页面级 controller 的 CDP 将关键 cookie 直接写入 CookieJar。
+  Future<int> syncCriticalCookiesFromController(
+    InAppWebViewController controller, {
+    String? currentUrl,
+    Set<String>? cookieNames,
+  }) async {
+    if (!io.Platform.isWindows) return 0;
+    if (!_initialized) await initialize();
+
+    try {
+      final uri =
+          Uri.tryParse(currentUrl ?? AppConstants.baseUrl) ??
+          Uri.parse(AppConstants.baseUrl);
+      final rawCookies = await _readWindowsCookiesFromController(
+        controller,
+        currentUrl: currentUrl,
+      );
+      final filtered = rawCookies
+          .where((raw) {
+            final name = raw['name']?.toString();
+            final value = raw['value']?.toString() ?? '';
+            final domain = raw['domain']?.toString();
+            if (name == null || value.isEmpty) return false;
+            if (cookieNames != null && !cookieNames.contains(name)) {
+              return false;
+            }
+            return matchesAppHost(domain);
+          })
+          .toList(growable: false);
+
+      if (filtered.isEmpty) return 0;
+
+      final jar = _cookieJar;
+      if (jar is EnhancedPersistCookieJar) {
+        await jar.saveFromCdpCookies(uri, filtered);
+        return filtered.length;
+      }
+
+      final toSave = <io.Cookie>[];
+      for (final raw in filtered) {
+        final name = raw['name']?.toString();
+        final value = raw['value']?.toString() ?? '';
+        if (name == null || value.isEmpty) continue;
+
+        io.Cookie cookie;
+        try {
+          cookie = io.Cookie(name, value);
+        } catch (_) {
+          cookie = io.Cookie(name, CookieValueCodec.encode(value));
+        }
+
+        final domain = raw['domain']?.toString();
+        final path = raw['path']?.toString();
+        final secure = raw['secure'] == true;
+        final httpOnly = raw['httpOnly'] == true;
+        final expires = raw['expires'];
+
+        if (domain != null && domain.trim().isNotEmpty) {
+          cookie.domain = domain;
+        }
+        cookie
+          ..path = path == null || path.isEmpty ? '/' : path
+          ..secure = secure
+          ..httpOnly = httpOnly;
+        if (expires is num && expires > 0) {
+          cookie.expires = DateTime.fromMillisecondsSinceEpoch(
+            (expires * 1000).round(),
+          );
+        }
+        toSave.add(cookie);
+      }
+
+      if (toSave.isEmpty) return 0;
+      await _cookieJar!.saveFromResponse(uri, toSave);
+      return toSave.length;
+    } catch (e) {
+      debugPrint('[CookieJar][Windows] Failed to sync live cookies: $e');
+      return 0;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _readWindowsCookiesFromController(
+    InAppWebViewController controller, {
+    String? currentUrl,
+  }) async {
+    final baseUri = Uri.parse(AppConstants.baseUrl);
+    final hosts = await getKnownHostsForDomain(baseUri.host);
+    final currentHost = Uri.tryParse(currentUrl ?? '')?.host;
+    if (currentHost != null &&
+        currentHost.isNotEmpty &&
+        matchesAppHost(currentHost)) {
+      hosts.add(currentHost);
+    }
+
+    final urls = <String>{
+      AppConstants.baseUrl,
+      '${AppConstants.baseUrl}/',
+      if (currentUrl != null && currentUrl.isNotEmpty) currentUrl,
+      for (final host in hosts) 'https://$host',
+      for (final host in hosts) 'https://$host/',
+    }.toList(growable: false);
+
+    final result = await controller.callDevToolsProtocolMethod(
+      methodName: 'Network.getCookies',
+      parameters: {'urls': urls},
+    );
+    final rawCookies = result is Map<String, dynamic>
+        ? result['cookies']
+        : null;
+    if (rawCookies is! List) return const [];
+
+    return rawCookies
+        .whereType<Map>()
+        .map((raw) => raw.map((key, value) => MapEntry(key.toString(), value)))
+        .cast<Map<String, dynamic>>()
+        .where((raw) => matchesAppHost(raw['domain']?.toString()))
+        .toList(growable: false);
+  }
 }

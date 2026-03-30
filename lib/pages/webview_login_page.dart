@@ -153,82 +153,87 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
               children: [
                 WebViewSettings.wrapWithScrollFix(
                   InAppWebView(
-                webViewEnvironment:
-                    WindowsWebViewEnvironmentService.instance.environment,
-                initialUrlRequest: URLRequest(
-                  url: WebUri(
-                    widget.initialUrl ?? '${AppConstants.baseUrl}/login',
-                  ),
-                ),
-                initialSettings: WebViewSettings.visible,
-                initialUserScripts: WebViewSettings.ios15PolyfillScripts,
-                onReceivedServerTrustAuthRequest: (_, challenge) =>
-                    WebViewSettings.handleServerTrustAuthRequest(challenge),
-                onWebViewCreated: (controller) {
-                  _controller = controller;
-                  // 注册 JS Handler，用于在登录按钮点击时接收凭证
-                  controller.addJavaScriptHandler(
-                    handlerName: 'onLoginCredentials',
-                    callback: (args) {
-                      if (args.isNotEmpty &&
-                          ref.read(preferencesProvider).autoFillLogin) {
-                        try {
-                          final data = args[0] as Map<String, dynamic>;
-                          final username = data['username'] as String?;
-                          final password = data['password'] as String?;
-                          if (username != null &&
-                              username.isNotEmpty &&
-                              password != null &&
-                              password.isNotEmpty) {
-                            _credentialStore.save(username, password);
-                            if (mounted) {
-                              setState(() => _savedUsername = username);
-                            }
+                    webViewEnvironment:
+                        WindowsWebViewEnvironmentService.instance.environment,
+                    initialUrlRequest: URLRequest(
+                      url: WebUri(
+                        widget.initialUrl ?? '${AppConstants.baseUrl}/login',
+                      ),
+                    ),
+                    initialSettings: WebViewSettings.visible,
+                    initialUserScripts: WebViewSettings.ios15PolyfillScripts,
+                    onReceivedServerTrustAuthRequest: (_, challenge) =>
+                        WebViewSettings.handleServerTrustAuthRequest(challenge),
+                    onWebViewCreated: (controller) {
+                      _controller = controller;
+                      // 注册 JS Handler，用于在登录按钮点击时接收凭证
+                      controller.addJavaScriptHandler(
+                        handlerName: 'onLoginCredentials',
+                        callback: (args) {
+                          if (args.isNotEmpty &&
+                              ref.read(preferencesProvider).autoFillLogin) {
+                            try {
+                              final data = args[0] as Map<String, dynamic>;
+                              final username = data['username'] as String?;
+                              final password = data['password'] as String?;
+                              if (username != null &&
+                                  username.isNotEmpty &&
+                                  password != null &&
+                                  password.isNotEmpty) {
+                                _credentialStore.save(username, password);
+                                if (mounted) {
+                                  setState(() => _savedUsername = username);
+                                }
+                              }
+                            } catch (_) {}
                           }
-                        } catch (_) {}
+                        },
+                      );
+                    },
+                    onLoadStart: (controller, url) => setState(() {
+                      _isLoading = true;
+                      _url = url?.toString() ?? '';
+                      _lastHomeResponseUrl = null;
+                    }),
+                    onProgressChanged: (controller, progress) =>
+                        setState(() => _progress = progress / 100),
+                    onLoadResource: (controller, resource) {
+                      _handleLoadedResource(controller, resource);
+                    },
+                    onLoadStop: (controller, url) async {
+                      setState(() {
+                        _isLoading = false;
+                        _url = url?.toString() ?? '';
+                      });
+                      _recheckCount = 0;
+                      await WebViewSettings.injectScrollFix(controller);
+                      // 自动填充登录表单
+                      await _autoFillLoginForm(controller, url);
+                      // 自动检测登录状态
+                      await _checkLoginStatus(
+                        controller,
+                        currentUrl: url?.toString(),
+                      );
+                    },
+                    onUpdateVisitedHistory: (controller, url, isReload) {
+                      if (!_loginHandled && isReload != true) {
+                        // SPA 路由变化时也尝试检测登录状态
+                        _recheckCount = 0;
+                        _checkLoginStatus(
+                          controller,
+                          currentUrl: url?.toString(),
+                        );
                       }
                     },
-                  );
-                },
-                onLoadStart: (controller, url) => setState(() {
-                  _isLoading = true;
-                  _url = url?.toString() ?? '';
-                  _lastHomeResponseUrl = null;
-                }),
-                onProgressChanged: (controller, progress) =>
-                    setState(() => _progress = progress / 100),
-                onLoadResource: (controller, resource) {
-                  _handleLoadedResource(controller, resource);
-                },
-                onLoadStop: (controller, url) async {
-                  setState(() {
-                    _isLoading = false;
-                    _url = url?.toString() ?? '';
-                  });
-                  _recheckCount = 0;
-                  await WebViewSettings.injectScrollFix(controller);
-                  // 自动填充登录表单
-                  await _autoFillLoginForm(controller, url);
-                  // 自动检测登录状态
-                  await _checkLoginStatus(
-                    controller,
-                    currentUrl: url?.toString(),
-                  );
-                },
-                onUpdateVisitedHistory: (controller, url, isReload) {
-                  if (!_loginHandled && isReload != true) {
-                    // SPA 路由变化时也尝试检测登录状态
-                    _recheckCount = 0;
-                    _checkLoginStatus(controller, currentUrl: url?.toString());
-                  }
-                },
                   ),
                   getController: () => _controller,
                 ),
                 if (_isCompletingLogin)
                   Positioned.fill(
                     child: ColoredBox(
-                      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.88),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surface.withValues(alpha: 0.88),
                       child: Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -400,7 +405,10 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
           _isLoading = true;
         });
       }
-      await BoundarySyncService.instance.syncFromWebView(currentUrl: currentUrl);
+      await BoundarySyncService.instance.syncFromWebView(
+        currentUrl: currentUrl,
+        controller: controller,
+      );
       final tToken = await _readTTokenFromWebView(
         controller,
         currentUrl: currentUrl,
@@ -425,10 +433,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       }
 
       unawaited(
-        _finalizeLoginAfterExit(
-          currentUrl: currentUrl,
-          token: finalToken,
-        ),
+        _finalizeLoginAfterExit(currentUrl: currentUrl, token: finalToken),
       );
     } finally {
       _loginInProgress = false;
@@ -447,7 +452,10 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     // 先切断旧请求，防止登录收口期间旧响应的 Set-Cookie 写入竞争
     AuthSession().advance();
 
-    await BoundarySyncService.instance.syncFromWebView(currentUrl: currentUrl);
+    await BoundarySyncService.instance.syncFromWebView(
+      currentUrl: currentUrl,
+      controller: controller,
+    );
 
     final jarToken = await _cookieJar.getTToken();
     final finalToken = (jarToken != null && jarToken.isNotEmpty)
@@ -588,9 +596,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     };
 
     for (final url in candidates) {
-      final cookies = await cookieManager.getCookies(
-        url: WebUri(url),
-      );
+      final cookies = await cookieManager.getCookies(url: WebUri(url));
 
       for (final cookie in cookies) {
         if (cookie.name == '_t' && cookie.value.isNotEmpty) {
