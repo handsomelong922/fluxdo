@@ -1,6 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+
+import '../../utils/platform_utils.dart';
 
 /// 导航目标项配置
 class AdaptiveDestination {
@@ -45,7 +46,7 @@ class AdaptiveNavigationRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+    final isDesktop = PlatformUtils.isDesktop;
 
     final splitIndex = destinations.length - bottomDestinationCount;
     final topDestinations = destinations.sublist(0, splitIndex);

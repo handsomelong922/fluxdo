@@ -152,11 +152,12 @@ class _ImageViewerPageState extends State<ImageViewerPage>
   }
 
   /// 显示图片长按菜单（不含「查看大图」，因为已在查看页内）
-  void _showContextMenu(BuildContext context) {
+  void _showContextMenu(BuildContext context, {Offset? position}) {
     ImageContextMenu.show(
       context: context,
       imageUrl: _currentImageUrl,
       showViewFullImage: false,
+      position: position,
     );
   }
 
@@ -440,6 +441,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
               GestureDetector(
                 onTap: _toggleUI,
                 onLongPress: () => _showContextMenu(context),
+                onSecondaryTapUp: (details) => _showContextMenu(context, position: details.globalPosition),
                 child: ExtendedImage(
                   image: discourseImageProvider(widget.imageUrl!),
                   width: double.infinity,
@@ -500,6 +502,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
               GestureDetector(
                 onTap: _toggleUI,
                 onLongPress: () => _showContextMenu(context),
+                onSecondaryTapUp: (details) => _showContextMenu(context, position: details.globalPosition),
                 child: ExtendedImageGesturePageView.builder(
                   itemCount: images.length,
                   physics: const BouncingScrollPhysics(),

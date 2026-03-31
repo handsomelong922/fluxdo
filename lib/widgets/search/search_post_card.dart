@@ -5,6 +5,7 @@ import '../../models/search_result.dart';
 import '../../providers/category_provider.dart';
 import '../../utils/font_awesome_helper.dart';
 import '../../utils/number_utils.dart';
+import '../../utils/platform_utils.dart';
 import '../common/relative_time_text.dart';
 import '../common/smart_avatar.dart';
 import '../common/topic_badges.dart';
@@ -56,6 +57,7 @@ class SearchPostCard extends ConsumerWidget {
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
+        onSecondaryTap: PlatformUtils.isDesktop ? onLongPress : null,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
           child: Row(

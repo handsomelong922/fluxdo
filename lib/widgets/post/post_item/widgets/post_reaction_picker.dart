@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../models/topic.dart';
 import '../../../../services/discourse_cache_manager.dart';
 import '../../../../services/emoji_handler.dart';
+import '../../../../utils/platform_utils.dart';
 
 /// 获取 emoji 图片 URL（未加载完成时返回空字符串，由 errorBuilder 处理）
 String _getEmojiUrl(String emojiName) {
@@ -63,16 +66,52 @@ class PostReactionPicker {
 
     final transformAlignment = Alignment(alignmentX, alignmentY);
 
+    // 触发按钮区域（含上下 12px 间隙，使按钮与气泡之间的空隙也是安全区域）
+    final buttonRect = Rect.fromLTWH(
+      buttonPos.dx, buttonPos.dy - 12, buttonSize.width, buttonSize.height + 24,
+    );
+
+    // 防止多个 pop 入口（barrier 点击 / hover 离开 / 选择表情）重复 pop
+    bool dismissed = false;
+    late final BuildContext dialogContext;
+
+    void safePop() {
+      if (dismissed) return;
+      dismissed = true;
+      Navigator.pop(dialogContext);
+    }
+
     showGeneralDialog(
       context: context,
-      barrierDismissible: true,
+      barrierDismissible: false,
       barrierLabel: 'Dismiss',
       barrierColor: Colors.transparent,
-      transitionDuration: const Duration(milliseconds: 450),
-      pageBuilder: (_, _, _) => const SizedBox(),
+      transitionDuration: PlatformUtils.isDesktop
+          ? const Duration(milliseconds: 150)
+          : const Duration(milliseconds: 450),
+      pageBuilder: (ctx, _, _) {
+        dialogContext = ctx;
+        // 桌面端：鼠标离开气泡+按钮区域后自动关闭
+        if (PlatformUtils.isDesktop) {
+          return _DesktopReactionPickerHost(
+            pickerRect: Rect.fromLTWH(left, top, pickerWidth, pickerHeight),
+            buttonRect: buttonRect,
+            onDismiss: safePop,
+          );
+        }
+        return const SizedBox();
+      },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curvedValue = Curves.elasticOut.transform(animation.value);
-        final opacity = (animation.value / 0.15).clamp(0.0, 1.0);
+        // 桌面端：干脆的缩放动画；移动端：弹性回弹
+        final double curvedValue;
+        final double opacity;
+        if (PlatformUtils.isDesktop) {
+          curvedValue = Curves.easeOutCubic.transform(animation.value);
+          opacity = animation.value;
+        } else {
+          curvedValue = Curves.elasticOut.transform(animation.value);
+          opacity = (animation.value / 0.15).clamp(0.0, 1.0);
+        }
 
         return Stack(
           children: [
@@ -80,8 +119,8 @@ class PostReactionPicker {
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onTap: () => Navigator.pop(context),
-                child: Container(color: Colors.transparent),
+                onTap: safePop,
+                child: child, // 桌面端 host 在此，处理鼠标追踪
               ),
             ),
             // 气泡主体
@@ -124,7 +163,7 @@ class PostReactionPicker {
                           return GestureDetector(
                             onTap: () {
                               HapticFeedback.lightImpact();
-                              Navigator.pop(context);
+                              safePop();
                               onReactionSelected(r);
                             },
                             child: Container(
@@ -154,6 +193,61 @@ class PostReactionPicker {
           ],
         );
       },
+    );
+  }
+}
+
+/// 桌面端：追踪鼠标位置，离开气泡和触发按钮区域后自动关闭
+class _DesktopReactionPickerHost extends StatefulWidget {
+  final Rect pickerRect;
+  final Rect buttonRect;
+  final VoidCallback onDismiss;
+
+  const _DesktopReactionPickerHost({
+    required this.pickerRect,
+    required this.buttonRect,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_DesktopReactionPickerHost> createState() => _DesktopReactionPickerHostState();
+}
+
+class _DesktopReactionPickerHostState extends State<_DesktopReactionPickerHost> {
+  Timer? _dismissTimer;
+
+  /// 安全区域：气泡 + 触发按钮（含间隙）
+  bool _isInSafeZone(Offset globalPos) {
+    // 气泡区域加 8px 容差
+    final expandedPickerRect = widget.pickerRect.inflate(8);
+    if (expandedPickerRect.contains(globalPos)) return true;
+    // 触发按钮区域
+    if (widget.buttonRect.contains(globalPos)) return true;
+    return false;
+  }
+
+  void _onPointerMove(PointerEvent event) {
+    if (_isInSafeZone(event.position)) {
+      _dismissTimer?.cancel();
+      _dismissTimer = null;
+    } else {
+      _dismissTimer ??= Timer(const Duration(milliseconds: 300), widget.onDismiss);
+    }
+  }
+
+  @override
+  void dispose() {
+    _dismissTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerHover: _onPointerMove,
+      onPointerMove: _onPointerMove,
+      child: const SizedBox.expand(),
     );
   }
 }

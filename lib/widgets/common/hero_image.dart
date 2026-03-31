@@ -25,12 +25,16 @@ class HeroImage extends StatelessWidget {
   /// 长按回调
   final VoidCallback? onLongPress;
 
+  /// 右键回调（桌面端）
+  final GestureTapUpCallback? onSecondaryTapUp;
+
   const HeroImage({
     super.key,
     required this.heroTag,
     required this.child,
     this.onTap,
     this.onLongPress,
+    this.onSecondaryTapUp,
   });
 
   @override
@@ -78,6 +82,7 @@ class HeroImage extends StatelessWidget {
               return GestureDetector(
                 onTap: onTap,
                 onLongPress: onLongPress,
+                onSecondaryTapUp: onSecondaryTapUp,
                 child: SizedBox(
                   width: heroSize.width,
                   height: heroSize.height,
@@ -88,6 +93,7 @@ class HeroImage extends StatelessWidget {
             child: GestureDetector(
               onTap: onTap,
               onLongPress: onLongPress,
+              onSecondaryTapUp: onSecondaryTapUp,
               child: child,
             ),
           ),

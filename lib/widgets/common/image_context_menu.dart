@@ -8,22 +8,25 @@ import '../../pages/image_viewer_page.dart';
 import '../../services/discourse_cache_manager.dart';
 import '../../services/toast_service.dart';
 import '../../utils/dialog_utils.dart';
+import '../../utils/platform_utils.dart';
 import '../../utils/quote_builder.dart';
 import '../content/discourse_html_content/image_utils.dart';
 
-/// 图片长按上下文菜单
+/// 图片上下文菜单
 ///
 /// 提供统一的图片操作菜单，可在内容页和图片查看页复用。
+/// 桌面端支持在鼠标位置弹出 Popup Menu，移动端使用底部弹出菜单。
 class ImageContextMenu {
   ImageContextMenu._();
 
-  /// 显示图片长按菜单
+  /// 显示图片上下文菜单
   ///
   /// [imageUrl] 图片 URL（会自动转换为原图 URL）
   /// [showViewFullImage] 是否显示「查看大图」选项（图片查看页内不需要）
   /// [post] 帖子对象（用于引用功能，为 null 时隐藏引用选项）
   /// [topicId] 话题 ID（用于引用功能）
   /// [onQuoteImage] 引用回调（打开回复框），为 null 时隐藏「引用」选项
+  /// [position] 鼠标全局位置（桌面端右键时传入，用于定位 Popup Menu）
   static void show({
     required BuildContext context,
     required String imageUrl,
@@ -31,9 +34,141 @@ class ImageContextMenu {
     Post? post,
     int? topicId,
     void Function(String quote, Post post)? onQuoteImage,
+    Offset? position,
   }) {
     final originalUrl = DiscourseImageUtils.getOriginalUrl(imageUrl);
 
+    if (PlatformUtils.isDesktop && position != null) {
+      _showDesktopMenu(
+        context: context,
+        originalUrl: originalUrl,
+        imageUrl: imageUrl,
+        showViewFullImage: showViewFullImage,
+        post: post,
+        topicId: topicId,
+        onQuoteImage: onQuoteImage,
+        position: position,
+      );
+    } else {
+      _showMobileMenu(
+        context: context,
+        originalUrl: originalUrl,
+        imageUrl: imageUrl,
+        showViewFullImage: showViewFullImage,
+        post: post,
+        topicId: topicId,
+        onQuoteImage: onQuoteImage,
+      );
+    }
+  }
+
+  /// 桌面端：在鼠标位置弹出 Popup Menu
+  static void _showDesktopMenu({
+    required BuildContext context,
+    required String originalUrl,
+    required String imageUrl,
+    required bool showViewFullImage,
+    Post? post,
+    int? topicId,
+    void Function(String quote, Post post)? onQuoteImage,
+    required Offset position,
+  }) {
+    final overlayRenderObject =
+        Overlay.of(context).context.findRenderObject();
+    if (overlayRenderObject is! RenderBox || !overlayRenderObject.hasSize) {
+      // Overlay 未就绪，回退到移动端菜单
+      _showMobileMenu(
+        context: context,
+        originalUrl: originalUrl,
+        imageUrl: imageUrl,
+        showViewFullImage: showViewFullImage,
+        post: post,
+        topicId: topicId,
+        onQuoteImage: onQuoteImage,
+      );
+      return;
+    }
+    final relativeRect = RelativeRect.fromRect(
+      position & Size.zero,
+      Offset.zero & overlayRenderObject.size,
+    );
+
+    final items = <PopupMenuEntry<String>>[
+      if (showViewFullImage)
+        PopupMenuItem(
+          value: 'viewFull',
+          child: _MenuItemRow(
+            icon: Icons.zoom_in,
+            label: S.current.image_viewFull,
+          ),
+        ),
+      PopupMenuItem(
+        value: 'copyImage',
+        child: _MenuItemRow(
+          icon: Icons.copy,
+          label: S.current.image_copyImage,
+        ),
+      ),
+      PopupMenuItem(
+        value: 'copyLink',
+        child: _MenuItemRow(
+          icon: Icons.link,
+          label: S.current.image_copyLink,
+        ),
+      ),
+      PopupMenuItem(
+        value: 'share',
+        child: _MenuItemRow(
+          icon: Icons.share,
+          label: S.current.common_shareImage,
+        ),
+      ),
+      if (post != null && topicId != null && onQuoteImage != null)
+        PopupMenuItem(
+          value: 'quote',
+          child: _MenuItemRow(
+            icon: Icons.format_quote,
+            label: S.current.common_quote,
+          ),
+        ),
+      if (post != null && topicId != null)
+        PopupMenuItem(
+          value: 'copyQuote',
+          child: _MenuItemRow(
+            icon: Icons.copy_all,
+            label: S.current.common_copyQuote,
+          ),
+        ),
+    ];
+
+    showMenu<String>(
+      context: context,
+      position: relativeRect,
+      items: items,
+    ).then((value) {
+      if (value == null) return;
+      _handleMenuAction(
+        context: context,
+        action: value,
+        originalUrl: originalUrl,
+        imageUrl: imageUrl,
+        post: post,
+        topicId: topicId,
+        onQuoteImage: onQuoteImage,
+      );
+    });
+  }
+
+  /// 移动端：底部弹出菜单
+  static void _showMobileMenu({
+    required BuildContext context,
+    required String originalUrl,
+    required String imageUrl,
+    required bool showViewFullImage,
+    Post? post,
+    int? topicId,
+    void Function(String quote, Post post)? onQuoteImage,
+  }) {
     showAppBottomSheet(
       context: context,
       builder: (ctx) {
@@ -117,6 +252,50 @@ class ImageContextMenu {
     );
   }
 
+  /// 处理菜单选项
+  static void _handleMenuAction({
+    required BuildContext context,
+    required String action,
+    required String originalUrl,
+    required String imageUrl,
+    Post? post,
+    int? topicId,
+    void Function(String quote, Post post)? onQuoteImage,
+  }) {
+    switch (action) {
+      case 'viewFull':
+        ImageViewerPage.open(context, originalUrl, thumbnailUrl: imageUrl);
+      case 'copyImage':
+        _copyImage(originalUrl);
+      case 'copyLink':
+        Clipboard.setData(ClipboardData(text: originalUrl));
+        ToastService.showSuccess(S.current.common_linkCopied);
+      case 'share':
+        _shareImage(originalUrl);
+      case 'quote':
+        if (post != null && topicId != null && onQuoteImage != null) {
+          final quote = QuoteBuilder.build(
+            markdown: '![image]($originalUrl)',
+            username: post.username,
+            postNumber: post.postNumber,
+            topicId: topicId,
+          );
+          onQuoteImage(quote, post);
+        }
+      case 'copyQuote':
+        if (post != null && topicId != null) {
+          final quote = QuoteBuilder.build(
+            markdown: '![image]($originalUrl)',
+            username: post.username,
+            postNumber: post.postNumber,
+            topicId: topicId,
+          );
+          Clipboard.setData(ClipboardData(text: quote));
+          ToastService.showSuccess(S.current.common_quoteCopied);
+        }
+    }
+  }
+
   /// 复制图片到剪贴板
   static Future<void> _copyImage(String imageUrl) async {
     try {
@@ -163,5 +342,24 @@ class ImageContextMenu {
     if (path.endsWith('.webp')) return 'webp';
     if (path.endsWith('.avif')) return 'avif';
     return 'png';
+  }
+}
+
+/// Popup Menu 菜单项行（图标 + 文字）
+class _MenuItemRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _MenuItemRow({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(width: 12),
+        Text(label),
+      ],
+    );
   }
 }

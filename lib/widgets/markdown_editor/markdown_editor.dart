@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:chat_bottom_container/chat_bottom_container.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +12,7 @@ import 'package:super_clipboard/super_clipboard.dart';
 
 import '../../providers/preferences_provider.dart';
 import '../../services/emoji_handler.dart';
+import '../../utils/platform_utils.dart';
 import '../mention/mention_autocomplete.dart';
 import 'emoji_sticker_panel.dart';
 import 'markdown_renderer.dart';
@@ -282,9 +282,7 @@ class MarkdownEditorState extends ConsumerState<MarkdownEditor> {
   }
 
   /// 桌面端没有软键盘
-  static final bool _isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-      defaultTargetPlatform == TargetPlatform.linux ||
-      defaultTargetPlatform == TargetPlatform.windows;
+  static final bool _isDesktop = PlatformUtils.isDesktop;
 
   /// 切换表情面板
   void _toggleEmojiPanel() {

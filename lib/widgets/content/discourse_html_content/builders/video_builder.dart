@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:chewie/chewie.dart' as lib;
 import 'package:flutter/material.dart';
@@ -8,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../../../providers/preferences_provider.dart';
 import '../../../../utils/layout_lock.dart';
+import '../../../../utils/platform_utils.dart';
 
 /// 自定义视频播放器，基于 fwfh_chewie 的 VideoPlayer，
 /// 增加全屏时 LayoutLock 保护，防止横屏导致底层页面重新布局。
@@ -70,8 +70,7 @@ class _DiscourseVideoPlayerState extends State<DiscourseVideoPlayer>
   /// 桌面端：等 onWindowLeaveFullScreen 回调触发。
   bool _pendingLockRelease = false;
 
-  static final bool _isDesktop =
-      Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+  static final bool _isDesktop = PlatformUtils.isDesktop;
 
   /// 全屏期间缓存控制器，防止窗口/屏幕尺寸变化导致 widget 重建时
   /// 销毁 chewie 全屏路由正在使用的控制器。

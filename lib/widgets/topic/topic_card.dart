@@ -5,6 +5,7 @@ import '../../models/topic.dart';
 import '../../models/category.dart';
 import '../../providers/discourse_providers.dart';
 import '../../utils/font_awesome_helper.dart';
+import '../../utils/platform_utils.dart';
 import '../../utils/url_helper.dart';
 import '../common/topic_badges.dart';
 import '../common/smart_avatar.dart';
@@ -75,6 +76,7 @@ class TopicCard extends ConsumerWidget {
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
+        onSecondaryTap: PlatformUtils.isDesktop ? onLongPress : null,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -409,6 +411,7 @@ class CompactTopicCard extends ConsumerWidget {
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
+        onSecondaryTap: PlatformUtils.isDesktop ? onLongPress : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(

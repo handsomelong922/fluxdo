@@ -180,6 +180,9 @@ class DiscourseWidgetFactory extends WidgetFactory {
                onLongPress: () {
                  _showImageContextMenu(context, resolvedUrl, heroTag);
                },
+               onSecondaryTapUp: (details) {
+                 _showImageContextMenu(context, resolvedUrl, heroTag, position: details.globalPosition);
+               },
                child: svgWidget,
              );
            }
@@ -248,11 +251,14 @@ class DiscourseWidgetFactory extends WidgetFactory {
              return emojiWidget;
            }
 
-           // 非画廊图片：不添加点击查看功能，但支持长按菜单查看大图
+           // 非画廊图片：不添加点击查看功能，但支持长按/右键菜单查看大图
            if (resolvedUrl != null) {
              return GestureDetector(
                onLongPress: () {
                  _showImageContextMenu(context, resolvedUrl, heroTag);
+               },
+               onSecondaryTapUp: (details) {
+                 _showImageContextMenu(context, resolvedUrl, heroTag, position: details.globalPosition);
                },
                child: imageWidget,
              );
@@ -279,6 +285,9 @@ class DiscourseWidgetFactory extends WidgetFactory {
               },
               onLongPress: () {
                 _showImageContextMenu(context, resolvedUrl, heroTag);
+              },
+              onSecondaryTapUp: (details) {
+                _showImageContextMenu(context, resolvedUrl, heroTag, position: details.globalPosition);
               },
               child: svgWidget,
             );
@@ -325,6 +334,9 @@ class DiscourseWidgetFactory extends WidgetFactory {
             },
             onLongPress: () {
               _showImageContextMenu(context, resolvedUrl!, heroTag);
+            },
+            onSecondaryTapUp: (details) {
+              _showImageContextMenu(context, resolvedUrl!, heroTag, position: details.globalPosition);
             },
           );
         }
@@ -383,13 +395,14 @@ class DiscourseWidgetFactory extends WidgetFactory {
   }
 
   /// 显示图片长按菜单
-  void _showImageContextMenu(BuildContext context, String imageUrl, String heroTag) {
+  void _showImageContextMenu(BuildContext context, String imageUrl, String heroTag, {Offset? position}) {
     ImageContextMenu.show(
       context: context,
       imageUrl: imageUrl,
       post: post,
       topicId: topicId,
       onQuoteImage: onQuoteImage,
+      position: position,
     );
   }
 

@@ -12,6 +12,7 @@ import '../../providers/preferences_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/toast_service.dart';
 import '../../utils/dialog_utils.dart';
+import '../../utils/platform_utils.dart';
 import '../settings_model.dart';
 
 /// 外观设置数据声明
@@ -1139,11 +1140,16 @@ class _ThemeColorSectionState extends ConsumerState<_ThemeColorSection> {
         );
       },
     ).then((color) {
-      hexController.dispose();
       if (color != null) {
         ref.read(themeProvider.notifier).addCustomColor(color);
         ref.read(themeProvider.notifier).setSeedColor(color);
       }
+      // 延迟释放 controller，等待退场动画结束
+      // （.then 在 didPop 时触发，此时退场动画仍在进行，
+      //  主题重建会导致弹窗中的 TextField 重建并访问 controller）
+      Future.delayed(const Duration(milliseconds: 350), () {
+        hexController.dispose();
+      });
     });
   }
 
@@ -1304,6 +1310,7 @@ class _ColorSwatchCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
+      onSecondaryTap: PlatformUtils.isDesktop ? onLongPress : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: size,
