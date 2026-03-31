@@ -9,6 +9,7 @@ import '../utils/svg_utils.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import '../services/toast_service.dart';
+import '../utils/platform_utils.dart';
 import '../widgets/common/image_context_menu.dart';
 import '../widgets/common/loading_spinner.dart';
 import '../l10n/s.dart';
@@ -318,11 +319,24 @@ class _ImageViewerPageState extends State<ImageViewerPage>
     }
   }
 
+  /// 桌面端包裹 Esc 快捷键退出
+  Widget _wrapDesktopShortcuts(BuildContext context, Widget child) {
+    if (!PlatformUtils.isDesktop) return child;
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          Navigator.of(context).pop();
+        },
+      },
+      child: Focus(autofocus: true, child: child),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // 内存图片模式
     if (widget.imageBytes != null) {
-      return AnnotatedRegion<SystemUiOverlayStyle>(
+      return _wrapDesktopShortcuts(context, AnnotatedRegion<SystemUiOverlayStyle>(
         value: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.light,
@@ -411,13 +425,13 @@ class _ImageViewerPageState extends State<ImageViewerPage>
             ),
           ),
         ),
-      );
+      ));
     }
 
     final images = widget.galleryImages ?? [widget.imageUrl!];
     final bool isGallery = images.length > 1;
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
+    return _wrapDesktopShortcuts(context, AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
@@ -750,7 +764,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
           ],
         ),
       ),
-    ));
+    )));
   }
 
   /// 获取指定索引的缩略图 URL

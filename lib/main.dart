@@ -74,6 +74,8 @@ import 'widgets/layout/adaptive_navigation.dart';
 import 'widgets/notification/notification_quick_panel.dart';
 import 'widgets/read_later/read_later_bubble.dart';
 import 'providers/read_later_provider.dart';
+import 'pages/search_page.dart';
+import 'utils/platform_utils.dart';
 
 /// 初始化 rhttp Rust runtime
 Future<bool> _initRhttp() async {
@@ -403,7 +405,7 @@ class MainApp extends ConsumerWidget {
                 acrylic.Window.overrideMacOSBrightness(dark: isDark);
               }
             }
-            return AnnotatedRegion<SystemUiOverlayStyle>(
+            Widget result = AnnotatedRegion<SystemUiOverlayStyle>(
               value: SystemUiOverlayStyle(
                 statusBarColor: Colors.transparent,
                 statusBarIconBrightness: iconBrightness,
@@ -421,6 +423,31 @@ class MainApp extends ConsumerWidget {
                 children: [child!, const ReadLaterBubble()],
               ),
             );
+
+            // 桌面端：全局鼠标返回键 + 键盘返回快捷键
+            if (PlatformUtils.isDesktop) {
+              result = Listener(
+                onPointerDown: (event) {
+                  // 鼠标侧键返回（第 4 按钮，bit flag 0x08）
+                  if (event.buttons & 0x08 != 0) {
+                    navigatorKey.currentState?.maybePop();
+                  }
+                },
+                child: CallbackShortcuts(
+                  bindings: {
+                    const SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true): () {
+                      navigatorKey.currentState?.maybePop();
+                    },
+                    const SingleActivator(LogicalKeyboardKey.bracketLeft, meta: true): () {
+                      navigatorKey.currentState?.maybePop();
+                    },
+                  },
+                  child: result,
+                ),
+              );
+            }
+
+            return result;
           },
           home: const OnboardingGate(child: PreheatGate(child: MainPage())),
         );
@@ -704,7 +731,7 @@ class _MainPageState extends ConsumerState<MainPage>
     final user = currentUserAsync.value;
 
     // 首页的 FAB 由 TopicsScreen 内部处理，避免切换时闪烁
-    return PopScope(
+    Widget page = PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, dynamic result) {
         if (didPop) return;
@@ -735,6 +762,26 @@ class _MainPageState extends ConsumerState<MainPage>
         ),
       ),
     );
+
+    // 桌面端全局键盘快捷键
+    if (PlatformUtils.isDesktop) {
+      page = CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.slash): () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SearchPage()),
+            );
+          },
+        },
+        child: Focus(
+          autofocus: true,
+          child: page,
+        ),
+      );
+    }
+
+    return page;
   }
 
   List<AdaptiveDestination> _buildDestinations(User? user) {
