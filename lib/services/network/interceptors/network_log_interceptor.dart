@@ -24,10 +24,22 @@ class NetworkLogInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
+    final isSilent = err.requestOptions.extra['isSilent'] == true;
+    final isTimeout = err.type == DioExceptionType.receiveTimeout ||
+        err.type == DioExceptionType.connectionTimeout ||
+        err.type == DioExceptionType.sendTimeout;
+
+    // cancel: 长轮询频繁 cancel 是正常行为，记录为 debug
+    // isSilent + 超时: MessageBus 长轮询超时是正常行为，记录为 debug
+    // 其他错误: 记录为 warning
+    final level = (err.type == DioExceptionType.cancel || (isSilent && isTimeout))
+        ? 'debug'
+        : 'warning';
+
     _logRequest(
       options: err.requestOptions,
       statusCode: err.response?.statusCode,
-      level: 'warning',
+      level: level,
     );
     handler.next(err);
   }
