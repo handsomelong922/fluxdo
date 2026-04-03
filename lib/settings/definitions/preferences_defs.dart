@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -203,7 +204,6 @@ class _KeywordFilterInputTileState
     _controller = TextEditingController(text: value);
   }
 
-  @override
   Future<void> _saveIfChanged() async {
     final raw = _controller.text;
     if (raw == _lastSavedValue) return;
@@ -258,7 +258,7 @@ class _KeywordFilterInputTileState
             ),
             onChanged: (_) => setState(() {}),
             onEditingComplete: _saveIfChanged,
-            onTapOutside: (_) => _saveIfChanged(),
+            onTapOutside: (_) => unawaited(_saveIfChanged()),
           ),
         ],
       ),

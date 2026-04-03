@@ -153,7 +153,9 @@ class _TopicPostListState extends State<TopicPostList> {
   @override
   void didUpdateWidget(covariant TopicPostList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.keywordFilterInput != widget.keywordFilterInput) {
+    if (oldWidget.keywordFilterInput != widget.keywordFilterInput ||
+        oldWidget.detail.postStream.posts.length !=
+            widget.detail.postStream.posts.length) {
       _refreshKeywordCache();
     }
   }
