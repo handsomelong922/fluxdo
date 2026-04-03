@@ -134,16 +134,28 @@ class _TopicPostListState extends State<TopicPostList> {
   SelectedContent? _lastLongPostSelectedContent;
   Post? _activeLongSelectionPost;
   CodeSelectionContext? _lastLongCodeSelectionContext;
+  List<String> _parsedKeywords = const [];
+  String _cachedKeywordInput = '';
+  final Map<int, bool> _postKeywordHitCache = {};
 
   @override
   void initState() {
     super.initState();
+    _refreshKeywordCache();
     // 首帧渲染后触发一次可见性检测，确保进入页面时即上报阅读状态
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _updateFirstVisiblePost();
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant TopicPostList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.keywordFilterInput != widget.keywordFilterInput) {
+      _refreshKeywordCache();
+    }
   }
 
   // 便捷 getter，简化 widget.xxx 访问
@@ -188,8 +200,23 @@ class _TopicPostListState extends State<TopicPostList> {
       widget.onExpandHiddenPost;
   bool get useReplyDialog => widget.useReplyDialog;
   String get keywordFilterInput => widget.keywordFilterInput;
-  List<String> get _keywords =>
-      KeywordFilterUtils.parseKeywords(keywordFilterInput);
+
+  void _refreshKeywordCache() {
+    _cachedKeywordInput = keywordFilterInput;
+    _parsedKeywords = KeywordFilterUtils.parseKeywords(_cachedKeywordInput);
+    _postKeywordHitCache.clear();
+  }
+
+  bool _isPostMatchedByKeyword(Post post) {
+    if (_parsedKeywords.isEmpty) return false;
+    return _postKeywordHitCache.putIfAbsent(post.id, () {
+      final visibleText = KeywordFilterUtils.htmlToVisibleText(post.cooked);
+      return KeywordFilterUtils.containsAnyKeyword(
+        text: visibleText,
+        keywords: _parsedKeywords,
+      );
+    });
+  }
 
   /// 检测当前可见帖子（Eyeline 机制）
   ///
@@ -643,8 +670,7 @@ class _TopicPostListState extends State<TopicPostList> {
         segment.type == _PostRenderSegmentType.longHeader ||
         segment.type == _PostRenderSegmentType.longChunk ||
         segment.type == _PostRenderSegmentType.longFooter) {
-      final visibleText = KeywordFilterUtils.htmlToVisibleText(post.cooked);
-      if (KeywordFilterUtils.containsAnyKeyword(text: visibleText, keywords: _keywords)) {
+      if (_isPostMatchedByKeyword(post)) {
         return const SizedBox.shrink();
       }
     }

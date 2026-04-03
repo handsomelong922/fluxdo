@@ -204,7 +204,7 @@ class _KeywordFilterInputTileState
   }
 
   @override
-  Future<void> _save() async {
+  Future<void> _saveIfChanged() async {
     final raw = _controller.text;
     if (raw == _lastSavedValue) return;
     _lastSavedValue = raw;
@@ -257,8 +257,8 @@ class _KeywordFilterInputTileState
               border: const OutlineInputBorder(),
             ),
             onChanged: (_) => setState(() {}),
-            onEditingComplete: _save,
-            onTapOutside: (_) async => await _save(),
+            onEditingComplete: _saveIfChanged,
+            onTapOutside: (_) => _saveIfChanged(),
           ),
         ],
       ),
