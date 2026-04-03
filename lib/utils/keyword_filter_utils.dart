@@ -34,7 +34,7 @@ class KeywordFilterUtils {
     if (html.isEmpty) return '';
     try {
       final fragment = html_parser.parseFragment(html);
-      return fragment.text.trim();
+      return fragment.text?.trim() ?? '';
     } catch (_) {
       return html;
     }
