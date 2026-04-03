@@ -90,9 +90,24 @@ jobs:
       - name: Setup Android Signing
         if: startsWith(matrix.platform, 'android')
         run: |
+          if [ -z "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "ANDROID_KEYSTORE_BASE64 is required for Android release builds"
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.ANDROID_KEY_PROPERTIES }}" ]; then
+            echo "ANDROID_KEY_PROPERTIES is required for Android release builds"
+            exit 1
+          fi
+
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/upload-keystore.jks
           echo "${{ secrets.ANDROID_KEY_PROPERTIES }}" > android/key.properties
-          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
+
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
+          else
+            echo "GOOGLE_SERVICES_JSON not set, using repository copy"
+          fi
 
       - name: Generate CA certificates
         if: startsWith(matrix.platform, 'android') || matrix.platform == 'macos' || matrix.platform == 'ios' || matrix.platform == 'windows'
