@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/network/request_scheduler_config.dart';
 import '../services/cf_clearance_refresh_service.dart';
 import '../services/network/cookie/android_cdp_feature.dart';
+import '../utils/keyword_filter_utils.dart';
 import 'theme_provider.dart';
 
 class AppPreferences {
@@ -339,4 +340,9 @@ final preferencesProvider =
     StateNotifierProvider<PreferencesNotifier, AppPreferences>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return PreferencesNotifier(prefs);
+});
+
+final keywordFilterKeywordsProvider = Provider<List<String>>((ref) {
+  final input = ref.watch(preferencesProvider.select((p) => p.keywordFilterInput));
+  return KeywordFilterUtils.parseKeywords(input);
 });

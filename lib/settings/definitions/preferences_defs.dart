@@ -204,15 +204,6 @@ class _KeywordFilterInputTileState
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final latest = ref.read(preferencesProvider).keywordFilterInput;
-    if (latest != _lastSavedValue && latest != _controller.text) {
-      _lastSavedValue = latest;
-      _controller.text = latest;
-    }
-  }
-
   Future<void> _save() async {
     final raw = _controller.text;
     if (raw == _lastSavedValue) return;
@@ -223,6 +214,11 @@ class _KeywordFilterInputTileState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final latest = ref.watch(preferencesProvider).keywordFilterInput;
+    if (latest != _lastSavedValue && latest != _controller.text) {
+      _lastSavedValue = latest;
+      _controller.text = latest;
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -262,7 +258,7 @@ class _KeywordFilterInputTileState
             ),
             onChanged: (_) => setState(() {}),
             onEditingComplete: _save,
-            onTapOutside: (_) => _save(),
+            onTapOutside: (_) async => await _save(),
           ),
         ],
       ),

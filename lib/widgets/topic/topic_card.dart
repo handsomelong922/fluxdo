@@ -39,10 +39,7 @@ class TopicCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final keywordFilterInput = ref.watch(
-      preferencesProvider.select((p) => p.keywordFilterInput),
-    );
-    final keywords = KeywordFilterUtils.parseKeywords(keywordFilterInput);
+    final keywords = ref.watch(keywordFilterKeywordsProvider);
     if (KeywordFilterUtils.containsAnyKeyword(text: topic.title, keywords: keywords)) {
       return const SizedBox.shrink();
     }
@@ -388,10 +385,7 @@ class CompactTopicCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final keywordFilterInput = ref.watch(
-      preferencesProvider.select((p) => p.keywordFilterInput),
-    );
-    final keywords = KeywordFilterUtils.parseKeywords(keywordFilterInput);
+    final keywords = ref.watch(keywordFilterKeywordsProvider);
     if (KeywordFilterUtils.containsAnyKeyword(text: topic.title, keywords: keywords)) {
       return const SizedBox.shrink();
     }

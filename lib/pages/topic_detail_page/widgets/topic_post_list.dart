@@ -188,6 +188,8 @@ class _TopicPostListState extends State<TopicPostList> {
       widget.onExpandHiddenPost;
   bool get useReplyDialog => widget.useReplyDialog;
   String get keywordFilterInput => widget.keywordFilterInput;
+  List<String> get _keywords =>
+      KeywordFilterUtils.parseKeywords(keywordFilterInput);
 
   /// 检测当前可见帖子（Eyeline 机制）
   ///
@@ -637,13 +639,12 @@ class _TopicPostListState extends State<TopicPostList> {
 
   Widget _buildSegmentItem(BuildContext context, _PostRenderSegment segment) {
     final post = segment.post;
-    final keywords = KeywordFilterUtils.parseKeywords(keywordFilterInput);
     if (segment.type == _PostRenderSegmentType.shortPost ||
         segment.type == _PostRenderSegmentType.longHeader ||
         segment.type == _PostRenderSegmentType.longChunk ||
         segment.type == _PostRenderSegmentType.longFooter) {
       final visibleText = KeywordFilterUtils.htmlToVisibleText(post.cooked);
-      if (KeywordFilterUtils.containsAnyKeyword(text: visibleText, keywords: keywords)) {
+      if (KeywordFilterUtils.containsAnyKeyword(text: visibleText, keywords: _keywords)) {
         return const SizedBox.shrink();
       }
     }
