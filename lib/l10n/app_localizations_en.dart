@@ -3733,6 +3733,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Auto-insert spaces between CJK and Latin text';
 
   @override
+  String get preferences_keywordFilter => 'Keyword Filter';
+
+  @override
+  String get preferences_keywordFilterDesc =>
+      'Use English commas to separate keywords. Topics with matching titles and replies with matching content will be hidden.';
+
+  @override
+  String get preferences_keywordFilterHint =>
+      'Example: newbie, spam, check-in';
+
+  @override
   String get preferences_stickerSource => 'Sticker source';
 
   @override

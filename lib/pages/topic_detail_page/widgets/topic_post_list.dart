@@ -7,6 +7,7 @@ import '../../../models/topic.dart';
 import '../../../providers/message_bus_providers.dart';
 import '../../../services/toast_service.dart';
 import '../../../utils/code_selection_context.dart';
+import '../../../utils/keyword_filter_utils.dart';
 import '../../../utils/responsive.dart';
 import '../../../utils/time_utils.dart';
 import '../../../widgets/content/discourse_html_content/chunked/html_chunk.dart';
@@ -70,6 +71,7 @@ class TopicPostList extends StatefulWidget {
 
   /// 是否使用弹框展示回复（过滤模式下）
   final bool useReplyDialog;
+  final String keywordFilterInput;
 
   /// 查看帖子详情回调
   final void Function(Post post)? onShowPostDetail;
@@ -112,6 +114,7 @@ class TopicPostList extends StatefulWidget {
     this.onFillGapAfter,
     this.onExpandHiddenPost,
     this.useReplyDialog = false,
+    this.keywordFilterInput = '',
     this.onShowPostDetail,
   });
 
@@ -131,16 +134,30 @@ class _TopicPostListState extends State<TopicPostList> {
   SelectedContent? _lastLongPostSelectedContent;
   Post? _activeLongSelectionPost;
   CodeSelectionContext? _lastLongCodeSelectionContext;
+  List<String> _parsedKeywords = const [];
+  String _cachedKeywordInput = '';
+  final Map<int, bool> _postKeywordHitCache = {};
 
   @override
   void initState() {
     super.initState();
+    _refreshKeywordCache();
     // 首帧渲染后触发一次可见性检测，确保进入页面时即上报阅读状态
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _updateFirstVisiblePost();
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant TopicPostList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.keywordFilterInput != widget.keywordFilterInput ||
+        oldWidget.detail.postStream.posts.length !=
+            widget.detail.postStream.posts.length) {
+      _refreshKeywordCache();
+    }
   }
 
   // 便捷 getter，简化 widget.xxx 访问
@@ -184,6 +201,24 @@ class _TopicPostListState extends State<TopicPostList> {
   void Function(int postId)? get onExpandHiddenPost =>
       widget.onExpandHiddenPost;
   bool get useReplyDialog => widget.useReplyDialog;
+  String get keywordFilterInput => widget.keywordFilterInput;
+
+  void _refreshKeywordCache() {
+    _cachedKeywordInput = keywordFilterInput;
+    _parsedKeywords = KeywordFilterUtils.parseKeywords(_cachedKeywordInput);
+    _postKeywordHitCache.clear();
+  }
+
+  bool _isPostMatchedByKeyword(Post post) {
+    if (_parsedKeywords.isEmpty) return false;
+    return _postKeywordHitCache.putIfAbsent(post.id, () {
+      final visibleText = KeywordFilterUtils.htmlToVisibleText(post.cooked);
+      return KeywordFilterUtils.containsAnyKeyword(
+        text: visibleText,
+        keywords: _parsedKeywords,
+      );
+    });
+  }
 
   /// 检测当前可见帖子（Eyeline 机制）
   ///
@@ -633,6 +668,14 @@ class _TopicPostListState extends State<TopicPostList> {
 
   Widget _buildSegmentItem(BuildContext context, _PostRenderSegment segment) {
     final post = segment.post;
+    if (segment.type == _PostRenderSegmentType.shortPost ||
+        segment.type == _PostRenderSegmentType.longHeader ||
+        segment.type == _PostRenderSegmentType.longChunk ||
+        segment.type == _PostRenderSegmentType.longFooter) {
+      if (_isPostMatchedByKeyword(post)) {
+        return const SizedBox.shrink();
+      }
+    }
     final postIndex = segment.postIndex;
     final showDivider = dividerPostIndex == postIndex;
     final showTopSeparator = _shouldShowDateSeparator(postIndex);

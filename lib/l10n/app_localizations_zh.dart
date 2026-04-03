@@ -3670,6 +3670,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get preferences_autoPanguSpacingDesc => '输入时自动插入中英文混排空格';
 
   @override
+  String get preferences_keywordFilter => '关键词过滤';
+
+  @override
+  String get preferences_keywordFilterDesc =>
+      '使用英文逗号分隔关键词。标题或回复内容命中关键词时将被隐藏。';
+
+  @override
+  String get preferences_keywordFilterHint => '示例：新人报道, 水贴, 签到';
+
+  @override
   String get preferences_stickerSource => '表情包数据源';
 
   @override
@@ -9348,6 +9358,16 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get preferences_autoPanguSpacingDesc => '輸入時自動插入中英文混排空格';
 
   @override
+  String get preferences_keywordFilter => '關鍵字過濾';
+
+  @override
+  String get preferences_keywordFilterDesc =>
+      '使用英文逗號分隔關鍵字。標題或回覆內容命中關鍵字時將被隱藏。';
+
+  @override
+  String get preferences_keywordFilterHint => '示例：新人報到, 水貼, 簽到';
+
+  @override
   String get preferences_stickerSource => '表情包數據源';
 
   @override
@@ -14903,6 +14923,16 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get preferences_autoPanguSpacingDesc => '輸入時自動插入中英文混排空格';
+
+  @override
+  String get preferences_keywordFilter => '關鍵字過濾';
+
+  @override
+  String get preferences_keywordFilterDesc =>
+      '使用英文逗號分隔關鍵字。標題或回覆內容命中關鍵字時將被隱藏。';
+
+  @override
+  String get preferences_keywordFilterHint => '示例：新人報到, 水貼, 簽到';
 
   @override
   String get preferences_stickerSource => '表情包資料來源';
