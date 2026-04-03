@@ -1,0 +1,140 @@
+name: Android Release
+
+on:
+  push:
+    tags:
+      - 'android-v*'
+  workflow_dispatch:
+
+jobs:
+  build_android:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64-v8a
+            rust-target: aarch64-linux-android
+            flutter-target: android-arm64
+          - arch: armeabi-v7a
+            rust-target: armv7-linux-androideabi
+            flutter-target: android-arm
+          - arch: x86_64
+            rust-target: x86_64-linux-android
+            flutter-target: android-x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.9'
+          cache: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Android build environment
+        run: |
+          rustup target add ${{ matrix.rust-target }}
+          cargo install cargo-ndk
+          sudo apt-get update
+          sudo apt-get install -y cmake
+
+      - name: Setup Android NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'ndk;25.2.9519653'
+
+      - name: Setup Android signing
+        run: |
+          if [ -z "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "ANDROID_KEYSTORE_BASE64 is required"
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.ANDROID_KEY_PROPERTIES }}" ]; then
+            echo "ANDROID_KEY_PROPERTIES is required"
+            exit 1
+          fi
+
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/upload-keystore.jks
+          echo "${{ secrets.ANDROID_KEY_PROPERTIES }}" > android/key.properties
+
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
+          fi
+
+      - name: Generate CA certificates
+        working-directory: core/doh_proxy
+        run: cargo run --bin gen_ca
+
+      - name: Build DOH proxy
+        working-directory: core/doh_proxy
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/25.2.9519653
+        run: cargo ndk -t ${{ matrix.arch }} --platform 28 build --release --features ech
+
+      - name: Copy native libraries
+        run: |
+          mkdir -p android/app/src/main/jniLibs/${{ matrix.arch }}
+          cp core/doh_proxy/target/${{ matrix.rust-target }}/release/libdoh_proxy.so android/app/src/main/jniLibs/${{ matrix.arch }}/
+          mkdir -p android/app/src/main/res/raw
+          cp core/doh_proxy/certs/ca.der android/app/src/main/res/raw/proxy_ca.der
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Android APK
+        run: |
+          flutter build apk --release --target-platform ${{ matrix.flutter-target }} --dart-define=cronetHttpNoPlay=true
+          mkdir -p dist
+          mv build/app/outputs/flutter-apk/app-release.apk dist/fluxdo-${{ matrix.arch }}.apk
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ matrix.arch }}
+          path: dist/fluxdo-${{ matrix.arch }}.apk
+          if-no-files-found: error
+          overwrite: true
+
+  release_android:
+    needs: build_android
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Android artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: android-*
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.apk > SHA256SUMS.txt
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Android ${{ github.ref_name }}
+          body: |
+            Android APK build for ${{ github.ref_name }}.
+          files: |
+            dist/*.apk
+            dist/SHA256SUMS.txt
