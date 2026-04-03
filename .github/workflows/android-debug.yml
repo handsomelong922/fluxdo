@@ -3,6 +3,9 @@ name: Android Debug APK
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build_android_debug:
     runs-on: ubuntu-latest
