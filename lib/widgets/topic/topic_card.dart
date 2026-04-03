@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../models/topic.dart';
 import '../../models/category.dart';
+import '../../providers/preferences_provider.dart';
 import '../../providers/discourse_providers.dart';
+import '../../utils/keyword_filter_utils.dart';
 import '../../utils/font_awesome_helper.dart';
 import '../../utils/platform_utils.dart';
 import '../../utils/url_helper.dart';
@@ -37,6 +39,14 @@ class TopicCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final keywordFilterInput = ref.watch(
+      preferencesProvider.select((p) => p.keywordFilterInput),
+    );
+    final keywords = KeywordFilterUtils.parseKeywords(keywordFilterInput);
+    if (KeywordFilterUtils.containsAnyKeyword(text: topic.title, keywords: keywords)) {
+      return const SizedBox.shrink();
+    }
+
     final theme = Theme.of(context);
     final isUnread = topic.unseen || topic.unread > 0;
     // 全部读完：进入过话题且没有未读帖子
@@ -378,6 +388,14 @@ class CompactTopicCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final keywordFilterInput = ref.watch(
+      preferencesProvider.select((p) => p.keywordFilterInput),
+    );
+    final keywords = KeywordFilterUtils.parseKeywords(keywordFilterInput);
+    if (KeywordFilterUtils.containsAnyKeyword(text: topic.title, keywords: keywords)) {
+      return const SizedBox.shrink();
+    }
+
     final theme = Theme.of(context);
     final isUnread = topic.unseen || topic.unread > 0;
 

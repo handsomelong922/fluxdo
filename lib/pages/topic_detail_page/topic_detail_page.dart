@@ -57,6 +57,7 @@ import '../edit_topic_page.dart';
 import 'widgets/ai_chat_page.dart';
 import 'widgets/ai_chat_guide.dart';
 import '../../utils/dialog_utils.dart';
+import '../../utils/keyword_filter_utils.dart';
 
 part 'actions/_scroll_actions.dart';
 part 'actions/_user_actions.dart';
@@ -1276,6 +1277,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     // 使用 Consumer + select 隔离 typingUsers 状态变化，避免整页重建
     Widget scrollView = Consumer(
       builder: (context, ref, _) {
+        final keywordFilterInput = ref.watch(
+          preferencesProvider.select((p) => p.keywordFilterInput),
+        );
         final typingUsers = ref.watch(
           topicChannelProvider(widget.topicId).select((s) => s.typingUsers),
         );
@@ -1320,6 +1324,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               onFillGapAfter: (postId) => notifier.fillGapAfter(postId),
               onExpandHiddenPost: (postId) => notifier.expandHiddenPost(postId),
               useReplyDialog: notifier.isTopLevelMode,
+              keywordFilterInput: keywordFilterInput,
               onShowPostDetail: (post) => showPostRepliesSheet(
                 context: context,
                 post: post,

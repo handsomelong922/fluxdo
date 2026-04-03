@@ -7,6 +7,7 @@ import '../../../models/topic.dart';
 import '../../../providers/message_bus_providers.dart';
 import '../../../services/toast_service.dart';
 import '../../../utils/code_selection_context.dart';
+import '../../../utils/keyword_filter_utils.dart';
 import '../../../utils/responsive.dart';
 import '../../../utils/time_utils.dart';
 import '../../../widgets/content/discourse_html_content/chunked/html_chunk.dart';
@@ -70,6 +71,7 @@ class TopicPostList extends StatefulWidget {
 
   /// 是否使用弹框展示回复（过滤模式下）
   final bool useReplyDialog;
+  final String keywordFilterInput;
 
   /// 查看帖子详情回调
   final void Function(Post post)? onShowPostDetail;
@@ -112,6 +114,7 @@ class TopicPostList extends StatefulWidget {
     this.onFillGapAfter,
     this.onExpandHiddenPost,
     this.useReplyDialog = false,
+    this.keywordFilterInput = '',
     this.onShowPostDetail,
   });
 
@@ -184,6 +187,7 @@ class _TopicPostListState extends State<TopicPostList> {
   void Function(int postId)? get onExpandHiddenPost =>
       widget.onExpandHiddenPost;
   bool get useReplyDialog => widget.useReplyDialog;
+  String get keywordFilterInput => widget.keywordFilterInput;
 
   /// 检测当前可见帖子（Eyeline 机制）
   ///
@@ -633,6 +637,16 @@ class _TopicPostListState extends State<TopicPostList> {
 
   Widget _buildSegmentItem(BuildContext context, _PostRenderSegment segment) {
     final post = segment.post;
+    final keywords = KeywordFilterUtils.parseKeywords(keywordFilterInput);
+    if (segment.type == _PostRenderSegmentType.shortPost ||
+        segment.type == _PostRenderSegmentType.longHeader ||
+        segment.type == _PostRenderSegmentType.longChunk ||
+        segment.type == _PostRenderSegmentType.longFooter) {
+      final visibleText = KeywordFilterUtils.htmlToVisibleText(post.cooked);
+      if (KeywordFilterUtils.containsAnyKeyword(text: visibleText, keywords: keywords)) {
+        return const SizedBox.shrink();
+      }
+    }
     final postIndex = segment.postIndex;
     final showDivider = dividerPostIndex == postIndex;
     final showTopSeparator = _shouldShowDateSeparator(postIndex);

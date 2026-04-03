@@ -40,6 +40,8 @@ class AppPreferences {
   final bool aiSwipeEntry;
   /// 对话框背景高斯模糊
   final bool dialogBlur;
+  /// 关键词过滤原始输入（英文逗号分隔）
+  final String keywordFilterInput;
   /// 最大并发请求数
   final int maxConcurrent;
   /// 滑动窗口内最大请求数
@@ -65,6 +67,7 @@ class AppPreferences {
     required this.expandRelatedLinks,
     required this.aiSwipeEntry,
     required this.dialogBlur,
+    required this.keywordFilterInput,
     required this.maxConcurrent,
     required this.maxPerWindow,
     required this.windowSeconds,
@@ -88,6 +91,7 @@ class AppPreferences {
     bool? expandRelatedLinks,
     bool? aiSwipeEntry,
     bool? dialogBlur,
+    String? keywordFilterInput,
     int? maxConcurrent,
     int? maxPerWindow,
     int? windowSeconds,
@@ -111,6 +115,7 @@ class AppPreferences {
       expandRelatedLinks: expandRelatedLinks ?? this.expandRelatedLinks,
       aiSwipeEntry: aiSwipeEntry ?? this.aiSwipeEntry,
       dialogBlur: dialogBlur ?? this.dialogBlur,
+      keywordFilterInput: keywordFilterInput ?? this.keywordFilterInput,
       maxConcurrent: maxConcurrent ?? this.maxConcurrent,
       maxPerWindow: maxPerWindow ?? this.maxPerWindow,
       windowSeconds: windowSeconds ?? this.windowSeconds,
@@ -138,6 +143,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _expandRelatedLinksKey = 'pref_expand_related_links';
   static const String _aiSwipeEntryKey = 'pref_ai_swipe_entry';
   static const String _dialogBlurKey = 'pref_dialog_blur';
+  static const String _keywordFilterInputKey = 'pref_keyword_filter_input';
   static const String _maxConcurrentKey = 'pref_max_concurrent';
   static const String _maxPerWindowKey = 'pref_max_per_window';
   static const String _windowSecondsKey = 'pref_window_seconds';
@@ -168,6 +174,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
                 _prefs.getBool(_expandRelatedLinksKey) ?? false,
             aiSwipeEntry: _prefs.getBool(_aiSwipeEntryKey) ?? false,
             dialogBlur: _prefs.getBool(_dialogBlurKey) ?? true,
+            keywordFilterInput: _prefs.getString(_keywordFilterInputKey) ?? '',
             maxConcurrent: _prefs.getInt(_maxConcurrentKey) ?? 3,
             maxPerWindow: _prefs.getInt(_maxPerWindowKey) ?? 6,
             windowSeconds: _prefs.getInt(_windowSecondsKey) ?? 3,
@@ -279,6 +286,11 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setDialogBlur(bool enabled) async {
     state = state.copyWith(dialogBlur: enabled);
     await _prefs.setBool(_dialogBlurKey, enabled);
+  }
+
+  Future<void> setKeywordFilterInput(String value) async {
+    state = state.copyWith(keywordFilterInput: value);
+    await _prefs.setString(_keywordFilterInputKey, value);
   }
 
   Future<void> setMaxConcurrent(int value) async {

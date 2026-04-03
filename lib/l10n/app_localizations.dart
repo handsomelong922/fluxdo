@@ -6803,6 +6803,24 @@ abstract class AppLocalizations {
   /// **'输入时自动插入中英文混排空格'**
   String get preferences_autoPanguSpacingDesc;
 
+  /// No description provided for @preferences_keywordFilter.
+  ///
+  /// In zh, this message translates to:
+  /// **'关键词过滤'**
+  String get preferences_keywordFilter;
+
+  /// No description provided for @preferences_keywordFilterDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用英文逗号分隔关键词。标题或回复内容命中关键词时将被隐藏。'**
+  String get preferences_keywordFilterDesc;
+
+  /// No description provided for @preferences_keywordFilterHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'示例：新人报道, 水贴, 签到'**
+  String get preferences_keywordFilterHint;
+
   /// No description provided for @preferences_stickerSource.
   ///
   /// In zh, this message translates to:

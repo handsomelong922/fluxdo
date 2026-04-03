@@ -36,6 +36,16 @@ List<SettingsGroup> buildPreferencesGroups(BuildContext context) {
           onChanged: (ref, v) =>
               ref.read(preferencesProvider.notifier).setAutoFillLogin(v),
         ),
+        CustomModel(
+          id: 'keywordFilter',
+          title: l10n.preferences_keywordFilter,
+          subtitle: l10n.preferences_keywordFilterDesc,
+          builder: (context, ref) => _KeywordFilterInputTile(
+            title: l10n.preferences_keywordFilter,
+            description: l10n.preferences_keywordFilterDesc,
+            hintText: l10n.preferences_keywordFilterHint,
+          ),
+        ),
         SwitchModel(
           id: 'cfClearanceRefresh',
           title: l10n.preferences_cfClearanceRefresh,
@@ -162,4 +172,111 @@ void _showStickerBaseUrlDialog(BuildContext context, WidgetRef ref) {
       ],
     ),
   ).then((_) => controller.dispose());
+}
+
+class _KeywordFilterInputTile extends ConsumerStatefulWidget {
+  final String title;
+  final String description;
+  final String hintText;
+
+  const _KeywordFilterInputTile({
+    required this.title,
+    required this.description,
+    required this.hintText,
+  });
+
+  @override
+  ConsumerState<_KeywordFilterInputTile> createState() =>
+      _KeywordFilterInputTileState();
+}
+
+class _KeywordFilterInputTileState
+    extends ConsumerState<_KeywordFilterInputTile> {
+  late final TextEditingController _controller;
+  String _lastSavedValue = '';
+
+  @override
+  void initState() {
+    super.initState();
+    final value = ref.read(preferencesProvider).keywordFilterInput;
+    _lastSavedValue = value;
+    _controller = TextEditingController(text: value);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final latest = ref.read(preferencesProvider).keywordFilterInput;
+    if (latest != _lastSavedValue && latest != _controller.text) {
+      _lastSavedValue = latest;
+      _controller.text = latest;
+    }
+  }
+
+  Future<void> _save() async {
+    final raw = _controller.text;
+    if (raw == _lastSavedValue) return;
+    _lastSavedValue = raw;
+    await ref.read(preferencesProvider.notifier).setKeywordFilterInput(raw);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.filter_alt_outlined,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  widget.title,
+                  style: theme.textTheme.bodyLarge,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.description,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _controller,
+            minLines: 2,
+            maxLines: 4,
+            decoration: InputDecoration(
+              hintText: widget.hintText,
+              border: const OutlineInputBorder(),
+            ),
+            onChanged: (_) => setState(() {}),
+            onEditingComplete: _save,
+            onTapOutside: (_) => _save(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    final raw = _controller.text;
+    if (raw != _lastSavedValue) {
+      // ignore: discarded_futures
+      ref.read(preferencesProvider.notifier).setKeywordFilterInput(raw);
+    }
+    _controller.dispose();
+    super.dispose();
+  }
 }
