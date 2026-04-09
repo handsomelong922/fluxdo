@@ -1604,7 +1604,7 @@ packages:
     description:
       path: rhttp
       ref: HEAD
-      resolved-ref: c35d7af2c5ae541c6d336a42f0eb5e57014edd90
+      resolved-ref: eff37441d2a3447b0552c2f89db8ea7dd2af4af6
       url: "https://github.com/Lingyan000/rhttp_plus.git"
     source: git
     version: "0.15.1"

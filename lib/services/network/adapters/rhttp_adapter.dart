@@ -262,10 +262,11 @@ class RhttpAdapter implements HttpClientAdapter {
         // DNS：请求前在 Dart 层完成解析，避免连接阶段再从 Rust 回调 Dart。
         dnsSettings: config.toDnsSettings(),
 
-        // TLS：ECH 配置可用时启用 ECH
-        tlsSettings: config.echConfig != null
-            ? rhttp.TlsSettings(echConfigList: config.echConfig)
-            : null,
+        // TLS：始终传入 TlsSettings 以确保 cipher suite 重排生效（对齐 Chrome 指纹）
+        // ECH 配置可用时额外启用 ECH
+        tlsSettings: rhttp.TlsSettings(
+          echConfigList: config.echConfig,
+        ),
 
         // 代理配置
         proxySettings: _buildProxySettings(ns, ps),

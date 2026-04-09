@@ -39,10 +39,15 @@ class RequestHeaderInterceptor extends Interceptor {
       options.headers['X-CSRF-Token'] = (csrf == null || csrf.isEmpty) ? 'undefined' : csrf;
     }
 
-    // 4. API 请求（XHR）设置 Origin 和 Referer，文档类请求不设置
+    // 4. API 请求（XHR）设置 Origin、Referer 和 Sec-Fetch-* 头
     if (options.headers['X-Requested-With'] == 'XMLHttpRequest') {
       options.headers['Origin'] = AppConstants.baseUrl;
       options.headers['Referer'] = '${AppConstants.baseUrl}/';
+      // Sec-Fetch-* 系列头：Chrome 从 2019 年起每个请求都自动添加，
+      // 缺失会被 Cloudflare Bot Management 识别为非浏览器客户端
+      options.headers['Sec-Fetch-Dest'] = 'empty';
+      options.headers['Sec-Fetch-Mode'] = 'cors';
+      options.headers['Sec-Fetch-Site'] = 'same-origin';
     }
 
     handler.next(options);

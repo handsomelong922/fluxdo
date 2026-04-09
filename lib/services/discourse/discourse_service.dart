@@ -169,7 +169,7 @@ class DiscourseService extends _DiscourseServiceBase
   DiscourseService._internal()
     : _dio = DiscourseDio.create(
         defaultHeaders: {
-          'Accept': 'application/json;q=0.9, text/plain;q=0.8, */*;q=0.5',
+          'Accept': 'application/json, text/javascript, */*; q=0.01',
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
           'X-Requested-With': 'XMLHttpRequest',
         },
