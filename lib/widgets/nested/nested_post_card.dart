@@ -298,8 +298,16 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
 
     // 根帖子底部分隔
     if (isRoot) {
-      card = Padding(
-        padding: const EdgeInsets.only(top: 8, bottom: 4),
+      card = Container(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+              width: 0.5,
+            ),
+          ),
+        ),
         child: card,
       );
     }

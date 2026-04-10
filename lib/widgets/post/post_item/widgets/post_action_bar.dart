@@ -31,6 +31,9 @@ class PostActionBar extends StatefulWidget {
   final VoidCallback onShowMoreMenu;
   final VoidCallback onToggleReplies;
   final bool hideRepliesButton;
+  final VoidCallback? onAddBoost;
+  final bool canBoost;
+  final bool hasBoosts;
 
   const PostActionBar({
     super.key,
@@ -51,6 +54,9 @@ class PostActionBar extends StatefulWidget {
     required this.onShowMoreMenu,
     required this.onToggleReplies,
     this.hideRepliesButton = false,
+    this.onAddBoost,
+    this.canBoost = false,
+    this.hasBoosts = false,
   });
 
   @override
@@ -166,35 +172,48 @@ class _PostActionBarState extends State<PostActionBar> {
           if (!widget.isOwnPost || widget.reactions.isNotEmpty)
             _buildLikeReactionArea(theme),
 
-          const SizedBox(width: 8),
-
-          // 回复按钮
-          GestureDetector(
-            onTap: widget.onReply,
-            child: Container(
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.reply,
+          if (widget.canBoost && !widget.hasBoosts) ...[
+            const SizedBox(width: 8),
+            Tooltip(
+              message: 'Boost',
+              child: GestureDetector(
+                onTap: widget.onAddBoost,
+                child: Container(
+                  height: 36,
+                  width: 36,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.rocket_launch_outlined,
                     size: 18,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    context.l10n.common_reply,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+                ),
+              ),
+            ),
+          ],
+
+          const SizedBox(width: 8),
+
+          // 回复按钮
+          Tooltip(
+            message: context.l10n.common_reply,
+            child: GestureDetector(
+              onTap: widget.onReply,
+              child: Container(
+                height: 36,
+                width: 36,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.reply,
+                  size: 18,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ),

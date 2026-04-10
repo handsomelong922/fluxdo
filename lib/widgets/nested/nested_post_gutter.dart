@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../pages/user_profile_page.dart';
+import '../../services/discourse_cache_manager.dart';
 import '../../utils/url_helper.dart';
 
 /// 嵌套帖子左侧头像（可点击跳转用户主页）
@@ -23,7 +24,7 @@ class NestedPostAvatar extends StatelessWidget {
       ),
       child: CircleAvatar(
         radius: size / 2,
-        backgroundImage: NetworkImage(
+        backgroundImage: discourseImageProvider(
           UrlHelper.resolveUrlWithCdn(
             avatarTemplate.replaceAll('{size}', '48'),
           ),

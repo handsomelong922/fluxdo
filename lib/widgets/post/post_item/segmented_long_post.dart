@@ -174,6 +174,7 @@ class LongPostFooterSegment extends StatelessWidget {
   final void Function(int postId, bool accepted)? onSolutionChanged;
   final bool useReplyDialog;
   final VoidCallback? onShowPostDetail;
+  final bool showOpSeparator;
 
   const LongPostFooterSegment({
     super.key,
@@ -191,32 +192,48 @@ class LongPostFooterSegment extends StatelessWidget {
     required this.onSolutionChanged,
     this.useReplyDialog = false,
     this.onShowPostDetail,
+    this.showOpSeparator = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return PostSegmentFrame(
-      post: post,
-      highlight: highlight,
-      showBottomDateSeparator: bottomDateSeparatorLabel != null,
-      bottomDateSeparatorLabel: bottomDateSeparatorLabel,
-      child: SelectionContainer.disabled(
-        child: PostFooterSection(
+    final isFirstPost = post.postNumber == 1;
+    final theme = Theme.of(context);
+    
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PostSegmentFrame(
           post: post,
-          topicId: topicId,
-          topicHasAcceptedAnswer: topicHasAcceptedAnswer,
-          acceptedAnswerPostNumber: acceptedAnswerPostNumber,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          onReply: onReply,
-          onEdit: onEdit,
-          onShareAsImage: onShareAsImage,
-          onRefreshPost: onRefreshPost,
-          onJumpToPost: onJumpToPost,
-          onSolutionChanged: onSolutionChanged,
-          useReplyDialog: useReplyDialog,
-          onShowPostDetail: onShowPostDetail,
+          highlight: highlight,
+          showBottomBorder: !isFirstPost,
+          showBottomDateSeparator: bottomDateSeparatorLabel != null,
+          bottomDateSeparatorLabel: bottomDateSeparatorLabel,
+          child: SelectionContainer.disabled(
+            child: PostFooterSection(
+              post: post,
+              topicId: topicId,
+              topicHasAcceptedAnswer: topicHasAcceptedAnswer,
+              acceptedAnswerPostNumber: acceptedAnswerPostNumber,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              onReply: onReply,
+              onEdit: onEdit,
+              onShareAsImage: onShareAsImage,
+              onRefreshPost: onRefreshPost,
+              onJumpToPost: onJumpToPost,
+              onSolutionChanged: onSolutionChanged,
+              useReplyDialog: useReplyDialog,
+              onShowPostDetail: onShowPostDetail,
+            ),
+          ),
         ),
-      ),
+        if (isFirstPost && showOpSeparator)
+          Container(
+            height: 8,
+            color: theme.colorScheme.surfaceContainerHigh,
+          ),
+      ],
     );
   }
 }

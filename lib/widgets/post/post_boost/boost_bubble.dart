@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/topic.dart';
+import '../../../services/discourse_cache_manager.dart';
 import '../../../utils/url_helper.dart';
 
 /// 单个 Boost 气泡
@@ -27,17 +28,13 @@ class BoostBubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
-          ),
-        ),
-        child: Row(
+        ),        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             // 用户头像
             CircleAvatar(
               radius: 9,
-              backgroundImage: NetworkImage(
+              backgroundImage: discourseImageProvider(
                 UrlHelper.resolveUrlWithCdn(
                   boost.user.avatarTemplate.replaceAll('{size}', '48'),
                 ),

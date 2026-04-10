@@ -168,22 +168,22 @@ class _BoostListState extends ConsumerState<BoostList> {
 
           // 添加按钮
           if (_canBoost)
-            GestureDetector(
-              onTap: _openInput,
-              child: Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+            Tooltip(
+              message: 'Boost',
+              child: GestureDetector(
+                onTap: _openInput,
+                child: Container(
+                  height: 30,
+                  width: 30,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    shape: BoxShape.circle,
                   ),
-                ),
-                child: Icon(
-                  Icons.rocket_launch_outlined,
-                  size: 14,
-                  color: theme.colorScheme.onSurfaceVariant,
+                  child: Icon(
+                    Icons.rocket_launch_outlined,
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ),

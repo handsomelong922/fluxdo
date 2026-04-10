@@ -13,6 +13,8 @@ class PostSegmentFrame extends StatelessWidget {
   final bool showDivider;
   final bool showBottomBorder;
   final BoxConstraints? constraints;
+  final Color? backgroundColor;
+  final Decoration? customDecoration;
 
   const PostSegmentFrame({
     super.key,
@@ -26,12 +28,14 @@ class PostSegmentFrame extends StatelessWidget {
     this.showDivider = false,
     this.showBottomBorder = true,
     this.constraints,
+    this.backgroundColor,
+    this.customDecoration,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final targetColor = buildPostTargetColor(theme, post, highlight);
+    final targetColor = backgroundColor ?? buildPostTargetColor(theme, post, highlight);
     final borderColor = theme.colorScheme.outlineVariant.withValues(alpha: 0.5);
 
     return RepaintBoundary(
@@ -39,7 +43,7 @@ class PostSegmentFrame extends StatelessWidget {
         opacity: post.isDeleted || post.hidden ? 0.6 : 1.0,
         child: Container(
           constraints: constraints,
-          decoration: BoxDecoration(
+          decoration: customDecoration ?? BoxDecoration(
             color: targetColor,
             border: Border(
               bottom: showBottomBorder

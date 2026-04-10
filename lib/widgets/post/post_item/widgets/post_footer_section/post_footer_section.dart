@@ -16,6 +16,7 @@ import '../../../post_links.dart';
 import '../post_action_bar.dart';
 import '../../../../bookmark/bookmark_edit_sheet.dart';
 import '../../../../post/post_boost/boost_list.dart';
+import '../../../../post/post_boost/boost_input.dart';
 import '../post_flag_sheet.dart';
 import '../post_reaction_picker.dart';
 import '../post_reaction_users_sheet.dart';
@@ -89,6 +90,8 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   bool _isBookmarking = false;
   late List<PostReaction> _reactions;
   PostReaction? _currentUserReaction;
+  late List<Boost> _boosts;
+  late bool _canBoost;
   final List<Post> _replies = [];
   final ValueNotifier<bool> _isLoadingRepliesNotifier = ValueNotifier<bool>(false);
   final ValueNotifier<bool> _showRepliesNotifier = ValueNotifier<bool>(false);
@@ -127,6 +130,53 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
     _bookmarkName = widget.post.bookmarkName;
     _bookmarkReminderAt = widget.post.bookmarkReminderAt;
     _isAcceptedAnswer = widget.post.acceptedAnswer;
+    _boosts = List.from(widget.post.boosts ?? []);
+    _canBoost = widget.post.canBoost;
+  }
+
+  Future<void> _handleBoostCreated(Boost boost) async {
+    if (!mounted) return;
+    setState(() {
+      _boosts.add(boost);
+      _canBoost = false;
+    });
+    widget.onBoostUpdated?.call(widget.post.copyWith(
+      boosts: List.from(_boosts),
+      canBoost: _canBoost,
+    ));
+  }
+
+  void _handleBoostDeleted(Boost boost) {
+    if (!mounted) return;
+    setState(() {
+      _boosts.removeWhere((b) => b.id == boost.id);
+      final currentUser = ref.read(currentUserProvider).value;
+      if (currentUser != null && boost.user.username == currentUser.username) {
+        _canBoost = true;
+      }
+    });
+    widget.onBoostUpdated?.call(widget.post.copyWith(
+      boosts: List.from(_boosts),
+      canBoost: _canBoost,
+    ));
+  }
+
+  Future<void> _openBoostInput() async {
+    final raw = await showBoostInputSheet(context);
+    if (raw == null || raw.isEmpty || !mounted) return;
+    await _createBoost(raw);
+  }
+
+  Future<void> _createBoost(String raw) async {
+    try {
+      final boost = await _service.createBoost(widget.post.id, raw);
+      if (!mounted) return;
+      _handleBoostCreated(boost);
+      ToastService.showSuccess(S.current.boost_created);
+    } catch (e) {
+      if (!mounted) return;
+      ToastService.showError(S.current.boost_failed);
+    }
   }
 
   @override
@@ -175,9 +225,12 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
             onReply: widget.onReply,
             onShowMoreMenu: () => _showMoreMenu(context, theme),
             onToggleReplies: _toggleReplies,
+            onAddBoost: _openBoostInput,
+            canBoost: _canBoost,
+            hasBoosts: _boosts.isNotEmpty,
           ),
           // Boost 气泡列表
-          if ((widget.post.boosts != null && widget.post.boosts!.isNotEmpty) || widget.post.canBoost)
+          if (_boosts.isNotEmpty)
             BoostList(
               post: widget.post,
               onPostUpdated: widget.onBoostUpdated,

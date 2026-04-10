@@ -22,11 +22,13 @@ String _getEmojiUrl(String emojiName) {
 class PostAvatar extends StatefulWidget {
   final Post post;
   final ThemeData theme;
+  final double radius;
 
   const PostAvatar({
     super.key,
     required this.post,
     required this.theme,
+    this.radius = 20,
   });
 
   @override
@@ -40,7 +42,7 @@ class _PostAvatarState extends State<PostAvatar> {
     final glowColor = AppConstants.siteCustomization.matchAvatarGlow(widget.post);
 
     Widget avatar = AvatarWithFlair(
-      flairSize: 17,
+      flairSize: widget.radius * 0.85,
       flairRight: -4,
       flairBottom: -2,
       flairUrl: widget.post.flairUrl,
@@ -49,7 +51,7 @@ class _PostAvatarState extends State<PostAvatar> {
       flairColor: widget.post.flairColor,
       avatar: SmartAvatar(
         imageUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
-        radius: 20,
+        radius: widget.radius,
         fallbackText: widget.post.username,
         border: Border.all(
           color: widget.theme.colorScheme.outlineVariant,

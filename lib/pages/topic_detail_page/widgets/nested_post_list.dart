@@ -116,26 +116,19 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
 
           if (ns.opPost != null)
             SliverToBoxAdapter(
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2)),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: PostItem(
-                  post: ns.opPost!,
-                  topicId: widget.topicId,
-                  isTopicOwner: true,
-                  topicHasAcceptedAnswer: widget.detail.hasAcceptedAnswer,
-                  acceptedAnswerPostNumber: widget.detail.acceptedAnswerPostNumber,
-                  onReply: widget.isLoggedIn ? () => widget.onReply(null) : null,
-                  onEdit: widget.isLoggedIn && ns.opPost!.canEdit ? () => widget.onEdit(ns.opPost!) : null,
-                  onRefreshPost: widget.onRefreshPost,
-                  onJumpToPost: widget.onJumpToPost,
-                  onSolutionChanged: widget.onSolutionChanged,
-                ),
+              child: PostItem(
+                post: ns.opPost!,
+                topicId: widget.topicId,
+                isTopicOwner: true,
+                topicHasAcceptedAnswer: widget.detail.hasAcceptedAnswer,
+                acceptedAnswerPostNumber: widget.detail.acceptedAnswerPostNumber,
+                onReply: widget.isLoggedIn ? () => widget.onReply(null) : null,
+                onEdit: widget.isLoggedIn && ns.opPost!.canEdit ? () => widget.onEdit(ns.opPost!) : null,
+                onRefreshPost: widget.onRefreshPost,
+                onJumpToPost: widget.onJumpToPost,
+                onSolutionChanged: widget.onSolutionChanged,
+                hideRepliesButton: true,
+                showOpSeparator: widget.detail.postsCount > 1,
               ),
             ),
 
@@ -165,23 +158,20 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
               }
               // 收集可见帖子号（含子节点）
               _collectVisiblePostNumbers(ns.roots[index]);
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: NestedPostCard(
-                  node: ns.roots[index],
-                  topicId: widget.topicId,
-                  detail: widget.detail,
-                  params: p,
-                  depth: 0,
-                  isLastChild: index == ns.roots.length - 1,
-                  isLoggedIn: widget.isLoggedIn,
-                  onReply: widget.onReply,
-                  onEdit: widget.onEdit,
-                  onRefreshPost: widget.onRefreshPost,
-                  onJumpToPost: widget.onJumpToPost,
-                  onSolutionChanged: widget.onSolutionChanged,
-                  expansionState: _expansionState,
-                ),
+              return NestedPostCard(
+                node: ns.roots[index],
+                topicId: widget.topicId,
+                detail: widget.detail,
+                params: p,
+                depth: 0,
+                isLastChild: index == ns.roots.length - 1,
+                isLoggedIn: widget.isLoggedIn,
+                onReply: widget.onReply,
+                onEdit: widget.onEdit,
+                onRefreshPost: widget.onRefreshPost,
+                onJumpToPost: widget.onJumpToPost,
+                onSolutionChanged: widget.onSolutionChanged,
+                expansionState: _expansionState,
               );
             },
           ),
