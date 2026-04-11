@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../../constants.dart';
+import '../../auth_session.dart';
+import '../../log/log_writer.dart';
 import 'cookie_jar_service.dart';
 import 'cookie_logger.dart';
 import 'strategy/platform_cookie_strategy.dart';
@@ -29,12 +31,22 @@ class BoundarySyncService {
     InAppWebViewController? controller,
     Set<String>? cookieNames,
     bool allowLowConfidenceSessionCookies = false,
+    int? requestGeneration,
   }) async {
     final url = currentUrl ?? AppConstants.baseUrl;
     final uri = Uri.parse(url);
     final host = uri.host;
 
     try {
+      if (requestGeneration != null &&
+          !AuthSession().isValid(requestGeneration)) {
+        debugPrint(
+          '[BoundarySync] 跳过过期会话同步: '
+          'gen=$requestGeneration current=${AuthSession().generation}',
+        );
+        return;
+      }
+
       if (io.Platform.isWindows && controller != null) {
         final synced = await _jar.syncCriticalCookiesFromController(
           controller,
@@ -58,13 +70,43 @@ class BoundarySyncService {
         _jar.webViewCookieManager,
         url,
       );
-
-      final toSave = <io.Cookie>[];
+      final cookiesToPersist = <Cookie>[];
+      final sessionCookieGroups = <String, List<Cookie>>{};
 
       for (final wc in webViewCookies) {
         final value = wc.value?.toString() ?? '';
         if (value.isEmpty) continue;
         if (cookieNames != null && !cookieNames.contains(wc.name)) continue;
+
+        final isSessionCookie =
+            CookieJarService.sessionCookieNames.contains(wc.name);
+        if (isSessionCookie) {
+          sessionCookieGroups.putIfAbsent(wc.name, () => <Cookie>[]).add(wc);
+        } else {
+          cookiesToPersist.add(wc);
+        }
+      }
+
+      for (final entry in sessionCookieGroups.entries) {
+        final selected = _selectBestSessionCookie(entry.value, host);
+        if (selected == null) continue;
+
+        if (entry.value.length > 1) {
+          _logDuplicateSessionCookies(
+            url: url,
+            host: host,
+            name: entry.key,
+            cookies: entry.value,
+            selected: selected,
+          );
+        }
+        cookiesToPersist.add(selected);
+      }
+
+      final toSave = <io.Cookie>[];
+
+      for (final wc in cookiesToPersist) {
+        final value = wc.value?.toString() ?? '';
         final isSessionCookie =
             CookieJarService.sessionCookieNames.contains(wc.name);
         final lowConfidenceSnapshot = _isLowConfidenceWebViewCookie(wc);
@@ -132,6 +174,15 @@ class BoundarySyncService {
         return;
       }
 
+      if (requestGeneration != null &&
+          !AuthSession().isValid(requestGeneration)) {
+        debugPrint(
+          '[BoundarySync] 跳过过期会话写入: '
+          'gen=$requestGeneration current=${AuthSession().generation}',
+        );
+        return;
+      }
+
       if (!_jar.isInitialized) await _jar.initialize();
       await _jar.cookieJar.saveFromResponse(uri, toSave);
 
@@ -160,5 +211,89 @@ class BoundarySyncService {
         hasHttpOnlyFlag ||
         hasExpiry ||
         hasSameSite);
+  }
+
+  Cookie? _selectBestSessionCookie(List<Cookie> cookies, String requestHost) {
+    if (cookies.isEmpty) return null;
+    final candidates = [...cookies]
+      ..sort((a, b) {
+        final scoreDiff =
+            _scoreSessionCookie(b, requestHost) - _scoreSessionCookie(a, requestHost);
+        if (scoreDiff != 0) return scoreDiff;
+
+        final pathDiff = (b.path?.length ?? 1).compareTo(a.path?.length ?? 1);
+        if (pathDiff != 0) return pathDiff;
+
+        return (b.value?.length ?? 0).compareTo(a.value?.length ?? 0);
+      });
+    return candidates.first;
+  }
+
+  int _scoreSessionCookie(Cookie cookie, String requestHost) {
+    var score = 0;
+    final value = cookie.value?.toString() ?? '';
+    if (value.isNotEmpty) score += 100000;
+
+    final expires = CookieJarService.parseWebViewCookieExpires(cookie.expiresDate);
+    if (expires == null || expires.isAfter(DateTime.now())) {
+      score += 50000;
+    }
+
+    final normalizedDomain =
+        CookieJarService.normalizeWebViewCookieDomain(cookie.domain);
+    if (normalizedDomain == null || normalizedDomain.isEmpty) {
+      score += 40000;
+    } else if (normalizedDomain == requestHost) {
+      score += 30000 + normalizedDomain.length;
+    } else if (requestHost.endsWith('.$normalizedDomain')) {
+      score += 20000 + normalizedDomain.length;
+    } else {
+      score += normalizedDomain.length;
+    }
+
+    if (cookie.isHttpOnly == true) score += 500;
+    if (cookie.isSecure == true) score += 250;
+    score += cookie.path?.length ?? 1;
+    score += value.length;
+    return score;
+  }
+
+  void _logDuplicateSessionCookies({
+    required String url,
+    required String host,
+    required String name,
+    required List<Cookie> cookies,
+    required Cookie selected,
+  }) {
+    LogWriter.instance.write({
+      'timestamp': DateTime.now().toIso8601String(),
+      'level': 'warning',
+      'type': 'cookie_conflict',
+      'event': 'duplicate_session_cookie_from_webview',
+      'message': 'WebView 中检测到重复会话 Cookie，已在边界同步时选优',
+      'url': url,
+      'host': host,
+      'name': name,
+      'duplicateCount': cookies.length,
+      'selected': {
+        'domain': selected.domain,
+        'path': selected.path,
+        'valueLength': selected.value?.length ?? 0,
+        'httpOnly': selected.isHttpOnly,
+        'secure': selected.isSecure,
+      },
+      'cookies': cookies
+          .map(
+            (cookie) => {
+              'domain': cookie.domain,
+              'path': cookie.path,
+              'valueLength': cookie.value?.length ?? 0,
+              'httpOnly': cookie.isHttpOnly,
+              'secure': cookie.isSecure,
+              'expiresDate': cookie.expiresDate,
+            },
+          )
+          .toList(growable: false),
+    });
   }
 }

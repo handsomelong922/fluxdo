@@ -231,6 +231,8 @@ class CookieJarService {
         }
       }
 
+      await RawSetCookieQueue.instance.clearCookieNames({name});
+
       CookieLogger.delete(name: name, source: 'deleteCookie');
     } catch (e) {
       debugPrint('[CookieJar] Failed to delete cookie $name: $e');
@@ -264,6 +266,8 @@ class CookieJarService {
     if (!_initialized) await initialize();
 
     try {
+      await RawSetCookieQueue.instance.clearCookieNames({name});
+
       final baseHost = Uri.parse(AppConstants.baseUrl).host;
       final hosts = await getKnownHostsForDomain(baseHost);
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io' as io;
 
+import 'package:enhanced_cookie_jar/enhanced_cookie_jar.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../constants.dart';
@@ -35,17 +36,29 @@ class RawSetCookieQueue {
 
     final queue = await _load();
     queue.add({'url': url, 'raw': rawHeader});
-    await _save(queue);
+    final normalizedQueue = _dedupeQueue(queue);
+    await _save(normalizedQueue);
 
     final name = _extractCookieName(rawHeader);
-    CookieLogger.enqueue(name: name, url: url, queueSize: queue.length);
+    CookieLogger.enqueue(
+      name: name,
+      url: url,
+      queueSize: normalizedQueue.length,
+    );
   }
 
   /// 打开 WebView 前调用，将队列中的原始 Set-Cookie 头写入 WebView。
   ///
   /// 返回成功写入的条数。
   Future<int> flushToWebView() async {
-    final queue = await _load();
+    var queue = await _load();
+    final normalizedQueue = _dedupeQueue(queue);
+    if (normalizedQueue.length != queue.length) {
+      queue = normalizedQueue;
+      await _save(queue);
+    } else {
+      queue = normalizedQueue;
+    }
     if (queue.isEmpty) {
       // 队列空（冷启动或长时间无请求），从 jar 的 rawSetCookie 字段兜底
       return _flushFromJar();
@@ -72,6 +85,26 @@ class RawSetCookieQueue {
   Future<void> clear() async {
     _cache = [];
     await _save([]);
+  }
+
+  /// 清空指定名称的待写入项，避免删除后又被旧队列回灌。
+  Future<void> clearCookieNames(Iterable<String> names) async {
+    final normalizedNames = names
+        .map((name) => name.trim().toLowerCase())
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    if (normalizedNames.isEmpty) return;
+
+    final queue = await _load();
+    final filtered = queue.where((entry) {
+      final raw = entry['raw'] ?? '';
+      final cookieName = _extractCookieName(raw).trim().toLowerCase();
+      return !normalizedNames.contains(cookieName);
+    }).toList(growable: false);
+
+    if (filtered.length != queue.length) {
+      await _save(filtered);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -151,5 +184,38 @@ class RawSetCookieQueue {
     final eqIdx = rawHeader.indexOf('=');
     if (eqIdx <= 0) return rawHeader;
     return rawHeader.substring(0, eqIdx).trim();
+  }
+
+  List<Map<String, String>> _dedupeQueue(List<Map<String, String>> queue) {
+    if (queue.length < 2) {
+      return queue.toList(growable: false);
+    }
+
+    final seenKeys = <String>{};
+    final dedupedReversed = <Map<String, String>>[];
+
+    for (final entry in queue.reversed) {
+      final key = _buildQueueStorageKey(entry);
+      if (!seenKeys.add(key)) {
+        continue;
+      }
+      dedupedReversed.add(entry);
+    }
+
+    return dedupedReversed.reversed.toList(growable: false);
+  }
+
+  String _buildQueueStorageKey(Map<String, String> entry) {
+    final rawHeader = entry['raw'] ?? '';
+    final url = entry['url'] ?? AppConstants.baseUrl;
+
+    try {
+      final uri = Uri.parse(url);
+      return SetCookieParser.parse(rawHeader, uri: uri).storageKey;
+    } catch (_) {
+      final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
+      final name = _extractCookieName(rawHeader).trim().toLowerCase();
+      return '$name|$host|$url';
+    }
   }
 }

@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:enhanced_cookie_jar/enhanced_cookie_jar.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../auth_session.dart';
 import '../../log/log_writer.dart';
 import 'cookie_jar_service.dart';
 import 'raw_set_cookie_queue.dart';
@@ -310,6 +311,28 @@ class AppCookieManager extends Interceptor {
   Future<void> saveCookies(Response response) async {
     final setCookies = response.headers[HttpHeaders.setCookieHeader];
     if (setCookies == null || setCookies.isEmpty) {
+      return;
+    }
+
+    final requestGeneration =
+        response.requestOptions.extra['_sessionGeneration'] as int?;
+    if (requestGeneration != null &&
+        !AuthSession().isValid(requestGeneration)) {
+      debugPrint(
+        '[CookieManager] Skip stale response cookies: '
+        'gen=$requestGeneration, current=${AuthSession().generation}, '
+        'uri=${response.requestOptions.uri}',
+      );
+      LogWriter.instance.write({
+        'timestamp': DateTime.now().toIso8601String(),
+        'level': 'info',
+        'type': 'cookie_trace',
+        'event': 'skip_stale_response_cookies',
+        'message': '已丢弃过期会话响应中的 Set-Cookie',
+        'requestGeneration': requestGeneration,
+        'currentGeneration': AuthSession().generation,
+        'url': response.requestOptions.uri.toString(),
+      });
       return;
     }
 

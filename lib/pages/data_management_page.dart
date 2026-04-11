@@ -5,12 +5,13 @@ import 'package:share_plus/share_plus.dart';
 import 'package:ai_model_manager/ai_model_manager.dart';
 
 import '../l10n/s.dart';
+import '../providers/app_state_refresher.dart';
+import '../providers/core_providers.dart';
 import '../providers/theme_provider.dart';
 import '../utils/dialog_utils.dart';
 import '../services/data_management/cache_size_service.dart';
 import '../services/data_management/data_backup_service.dart';
 import '../services/discourse_cache_manager.dart';
-import '../services/network/cookie/cookie_jar_service.dart';
 import '../services/toast_service.dart';
 import '../settings/definitions/data_management_defs.dart';
 import '../widgets/settings/settings_group_page.dart';
@@ -184,14 +185,10 @@ class _CacheManagementSectionState
     }
   }
 
-  /// 清除 Cookie（保留 cf_clearance）
+  /// 清除 Cookie，并同步执行退出登录链路的状态销毁。
   Future<void> _doClearCookies() async {
-    final cookieJarService = CookieJarService();
-    final cfClearanceCookie = await cookieJarService.getCfClearanceCookie();
-    await cookieJarService.clearAll();
-    if (cfClearanceCookie != null) {
-      await cookieJarService.restoreCfClearance(cfClearanceCookie);
-    }
+    await ref.read(discourseServiceProvider).logout(callApi: false);
+    await AppStateRefresher.resetForLogout(ref);
   }
 
   Future<bool?> _showConfirmDialog({

@@ -65,6 +65,7 @@ import 'utils/dialog_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ai_model_manager/ai_model_manager.dart';
 import 'services/network/adapters/platform_adapter.dart';
+import 'services/network/adapters/webview_http_adapter.dart';
 import 'providers/preferences_provider.dart';
 import 'providers/theme_provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
@@ -167,6 +168,17 @@ Future<void> main() async {
   await RhttpSettingsService.instance.initialize(prefs);
   // WebView 适配器设置
   await WebViewAdapterSettingsService.instance.initialize(prefs);
+  if (WebViewAdapterSettingsService.instance.shouldUseWebView(
+    Uri.parse(AppConstants.baseUrl),
+  )) {
+    unawaited(
+      WebViewHttpAdapter()
+          .runStartupSessionCookieSelfCheckOnce()
+          .catchError((Object e, StackTrace _) {
+            debugPrint('[Main] WebView session cookie 自检失败: $e');
+          }),
+    );
+  }
   try {
     final rhttp = await Future.any([
       _initRhttp(),
