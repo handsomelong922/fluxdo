@@ -9,6 +9,7 @@ import '../doh/network_settings_service.dart';
 import '../proxy/proxy_settings_service.dart';
 import '../rhttp/rhttp_settings_service.dart';
 import '../webview/webview_adapter_settings_service.dart';
+import 'adapter_log_metadata.dart';
 import 'cronet_fallback_service.dart';
 import 'network_http_adapter.dart';
 import '../../../l10n/s.dart';
@@ -28,6 +29,18 @@ AdapterType? _currentAdapterType;
 
 /// 获取当前使用的适配器类型
 AdapterType? getCurrentAdapterType() => _currentAdapterType;
+
+AdapterType? tryParseAdapterType(String? value) {
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+  for (final type in AdapterType.values) {
+    if (type.name == value) {
+      return type;
+    }
+  }
+  return null;
+}
 
 /// 获取适配器类型的显示名称
 String getAdapterDisplayName(AdapterType type) {
@@ -210,7 +223,7 @@ class _GatewayAdapterWrapper implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     // WebView 适配器：主域名 API 请求走 WebView 内核（真正的浏览器 TLS 指纹）
-    if (_shouldUseWebView(options, requestStream)) {
+    if (_shouldUseWebView(options)) {
       return _getWebViewAdapter().fetch(options, requestStream, cancelFuture);
     }
 
@@ -271,10 +284,7 @@ class _GatewayAdapterWrapper implements HttpClientAdapter {
     _inner.close(force: force);
   }
 
-  bool _shouldUseWebView(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-  ) {
+  bool _shouldUseWebView(RequestOptions options) {
     final uri = options.uri;
     if (!WebViewAdapterSettingsService.instance.shouldUseWebView(uri)) {
       return false;
@@ -284,12 +294,6 @@ class _GatewayAdapterWrapper implements HttpClientAdapter {
     }
     if (options.extra['isCfChallengePlatform'] == true ||
         uri.path.startsWith('/cdn-cgi/')) {
-      return false;
-    }
-    if (requestStream != null) {
-      return false;
-    }
-    if (options.data is FormData) {
       return false;
     }
     if (options.responseType == ResponseType.stream ||
@@ -371,6 +375,10 @@ class _DynamicAdapter implements HttpClientAdapter {
       );
     }
     final delegate = _ensureDelegate();
+    final delegateType = _delegateType;
+    if (delegateType != null) {
+      setRequestAdapterLogName(options, delegateType.name);
+    }
     return delegate.fetch(options, requestStream, cancelFuture);
   }
 

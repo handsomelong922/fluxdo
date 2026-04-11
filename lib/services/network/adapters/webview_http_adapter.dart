@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:enhanced_cookie_jar/enhanced_cookie_jar.dart';
 import 'package:flutter/foundation.dart';
@@ -11,6 +12,7 @@ import '../cookie/cookie_jar_service.dart';
 import '../cookie/raw_set_cookie_queue.dart';
 import '../../webview_settings.dart';
 import '../../windows_webview_environment_service.dart';
+import 'adapter_log_metadata.dart';
 
 /// WebView HTTP 适配器
 ///
@@ -144,6 +146,8 @@ class WebViewHttpAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
+    setRequestAdapterLogName(options, 'webview');
+
     if (!_isInitialized || _controller == null) {
       await initialize();
     }
@@ -182,14 +186,14 @@ class WebViewHttpAdapter implements HttpClientAdapter {
     final headersMap = _buildBrowserSafeHeaders(options.headers);
 
     // 构建 body
-    String? bodyJson;
-    if (options.data != null && method != 'GET' && method != 'HEAD') {
-      if (options.data is Map || options.data is List) {
-        bodyJson = jsonEncode(options.data);
-      } else {
-        bodyJson = options.data.toString();
-      }
-    }
+    final bodyPlan = await _buildRequestBodyPlan(
+      options,
+      requestStream,
+      method: method,
+      requestId: requestId,
+      requestUri: requestUri,
+    );
+    final bodyScript = bodyPlan.script;
 
     final completer = Completer<String>();
     _pendingRequests[requestId] = completer;
@@ -204,7 +208,7 @@ class WebViewHttpAdapter implements HttpClientAdapter {
             headers: ${jsonEncode(headersMap)},
             credentials: 'include'
           };
-          ${bodyJson != null ? "fetchOptions.body = ${jsonEncode(bodyJson)};" : ""}
+          $bodyScript
 
           const response = await fetch('$url', fetchOptions);
 
@@ -376,6 +380,376 @@ class WebViewHttpAdapter implements HttpClientAdapter {
     }
   }
 
+  Future<_RequestBodyPlan> _buildRequestBodyPlan(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream, {
+    required String method,
+    required String requestId,
+    required Uri requestUri,
+  }) async {
+    if (method == 'GET' || method == 'HEAD') {
+      return const _RequestBodyPlan(script: '');
+    }
+
+    final directBodyScript = await _buildDirectBodyScript(options);
+    if (directBodyScript != null) {
+      return _RequestBodyPlan(script: directBodyScript);
+    }
+
+    final streamedBodyScript = await _buildStreamedBodyScript(
+      requestStream,
+      requestId: requestId,
+      requestUri: requestUri,
+    );
+    if (streamedBodyScript != null) {
+      return _RequestBodyPlan(script: streamedBodyScript);
+    }
+
+    final requestBytes = await _readRequestBytes(requestStream);
+    if (requestBytes != null && requestBytes.isNotEmpty) {
+      final bodyBase64 = base64Encode(requestBytes);
+      return _RequestBodyPlan(
+        script: '''
+          const bodyBytes = Uint8Array.from(
+            atob(${jsonEncode(bodyBase64)}),
+            (char) => char.charCodeAt(0)
+          );
+          const contentTypeHeader = Object.entries(fetchOptions.headers).find(
+            ([key]) => key.toLowerCase() === 'content-type'
+          );
+          const contentType = contentTypeHeader ? String(contentTypeHeader[1] ?? '') : '';
+          if (
+            /application\\/x-www-form-urlencoded/i.test(contentType) ||
+            /application\\/json/i.test(contentType) ||
+            /^text\\//i.test(contentType)
+          ) {
+            fetchOptions.body = new TextDecoder().decode(bodyBytes);
+          } else {
+            fetchOptions.body = contentType
+              ? new Blob([bodyBytes], { type: contentType })
+              : new Blob([bodyBytes]);
+          }
+      ''',
+      );
+    }
+
+    if (options.data == null) {
+      return const _RequestBodyPlan(script: '');
+    }
+
+    return _RequestBodyPlan(
+      script: "fetchOptions.body = ${jsonEncode(options.data.toString())};",
+    );
+  }
+
+  Future<String?> _buildStreamedBodyScript(
+    Stream<Uint8List>? requestStream, {
+    required String requestId,
+    required Uri requestUri,
+  }) async {
+    if (requestStream == null) {
+      return null;
+    }
+
+    final controller = _controller;
+    if (controller == null) {
+      return null;
+    }
+
+    WebMessageChannel? channel;
+    var transferStarted = false;
+
+    try {
+      await _installRequestBodyBridge(controller);
+
+      channel = await controller.createWebMessageChannel();
+      if (channel == null) {
+        return null;
+      }
+
+      final port = channel.port1;
+      final readyCompleter = Completer<void>();
+      final completeCompleter = Completer<void>();
+      final errorCompleter = Completer<String>();
+
+      await port.setWebMessageCallback((message) async {
+        final payload = message?.data;
+        if (payload is! String || payload.isEmpty) return;
+        try {
+          final decoded = jsonDecode(payload);
+          if (decoded is! Map) return;
+          final kind = decoded['kind']?.toString();
+          if (kind == 'ready' && !readyCompleter.isCompleted) {
+            readyCompleter.complete();
+          } else if (kind == 'complete' && !completeCompleter.isCompleted) {
+            completeCompleter.complete();
+          } else if (kind == 'error' && !errorCompleter.isCompleted) {
+            errorCompleter.complete(decoded['error']?.toString() ?? 'unknown');
+          }
+        } catch (_) {}
+      });
+
+      final origin = requestUri.origin;
+      await controller.postWebMessage(
+        message: WebMessage(
+          data: '__fluxdo:body:$requestId',
+          ports: [channel.port2],
+        ),
+        targetOrigin: WebUri(origin),
+      );
+
+      await _awaitRequestBodyPortReady(
+        readyCompleter,
+        errorCompleter,
+        requestId: requestId,
+      );
+
+      transferStarted = true;
+      await _pipeRequestStreamToPort(requestStream, port);
+
+      await _postRequestBodyControlMessage(port, {
+        'kind': 'complete',
+        'requestId': requestId,
+      });
+
+      await _awaitRequestBodyTransferComplete(
+        completeCompleter,
+        errorCompleter,
+        requestId: requestId,
+      );
+
+      return 'fetchOptions.body = window.__fluxdoTakeRequestBody(${jsonEncode(requestId)});';
+    } catch (e) {
+      if (!transferStarted) {
+        debugPrint('[WebViewAdapter] Stream bridge unavailable, fallback to base64: $e');
+        return null;
+      }
+      rethrow;
+    } finally {
+      channel?.dispose();
+    }
+  }
+
+  Future<String?> _buildDirectBodyScript(RequestOptions options) async {
+    final data = options.data;
+    if (data == null || data is FormData) {
+      return null;
+    }
+    if (data is Uint8List || data is List<int>) {
+      return null;
+    }
+
+    final bodyText = await Transformer.defaultTransformRequest(
+      options,
+      (object) => jsonEncode(object),
+    );
+    return "fetchOptions.body = ${jsonEncode(bodyText)};";
+  }
+
+  Future<void> _installRequestBodyBridge(
+    InAppWebViewController controller,
+  ) async {
+    await controller.evaluateJavascript(
+      source: '''
+        (function() {
+          if (window.__fluxdoRequestBodyBridgeInstalled) return;
+          window.__fluxdoRequestBodyBridgeInstalled = true;
+          window.__fluxdoRequestBodyTransfers = new Map();
+
+          function ensureState(requestId) {
+            var state = window.__fluxdoRequestBodyTransfers.get(requestId);
+            if (!state) {
+              state = {
+                chunks: [],
+                body: null
+              };
+              window.__fluxdoRequestBodyTransfers.set(requestId, state);
+            }
+            return state;
+          }
+
+          window.__fluxdoTakeRequestBody = function(requestId) {
+            var state = window.__fluxdoRequestBodyTransfers.get(requestId);
+            if (!state || state.body === null) {
+              throw new Error('Request body not ready for request ' + requestId);
+            }
+            var body = state.body;
+            window.__fluxdoRequestBodyTransfers.delete(requestId);
+            return body;
+          };
+
+          window.addEventListener('message', function(event) {
+            if (typeof event.data !== 'string' || !event.data.startsWith('__fluxdo:body:')) {
+              return;
+            }
+
+            var requestId = event.data.substring('__fluxdo:body:'.length);
+            var port = event.ports && event.ports[0];
+            if (!port) return;
+
+            var state = ensureState(requestId);
+            state.chunks = [];
+            state.body = null;
+
+            port.onmessage = function(portEvent) {
+              try {
+                var payload = portEvent.data;
+                if (typeof payload === 'string') {
+                  var message = JSON.parse(payload);
+                  switch (message.kind) {
+                    case 'complete':
+                      state.body = new Blob(state.chunks);
+                      state.chunks = [];
+                      port.postMessage(JSON.stringify({ kind: 'complete', requestId: requestId }));
+                      break;
+                  }
+                  return;
+                }
+
+                if (payload instanceof ArrayBuffer) {
+                  state.chunks.push(payload);
+                  return;
+                }
+
+                if (ArrayBuffer.isView(payload)) {
+                  state.chunks.push(payload.buffer.slice(
+                    payload.byteOffset,
+                    payload.byteOffset + payload.byteLength
+                  ));
+                }
+              } catch (error) {
+                port.postMessage(JSON.stringify({
+                  kind: 'error',
+                  requestId: requestId,
+                  error: String(error)
+                }));
+              }
+            };
+
+            if (port.start) {
+              port.start();
+            }
+            port.postMessage(JSON.stringify({ kind: 'ready', requestId: requestId }));
+          });
+        })();
+      ''',
+    );
+  }
+
+  Future<void> _postRequestBodyControlMessage(
+    WebMessagePort port,
+    Map<String, dynamic> payload,
+  ) {
+    return port.postMessage(WebMessage(data: jsonEncode(payload)));
+  }
+
+  Future<void> _awaitRequestBodyPortReady(
+    Completer<void> readyCompleter,
+    Completer<String> errorCompleter, {
+    required String requestId,
+  }) async {
+    await Future.any([
+      readyCompleter.future,
+      errorCompleter.future.then<void>((error) {
+        throw StateError(
+          'Request body port setup failed for request $requestId: $error',
+        );
+      }),
+    ]).timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => throw TimeoutException(
+        'Request body port setup timeout for request $requestId',
+      ),
+    );
+  }
+
+  Future<void> _awaitRequestBodyTransferComplete(
+    Completer<void> completeCompleter,
+    Completer<String> errorCompleter, {
+    required String requestId,
+  }) async {
+    await Future.any([
+      completeCompleter.future,
+      errorCompleter.future.then<void>((error) {
+        throw StateError(
+          'Request body transfer failed for request $requestId: $error',
+        );
+      }),
+    ]).timeout(
+      const Duration(seconds: 30),
+      onTimeout: () => throw TimeoutException(
+        'Request body transfer timeout for request $requestId',
+      ),
+    );
+  }
+
+  Future<void> _pipeRequestStreamToPort(
+    Stream<Uint8List> requestStream,
+    WebMessagePort port,
+  ) async {
+    const targetChunkBytes = 64 * 1024;
+
+    var bufferedLength = 0;
+    var builder = BytesBuilder(copy: false);
+
+    Future<void> flush() async {
+      if (bufferedLength == 0) {
+        return;
+      }
+      final bytes = builder.takeBytes();
+      builder = BytesBuilder(copy: false);
+      bufferedLength = 0;
+      await port.postMessage(
+        WebMessage(
+          data: bytes,
+          type: WebMessageType.ARRAY_BUFFER,
+        ),
+      );
+    }
+
+    await for (final chunk in requestStream) {
+      if (chunk.isEmpty) {
+        continue;
+      }
+      if (chunk.length >= targetChunkBytes) {
+        await flush();
+        await port.postMessage(
+          WebMessage(
+            data: chunk,
+            type: WebMessageType.ARRAY_BUFFER,
+          ),
+        );
+        continue;
+      }
+
+      if (bufferedLength + chunk.length > targetChunkBytes &&
+          bufferedLength > 0) {
+        await flush();
+      }
+
+      builder.add(chunk);
+      bufferedLength += chunk.length;
+
+      if (bufferedLength >= targetChunkBytes) {
+        await flush();
+      }
+    }
+
+    await flush();
+  }
+
+  Future<Uint8List?> _readRequestBytes(Stream<Uint8List>? requestStream) async {
+    if (requestStream == null) return null;
+
+    final builder = BytesBuilder(copy: false);
+    await for (final chunk in requestStream) {
+      if (chunk.isNotEmpty) {
+        builder.add(chunk);
+      }
+    }
+    return builder.isEmpty ? null : builder.takeBytes();
+  }
+
   Map<String, String> _buildBrowserSafeHeaders(Map<String, dynamic> headers) {
     final headersMap = <String, String>{};
     final droppedHeaders = <String>[];
@@ -511,4 +885,10 @@ class WebViewHttpAdapter implements HttpClientAdapter {
 
     await _activeCriticalCookieSync!;
   }
+}
+
+class _RequestBodyPlan {
+  const _RequestBodyPlan({required this.script});
+
+  final String script;
 }

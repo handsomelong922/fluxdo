@@ -172,7 +172,7 @@ class _PostActionBarState extends State<PostActionBar> {
           if (!widget.isOwnPost || widget.reactions.isNotEmpty)
             _buildLikeReactionArea(theme),
 
-          if (widget.canBoost && !widget.hasBoosts) ...[
+          if (!widget.isOwnPost && widget.canBoost && !widget.hasBoosts) ...[
             const SizedBox(width: 8),
             Tooltip(
               message: 'Boost',

@@ -128,7 +128,6 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                 onJumpToPost: widget.onJumpToPost,
                 onSolutionChanged: widget.onSolutionChanged,
                 hideRepliesButton: true,
-                showOpSeparator: widget.detail.postsCount > 1,
               ),
             ),
 

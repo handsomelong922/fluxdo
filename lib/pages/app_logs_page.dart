@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../services/app_error_handler.dart';
 import '../services/discourse/discourse_service.dart';
 import '../services/log/logger_utils.dart';
+import '../services/network/adapters/platform_adapter.dart';
 import '../services/toast_service.dart';
 import '../widgets/common/dismissible_popup_menu.dart';
 import '../widgets/post/reply_sheet.dart';
@@ -246,9 +247,11 @@ class _AppLogsPageState extends State<AppLogsPage> {
     if (type == 'request') {
       final statusCode = entry['statusCode'];
       final duration = entry['duration'];
+      final adapter = _getRequestAdapterLabel(entry);
       final parts = <String>[];
       if (statusCode != null) parts.add('$statusCode');
       if (duration != null) parts.add('${duration}ms');
+      if (adapter != null) parts.add(adapter);
       return parts.join(' · ');
     }
 
@@ -453,6 +456,7 @@ class _AppLogsPageState extends State<AppLogsPage> {
     final statusCode = entry['statusCode']?.toString() ?? '';
     final duration = entry['duration'];
     final level = entry['level']?.toString() ?? 'info';
+    final adapter = _getRequestAdapterLabel(entry);
 
     showAppDialog(
       context: context,
@@ -474,6 +478,9 @@ class _AppLogsPageState extends State<AppLogsPage> {
                   ..writeln('URL: $url')
                   ..writeln('${S.current.appLogs_statusCode}: $statusCode');
                 if (duration != null) detail.writeln('${S.current.appLogs_duration}: ${duration}ms');
+                if (adapter != null) {
+                  detail.writeln('${S.current.networkAdapter_adapterType}: $adapter');
+                }
                 detail.writeln('${S.current.appLogs_level}: $level');
                 Clipboard.setData(ClipboardData(text: detail.toString()));
                 ToastService.showSuccess(S.current.common_copiedToClipboard);
@@ -492,6 +499,11 @@ class _AppLogsPageState extends State<AppLogsPage> {
               _buildDetailField(context.l10n.appLogs_statusCode, statusCode),
               if (duration != null)
                 _buildDetailField(context.l10n.appLogs_duration, '${duration}ms'),
+              if (adapter != null)
+                _buildDetailField(
+                  context.l10n.networkAdapter_adapterType,
+                  adapter,
+                ),
               _buildDetailField(context.l10n.appLogs_level, level == 'warning' ? context.l10n.common_loadFailed : context.l10n.common_done),
             ],
           ),
@@ -526,6 +538,15 @@ class _AppLogsPageState extends State<AppLogsPage> {
         ],
       ),
     );
+  }
+
+  String? _getRequestAdapterLabel(Map<String, dynamic> entry) {
+    final adapterName = entry['networkAdapter']?.toString();
+    final adapterType = tryParseAdapterType(adapterName);
+    if (adapterType == null) {
+      return adapterName?.isEmpty == true ? null : adapterName;
+    }
+    return getAdapterDisplayName(adapterType);
   }
 
   String _formatTimestamp(String? timestamp) {

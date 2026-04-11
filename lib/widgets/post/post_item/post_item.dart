@@ -36,7 +36,6 @@ class PostItem extends ConsumerStatefulWidget {
   final bool useReplyDialog;
   final VoidCallback? onShowPostDetail;
   final bool hideRepliesButton;
-  final bool showOpSeparator;
 
   const PostItem({
     super.key,
@@ -61,7 +60,6 @@ class PostItem extends ConsumerStatefulWidget {
     this.useReplyDialog = false,
     this.onShowPostDetail,
     this.hideRepliesButton = false,
-    this.showOpSeparator = true,
   });
 
   @override
@@ -91,179 +89,167 @@ class _PostItemState extends ConsumerState<PostItem> {
   Widget build(BuildContext context) {
     final post = widget.post;
     final theme = Theme.of(context);
-    final isFirstPost = post.postNumber == 1;
 
     if (post.postType == PostTypes.smallAction) {
       return SmallActionItem(post: post);
     }
 
     final isModeratorAction = post.postType == PostTypes.moderatorAction;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        PostSegmentFrame(
-          post: post,
-          highlight: widget.highlight,
-          constraints: const BoxConstraints(minHeight: 80),
-          showTopDateSeparator: widget.dateSeparatorLabel != null,
-          topDateSeparatorLabel: widget.dateSeparatorLabel,
-          showBottomDateSeparator: widget.bottomDateSeparatorLabel != null,
-          bottomDateSeparatorLabel: widget.bottomDateSeparatorLabel,
-          showBottomBorder: !isFirstPost,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SelectionContainer.disabled(
-                  child: PostHeaderSection(
-                    post: post,
-                    topicId: widget.topicId,
-                    isTopicOwner: widget.isTopicOwner,
-                    showStamp: _acceptedAnswer,
-                    padding: EdgeInsets.zero,
-                    onJumpToPost: widget.onJumpToPost,
+    return PostSegmentFrame(
+      post: post,
+      highlight: widget.highlight,
+      constraints: const BoxConstraints(minHeight: 80),
+      showTopDateSeparator: widget.dateSeparatorLabel != null,
+      topDateSeparatorLabel: widget.dateSeparatorLabel,
+      showBottomDateSeparator: widget.bottomDateSeparatorLabel != null,
+      bottomDateSeparatorLabel: widget.bottomDateSeparatorLabel,
+      showBottomBorder: true,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SelectionContainer.disabled(
+              child: PostHeaderSection(
+                post: post,
+                topicId: widget.topicId,
+                isTopicOwner: widget.isTopicOwner,
+                showStamp: _acceptedAnswer,
+                padding: EdgeInsets.zero,
+                onJumpToPost: widget.onJumpToPost,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (post.notice != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: SelectionContainer.disabled(
+                  child: PostNoticeWidget(
+                    notice: post.notice!,
+                    username: post.username,
                   ),
                 ),
-                const SizedBox(height: 12),
-                if (post.notice != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: SelectionContainer.disabled(
-                      child: PostNoticeWidget(
-                        notice: post.notice!,
-                        username: post.username,
-                      ),
-                    ),
+              ),
+            Container(
+              decoration: isModeratorAction
+                  ? BoxDecoration(
+                      color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    )
+                  : null,
+              padding: isModeratorAction ? const EdgeInsets.all(12) : EdgeInsets.zero,
+              child: Listener(
+                behavior: HitTestBehavior.translucent,
+                onPointerDown: (_) => CodeSelectionContextTracker.instance.clear(),
+                child: ChunkedHtmlContent(
+                  html: post.cooked,
+                  textStyle: theme.textTheme.bodyMedium?.copyWith(
+                    height: 1.5,
+                    fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) *
+                        ref.watch(preferencesProvider).contentFontScale,
                   ),
-                Container(
-                  decoration: isModeratorAction
-                      ? BoxDecoration(
-                          color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        )
-                      : null,
-                  padding: isModeratorAction ? const EdgeInsets.all(12) : EdgeInsets.zero,
-                  child: Listener(
-                    behavior: HitTestBehavior.translucent,
-                    onPointerDown: (_) => CodeSelectionContextTracker.instance.clear(),
-                    child: ChunkedHtmlContent(
-                      html: post.cooked,
-                      textStyle: theme.textTheme.bodyMedium?.copyWith(
-                        height: 1.5,
-                        fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) *
-                            ref.watch(preferencesProvider).contentFontScale,
-                      ),
-                      linkCounts: post.linkCounts,
-                      mentionedUsers: post.mentionedUsers,
-                      post: post,
-                      topicId: widget.topicId,
-                      onQuoteImage: widget.onQuoteImage,
-                      onInternalLinkTap: (topicId, topicSlug, postNumber) {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => TopicDetailPage(
-                              topicId: topicId,
-                              initialTitle: topicSlug,
-                              scrollToPostNumber: postNumber,
-                            ),
-                          ),
-                        );
-                      },
-                      onSelectionChanged: widget.onQuoteSelection != null
-                          ? (content) {
-                              _lastSelectedContent = content;
-                              _lastCodeSelectionContext = content == null
-                                  ? null
-                                  : CodeSelectionContextTracker.instance.current;
-                            }
-                          : null,
-                      contextMenuBuilder: widget.onQuoteSelection != null
-                          ? (context, state) {
-                              final items = QuoteSelectionHelper.buildMenuItems(
-                                baseItems: state.contextMenuButtonItems,
-                                plainText: _lastSelectedContent?.plainText,
-                                post: post,
-                                hideToolbar: state.hideToolbar,
-                                topicId: widget.topicId,
-                                onQuoteSelection: widget.onQuoteSelection,
-                                codeContext: _lastCodeSelectionContext,
-                              );
-                              return AdaptiveTextSelectionToolbar.buttonItems(
-                                anchors: state.contextMenuAnchors,
-                                buttonItems: items,
-                              );
-                            }
-                          : null,
-                    ),
-                  ),
-                ),
-                // 举报隐藏帖子：显示展开按钮
-                if (post.cookedHidden && post.canSeeHiddenPost && widget.onExpandHiddenPost != null)
-                  SelectionContainer.disabled(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: InkWell(
-                        onTap: () => widget.onExpandHiddenPost!(post.id),
-                        borderRadius: BorderRadius.circular(6),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.visibility_outlined,
-                                size: 15,
-                                color: theme.colorScheme.primary,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                context.l10n.post_viewHiddenInfo,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: theme.colorScheme.primary,
-                                ),
-                              ),
-                            ],
-                          ),
+                  linkCounts: post.linkCounts,
+                  mentionedUsers: post.mentionedUsers,
+                  post: post,
+                  topicId: widget.topicId,
+                  onQuoteImage: widget.onQuoteImage,
+                  onInternalLinkTap: (topicId, topicSlug, postNumber) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => TopicDetailPage(
+                          topicId: topicId,
+                          initialTitle: topicSlug,
+                          scrollToPostNumber: postNumber,
                         ),
                       ),
+                    );
+                  },
+                  onSelectionChanged: widget.onQuoteSelection != null
+                      ? (content) {
+                          _lastSelectedContent = content;
+                          _lastCodeSelectionContext = content == null
+                              ? null
+                              : CodeSelectionContextTracker.instance.current;
+                        }
+                      : null,
+                  contextMenuBuilder: widget.onQuoteSelection != null
+                      ? (context, state) {
+                          final items = QuoteSelectionHelper.buildMenuItems(
+                            baseItems: state.contextMenuButtonItems,
+                            plainText: _lastSelectedContent?.plainText,
+                            post: post,
+                            hideToolbar: state.hideToolbar,
+                            topicId: widget.topicId,
+                            onQuoteSelection: widget.onQuoteSelection,
+                            codeContext: _lastCodeSelectionContext,
+                          );
+                          return AdaptiveTextSelectionToolbar.buttonItems(
+                            anchors: state.contextMenuAnchors,
+                            buttonItems: items,
+                          );
+                        }
+                      : null,
+                ),
+              ),
+            ),
+            // 举报隐藏帖子：显示展开按钮
+            if (post.cookedHidden && post.canSeeHiddenPost && widget.onExpandHiddenPost != null)
+              SelectionContainer.disabled(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: InkWell(
+                    onTap: () => widget.onExpandHiddenPost!(post.id),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.visibility_outlined,
+                            size: 15,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            context.l10n.post_viewHiddenInfo,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                SelectionContainer.disabled(
-                  child: PostFooterSection(
-                    post: post,
-                    topicId: widget.topicId,
-                    topicHasAcceptedAnswer: widget.topicHasAcceptedAnswer,
-                    acceptedAnswerPostNumber: widget.acceptedAnswerPostNumber,
-                    padding: const EdgeInsets.only(top: 12),
-                    onReply: widget.onReply,
-                    onEdit: widget.onEdit,
-                    onShareAsImage: widget.onShareAsImage,
-                    onRefreshPost: widget.onRefreshPost,
-                    onJumpToPost: widget.onJumpToPost,
-                    onSolutionChanged: widget.onSolutionChanged,
-                    useReplyDialog: widget.useReplyDialog,
-                    onShowPostDetail: widget.onShowPostDetail,
-                    hideRepliesButton: widget.hideRepliesButton,
-                    onAcceptedAnswerChanged: (accepted) {
-                      if (!mounted) return;
-                      setState(() {
-                        _acceptedAnswer = accepted;
-                      });
-                    },
-                  ),
                 ),
-              ],
+              ),
+            SelectionContainer.disabled(
+              child: PostFooterSection(
+                post: post,
+                topicId: widget.topicId,
+                topicHasAcceptedAnswer: widget.topicHasAcceptedAnswer,
+                acceptedAnswerPostNumber: widget.acceptedAnswerPostNumber,
+                padding: const EdgeInsets.only(top: 12),
+                onReply: widget.onReply,
+                onEdit: widget.onEdit,
+                onShareAsImage: widget.onShareAsImage,
+                onRefreshPost: widget.onRefreshPost,
+                onJumpToPost: widget.onJumpToPost,
+                onSolutionChanged: widget.onSolutionChanged,
+                useReplyDialog: widget.useReplyDialog,
+                onShowPostDetail: widget.onShowPostDetail,
+                hideRepliesButton: widget.hideRepliesButton,
+                onAcceptedAnswerChanged: (accepted) {
+                  if (!mounted) return;
+                  setState(() {
+                    _acceptedAnswer = accepted;
+                  });
+                },
+              ),
             ),
-          ),
+          ],
         ),
-        if (isFirstPost && widget.showOpSeparator)
-          Container(
-            height: 8,
-            color: theme.colorScheme.surfaceContainerHigh,
-          ),
-      ],
+      ),
     );
   }
 }

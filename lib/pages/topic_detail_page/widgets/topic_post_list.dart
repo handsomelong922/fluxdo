@@ -661,7 +661,6 @@ class _TopicPostListState extends State<TopicPostList> {
           acceptedAnswerPostNumber: detail.acceptedAnswerPostNumber,
           dateSeparatorLabel: dateSeparatorLabel,
           bottomDateSeparatorLabel: bottomDateSeparatorLabel,
-          showOpSeparator: detail.postsCount > 1,
           onLike: () => ToastService.showInfo(S.current.ai_likeInDev),
           onReply: isLoggedIn
               ? () => onReply(post.postNumber == 1 ? null : post)
@@ -711,7 +710,6 @@ class _TopicPostListState extends State<TopicPostList> {
           topicHasAcceptedAnswer: detail.hasAcceptedAnswer,
           acceptedAnswerPostNumber: detail.acceptedAnswerPostNumber,
           bottomDateSeparatorLabel: bottomDateSeparatorLabel,
-          showOpSeparator: detail.postsCount > 1,
           onReply: isLoggedIn
               ? () => onReply(post.postNumber == 1 ? null : post)
               : null,

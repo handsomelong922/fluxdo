@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../log/log_writer.dart';
+import '../adapters/adapter_log_metadata.dart';
 
 /// 网络请求日志拦截器，记录每个请求的 method/url/statusCode/duration
 class NetworkLogInterceptor extends Interceptor {
@@ -71,6 +72,10 @@ class NetworkLogInterceptor extends Interceptor {
     final extraFields = options.extra['_networkLogFields'];
     if (extraFields is Map) {
       entry.addAll(extraFields.cast<String, dynamic>());
+    }
+    final adapterName = getRequestAdapterLogName(options);
+    if (adapterName != null) {
+      entry['networkAdapter'] = adapterName;
     }
     LogWriter.instance.write(entry);
   }

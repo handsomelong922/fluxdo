@@ -156,9 +156,17 @@ class AppConstants {
     var sanitized = ua;
 
     if (Platform.isAndroid) {
-      // Android: 移除 wv 标识的各种变体
+      // Android WebView UA 有两个暴露身份的特征，需要同时移除：
+      // 1. "; wv" — 括号内的 WebView 标识
+      // 2. "Version/4.0" — WebView 遗留的静态标识符（值永远是 4.0，
+      //    真实 Chrome 不包含此 token，引擎版本在 Chrome/xxx 中）
+      // 参考 DuckDuckGo Android 浏览器的做法（UserAgentProvider.kt）
+
+      // 移除 wv 标识的各种变体
       // 常见格式: "; wv)"  ";wv)"  "; wv;"  "wv; " 等
       sanitized = sanitized.replaceAll(RegExp(r'[;\s]*\bwv\b[;\s]*(?=\))'), '');
+      // 移除 "Version/x.x"（尾随空格可选，避免产生双空格）
+      sanitized = sanitized.replaceAll(RegExp(r'Version/[^ ]+ *'), '');
     }
 
     if (Platform.isIOS && !sanitized.contains('Safari/')) {
