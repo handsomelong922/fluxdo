@@ -403,6 +403,38 @@ class AppCookieManager extends Interceptor {
         final isDeletion =
             cookie.value == 'del' || cookie.value.isEmpty || isExpired;
         final uri = response.requestOptions.uri;
+
+        // Mixed signal 保护：2xx/3xx + discourse-logged-out 但非 not_logged_in
+        // 时，拦截 session cookie 的删除指令。
+        // 这种矛盾信号（请求成功但 header 要求登出）不应直接删除 cookie，
+        // 由 _auth.dart 的 probe 机制决定是否真正登出。
+        if (isDeletion) {
+          final statusCode = response.statusCode ?? 0;
+          final hasLoggedOutHeader =
+              response.headers.value('discourse-logged-out')?.isNotEmpty == true;
+          final responseBody = response.data;
+          final hasNotLoggedInError =
+              responseBody is Map && responseBody['error_type'] == 'not_logged_in';
+
+          if (statusCode < 400 && hasLoggedOutHeader && !hasNotLoggedInError) {
+            debugPrint('[CookieManager] ${cookie.name} DEL(blocked/mixed-signal) '
+                'from ${response.requestOptions.method} ${uri.host}${uri.path} '
+                '(status=$statusCode)');
+            LogWriter.instance.write({
+              'timestamp': DateTime.now().toIso8601String(),
+              'level': 'warning',
+              'type': 'cookie_change',
+              'event': 'token_cookie_delete_blocked_mixed_signal',
+              'message': '${cookie.name} 删除被拦截（$statusCode + discourse-logged-out 矛盾信号）',
+              'statusCode': statusCode,
+              'method': response.requestOptions.method,
+              'url': uri.path,
+              'fullUrl': uri.toString(),
+            });
+            continue;
+          }
+        }
+
         debugPrint('[CookieManager] ${cookie.name} ${isDeletion ? "DEL" : "SET"} '
             'from ${response.requestOptions.method} ${uri.host}${uri.path} '
             '(status=${response.statusCode}, len=${cookie.value.length}, '
@@ -421,6 +453,7 @@ class AppCookieManager extends Interceptor {
           'statusCode': response.statusCode,
           'cookieDomain': cookie.domain,
           'hasLoggedInHeader': response.requestOptions.headers['Discourse-Logged-In'] == 'true',
+          'hasLoggedOutHeader': response.headers.value('discourse-logged-out')?.isNotEmpty == true,
         });
       }
       filteredCookies.add(cookie);
