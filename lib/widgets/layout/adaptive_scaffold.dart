@@ -92,9 +92,7 @@ class AdaptiveScaffold extends ConsumerWidget {
                           if (selectedIndex != 0) {
                             onDestinationSelected(0);
                           }
-                          ref
-                                  .read(currentTabCategoryIdProvider.notifier)
-                                  .state =
+                          ref.read(currentTabCategoryIdProvider.notifier).state =
                               categoryId;
                         },
                       ),
@@ -116,9 +114,7 @@ class AdaptiveScaffold extends ConsumerWidget {
                   ),
                   extended: extendedRail,
                   leading: railLeading,
-                  bottomLeading: _SidebarBottomActions(
-                    child: railBottomLeading,
-                  ),
+                  bottomLeading: railBottomLeading,
                 ),
                 if (!useAcrylicRail)
                   const VerticalDivider(thickness: 1, width: 1),
@@ -152,20 +148,6 @@ class AdaptiveScaffold extends ConsumerWidget {
           child: const SidebarNotificationPanel(),
         ),
       ],
-    );
-  }
-}
-
-class _SidebarBottomActions extends StatelessWidget {
-  const _SidebarBottomActions({this.child});
-
-  final Widget? child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [if (child != null) child!],
     );
   }
 }
