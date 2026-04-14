@@ -156,6 +156,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   late final PageController _pageController;
   final ValueNotifier<int> _currentPageNotifier = ValueNotifier<int>(0);
   bool _aiGuideChecked = false;
+  // 缓存清理快捷键的回调，避免在 dispose 中使用 ref.read
+  VoidCallback? _clearShortcuts;
   ModalRoute<dynamic>? _route;
   bool _isRouteVisible = true;
   bool _isParentActive = true;
@@ -275,10 +277,14 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         if (mounted) _scrollToPreviousPost();
       },
     };
+    final notifier = widget.embeddedMode
+        ? ref.read(detailShortcutsProvider.notifier)
+        : ref.read(contextShortcutsProvider.notifier);
+    _clearShortcuts = () => notifier.state = {};
     if (widget.embeddedMode) {
-      ref.read(detailShortcutsProvider.notifier).state = shortcuts;
+      notifier.state = shortcuts;
     } else {
-      ref.read(contextShortcutsProvider.notifier).state = {
+      notifier.state = {
         ...shortcuts,
         ShortcutAction.closeOverlay: () {
           if (mounted) Navigator.of(context).maybePop();
@@ -336,12 +342,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _controller.dispose();
     if (PlatformUtils.isDesktop) {
       toggleAiPanelNotifier.removeListener(_onToggleAiPanel);
-      // 同步注销快捷键
-      if (widget.embeddedMode) {
-        ref.read(detailShortcutsProvider.notifier).state = {};
-      } else {
-        ref.read(contextShortcutsProvider.notifier).state = {};
-      }
+      // 延迟注销快捷键，避免在 widget tree finalizing 期间修改 provider
+      final clear = _clearShortcuts;
+      if (clear != null) Future(clear);
     }
     // 延迟清理搜索状态，避免在 widget tree finalizing 期间修改 provider
     Future(_topicSearchNotifier.exitSearchMode);
