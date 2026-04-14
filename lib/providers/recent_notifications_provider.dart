@@ -37,22 +37,27 @@ class RecentNotificationsNotifier extends AsyncNotifier<List<DiscourseNotificati
     state = AsyncValue.data(newList);
   }
 
-  /// 根据 messageBus 推送的 recent 字段更新已有通知的已读状态
-  void updateReadStatus(Map<int, bool> readStatusMap) {
+  /// 根据 messageBus 推送的 recent 字段同步通知列表
+  /// 复刻 Discourse 逻辑：更新已读状态 + 移除不在 recent 中的过期通知
+  void syncWithRecent(Map<int, bool> readStatusMap) {
     final currentList = state.value;
     if (currentList == null) return;
 
-    bool changed = false;
-    final newList = currentList.map((n) {
+    // 与 Discourse 对齐：只保留 recent 中存在的通知，同时更新已读状态
+    final newList = <DiscourseNotification>[];
+    for (final n in currentList) {
       final newRead = readStatusMap[n.id];
-      if (newRead != null && newRead != n.read) {
-        changed = true;
-        return n.copyWith(read: newRead);
+      if (newRead != null) {
+        newList.add(newRead != n.read ? n.copyWith(read: newRead) : n);
       }
-      return n;
-    }).toList();
+      // 不在 readStatusMap 中的通知被移除（过期）
+    }
 
-    if (changed) {
+    if (newList.length != currentList.length ||
+        newList.any((n) {
+          final old = currentList.firstWhere((o) => o.id == n.id);
+          return old.read != n.read;
+        })) {
       state = AsyncValue.data(newList);
     }
   }
