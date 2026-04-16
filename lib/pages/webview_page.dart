@@ -88,6 +88,7 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
         await _handleBackNavigation();
       },
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         appBar: AppBar(
           title: GestureDetector(
             onTap: _showUrlInput,
