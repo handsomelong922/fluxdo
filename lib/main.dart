@@ -45,6 +45,7 @@ import 'services/hcaptcha_accessibility_service.dart';
 import 'services/network/doh_proxy/proxy_certificate.dart';
 import 'services/cf_challenge_logger.dart';
 import 'services/cf_clearance_refresh_service.dart';
+import 'services/fingerprint_service.dart';
 import 'services/update_service.dart';
 import 'services/update_checker_helper.dart';
 import 'services/deep_link_service.dart';
@@ -232,7 +233,13 @@ Future<void> main() async {
 
   // 提前触发预加载数据请求，与 runApp 并行执行
   // PreheatGate 中的 ensureLoaded() 会复用这个已在进行的请求
-  PreloadedDataService().ensureLoaded().ignore();
+  unawaited(
+    PreloadedDataService().ensureLoaded().then((_) {
+      if (PreloadedDataService().currentUserSync != null) {
+        unawaited(FingerprintService.instance.collectAndReport());
+      }
+    }).catchError((Object _) {}),
+  );
 
   // 记录应用启动日志
   LogWriter.instance.write({

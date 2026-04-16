@@ -20,6 +20,7 @@ import '../services/toast_service.dart';
 import '../services/hcaptcha_accessibility_service.dart';
 import '../services/webview_settings.dart';
 import '../services/windows_webview_environment_service.dart';
+import '../services/fingerprint_service.dart';
 import '../services/log/log_writer.dart';
 import '../widgets/common/dismissible_popup_menu.dart';
 import '../l10n/s.dart';
@@ -539,6 +540,9 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         'currentUrl': currentUrl,
         'jarSessionCookies': jarSessionCookies,
       });
+
+      // 上报浏览器指纹（防止因缺少指纹触发风控）
+      unawaited(FingerprintService.instance.collectAndReport());
     } catch (e) {
       debugPrint('[Login] 登录态后台收尾失败: $e');
     }
