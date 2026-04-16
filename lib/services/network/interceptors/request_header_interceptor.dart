@@ -48,6 +48,9 @@ class RequestHeaderInterceptor extends Interceptor {
       options.headers['Sec-Fetch-Dest'] = 'empty';
       options.headers['Sec-Fetch-Mode'] = 'cors';
       options.headers['Sec-Fetch-Site'] = 'same-origin';
+      // 告知 Discourse 用户当前在线，使后端更新 last_seen_at
+      // 对齐 Discourse 前端: if (userPresent()) { headers["Discourse-Present"] = "true"; }
+      options.headers['Discourse-Present'] = 'true';
     }
 
     handler.next(options);
