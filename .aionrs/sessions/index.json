@@ -1,0 +1,12 @@
+{
+  "sessions": [
+    {
+      "id": "320cf5bc",
+      "created_at": "2026-04-17T10:18:52.114976900Z",
+      "updated_at": "2026-04-17T10:19:41.012565Z",
+      "model": "glm-5.1",
+      "summary": "你是一位精通 Flutter/Riverpod 和 GitHub Actions 的资深架构师。当前任务是为 fluxdo 项目添加“帖子关键词屏蔽”功能...",
+      "message_count": 7
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+.artifacts/
+flatpak/stage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+.ace-tool/
+
+# PDB debug files
+*.pdb
+
+# Android JNI libraries (generated from Rust)
+android/app/src/main/jniLibs/
+
+# iOS Rust static libraries (generated from Rust)
+ios/rust_libs/
+
+# FVM Version Cache
+.fvm/
+
+# Codex
+.codex/
+
+# Firebase config (contains API keys)
+android/app/google-services.json
+
+# Generated CA certificates (CI/local build auto-generates)
+assets/certs/proxy_ca.pem
+android/app/src/main/res/raw/proxy_ca.der
+
+# L10n merged ARB files (generated from lib/l10n/modules/)
+lib/l10n/merged/

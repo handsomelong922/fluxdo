@@ -1,0 +1,204 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/search_filter.dart';
+import '../models/topic.dart';
+import '../providers/discourse_providers.dart';
+import '../providers/user_content_search_provider.dart';
+import '../widgets/search/searchable_app_bar.dart';
+import '../widgets/search/user_content_search_view.dart';
+import '../widgets/topic/topic_item_builder.dart';
+import '../widgets/topic/topic_list_skeleton.dart';
+import '../providers/preferences_provider.dart';
+import '../widgets/common/error_view.dart';
+import '../l10n/s.dart';
+import '../widgets/desktop_refresh_indicator.dart';
+import 'topic_detail_page/topic_detail_page.dart';
+
+/// 浏览历史页面
+class BrowsingHistoryPage extends ConsumerStatefulWidget {
+  const BrowsingHistoryPage({super.key});
+
+  @override
+  ConsumerState<BrowsingHistoryPage> createState() => _BrowsingHistoryPageState();
+}
+
+class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
+  final ScrollController _scrollController = ScrollController();
+  late final UserContentSearchNotifier _searchNotifier;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+    _searchNotifier = ref.read(userContentSearchProvider(SearchInType.seen).notifier);
+
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    Future(_searchNotifier.exitSearchMode);
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      ref.read(browsingHistoryProvider.notifier).loadMore();
+    }
+  }
+
+  Future<void> _onRefresh() async {
+    await ref.read(browsingHistoryProvider.notifier).refresh();
+  }
+
+  void _onItemTap(Topic topic) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TopicDetailPage(
+          topicId: topic.id,
+          scrollToPostNumber: topic.lastReadPostNumber,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final historyAsync = ref.watch(browsingHistoryProvider);
+    final searchState = ref.watch(userContentSearchProvider(SearchInType.seen));
+
+    return PopScope(
+      canPop: !searchState.isSearchMode,
+      onPopInvokedWithResult: (bool didPop, dynamic result) {
+        if (!didPop) {
+          // 搜索模式下按返回键，退出搜索而不是退出页面
+          ref.read(userContentSearchProvider(SearchInType.seen).notifier).exitSearchMode();
+        }
+      },
+      child: Scaffold(
+        appBar: SearchableAppBar(
+          title: context.l10n.browsingHistory_title,
+          isSearchMode: searchState.isSearchMode,
+          onSearchPressed: () => ref
+              .read(userContentSearchProvider(SearchInType.seen).notifier)
+              .enterSearchMode(),
+          onCloseSearch: () => ref
+              .read(userContentSearchProvider(SearchInType.seen).notifier)
+              .exitSearchMode(),
+          onSearch: (query) => ref
+              .read(userContentSearchProvider(SearchInType.seen).notifier)
+              .search(query),
+          showFilterButton: searchState.isSearchMode,
+          filterActive: searchState.filter.isNotEmpty,
+          onFilterPressed: () =>
+              showSearchFilterPanel(context, ref, SearchInType.seen),
+          searchHint: context.l10n.browsingHistory_searchHint,
+        ),
+        body: Stack(
+          children: [
+            // 使用 Offstage 保持列表存在但在搜索模式下隐藏，保留滚动位置
+            Offstage(
+              offstage: searchState.isSearchMode,
+              child: _buildTopicList(historyAsync),
+            ),
+            if (searchState.isSearchMode)
+              UserContentSearchView(
+                inType: SearchInType.seen,
+                emptySearchHint: context.l10n.browsingHistory_emptySearchHint,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopicList(AsyncValue<List<Topic>> historyAsync) {
+    return DesktopRefreshIndicator(
+      onRefresh: _onRefresh,
+      child: historyAsync.when(
+        data: (topics) {
+          if (topics.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.history, size: 64, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  Text(context.l10n.browsingHistory_empty, style: const TextStyle(color: Colors.grey)),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(12),
+            itemCount: topics.length + 1,
+            itemBuilder: (context, index) {
+              if (index == topics.length) {
+                final notifier = ref.watch(browsingHistoryProvider.notifier);
+                if (!notifier.hasMore) {
+                  return Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Center(
+                      child: Text(
+                        context.l10n.common_noMore,
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  );
+                }
+                if (notifier.isLoadMoreFailed) {
+                  return Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: () => notifier.retryLoadMore(),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.refresh, size: 16, color: Theme.of(context).colorScheme.primary),
+                            const SizedBox(width: 6),
+                            Text(
+                              context.l10n.common_loadFailedTapRetry,
+                              style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.primary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                if (historyAsync.isLoading && !historyAsync.hasError) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                return const SizedBox();
+              }
+
+              final topic = topics[index];
+              final enableLongPress = ref.watch(preferencesProvider).longPressPreview;
+              return buildTopicItem(
+                context: context,
+                topic: topic,
+                isSelected: false,
+                onTap: () => _onItemTap(topic),
+                enableLongPress: enableLongPress,
+              );
+            },
+          );
+        },
+        loading: () => const TopicListSkeleton(),
+        error: (error, stack) => ErrorView(
+          error: error,
+          stackTrace: stack,
+          onRetry: _onRefresh,
+        ),
+      ),
+    );
+  }
+}
