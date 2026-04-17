@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+# CUSTOM: Keyword Filter 顶层写权限，供 Release 创建/附件上传使用
+permissions:
+  contents: write
+
 env:
   IS_STABLE: ${{ !contains(github.ref, '-') }}
 
@@ -304,7 +308,15 @@ jobs:
         if: env.IS_STABLE == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          files: ./dist/*
+          # CUSTOM: Keyword Filter 显式列出产物路径，确保 Release 必附带 APK / ZIP / 安装包
+          files: |
+            ./dist/fluxdo-arm64-v8a.apk
+            ./dist/fluxdo-arm64-v8a.apk.sha256
+            ./dist/fluxdo-windows-x86_64.zip
+            ./dist/fluxdo-windows-x86_64.zip.sha256
+            ./dist/fluxdo-windows-x86_64-setup.exe
+            ./dist/fluxdo-windows-x86_64-setup.exe.sha256
+          fail_on_unmatched_files: true
           body_path: release_notes.md
           draft: false
           prerelease: false
