@@ -42,6 +42,26 @@ class KeywordFilterNotifier extends StateNotifier<List<String>> {
     _save();
   }
 
+  /// CUSTOM: Keyword Filter 编辑指定位置的正则
+  /// 返回是否编辑成功（空、非法正则、与其它条目重复均会拒绝）
+  bool editAt(int index, String newRegex) {
+    if (index < 0 || index >= state.length) return false;
+    final trimmed = newRegex.trim();
+    if (trimmed.isEmpty) return false;
+    if (!isValidRegex(trimmed)) return false;
+    // 同位置未变更视为成功空操作
+    if (state[index] == trimmed) return true;
+    // 避免与其它条目重复
+    for (var i = 0; i < state.length; i++) {
+      if (i != index && state[i] == trimmed) return false;
+    }
+    final list = [...state];
+    list[index] = trimmed;
+    state = list;
+    _save();
+    return true;
+  }
+
   /// 按值删除
   void remove(String pattern) {
     if (!state.contains(pattern)) return;

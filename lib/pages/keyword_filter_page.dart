@@ -43,6 +43,85 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
     setState(() => _errorText = null);
   }
 
+  // CUSTOM: Keyword Filter 弹出对话框编辑指定正则
+  Future<void> _editPattern(int index, String oldPattern) async {
+    final editController = TextEditingController(text: oldPattern);
+    String? dialogError;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          String? validate(String text) {
+            final t = text.trim();
+            if (t.isEmpty) return '不能为空';
+            if (!KeywordFilterNotifier.isValidRegex(t)) return '无效的正则表达式';
+            return null;
+          }
+
+          void onSave() {
+            final t = editController.text.trim();
+            final err = validate(t);
+            if (err != null) {
+              setDialogState(() => dialogError = err);
+              return;
+            }
+            final ok = ref
+                .read(keywordFilterProvider.notifier)
+                .editAt(index, t);
+            if (!ok) {
+              setDialogState(() => dialogError = '与其它规则重复或保存失败');
+              return;
+            }
+            Navigator.of(ctx).pop(true);
+          }
+
+          return AlertDialog(
+            title: const Text('编辑屏蔽规则'),
+            content: TextField(
+              controller: editController,
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              onChanged: (_) {
+                if (dialogError != null) {
+                  setDialogState(() => dialogError = null);
+                }
+              },
+              onSubmitted: (_) => onSave(),
+              decoration: InputDecoration(
+                hintText: '输入新的正则表达式',
+                errorText: dialogError,
+                border: const OutlineInputBorder(),
+                isDense: true,
+              ),
+              style: const TextStyle(fontFamily: 'monospace'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: onSave,
+                child: const Text('保存'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    editController.dispose();
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          content: Text('规则已更新'),
+          duration: Duration(seconds: 1),
+        ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -112,12 +191,23 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
                           pattern,
                           style: const TextStyle(fontFamily: 'monospace'),
                         ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          tooltip: '删除',
-                          onPressed: () => ref
-                              .read(keywordFilterProvider.notifier)
-                              .removeAt(index),
+                        // CUSTOM: Keyword Filter 编辑 + 删除
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit),
+                              tooltip: '编辑',
+                              onPressed: () => _editPattern(index, pattern),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              tooltip: '删除',
+                              onPressed: () => ref
+                                  .read(keywordFilterProvider.notifier)
+                                  .removeAt(index),
+                            ),
+                          ],
                         ),
                       );
                     },
