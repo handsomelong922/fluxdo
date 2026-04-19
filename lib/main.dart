@@ -11,8 +11,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 import 'pages/topics_page.dart';
-import 'pages/topics_screen.dart';
-import 'pages/profile_page.dart';
 import 'pages/data_management_page.dart';
 import 'providers/discourse_providers.dart';
 import 'providers/locale_provider.dart';
@@ -21,7 +19,6 @@ import 'services/auth_issue_notice_service.dart';
 import 'services/discourse/discourse_service.dart';
 import 'providers/app_state_refresher.dart';
 import 'services/highlighter_service.dart';
-import 'widgets/common/smart_avatar.dart';
 import 'widgets/common/notification_icon_button.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'services/network/cookie/android_cdp_feature.dart';
@@ -79,6 +76,8 @@ import 'widgets/layout/adaptive_navigation.dart';
 import 'widgets/notification/notification_quick_panel.dart';
 import 'widgets/read_later/read_later_bubble.dart';
 import 'navigation/nav_action_bus.dart';
+import 'navigation/nav_entry.dart';
+import 'navigation/nav_entry_registry.dart';
 import 'providers/read_later_provider.dart';
 import 'providers/shortcut_provider.dart';
 import 'widgets/keyboard_shortcut_handler.dart';
@@ -501,6 +500,7 @@ class _MainPageState extends ConsumerState<MainPage>
   int? _lastTappedIndex;
   DateTime? _lastTapTime;
   Timer? _pendingSingleTap;
+  List<NavEntry> _lastResolvedEntries = const [];
   Timer? _resumeDebounceTimer;
   DateTime? _lastBackPressTime;
 
@@ -632,15 +632,34 @@ class _MainPageState extends ConsumerState<MainPage>
   }
 
   void _onDestinationSelected(int index) {
+    if (index < 0 || index >= _lastResolvedEntries.length) return;
+    final entry = _lastResolvedEntries[index];
+
+    // 非 page kind：直接触发对应回调，不改 _currentIndex
+    if (entry.kind == NavEntryKind.panel) {
+      _cancelPendingSingleTap();
+      entry.onPanelTap?.call(context, ref);
+      return;
+    }
+    if (entry.kind == NavEntryKind.action) {
+      _cancelPendingSingleTap();
+      entry.onAction?.call(context, ref);
+      return;
+    }
+
+    // page kind
+    final newPageIndex = _pageIndexOfBottom(index);
+    if (newPageIndex < 0) return;
+
     final now = DateTime.now();
 
     // 切换 tab：只记录时间戳，不走手势分流
-    if (index != _currentIndex) {
+    if (newPageIndex != _currentIndex) {
       _cancelPendingSingleTap();
       _lastTappedIndex = index;
       _lastTapTime = now;
       ref.read(barVisibilityProvider.notifier).state = 1.0;
-      setState(() => _currentIndex = index);
+      setState(() => _currentIndex = newPageIndex);
       return;
     }
 
@@ -653,8 +672,7 @@ class _MainPageState extends ConsumerState<MainPage>
     final hasDouble = doubleAction != NavTapAction.none;
     if (!hasSingle && !hasDouble) return;
 
-    final id = _navIdForIndex(index);
-    if (id.isEmpty) return;
+    final id = entry.id;
 
     final isDoubleTap = hasDouble &&
         _lastTappedIndex == index &&
@@ -662,7 +680,6 @@ class _MainPageState extends ConsumerState<MainPage>
         now.difference(_lastTapTime!).inMilliseconds < 300;
 
     if (isDoubleTap) {
-      // 互斥：取消 pending 单击，只触发双击
       _cancelPendingSingleTap();
       final navAction = doubleAction.toNavAction();
       if (navAction != null) {
@@ -673,17 +690,14 @@ class _MainPageState extends ConsumerState<MainPage>
       return;
     }
 
-    // 第一次点击
     _lastTappedIndex = index;
     _lastTapTime = now;
 
     if (!hasSingle) return;
-
     final navAction = single.toNavAction();
     if (navAction == null) return;
 
     if (hasDouble) {
-      // 两者都有：延迟 300ms 触发单击，等待可能的第二次点击
       _cancelPendingSingleTap();
       _pendingSingleTap = Timer(const Duration(milliseconds: 300), () {
         _pendingSingleTap = null;
@@ -695,7 +709,6 @@ class _MainPageState extends ConsumerState<MainPage>
         }
       });
     } else {
-      // 双击为 none：单击立即触发，零延迟
       ref.dispatchNavAction(id, navAction);
     }
   }
@@ -705,14 +718,17 @@ class _MainPageState extends ConsumerState<MainPage>
     _pendingSingleTap = null;
   }
 
-  String _navIdForIndex(int index) {
-    switch (index) {
-      case 0:
-        return NavEntryIds.home;
-      case 1:
-        return NavEntryIds.profile;
+  /// 底栏 index 对应的 page 维度 index；不是 page kind 返回 -1
+  int _pageIndexOfBottom(int bottomIndex) {
+    int pageIdx = 0;
+    for (int i = 0; i < _lastResolvedEntries.length; i++) {
+      final e = _lastResolvedEntries[i];
+      if (i == bottomIndex) {
+        return e.kind == NavEntryKind.page ? pageIdx : -1;
+      }
+      if (e.kind == NavEntryKind.page) pageIdx++;
     }
-    return '';
+    return -1;
   }
 
   @override
@@ -854,13 +870,50 @@ class _MainPageState extends ConsumerState<MainPage>
     final currentUserAsync = ref.watch(currentUserProvider);
     final user = currentUserAsync.value;
 
-    // 监听外部 tab 切换信号（快捷键触发）
+    // 从偏好读取底栏布局，按注册表解析为 entry 列表（含所有 kind）
+    final bottomNavIds = ref.watch(
+      preferencesProvider.select((p) => p.bottomNavIds),
+    );
+    final entries = _resolveEntries(bottomNavIds, user);
+    _lastResolvedEntries = entries;
+
+    // page kind 的子集用于 IndexedStack
+    final pageEntries =
+        entries.where((e) => e.kind == NavEntryKind.page).toList();
+
+    // _currentIndex 维度是 pageEntries；越界时 clamp
+    final safePageIndex = pageEntries.isEmpty
+        ? 0
+        : _currentIndex.clamp(0, pageEntries.length - 1);
+
+    // 底栏 selectedIndex 是当前激活 page 在 entries（含 panel/action）中的位置
+    final selectedBottomIndex = pageEntries.isEmpty
+        ? 0
+        : entries.indexOf(pageEntries[safePageIndex]);
+
+    // 监听外部 tab 切换信号（快捷键触发），index 维度是 pageEntries
     ref.listen(switchTabProvider, (_, index) {
-      if (index >= 0 && index != _currentIndex) {
+      if (index >= 0 &&
+          index < pageEntries.length &&
+          index != _currentIndex) {
         ref.read(barVisibilityProvider.notifier).state = 1.0;
         setState(() => _currentIndex = index);
       }
     });
+
+    final destinations = [
+      for (final e in entries)
+        AdaptiveDestination(
+          id: e.id,
+          icon: e.customIconBuilder != null
+              ? e.customIconBuilder!(context, ref)
+              : Icon(e.iconData),
+          selectedIcon: e.customSelectedIconBuilder != null
+              ? e.customSelectedIconBuilder!(context, ref)
+              : Icon(e.selectedIconData),
+          label: e.label(context),
+        ),
+    ];
 
     // 首页的 FAB 由 TopicsScreen 内部处理，避免切换时闪烁
     Widget page = PopScope(
@@ -881,15 +934,18 @@ class _MainPageState extends ConsumerState<MainPage>
         }
       },
       child: AdaptiveScaffold(
-        selectedIndex: _currentIndex,
+        selectedIndex: selectedBottomIndex,
         onDestinationSelected: _onDestinationSelected,
-        destinations: _buildDestinations(user),
+        destinations: destinations,
         railBottomLeading: user != null ? const NotificationIconButton() : null,
         body: IndexedStack(
-          index: _currentIndex,
+          index: safePageIndex,
           children: [
-            TopicsScreen(isActive: _currentIndex == 0),
-            ProfilePage(isActive: _currentIndex == 1),
+            for (int i = 0; i < pageEntries.length; i++)
+              KeyedSubtree(
+                key: ValueKey('nav-entry-${pageEntries[i].id}'),
+                child: pageEntries[i].pageBuilder!(context, safePageIndex == i),
+              ),
           ],
         ),
       ),
@@ -903,30 +959,37 @@ class _MainPageState extends ConsumerState<MainPage>
     return page;
   }
 
-  List<AdaptiveDestination> _buildDestinations(User? user) {
-    final avatarUrl = user?.getAvatarUrl();
-    final hasAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
-    final avatarWidget = hasAvatar
-        ? SmartAvatar(
-            imageUrl: avatarUrl,
-            radius: 12,
-            fallbackText: user?.username,
-          )
-        : null;
+  /// 按偏好的顺序解析 entry 列表（含所有 kind）
+  ///
+  /// - 移除注册表里不存在的 id
+  /// - 未登录时过滤掉 requiresLogin 的 entry
+  /// - 去重
+  /// - 补齐 locked entry（防御；正常情况编辑器已保证包含）
+  List<NavEntry> _resolveEntries(List<String> ids, User? user) {
+    final all = NavEntryRegistry.buildAll();
+    final byId = {for (final e in all) e.id: e};
+    final resolved = <NavEntry>[];
+    final seen = <String>{};
 
-    return [
-      AdaptiveDestination(
-        id: NavEntryIds.home,
-        icon: const Icon(Icons.home_outlined),
-        selectedIcon: const Icon(Icons.home),
-        label: S.current.nav_home,
-      ),
-      AdaptiveDestination(
-        id: NavEntryIds.profile,
-        icon: avatarWidget ?? const Icon(Icons.person_outline),
-        selectedIcon: avatarWidget ?? const Icon(Icons.person),
-        label: S.current.nav_mine,
-      ),
-    ];
+    for (final id in ids) {
+      final e = byId[id];
+      if (e == null) continue;
+      if (e.requiresLogin && user == null) continue;
+      if (seen.contains(id)) continue;
+      resolved.add(e);
+      seen.add(id);
+    }
+
+    // 补 locked（防御偏好被外部写坏）
+    for (final id in NavEntryRegistry.lockedIds()) {
+      if (seen.contains(id)) continue;
+      final e = byId[id];
+      if (e == null) continue;
+      if (e.requiresLogin && user == null) continue;
+      resolved.add(e);
+      seen.add(id);
+    }
+
+    return resolved;
   }
 }

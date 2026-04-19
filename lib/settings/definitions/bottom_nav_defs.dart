@@ -9,9 +9,8 @@ import '../settings_model.dart';
 
 /// 底栏设置数据声明
 ///
-/// 两个手势（单击 / 双击已选中 tab）都允许用户选择一个 [NavTapAction]。
-/// 当前动作列表：无 / 回到顶部 / 刷新。
-/// 未来扩展：打开通知面板、打开搜索、新建帖子等。
+/// 只负责"手势"分组（两个动作选择）。布局编辑 UI 在
+/// [BottomNavSettingsPage] 内手写，不走数据驱动渲染。
 List<SettingsGroup> buildBottomNavGroups(BuildContext context) {
   final l10n = context.l10n;
   return [

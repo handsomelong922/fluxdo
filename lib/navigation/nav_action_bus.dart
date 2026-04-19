@@ -133,15 +133,30 @@ extension NavActionDispatch on WidgetRef {
   }
 }
 
-/// 每个 tab 的"距顶进度"。页面按 id 更新，底栏 watch 用来切换图标。
+/// 每个 tab 的"距顶距离"（单位：像素）。页面按 id 更新，底栏 watch 用来切换图标。
 ///
-/// 值含义：
-///  - 0.0：当前在顶部（或距顶很近）
-///  - 1.0：已滚离顶部足够距离，可以显示动作图标
-///
-/// 页面侧建议用 `(offset / 220).clamp(0.0, 1.0)` 归一化。
+/// 原始像素数而非归一化 0-1，便于统一阈值在 [navScrollIconThreshold]。
 final navScrollProgressProvider =
     StateProvider.family<double, String>((ref, id) => 0.0);
+
+/// 底栏已选中 tab 的图标切换阈值（像素）
+///
+/// 滚动距顶 ≥ 此值时显示单击动作图标（↑ / ⟳），否则保持原 selectedIcon。
+/// 选 1000 让用户必须滚得比较深才会看到反馈，避免短滚动就抖动切换。
+const double navScrollIconThreshold = 1000.0;
+
+/// 显式重置某个 entry 的滚动进度为 0
+///
+/// 用于 refresh 动作后：刷新会替换 ListView 数据，内部 `correctPixels`
+/// 不会 fire ScrollNotification，[navScrollProgressProvider] 拿不到
+/// 实际已经 0 的事实，底栏图标会错误地停在"动作态"。
+extension NavScrollProgressReset on WidgetRef {
+  void resetNavScrollProgress(String id) {
+    final current = read(navScrollProgressProvider(id));
+    if (current == 0) return;
+    read(navScrollProgressProvider(id).notifier).state = 0.0;
+  }
+}
 
 /// 已注册的 entry id。未来扩展时加到这里。
 class NavEntryIds {
@@ -149,4 +164,9 @@ class NavEntryIds {
 
   static const String home = 'home';
   static const String profile = 'profile';
+  static const String bookmarks = 'bookmarks';
+  static const String history = 'history';
+  static const String drafts = 'drafts';
+  static const String notifications = 'notifications';
+  static const String messages = 'messages';
 }

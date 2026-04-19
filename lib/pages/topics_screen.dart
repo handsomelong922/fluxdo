@@ -142,6 +142,7 @@ class _TopicsScreenState extends ConsumerState<TopicsScreen> {
           ref.read(fabRefreshModeProvider.notifier).state = false;
           ref.read(scrollToTopProvider.notifier).trigger();
           ref.read(fabRefreshSignalProvider.notifier).trigger();
+          ref.resetNavScrollProgress(NavEntryIds.home);
           break;
       }
     });

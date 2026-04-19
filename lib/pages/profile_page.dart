@@ -157,12 +157,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   void _publishProfileScrollProgress() {
     final raw = _scrollController.offset;
-    final pixels = raw < 0 ? 0.0 : raw;
-    final progress = (pixels / 220.0).clamp(0.0, 1.0);
+    final progress = raw < 0 ? 0.0 : raw;
     final current = ref.read(navScrollProgressProvider(NavEntryIds.profile));
     final atZero = progress == 0 && current != 0;
-    final atOne = progress >= 1 && current < 1;
-    if (!atZero && !atOne && (progress - current).abs() < 0.02) return;
+    final crossed = (progress >= navScrollIconThreshold) !=
+        (current >= navScrollIconThreshold);
+    if (!atZero && !crossed && (progress - current).abs() < 4.0) return;
     ref.read(navScrollProgressProvider(NavEntryIds.profile).notifier).state =
         progress;
   }
@@ -339,6 +339,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             );
           }
           _refreshData();
+          ref.resetNavScrollProgress(NavEntryIds.profile);
           break;
       }
     });

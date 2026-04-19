@@ -345,10 +345,10 @@ class _AdaptiveBottomNavigationState
 /// 已选中 tab 的动态图标
 ///
 /// 根据 [navScrollProgressProvider] 和用户配置的 [NavTapAction] 决定显示：
-/// - 进度 < 阈值 或 单击动作为 none 或 动作无对应图标 → 显示默认 selectedIcon
-/// - 进度 ≥ 阈值 → 显示单击动作对应的反馈图标
+/// - 距顶 < 阈值 或 单击动作为 none 或 动作无对应图标 → 显示默认 selectedIcon
+/// - 距顶 ≥ [navScrollIconThreshold] → 显示单击动作对应的反馈图标
 ///
-/// 这样用户滚到某个深度后就能"预览"单击会发生什么，符合 Twitter/Telegram 的交互惯例。
+/// 这样用户滚到深处后就能"预览"单击会发生什么，符合 Twitter/Telegram 的交互惯例。
 /// 只应放在 NavigationBar 的 selectedIcon 位置（或侧栏 selected 状态下）。
 class _ActiveDestinationIcon extends ConsumerWidget {
   const _ActiveDestinationIcon({
@@ -359,9 +359,6 @@ class _ActiveDestinationIcon extends ConsumerWidget {
   final AdaptiveDestination dest;
   final Widget defaultIcon;
 
-  /// 进度阈值：用户滚过这个进度值后切换为动作图标
-  static const double _threshold = 0.3;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final progress = ref.watch(navScrollProgressProvider(dest.id));
@@ -370,8 +367,9 @@ class _ActiveDestinationIcon extends ConsumerWidget {
     );
 
     final actionIcon = action.icon;
-    final showActionIcon =
-        progress >= _threshold && action != NavTapAction.none && actionIcon != null;
+    final showActionIcon = progress >= navScrollIconThreshold &&
+        action != NavTapAction.none &&
+        actionIcon != null;
 
     final child = showActionIcon
         ? Icon(actionIcon, key: ValueKey('nav-action-${action.name}'))

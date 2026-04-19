@@ -5266,17 +5266,47 @@ abstract class AppLocalizations {
   /// **'元宇宙'**
   String get metaverse_title;
 
+  /// No description provided for @nav_bookmarks.
+  ///
+  /// In zh, this message translates to:
+  /// **'书签'**
+  String get nav_bookmarks;
+
+  /// No description provided for @nav_drafts.
+  ///
+  /// In zh, this message translates to:
+  /// **'草稿'**
+  String get nav_drafts;
+
+  /// No description provided for @nav_history.
+  ///
+  /// In zh, this message translates to:
+  /// **'浏览历史'**
+  String get nav_history;
+
   /// No description provided for @nav_home.
   ///
   /// In zh, this message translates to:
   /// **'首页'**
   String get nav_home;
 
+  /// No description provided for @nav_messages.
+  ///
+  /// In zh, this message translates to:
+  /// **'私信'**
+  String get nav_messages;
+
   /// No description provided for @nav_mine.
   ///
   /// In zh, this message translates to:
   /// **'我的'**
   String get nav_mine;
+
+  /// No description provided for @nav_notifications.
+  ///
+  /// In zh, this message translates to:
+  /// **'通知'**
+  String get nav_notifications;
 
   /// No description provided for @toast_authorizationFailed.
   ///
@@ -8332,6 +8362,18 @@ abstract class AppLocalizations {
   /// **'选择动作'**
   String get bottomNav_actionPickerTitle;
 
+  /// No description provided for @bottomNav_customizeLayout.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义底栏项'**
+  String get bottomNav_customizeLayout;
+
+  /// No description provided for @bottomNav_customizeLayoutDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择显示哪些入口、调整顺序'**
+  String get bottomNav_customizeLayoutDesc;
+
   /// No description provided for @bottomNav_doubleTapAction.
   ///
   /// In zh, this message translates to:
@@ -8343,6 +8385,78 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'300ms 内第二次点击时执行的动作'**
   String get bottomNav_doubleTapActionDesc;
+
+  /// No description provided for @bottomNav_editorAvailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'可添加'**
+  String get bottomNav_editorAvailable;
+
+  /// No description provided for @bottomNav_editorEmptyAvailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有可添加的入口'**
+  String get bottomNav_editorEmptyAvailable;
+
+  /// No description provided for @bottomNav_editorEnabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'已启用'**
+  String get bottomNav_editorEnabled;
+
+  /// No description provided for @bottomNav_editorEnabledHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count}/{max} 项，至少 {min} 项'**
+  String bottomNav_editorEnabledHint(int count, int min, int max);
+
+  /// No description provided for @bottomNav_editorLockedHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'必备项，不可移除'**
+  String get bottomNav_editorLockedHint;
+
+  /// No description provided for @bottomNav_editorMaxReached.
+  ///
+  /// In zh, this message translates to:
+  /// **'最多 {max} 项'**
+  String bottomNav_editorMaxReached(int max);
+
+  /// No description provided for @bottomNav_editorMinReached.
+  ///
+  /// In zh, this message translates to:
+  /// **'至少保留 {min} 项'**
+  String bottomNav_editorMinReached(int min);
+
+  /// No description provided for @bottomNav_editorPreviewHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'拖动调整顺序，首页始终保持在第一位'**
+  String get bottomNav_editorPreviewHint;
+
+  /// No description provided for @bottomNav_editorRequiresLogin.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要登录'**
+  String get bottomNav_editorRequiresLogin;
+
+  /// No description provided for @bottomNav_editorRestoreDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复默认'**
+  String get bottomNav_editorRestoreDefault;
+
+  /// No description provided for @bottomNav_editorRestoreDefaultConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定要恢复为默认布局吗？'**
+  String get bottomNav_editorRestoreDefaultConfirm;
+
+  /// No description provided for @bottomNav_editorTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'底栏布局'**
+  String get bottomNav_editorTitle;
 
   /// No description provided for @bottomNav_gesturesGroup.
   ///
