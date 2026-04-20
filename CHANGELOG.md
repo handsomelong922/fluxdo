@@ -1,5 +1,13 @@
 ## v0.2.9
 
+- chore: clean symlinks, fix build config and action permissions
+
+- feat(keyword-filter): add edit action and editAt service method
+
+- feat: add keyword filter core logic and UI, fix submodules CI
+
+- Initial import from local project
+
 
 - ✨ 对话框模糊性能优化
 
