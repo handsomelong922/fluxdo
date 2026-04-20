@@ -480,34 +480,26 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
         ? allPinnedIds.where((id) => visibleIds.contains(id)).toList()
         : allPinnedIds;
     final currentFilter = ref.watch(topicFilterProvider);
-    final sidebarCategoryId = ref.watch(activeSidebarCategoryIdProvider);
-
     _syncTabsIfNeeded(pinnedIds);
 
-    if (sidebarCategoryId == null && _currentTabIndex != 0) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _tabController.index == 0) return;
+    // 监听侧栏分类选中变化，同步切换 tab
+    ref.listen(activeSidebarCategoryIdProvider, (prev, next) {
+      if (next == null && _tabController.index != 0) {
         _tabController.animateTo(0);
-      });
-    } else if (sidebarCategoryId != null) {
-      final targetIndex = pinnedIds.indexOf(sidebarCategoryId);
-      if (targetIndex >= 0 && _currentTabIndex != targetIndex + 1) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          final latestVisibleIds = ref.read(visibleCategoryIdsProvider);
-          final latestPinnedIds = ref.read(pinnedCategoriesProvider);
-          final effectivePinnedIds = latestVisibleIds != null
-              ? latestPinnedIds
-                    .where((id) => latestVisibleIds.contains(id))
-                    .toList()
-              : latestPinnedIds;
-          final latestIndex = effectivePinnedIds.indexOf(sidebarCategoryId);
-          if (latestIndex >= 0 && _tabController.index != latestIndex + 1) {
-            _tabController.animateTo(latestIndex + 1);
-          }
-        });
+      } else if (next != null) {
+        final latestVisibleIds = ref.read(visibleCategoryIdsProvider);
+        final latestPinnedIds = ref.read(pinnedCategoriesProvider);
+        final effectivePinnedIds = latestVisibleIds != null
+            ? latestPinnedIds
+                  .where((id) => latestVisibleIds.contains(id))
+                  .toList()
+            : latestPinnedIds;
+        final targetIndex = effectivePinnedIds.indexOf(next);
+        if (targetIndex >= 0 && _tabController.index != targetIndex + 1) {
+          _tabController.animateTo(targetIndex + 1);
+        }
       }
-    }
+    });
 
     final currentCategoryId = _currentCategoryId(pinnedIds);
     final currentTags = ref.watch(tabTagsProvider(currentCategoryId));

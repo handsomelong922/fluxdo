@@ -130,7 +130,8 @@ class NotificationChannelNotifier extends Notifier<void> {
               }
             }
 
-            // 使用 recent 字段同步已有通知的已读状态（复刻 Discourse 逻辑）
+            // 使用 recent 字段同步通知列表（复刻 Discourse 逻辑）
+            // recent 同时承担：更新已读状态 + 移除过期通知
             final recent = data['recent'];
             if (recent is List) {
               final readStatusMap = <int, bool>{};
@@ -144,7 +145,7 @@ class NotificationChannelNotifier extends Notifier<void> {
                 }
               }
               if (readStatusMap.isNotEmpty) {
-                recentNotifier.updateReadStatus(readStatusMap);
+                recentNotifier.syncWithRecent(readStatusMap);
               }
             }
           }

@@ -45,6 +45,7 @@ import 'services/hcaptcha_accessibility_service.dart';
 import 'services/network/doh_proxy/proxy_certificate.dart';
 import 'services/cf_challenge_logger.dart';
 import 'services/cf_clearance_refresh_service.dart';
+import 'services/fingerprint_service.dart';
 import 'services/update_service.dart';
 import 'services/update_checker_helper.dart';
 import 'services/deep_link_service.dart';
@@ -232,7 +233,13 @@ Future<void> main() async {
 
   // 提前触发预加载数据请求，与 runApp 并行执行
   // PreheatGate 中的 ensureLoaded() 会复用这个已在进行的请求
-  PreloadedDataService().ensureLoaded().ignore();
+  unawaited(
+    PreloadedDataService().ensureLoaded().then((_) {
+      if (PreloadedDataService().currentUserSync != null) {
+        unawaited(FingerprintService.instance.collectAndReport());
+      }
+    }).catchError((Object _) {}),
+  );
 
   // 记录应用启动日志
   LogWriter.instance.write({
@@ -685,6 +692,8 @@ class _MainPageState extends ConsumerState<MainPage>
         BackgroundNotificationService().disable();
         MessageBusService().exitBackgroundMode();
         ref.invalidate(notificationListProvider);
+        // 检查 DOH 代理是否在后台期间失效，若失效则自动重启
+        NetworkSettingsService.instance.ensureProxyAlive();
         // 回到前台时主动检查连通性（等同 Discourse 的 visibilitychange）
         ConnectivityService().check();
         // 恢复 cf_clearance 自动续期监控

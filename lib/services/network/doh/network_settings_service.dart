@@ -565,6 +565,20 @@ class NetworkSettingsService {
     _touch();
   }
 
+  /// 检查代理是否仍然存活，若已意外停止则自动重启
+  ///
+  /// 用于 App 从后台恢复时调用：iOS 挂起进程后 Rust 代理的 TCP listener
+  /// 可能失效，需要检测并重启。
+  Future<void> ensureProxyAlive() async {
+    if (!shouldRunLocalProxy) return;
+    if (!_rustProxyService.isRunning) return;
+    final alive = await _rustProxyService.checkAlive();
+    if (!alive) {
+      debugPrint('[DOH] 代理已失效，自动重启');
+      await restartProxy();
+    }
+  }
+
   void _scheduleApplyProxyState() {
     _beginApply(enabled: shouldRunLocalProxy);
     _applyDebounce?.cancel();

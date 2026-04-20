@@ -490,6 +490,34 @@ class DohProxyService {
     return null;
   }
 
+  /// 检查代理是否真正存活（通过 FFI 查询 Rust 侧状态）
+  ///
+  /// iOS 进入后台时系统会挂起进程，Rust 代理的 TCP listener 可能失效，
+  /// 但 Dart 侧的 [_isRunning] 标志位不会自动更新。
+  /// 此方法通过 FFI 查询 Rust 侧的实际运行状态来检测这种不一致。
+  ///
+  /// 返回 true 表示代理正常运行，false 表示已停止或状态不一致。
+  Future<bool> checkAlive() async {
+    if (!_isRunning) return false;
+    if (!DohProxyFfi.isAvailable) {
+      // 进程模式：检查进程是否存活
+      return _process != null;
+    }
+    try {
+      final status = await _callFfiStatus();
+      final running = status['running'] as bool? ?? false;
+      if (!running) {
+        // Rust 侧已停止，同步 Dart 侧状态
+        NetworkLogger.log('[DOH] 健康检查: Rust 代理已停止，同步 Dart 状态');
+        _cleanup();
+      }
+      return running;
+    } catch (e) {
+      NetworkLogger.log('[DOH] 健康检查异常: $e');
+      return false;
+    }
+  }
+
   /// 获取代理 URL（用于配置 HTTP 客户端）
   String? get proxyUrl {
     if (_isRunning && _port != null) {

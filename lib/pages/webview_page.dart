@@ -1,4 +1,5 @@
 import 'dart:io' as io;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -55,6 +56,11 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
   bool _canGoForward = false;
   late final Future<void> _cookieSyncFuture;
 
+  /// 对话框期间用静态截图盖住 WebView，避免 BackdropFilter 对
+  /// hybrid composition（Android）/HWND（Windows）实时回读造成卡顿。
+  Uint8List? _webViewSnapshot;
+
+
   @override
   void initState() {
     super.initState();
@@ -88,6 +94,7 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
         await _handleBackNavigation();
       },
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         appBar: AppBar(
           title: GestureDetector(
             onTap: _showUrlInput,
@@ -229,98 +236,131 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
                     backgroundColor: theme.colorScheme.surfaceContainerHighest,
                   ),
                 Expanded(
-                  child: WebViewSettings.wrapWithScrollFix(
-                    InAppWebView(
-                      webViewEnvironment: windowsWebViewEnvironment,
-                      // Windows：不自动加载 URL，先在 onWebViewCreated 中写入 cookie
-                      initialUrlRequest:
-                          (!io.Platform.isWindows && widget.url.isNotEmpty)
-                          ? URLRequest(url: WebUri(widget.url))
-                          : null,
-                      initialSettings: WebViewSettings.visible
-                        ..useShouldOverrideUrlLoading = true,
-                      initialUserScripts: WebViewSettings.ios15PolyfillScripts,
-                      shouldOverrideUrlLoading: _shouldOverrideUrlLoading,
-                      onReceivedServerTrustAuthRequest: (_, challenge) =>
-                          WebViewSettings.handleServerTrustAuthRequest(
-                            challenge,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Offstage(
+                        offstage: _webViewSnapshot != null,
+                        child: WebViewSettings.wrapWithScrollFix(
+                      InAppWebView(
+                            webViewEnvironment: windowsWebViewEnvironment,
+                            // Windows：不自动加载 URL，先在 onWebViewCreated 中写入 cookie
+                            initialUrlRequest:
+                                (!io.Platform.isWindows && widget.url.isNotEmpty)
+                                ? URLRequest(url: WebUri(widget.url))
+                                : null,
+                            initialSettings: WebViewSettings.visible
+                              ..useShouldOverrideUrlLoading = true,
+                            initialUserScripts:
+                                WebViewSettings.ios15PolyfillScripts,
+                            shouldOverrideUrlLoading:
+                                _shouldOverrideUrlLoading,
+                            onReceivedServerTrustAuthRequest: (_, challenge) =>
+                                WebViewSettings.handleServerTrustAuthRequest(
+                                  challenge,
+                                ),
+                            onWebViewCreated: (controller) async {
+                              _controller = controller;
+                              if (io.Platform.isWindows &&
+                                  widget.url.isNotEmpty) {
+                                await RawSetCookieQueue.instance
+                                    .flushToWebView();
+                                await controller.loadUrl(
+                                  urlRequest:
+                                      URLRequest(url: WebUri(widget.url)),
+                                );
+                              }
+                              // Android: 启用 WebAuthn/PassKey 支持
+                              if (io.Platform.isAndroid) {
+                                WidgetsBinding.instance
+                                    .addPostFrameCallback((_) {
+                                  const MethodChannel('com.fluxdo/webauthn')
+                                      .invokeMethod('enableWebAuthentication');
+                                });
+                              }
+                            },
+                            onLoadStart: (controller, url) {
+                              setState(() {
+                                _isLoading = true;
+                                _currentUrl = url?.toString() ?? '';
+                              });
+                            },
+                            onProgressChanged: (controller, progress) {
+                              setState(() => _progress = progress / 100);
+                            },
+                            onLoadStop: (controller, url) async {
+                              setState(() => _isLoading = false);
+                              await WebViewSettings.injectScrollFix(controller);
+                              final title = await controller.getTitle();
+                              final canGoBack = await controller.canGoBack();
+                              final canGoForward =
+                                  await controller.canGoForward();
+                              final urlString = url?.toString();
+                              setState(() {
+                                _currentUrl = urlString ?? '';
+                                _canGoBack = canGoBack;
+                                _canGoForward = canGoForward;
+                                if (title != null && title.isNotEmpty) {
+                                  _currentTitle = title;
+                                }
+                              });
+                              if (widget.injectCss != null) {
+                                await controller.injectCSSCode(
+                                  source: widget.injectCss!,
+                                );
+                              }
+                              // 记录浏览历史
+                              if (urlString != null && urlString.isNotEmpty) {
+                                ref
+                                    .read(webHistoryProvider.notifier)
+                                    .record(urlString, _currentTitle);
+                              }
+                            },
+                            onUpdateVisitedHistory:
+                                (controller, url, isReload) async {
+                                  final canGoBack =
+                                      await controller.canGoBack();
+                                  final canGoForward =
+                                      await controller.canGoForward();
+                                  final urlString = url?.toString();
+                                  setState(() {
+                                    _currentUrl = urlString ?? '';
+                                    _canGoBack = canGoBack;
+                                    _canGoForward = canGoForward;
+                                  });
+                                },
+                            onTitleChanged: (controller, title) {
+                              if (title != null && title.isNotEmpty) {
+                                setState(() => _currentTitle = title);
+                              }
+                            },
+                            onDownloadStartRequest: (controller, request) {
+                              final url = request.url.toString();
+                              ref
+                                  .read(downloadProvider.notifier)
+                                  .startDownload(
+                                    url: url,
+                                    suggestedFilename:
+                                        request.suggestedFilename,
+                                    mimeType: request.mimeType,
+                                    contentLength: request.contentLength,
+                                  );
+                            },
                           ),
-                      onWebViewCreated: (controller) async {
-                        _controller = controller;
-                        if (io.Platform.isWindows && widget.url.isNotEmpty) {
-                          // Windows：在 onWebViewCreated 中 flush cookie 后再加载 URL
-                          await RawSetCookieQueue.instance.flushToWebView();
-                          await controller.loadUrl(
-                            urlRequest: URLRequest(url: WebUri(widget.url)),
-                          );
-                        }
-                      },
-                      onLoadStart: (controller, url) {
-                        setState(() {
-                          _isLoading = true;
-                          _currentUrl = url?.toString() ?? '';
-                        });
-                      },
-                      onProgressChanged: (controller, progress) {
-                        setState(() => _progress = progress / 100);
-                      },
-                      onLoadStop: (controller, url) async {
-                        setState(() => _isLoading = false);
-                        await WebViewSettings.injectScrollFix(controller);
-                        final title = await controller.getTitle();
-                        final canGoBack = await controller.canGoBack();
-                        final canGoForward = await controller.canGoForward();
-                        final urlString = url?.toString();
-                        setState(() {
-                          _currentUrl = urlString ?? '';
-                          _canGoBack = canGoBack;
-                          _canGoForward = canGoForward;
-                          if (title != null && title.isNotEmpty) {
-                            _currentTitle = title;
-                          }
-                        });
-                        if (widget.injectCss != null) {
-                          await controller.injectCSSCode(
-                            source: widget.injectCss!,
-                          );
-                        }
-                        // 记录浏览历史
-                        if (urlString != null && urlString.isNotEmpty) {
-                          ref
-                              .read(webHistoryProvider.notifier)
-                              .record(urlString, _currentTitle);
-                        }
-                      },
-                      onUpdateVisitedHistory:
-                          (controller, url, isReload) async {
-                            final canGoBack = await controller.canGoBack();
-                            final canGoForward = await controller
-                                .canGoForward();
-                            final urlString = url?.toString();
-                            setState(() {
-                              _currentUrl = urlString ?? '';
-                              _canGoBack = canGoBack;
-                              _canGoForward = canGoForward;
-                            });
-                          },
-                      onTitleChanged: (controller, title) {
-                        if (title != null && title.isNotEmpty) {
-                          setState(() => _currentTitle = title);
-                        }
-                      },
-                      onDownloadStartRequest: (controller, request) {
-                        final url = request.url.toString();
-                        ref
-                            .read(downloadProvider.notifier)
-                            .startDownload(
-                              url: url,
-                              suggestedFilename: request.suggestedFilename,
-                              mimeType: request.mimeType,
-                              contentLength: request.contentLength,
-                            );
-                      },
-                    ),
-                    getController: () => _controller,
+                          getController: () => _controller,
+                        ),
+                      ),
+                      if (_webViewSnapshot != null)
+                        Positioned.fill(
+                          child: RepaintBoundary(
+                            child: Image.memory(
+                              _webViewSnapshot!,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: true,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ],
@@ -400,43 +440,64 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
     }
   }
 
-  void _showUrlInput() {
-    final controller = TextEditingController(text: _currentUrl);
-    showAppDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(S.current.webview_inputUrl),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.url,
-          decoration: InputDecoration(
-            hintText: 'https://',
-            suffixIcon: IconButton(
-              icon: const Icon(Icons.clear, size: 18),
-              onPressed: () => controller.clear(),
+  /// 弹出 URL 输入对话框。
+  ///
+  /// 为避免 BackdropFilter 对实时 WebView 做高斯模糊导致的掉帧，
+  /// 先截图盖在 WebView 之上，让对话框模糊的是静态图像。
+  /// 截图覆盖后 WebView 也不再持有 InputConnection，键盘可立即弹出。
+  Future<void> _showUrlInput() async {
+    final snapshot = await _controller?.takeScreenshot();
+    if (!mounted) return;
+    if (snapshot != null) {
+      setState(() => _webViewSnapshot = snapshot);
+    }
+
+    final textController = TextEditingController(text: _currentUrl);
+    final focusNode = FocusNode();
+    try {
+      await showAppDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(S.current.webview_inputUrl),
+          content: TextField(
+            controller: textController,
+            focusNode: focusNode,
+            autofocus: true,
+            keyboardType: TextInputType.url,
+            decoration: InputDecoration(
+              hintText: 'https://',
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.clear, size: 18),
+                onPressed: () => textController.clear(),
+              ),
             ),
-          ),
-          onSubmitted: (value) {
-            Navigator.pop(ctx);
-            _navigateToUrl(value);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(S.current.common_cancel),
-          ),
-          FilledButton(
-            onPressed: () {
+            onSubmitted: (value) {
               Navigator.pop(ctx);
-              _navigateToUrl(controller.text);
+              _navigateToUrl(value);
             },
-            child: Text(S.current.webview_go),
           ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(S.current.common_cancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _navigateToUrl(textController.text);
+              },
+              child: Text(S.current.webview_go),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      focusNode.dispose();
+      textController.dispose();
+      if (mounted && _webViewSnapshot != null) {
+        setState(() => _webViewSnapshot = null);
+      }
+    }
   }
 
   void _navigateToUrl(String input) {
