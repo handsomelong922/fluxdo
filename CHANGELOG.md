@@ -1,3 +1,28 @@
+## v0.2.9.1
+
+
+
+- ✨ 对话框模糊性能优化
+
+
+- ✨ PassKey 支持
+
+- ✨ 内置浏览器网址输入弹框优化
+
+- ✨ 请求添加 Discourse-Present 头
+
+- ✨ 内置浏览器性能优化
+
+- ✨ 添加指纹上报
+
+- ✨ 优化 DOH 保活检测
+
+- 🐛 修复一些无感知异常
+
+- ✨ 优化通知列表更新逻辑
+
+- ♻️ 代码优化
+
 ## v0.2.9
 
 - chore: clean symlinks, fix build config and action permissions
