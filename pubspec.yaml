@@ -1,7 +1,7 @@
 name: fluxdo
 description: "A new Flutter project."
 publish_to: 'none'
-version: 0.2.10+2026042019
+version: 0.2.11+2026042020
 
 environment:
   sdk: ^3.10.4
@@ -123,6 +123,7 @@ flutter:
     - family: MiSans
       fonts:
         - asset: assets/fonts/MiSans-Regular.ttf
+
 
 
 
