@@ -1,3 +1,9 @@
+## v0.2.10
+
+
+- 🐛 修复 macOS 下 per-device CA 未启用导致 WKWebView 证书验证失败 (#228)
+
+
 ## v0.2.9
 
 
