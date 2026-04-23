@@ -1,3 +1,33 @@
+## v0.2.12
+
+
+- ✨ 树形视图界面优化
+
+- 🐛 树形视图 404 修复
+
+
+## v0.2.11
+
+
+
+- ✨ 帖子 details 性能优化
+
+- ✨ 帖子 policy 内容支持
+
+- ✨ 贴内时间内容支持，close #202
+
+- ✨ 顶栏自定义布局支持
+
+- 🐛 Android PassKey 修复
+
+- ✨ 添加底栏设置
+
+## v0.2.10
+
+
+- 🐛 修复 macOS 下 per-device CA 未启用导致 WKWebView 证书验证失败 (#228)
+
+
 ## v0.2.9
 
 - chore: clean symlinks, fix build config and action permissions
