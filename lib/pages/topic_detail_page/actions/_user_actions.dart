@@ -473,5 +473,6 @@ extension _UserActions on _TopicDetailPageState {
   /// 切换嵌套视图
   void _toggleNestedView() {
     setState(() => _isNestedView = !_isNestedView);
+    _scheduleCheckTitleVisibility();
   }
 }

@@ -9,6 +9,10 @@ class NestedPostAvatar extends StatelessWidget {
   final String username;
   static const double size = 24.0;
 
+  static String resolveUrl(String avatarTemplate) {
+    return UrlHelper.resolveUrlWithCdn(avatarTemplate.replaceAll('{size}', '48'));
+  }
+
   const NestedPostAvatar({
     super.key,
     required this.avatarTemplate,

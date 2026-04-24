@@ -6514,6 +6514,42 @@ abstract class AppLocalizations {
   /// **'继续此主题'**
   String get nested_continueThread;
 
+  /// No description provided for @nested_defaultView.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认使用树形视图'**
+  String get nested_defaultView;
+
+  /// No description provided for @nested_defaultViewDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'进入话题时自动切换到树形视图'**
+  String get nested_defaultViewDesc;
+
+  /// No description provided for @nested_lineStyle.
+  ///
+  /// In zh, this message translates to:
+  /// **'树形连接线样式'**
+  String get nested_lineStyle;
+
+  /// No description provided for @nested_lineStyleAuto.
+  ///
+  /// In zh, this message translates to:
+  /// **'自适应'**
+  String get nested_lineStyleAuto;
+
+  /// No description provided for @nested_lineStyleL.
+  ///
+  /// In zh, this message translates to:
+  /// **'L 形连接线'**
+  String get nested_lineStyleL;
+
+  /// No description provided for @nested_lineStyleStraight.
+  ///
+  /// In zh, this message translates to:
+  /// **'简化竖线'**
+  String get nested_lineStyleStraight;
+
   /// No description provided for @poll_closed.
   ///
   /// In zh, this message translates to:

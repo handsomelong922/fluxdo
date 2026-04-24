@@ -3535,6 +3535,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nested_continueThread => 'Continue this thread';
 
   @override
+  String get nested_defaultView => 'Default to threaded view';
+
+  @override
+  String get nested_defaultViewDesc =>
+      'Automatically switch to threaded view when opening a topic';
+
+  @override
+  String get nested_lineStyle => 'Thread connector style';
+
+  @override
+  String get nested_lineStyleAuto => 'Adaptive';
+
+  @override
+  String get nested_lineStyleL => 'L-shaped connectors';
+
+  @override
+  String get nested_lineStyleStraight => 'Simple vertical lines';
+
+  @override
   String get poll_closed => 'Closed';
 
   @override

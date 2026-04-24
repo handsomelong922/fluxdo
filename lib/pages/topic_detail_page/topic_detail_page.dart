@@ -188,6 +188,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           }
         });
 
+    _isNestedView = ref.read(preferencesProvider).defaultNestedView;
+
     final trackEnabled = ref.read(currentUserProvider).value != null;
     _topicSearchNotifier = ref.read(
       topicSearchProvider(widget.topicId).notifier,
@@ -431,10 +433,20 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final ctx = _headerKey.currentContext;
 
     if (ctx == null) {
-      if (_hasFirstPost) {
-        _showTitleNotifier.value = true;
+      // header 不在视图中（未加载或滚动到了远处）
+      // 如果滚动位置在顶部附近（比如刚切换视图模式），header 很快就会出现，
+      // 先设为不可见状态，等 header 渲染后由滚动事件再次触发更新
+      final atTop = _controller.scrollController.hasClients &&
+          _controller.scrollController.offset <= barHeight;
+      if (atTop) {
+        _showTitleNotifier.value = false;
+        _isScrolledUnderNotifier.value = false;
+      } else {
+        if (_hasFirstPost) {
+          _showTitleNotifier.value = true;
+        }
+        _isScrolledUnderNotifier.value = true;
       }
-      _isScrolledUnderNotifier.value = true;
     } else {
       final box = ctx.findRenderObject() as RenderBox?;
       if (box != null && box.hasSize) {

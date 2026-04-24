@@ -3446,6 +3446,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get nested_continueThread => '继续此主题';
 
   @override
+  String get nested_defaultView => '默认使用树形视图';
+
+  @override
+  String get nested_defaultViewDesc => '进入话题时自动切换到树形视图';
+
+  @override
+  String get nested_lineStyle => '树形连接线样式';
+
+  @override
+  String get nested_lineStyleAuto => '自适应';
+
+  @override
+  String get nested_lineStyleL => 'L 形连接线';
+
+  @override
+  String get nested_lineStyleStraight => '简化竖线';
+
+  @override
   String get poll_closed => '已关闭';
 
   @override

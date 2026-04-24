@@ -10,6 +10,20 @@ import '../services/cf_clearance_refresh_service.dart';
 import '../services/network/cookie/android_cdp_feature.dart';
 import 'theme_provider.dart';
 
+/// 嵌套视图连接线样式
+enum NestedLineStyle {
+  auto, // 自适应（移动端竖线，桌面端 L 线）
+  lLine, // 始终 L 形连接线
+  straight; // 始终简化竖线
+
+  static NestedLineStyle fromString(String? value) {
+    return NestedLineStyle.values.firstWhere(
+      (e) => e.name == value,
+      orElse: () => NestedLineStyle.auto,
+    );
+  }
+}
+
 class AppPreferences {
   final bool autoPanguSpacing;
   /// 阅读时自动优化中英文混排间距
@@ -41,6 +55,10 @@ class AppPreferences {
   final bool aiSwipeEntry;
   /// 对话框背景高斯模糊
   final bool dialogBlur;
+  /// 默认使用树形视图
+  final bool defaultNestedView;
+  /// 嵌套视图连接线样式
+  final NestedLineStyle nestedLineStyle;
   /// 最大并发请求数
   final int maxConcurrent;
   /// 滑动窗口内最大请求数
@@ -72,6 +90,8 @@ class AppPreferences {
     required this.expandRelatedLinks,
     required this.aiSwipeEntry,
     required this.dialogBlur,
+    this.defaultNestedView = false,
+    this.nestedLineStyle = NestedLineStyle.auto,
     required this.maxConcurrent,
     required this.maxPerWindow,
     required this.windowSeconds,
@@ -98,6 +118,8 @@ class AppPreferences {
     bool? expandRelatedLinks,
     bool? aiSwipeEntry,
     bool? dialogBlur,
+    bool? defaultNestedView,
+    NestedLineStyle? nestedLineStyle,
     int? maxConcurrent,
     int? maxPerWindow,
     int? windowSeconds,
@@ -124,6 +146,8 @@ class AppPreferences {
       expandRelatedLinks: expandRelatedLinks ?? this.expandRelatedLinks,
       aiSwipeEntry: aiSwipeEntry ?? this.aiSwipeEntry,
       dialogBlur: dialogBlur ?? this.dialogBlur,
+      defaultNestedView: defaultNestedView ?? this.defaultNestedView,
+      nestedLineStyle: nestedLineStyle ?? this.nestedLineStyle,
       maxConcurrent: maxConcurrent ?? this.maxConcurrent,
       maxPerWindow: maxPerWindow ?? this.maxPerWindow,
       windowSeconds: windowSeconds ?? this.windowSeconds,
@@ -156,6 +180,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _expandRelatedLinksKey = 'pref_expand_related_links';
   static const String _aiSwipeEntryKey = 'pref_ai_swipe_entry';
   static const String _dialogBlurKey = 'pref_dialog_blur';
+  static const String _defaultNestedViewKey = 'pref_default_nested_view';
+  static const String _nestedLineStyleKey = 'pref_nested_line_style';
   static const String _maxConcurrentKey = 'pref_max_concurrent';
   static const String _maxPerWindowKey = 'pref_max_per_window';
   static const String _windowSecondsKey = 'pref_window_seconds';
@@ -191,6 +217,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
                 _prefs.getBool(_expandRelatedLinksKey) ?? false,
             aiSwipeEntry: _prefs.getBool(_aiSwipeEntryKey) ?? false,
             dialogBlur: _prefs.getBool(_dialogBlurKey) ?? true,
+            defaultNestedView: _prefs.getBool(_defaultNestedViewKey) ?? false,
+            nestedLineStyle: NestedLineStyle.fromString(_prefs.getString(_nestedLineStyleKey)),
             maxConcurrent: _prefs.getInt(_maxConcurrentKey) ?? 3,
             maxPerWindow: _prefs.getInt(_maxPerWindowKey) ?? 6,
             windowSeconds: _prefs.getInt(_windowSecondsKey) ?? 3,
@@ -312,6 +340,16 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setDialogBlur(bool enabled) async {
     state = state.copyWith(dialogBlur: enabled);
     await _prefs.setBool(_dialogBlurKey, enabled);
+  }
+
+  Future<void> setDefaultNestedView(bool enabled) async {
+    state = state.copyWith(defaultNestedView: enabled);
+    await _prefs.setBool(_defaultNestedViewKey, enabled);
+  }
+
+  Future<void> setNestedLineStyle(NestedLineStyle style) async {
+    state = state.copyWith(nestedLineStyle: style);
+    await _prefs.setString(_nestedLineStyleKey, style.name);
   }
 
   Future<void> setMaxConcurrent(int value) async {

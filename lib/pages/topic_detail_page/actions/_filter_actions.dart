@@ -38,7 +38,10 @@ extension _FilterActions on _TopicDetailPageState {
         await notifier.cancelFilterAndReloadWithPostNumber(postNumber);
       }
     } finally {
-      if (mounted) setState(() => _isSwitchingMode = false);
+      if (mounted) {
+        setState(() => _isSwitchingMode = false);
+        _scheduleCheckTitleVisibility();
+      }
     }
   }
 
@@ -77,6 +80,7 @@ extension _FilterActions on _TopicDetailPageState {
 
     if (mounted) {
       setState(() => _isSwitchingMode = false);
+      _scheduleCheckTitleVisibility();
     }
   }
 
@@ -84,6 +88,7 @@ extension _FilterActions on _TopicDetailPageState {
     // 嵌套模式：直接退出，不需要重新加载
     if (_isNestedView) {
       setState(() => _isNestedView = false);
+      _scheduleCheckTitleVisibility();
       return;
     }
 
@@ -100,6 +105,7 @@ extension _FilterActions on _TopicDetailPageState {
 
     if (mounted) {
       setState(() => _isSwitchingMode = false);
+      _scheduleCheckTitleVisibility();
     }
   }
 
@@ -118,6 +124,7 @@ extension _FilterActions on _TopicDetailPageState {
     } finally {
       if (mounted) {
         setState(() => _isSwitchingMode = false);
+        _scheduleCheckTitleVisibility();
       }
     }
   }
@@ -140,6 +147,7 @@ extension _FilterActions on _TopicDetailPageState {
 
     if (mounted) {
       setState(() => _isSwitchingMode = false);
+      _scheduleCheckTitleVisibility();
     }
   }
 
