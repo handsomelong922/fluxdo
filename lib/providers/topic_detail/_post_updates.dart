@@ -12,7 +12,11 @@ extension PostUpdateMethods on TopicDetailNotifier {
 
   /// 刷新单个帖子（用于 MessageBus revised/acted 等消息）
   /// 与 Discourse 官方一致，使用 /posts/{id}.json 单帖接口获取完整数据
-  Future<void> refreshPost(int postId, {bool preserveCooked = false, DateTime? updatedAt}) async {
+  Future<void> refreshPost(
+    int postId, {
+    bool preserveCooked = false,
+    DateTime? updatedAt,
+  }) async {
     final currentDetail = state.value;
     if (currentDetail == null) return;
 
@@ -21,7 +25,8 @@ extension PostUpdateMethods on TopicDetailNotifier {
     if (index == -1) return;
 
     // 对齐 Discourse 官方：只在 updated_at 更新时才请求
-    if (updatedAt != null && !currentPosts[index].updatedAt.isBefore(updatedAt)) {
+    if (updatedAt != null &&
+        !currentPosts[index].updatedAt.isBefore(updatedAt)) {
       return;
     }
 
@@ -49,7 +54,11 @@ extension PostUpdateMethods on TopicDetailNotifier {
   }
 
   /// 将获取到的帖子数据应用到 state
-  void _applyPostUpdate(int postId, Post updatedPost, {bool preserveCooked = false}) {
+  void _applyPostUpdate(
+    int postId,
+    Post updatedPost, {
+    bool preserveCooked = false,
+  }) {
     final currentDetail = state.value;
     if (currentDetail == null) return;
     final currentPosts = currentDetail.postStream.posts;
@@ -69,19 +78,24 @@ extension PostUpdateMethods on TopicDetailNotifier {
           )
         : updatedPost;
 
+    final filteredPost = _applyUserFilterToPost(mergedPost);
+
     final finalPost = preserveCooked
-        ? mergedPost.copyWith(
-            cooked: oldPost.cooked,
-            read: oldPost.read,
-          )
-        : mergedPost;
+        ? filteredPost.copyWith(cooked: oldPost.cooked, read: oldPost.read)
+        : filteredPost;
 
     final newPosts = [...currentPosts];
     newPosts[index] = finalPost;
 
-    state = AsyncValue.data(currentDetail.copyWith(
-      postStream: PostStream(posts: newPosts, stream: currentDetail.postStream.stream, gaps: currentDetail.postStream.gaps),
-    ));
+    state = AsyncValue.data(
+      currentDetail.copyWith(
+        postStream: PostStream(
+          posts: newPosts,
+          stream: currentDetail.postStream.stream,
+          gaps: currentDetail.postStream.gaps,
+        ),
+      ),
+    );
   }
 
   /// 从列表中移除帖子（用于 MessageBus destroyed 消息）
@@ -94,12 +108,20 @@ extension PostUpdateMethods on TopicDetailNotifier {
 
     if (newPosts.length == currentPosts.length) return;
 
-    final newStream = currentDetail.postStream.stream.where((id) => id != postId).toList();
+    final newStream = currentDetail.postStream.stream
+        .where((id) => id != postId)
+        .toList();
 
-    state = AsyncValue.data(currentDetail.copyWith(
-      postsCount: currentDetail.postsCount - 1,
-      postStream: PostStream(posts: newPosts, stream: newStream, gaps: currentDetail.postStream.gaps),
-    ));
+    state = AsyncValue.data(
+      currentDetail.copyWith(
+        postsCount: currentDetail.postsCount - 1,
+        postStream: PostStream(
+          posts: newPosts,
+          stream: newStream,
+          gaps: currentDetail.postStream.gaps,
+        ),
+      ),
+    );
   }
 
   /// 标记帖子被删除（用于 MessageBus deleted 消息）
@@ -122,11 +144,18 @@ extension PostUpdateMethods on TopicDetailNotifier {
   }
 
   /// 更新单个帖子的点赞/回应状态
-  void updatePostReaction(int postId, List<PostReaction> reactions, PostReaction? currentUserReaction) {
-    _updatePostById(postId, (post) => post.copyWith(
-      reactions: reactions,
-      currentUserReaction: currentUserReaction,
-    ));
+  void updatePostReaction(
+    int postId,
+    List<PostReaction> reactions,
+    PostReaction? currentUserReaction,
+  ) {
+    _updatePostById(
+      postId,
+      (post) => post.copyWith(
+        reactions: reactions,
+        currentUserReaction: currentUserReaction,
+      ),
+    );
   }
 
   /// 更新帖子的解决方案状态
@@ -142,10 +171,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
           canUnacceptAnswer: accepted,
         );
       } else if (accepted && post.acceptedAnswer) {
-        return post.copyWith(
-          acceptedAnswer: false,
-          canUnacceptAnswer: false,
-        );
+        return post.copyWith(acceptedAnswer: false, canUnacceptAnswer: false);
       }
       return post;
     }).toList();
@@ -156,17 +182,25 @@ extension PostUpdateMethods on TopicDetailNotifier {
       acceptedPostNumber = acceptedPost.postNumber;
     }
 
-    state = AsyncValue.data(currentDetail.copyWith(
-      postStream: PostStream(posts: newPosts, stream: currentDetail.postStream.stream, gaps: currentDetail.postStream.gaps),
-      hasAcceptedAnswer: accepted,
-      acceptedAnswerPostNumber: acceptedPostNumber,
-    ));
+    state = AsyncValue.data(
+      currentDetail.copyWith(
+        postStream: PostStream(
+          posts: newPosts,
+          stream: currentDetail.postStream.stream,
+          gaps: currentDetail.postStream.gaps,
+        ),
+        hasAcceptedAnswer: accepted,
+        acceptedAnswerPostNumber: acceptedPostNumber,
+      ),
+    );
   }
 
   /// 添加新创建的帖子到列表（用于回复后直接更新）
   bool addPost(Post post) {
     final currentDetail = state.value;
     if (currentDetail == null) return false;
+
+    post = _applyUserFilterToPost(post);
 
     final currentPosts = currentDetail.postStream.posts;
 
@@ -183,10 +217,16 @@ extension PostUpdateMethods on TopicDetailNotifier {
 
       final newPostsCount = currentDetail.postsCount + 1;
 
-      state = AsyncValue.data(currentDetail.copyWith(
-        postsCount: newPostsCount,
-        postStream: PostStream(posts: newPosts, stream: newStream, gaps: currentDetail.postStream.gaps),
-      ));
+      state = AsyncValue.data(
+        currentDetail.copyWith(
+          postsCount: newPostsCount,
+          postStream: PostStream(
+            posts: newPosts,
+            stream: newStream,
+            gaps: currentDetail.postStream.gaps,
+          ),
+        ),
+      );
 
       // 从 API 刷新被回复帖子以获取正确的 replyCount（避免与 MessageBus 路径重复递增）
       if (post.replyToPostNumber > 0) {
@@ -195,10 +235,16 @@ extension PostUpdateMethods on TopicDetailNotifier {
 
       return true;
     } else {
-      state = AsyncValue.data(currentDetail.copyWith(
-        postsCount: currentDetail.postsCount + 1,
-        postStream: PostStream(posts: currentPosts, stream: newStream, gaps: currentDetail.postStream.gaps),
-      ));
+      state = AsyncValue.data(
+        currentDetail.copyWith(
+          postsCount: currentDetail.postsCount + 1,
+          postStream: PostStream(
+            posts: currentPosts,
+            stream: newStream,
+            gaps: currentDetail.postStream.gaps,
+          ),
+        ),
+      );
       return false;
     }
   }
@@ -221,6 +267,8 @@ extension PostUpdateMethods on TopicDetailNotifier {
     final currentDetail = state.value;
     if (currentDetail == null) return;
 
+    post = _applyUserFilterToPost(post);
+
     final currentPosts = currentDetail.postStream.posts;
     final index = currentPosts.indexWhere((p) => p.id == post.id);
     if (index == -1) return;
@@ -228,9 +276,15 @@ extension PostUpdateMethods on TopicDetailNotifier {
     final newPosts = [...currentPosts];
     newPosts[index] = post;
 
-    state = AsyncValue.data(currentDetail.copyWith(
-      postStream: PostStream(posts: newPosts, stream: currentDetail.postStream.stream, gaps: currentDetail.postStream.gaps),
-    ));
+    state = AsyncValue.data(
+      currentDetail.copyWith(
+        postStream: PostStream(
+          posts: newPosts,
+          stream: currentDetail.postStream.stream,
+          gaps: currentDetail.postStream.gaps,
+        ),
+      ),
+    );
   }
 
   /// 更新话题信息（用于编辑话题后直接更新）
@@ -250,16 +304,24 @@ extension PostUpdateMethods on TopicDetailNotifier {
       if (index != -1) {
         final newPosts = [...currentPosts];
         newPosts[index] = firstPost;
-        updatedPostStream = PostStream(posts: newPosts, stream: currentDetail.postStream.stream, gaps: currentDetail.postStream.gaps);
+        updatedPostStream = PostStream(
+          posts: newPosts,
+          stream: currentDetail.postStream.stream,
+          gaps: currentDetail.postStream.gaps,
+        );
       }
     }
 
-    state = AsyncValue.data(currentDetail.copyWith(
-      title: title ?? currentDetail.title,
-      categoryId: categoryId ?? currentDetail.categoryId,
-      tags: tags != null ? tags.map((name) => Tag(name: name)).toList() : currentDetail.tags,
-      postStream: updatedPostStream ?? currentDetail.postStream,
-    ));
+    state = AsyncValue.data(
+      currentDetail.copyWith(
+        title: title ?? currentDetail.title,
+        categoryId: categoryId ?? currentDetail.categoryId,
+        tags: tags != null
+            ? tags.map((name) => Tag(name: name)).toList()
+            : currentDetail.tags,
+        postStream: updatedPostStream ?? currentDetail.postStream,
+      ),
+    );
   }
 
   /// 更新话题投票状态
@@ -267,10 +329,9 @@ extension PostUpdateMethods on TopicDetailNotifier {
     final currentDetail = state.value;
     if (currentDetail == null) return;
 
-    state = AsyncValue.data(currentDetail.copyWith(
-      voteCount: newVoteCount,
-      userVoted: userVoted,
-    ));
+    state = AsyncValue.data(
+      currentDetail.copyWith(voteCount: newVoteCount, userVoted: userVoted),
+    );
   }
 
   /// 更新话题订阅级别
@@ -279,10 +340,9 @@ extension PostUpdateMethods on TopicDetailNotifier {
     if (currentDetail == null) return;
 
     try {
-      await ref.read(discourseServiceProvider).setTopicNotificationLevel(
-        currentDetail.id,
-        level,
-      );
+      await ref
+          .read(discourseServiceProvider)
+          .setTopicNotificationLevel(currentDetail.id, level);
       if (!ref.mounted) return;
 
       state = AsyncValue.data(currentDetail.copyWith(notificationLevel: level));
@@ -304,25 +364,27 @@ extension PostUpdateMethods on TopicDetailNotifier {
     final currentDetail = state.value;
     if (currentDetail == null) return;
 
-    state = AsyncValue.data(currentDetail.copyWith(
-      postsCount: stats.postsCount ?? currentDetail.postsCount,
-      likeCount: stats.likeCount ?? currentDetail.likeCount,
-    ));
+    state = AsyncValue.data(
+      currentDetail.copyWith(
+        postsCount: stats.postsCount ?? currentDetail.postsCount,
+        likeCount: stats.likeCount ?? currentDetail.likeCount,
+      ),
+    );
   }
 
   /// 添加话题书签
   Future<int> addTopicBookmark() async {
     final currentDetail = state.value;
-    if (currentDetail == null) throw Exception(S.current.error_topicDetailEmpty);
+    if (currentDetail == null)
+      throw Exception(S.current.error_topicDetailEmpty);
 
     final service = ref.read(discourseServiceProvider);
     final newBookmarkId = await service.bookmarkTopic(currentDetail.id);
     if (!ref.mounted) throw Exception(S.current.error_providerDisposed);
 
-    state = AsyncValue.data(currentDetail.copyWith(
-      bookmarked: true,
-      bookmarkId: newBookmarkId,
-    ));
+    state = AsyncValue.data(
+      currentDetail.copyWith(bookmarked: true, bookmarkId: newBookmarkId),
+    );
     return newBookmarkId;
   }
 
@@ -338,25 +400,34 @@ extension PostUpdateMethods on TopicDetailNotifier {
     await service.deleteBookmark(bookmarkId);
     if (!ref.mounted) return;
 
-    state = AsyncValue.data(currentDetail.copyWith(
-      bookmarked: false,
-      clearBookmarkId: true,
-      clearBookmarkName: true,
-      clearBookmarkReminderAt: true,
-    ));
+    state = AsyncValue.data(
+      currentDetail.copyWith(
+        bookmarked: false,
+        clearBookmarkId: true,
+        clearBookmarkName: true,
+        clearBookmarkReminderAt: true,
+      ),
+    );
   }
 
   /// 更新话题书签元数据（本地状态）
-  void updateTopicBookmarkMeta({String? name, DateTime? reminderAt, bool clearName = false, bool clearReminderAt = false}) {
+  void updateTopicBookmarkMeta({
+    String? name,
+    DateTime? reminderAt,
+    bool clearName = false,
+    bool clearReminderAt = false,
+  }) {
     final currentDetail = state.value;
     if (currentDetail == null) return;
 
-    state = AsyncValue.data(currentDetail.copyWith(
-      bookmarkName: name,
-      bookmarkReminderAt: reminderAt,
-      clearBookmarkName: clearName,
-      clearBookmarkReminderAt: clearReminderAt,
-    ));
+    state = AsyncValue.data(
+      currentDetail.copyWith(
+        bookmarkName: name,
+        bookmarkReminderAt: reminderAt,
+        clearBookmarkName: clearName,
+        clearBookmarkReminderAt: clearReminderAt,
+      ),
+    );
   }
 
   /// 添加 Boost 到帖子（用于 MessageBus boost_added 消息）
@@ -389,24 +460,29 @@ extension PostUpdateMethods on TopicDetailNotifier {
 
     try {
       final service = ref.read(discourseServiceProvider);
-      final newDetail = await service.getTopicDetail(arg.topicId, postNumber: 1);
+      final newDetail = await service.getTopicDetail(
+        arg.topicId,
+        postNumber: 1,
+      );
       if (!ref.mounted) return;
       // 只更新元数据，保留当前帖子列表
-      state = AsyncValue.data(currentDetail.copyWith(
-        title: newDetail.title,
-        slug: newDetail.slug,
-        closed: newDetail.closed,
-        archived: newDetail.archived,
-        tags: newDetail.tags,
-        categoryId: newDetail.categoryId,
-        notificationLevel: newDetail.notificationLevel,
-        hasAcceptedAnswer: newDetail.hasAcceptedAnswer,
-        acceptedAnswerPostNumber: newDetail.acceptedAnswerPostNumber,
-        canEdit: newDetail.canEdit,
-        bookmarked: newDetail.bookmarked,
-        bookmarkId: newDetail.bookmarkId,
-        clearBookmarkId: !newDetail.bookmarked,
-      ));
+      state = AsyncValue.data(
+        currentDetail.copyWith(
+          title: newDetail.title,
+          slug: newDetail.slug,
+          closed: newDetail.closed,
+          archived: newDetail.archived,
+          tags: newDetail.tags,
+          categoryId: newDetail.categoryId,
+          notificationLevel: newDetail.notificationLevel,
+          hasAcceptedAnswer: newDetail.hasAcceptedAnswer,
+          acceptedAnswerPostNumber: newDetail.acceptedAnswerPostNumber,
+          canEdit: newDetail.canEdit,
+          bookmarked: newDetail.bookmarked,
+          bookmarkId: newDetail.bookmarkId,
+          clearBookmarkId: !newDetail.bookmarked,
+        ),
+      );
     } catch (e) {
       debugPrint('[TopicDetail] reloadTopicMetadata 失败: $e');
     }

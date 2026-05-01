@@ -9,6 +9,7 @@ import '../../../l10n/s.dart';
 import '../../../models/topic.dart';
 import '../../../utils/dialog_utils.dart';
 import '../../../services/discourse/discourse_service.dart';
+import '../../../services/settings/ai_prompt_settings_service.dart'; // CUSTOM: AI Prompt Settings
 import '../../../services/toast_service.dart';
 import '../../../widgets/share/ai_share_image_preview.dart';
 import '../../../widgets/common/dismissible_popup_menu.dart';
@@ -44,6 +45,9 @@ class AiChatPage extends ConsumerStatefulWidget {
 }
 
 class _AiChatPageState extends ConsumerState<AiChatPage> {
+  // CUSTOM: Stable AI Scroll
+  final ScrollController _messageScrollController = ScrollController();
+
   /// 已获取到的上下文帖子（按 postNumber 升序）
   final List<TopicPostContext> _contextPosts = [];
 
@@ -59,6 +63,8 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
   /// 多选模式
   bool _selectionMode = false;
   final Set<String> _selectedMessageIds = {};
+  String? _lastSessionId;
+  int _lastMessageCount = 0;
 
   @override
   void didUpdateWidget(AiChatPage oldWidget) {
@@ -68,12 +74,19 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
     }
   }
 
+  @override
+  void dispose() {
+    _messageScrollController.dispose();
+    super.dispose();
+  }
+
   /// 确保上下文帖子已加载，根据当前 scope 需要的数量
-  Future<void> _ensureContextPosts() async {
+  Future<void> _ensureContextPosts([ContextScope? scopeOverride]) async {
     final detail = widget.detail;
     if (detail == null || _isLoadingContext) return;
 
-    final scope = ref.read(topicAiContextScopeProvider(widget.topicId));
+    final ContextScope scope =
+        scopeOverride ?? ref.read(topicAiContextScopeProvider(widget.topicId));
 
     // 计算需要多少条帖子
     final stream = detail.postStream.stream;
@@ -176,7 +189,7 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
 
     // 检查是否缺少帖子
     if (!neededIds.every(_fetchedPostIds.contains)) {
-      _ensureContextPosts();
+      _ensureContextPosts(newScope);
     }
   }
 
@@ -293,11 +306,47 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
     widget.onReplyToTopic?.call(imageMarkdown);
   }
 
+  // CUSTOM: Stable AI Scroll 仅在新增消息或切换会话时滚动一次，
+  // 流式 token 更新不会触发滚动，避免视口在生成过程中被强制移动。
+  void _maybeAutoScrollMessages(TopicAiChatState chatState) {
+    final sessionChanged = chatState.currentSessionId != _lastSessionId;
+    final messageCountIncreased = chatState.messages.length > _lastMessageCount;
+    _lastSessionId = chatState.currentSessionId;
+    _lastMessageCount = chatState.messages.length;
+
+    if (!sessionChanged && !messageCountIncreased) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_messageScrollController.hasClients) return;
+      _scrollMessagesToBottom(
+        animated: messageCountIncreased && !sessionChanged,
+      );
+    });
+  }
+
+  // CUSTOM: Stable AI Scroll
+  void _scrollMessagesToBottom({bool animated = false}) {
+    if (!_messageScrollController.hasClients) return;
+    final targetOffset = _messageScrollController.position.maxScrollExtent;
+    if (animated) {
+      _messageScrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+      return;
+    }
+    _messageScrollController.jumpTo(targetOffset);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final chatState = ref.watch(topicAiChatProvider(widget.topicId));
     final chatNotifier = ref.read(topicAiChatProvider(widget.topicId).notifier);
+    _maybeAutoScrollMessages(chatState);
 
     // 首次 build 且有 detail 时加载上下文
     if (widget.detail != null && _lastLoadedScope == null) {
@@ -446,9 +495,7 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
     return [
       Consumer(
         builder: (context, ref, _) {
-          final scope = ref.watch(
-            topicAiContextScopeProvider(widget.topicId),
-          );
+          final scope = ref.watch(topicAiContextScopeProvider(widget.topicId));
           return AiContextSelector(
             currentScope: scope,
             onChanged: _onScopeChanged,
@@ -538,16 +585,14 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
         AiChatInput(
           isGenerating: chatState.isGenerating,
           onSend: (content) {
-            final scope = ref.read(
-              topicAiContextScopeProvider(widget.topicId),
-            );
+            final scope = ref.read(topicAiContextScopeProvider(widget.topicId));
             final model = _currentModel();
             if (model == null) return;
             _rememberModel(model);
-            chatNotifier.sendMessage(
-              content,
-              scope,
-              selectedModel: model,
+            chatNotifier.sendMessage(content, scope, selectedModel: model);
+            // CUSTOM: Stable AI Scroll 用户主动发送时允许滚动到底部一次
+            _maybeAutoScrollMessages(
+              ref.read(topicAiChatProvider(widget.topicId)),
             );
           },
           onStop: chatNotifier.stopGeneration,
@@ -557,9 +602,7 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
               final selected = ref.watch(
                 topicSelectedAiModelProvider(widget.topicId),
               );
-              final lastUsedModel = ref.watch(
-                lastUsedAiAssistantModelProvider,
-              );
+              final lastUsedModel = ref.watch(lastUsedAiAssistantModelProvider);
               final defaultModel = ref.watch(defaultAiModelProvider);
               final current = selected ?? defaultModel ?? lastUsedModel;
               if (allModels.length <= 1 || current == null) {
@@ -577,37 +620,81 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
     );
   }
 
-  /// 常用对话
-  List<({IconData icon, String label, String prompt})> get _quickPrompts => [
-    (
-      icon: Icons.summarize_outlined,
-      label: S.current.ai_summarizeTopic,
-      prompt: S.current.ai_summarizePrompt,
-    ),
-    (icon: Icons.translate_outlined, label: S.current.ai_translatePost, prompt: S.current.ai_translatePrompt),
-    (
-      icon: Icons.question_answer_outlined,
-      label: S.current.ai_listViewpoints,
-      prompt: S.current.ai_listViewpointsPrompt,
-    ),
-    (
-      icon: Icons.lightbulb_outlined,
-      label: S.current.ai_highlights,
-      prompt: S.current.ai_highlightsPrompt,
-    ),
-  ];
-
-  void _sendQuickPrompt(String prompt) {
-    final scope = ref.read(topicAiContextScopeProvider(widget.topicId));
+  Future<void> _sendQuickPrompt(
+    String prompt, {
+    ContextScope? scopeOverride,
+  }) async {
+    final ContextScope scope =
+        scopeOverride ?? ref.read(topicAiContextScopeProvider(widget.topicId));
+    if (scopeOverride != null) {
+      ref.read(topicAiContextScopeProvider(widget.topicId).notifier).state =
+          scopeOverride;
+    }
+    await _ensureContextPosts(scope);
     final model = _currentModel();
     if (model == null) return;
     _rememberModel(model);
     ref
         .read(topicAiChatProvider(widget.topicId).notifier)
         .sendMessage(prompt, scope, selectedModel: model);
+    // CUSTOM: Stable AI Scroll 快捷动作属于用户主动触发，允许滚动一次
+    _maybeAutoScrollMessages(ref.read(topicAiChatProvider(widget.topicId)));
   }
 
   Widget _buildEmptyState(BuildContext context, ThemeData theme) {
+    final promptSettings = ref.watch(aiPromptSettingsProvider);
+    final summaryTopicPrompt =
+        promptSettings.summaryTopicPrompt.trim().isNotEmpty
+        ? promptSettings.summaryTopicPrompt.trim()
+        : S.current.ai_summarizePrompt;
+    final summaryAllRepliesPrompt =
+        promptSettings.summaryAllRepliesPrompt.trim().isNotEmpty
+        ? promptSettings.summaryAllRepliesPrompt.trim()
+        : '请总结这个话题中全部回帖的主要观点、分歧和结论，输出精炼的中文摘要。';
+    final generateReplyPrompt =
+        promptSettings.generateReplyPrompt.trim().isNotEmpty
+        ? promptSettings.generateReplyPrompt.trim()
+        : '请基于当前话题内容生成一条适合直接发布的中文回复，语气自然、观点明确，并尽量给出有价值的信息。';
+    final quickPrompts =
+        <({IconData icon, String label, String prompt, ContextScope? scope})>[
+          (
+            icon: Icons.summarize_outlined,
+            label: S.current.ai_summarizeTopic,
+            prompt: summaryTopicPrompt,
+            scope: ContextScope.firstPostOnly,
+          ),
+          (
+            icon: Icons.translate_outlined,
+            label: S.current.ai_translatePost,
+            prompt: S.current.ai_translatePrompt,
+            scope: ContextScope.firstPostOnly,
+          ),
+          (
+            icon: Icons.article_outlined,
+            label: '总结全部回帖',
+            prompt: summaryAllRepliesPrompt,
+            scope: ContextScope.all,
+          ),
+          (
+            icon: Icons.question_answer_outlined,
+            label: S.current.ai_listViewpoints,
+            prompt: S.current.ai_listViewpointsPrompt,
+            scope: null,
+          ),
+          (
+            icon: Icons.lightbulb_outlined,
+            label: S.current.ai_highlights,
+            prompt: S.current.ai_highlightsPrompt,
+            scope: null,
+          ),
+          (
+            icon: Icons.rate_review_outlined,
+            label: '生成回复',
+            prompt: generateReplyPrompt,
+            scope: ContextScope.all,
+          ),
+        ];
+
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
@@ -640,11 +727,12 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
               spacing: 8,
               runSpacing: 8,
               alignment: WrapAlignment.center,
-              children: _quickPrompts.map((item) {
+              children: quickPrompts.map((item) {
                 return ActionChip(
                   avatar: Icon(item.icon, size: 18),
                   label: Text(item.label),
-                  onPressed: () => _sendQuickPrompt(item.prompt),
+                  onPressed: () =>
+                      _sendQuickPrompt(item.prompt, scopeOverride: item.scope),
                 );
               }).toList(),
             ),
@@ -661,11 +749,11 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
   ) {
     final messages = chatState.messages;
     return ListView.builder(
-      reverse: true,
+      controller: _messageScrollController,
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: messages.length,
       itemBuilder: (context, index) {
-        final message = messages[messages.length - 1 - index];
+        final message = messages[index];
         return AiChatMessageItem(
           message: message,
           onRetry: message.status == MessageStatus.error
@@ -681,11 +769,13 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
                       .retryLastMessage(scope, selectedModel: model);
                 }
               : null,
-          onShareAsImage: message.status == MessageStatus.completed &&
+          onShareAsImage:
+              message.status == MessageStatus.completed &&
                   message.content.isNotEmpty
               ? () => _shareMessageAsImage(message)
               : null,
-          onCopyText: message.status == MessageStatus.completed &&
+          onCopyText:
+              message.status == MessageStatus.completed &&
                   message.content.isNotEmpty
               ? () => _copyMessageText(message)
               : null,
@@ -715,10 +805,7 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
             const SizedBox(width: 4),
             Text(
               context.l10n.ai_selectedCount(_selectedMessageIds.length),
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -946,9 +1033,7 @@ class _SessionHistorySheetState extends State<_SessionHistorySheet> {
 
                   return ListTile(
                     leading: Icon(
-                      isCurrent
-                          ? Icons.chat_bubble
-                          : Icons.chat_bubble_outline,
+                      isCurrent ? Icons.chat_bubble : Icons.chat_bubble_outline,
                       size: 20,
                       color: isCurrent
                           ? theme.colorScheme.primary
@@ -958,11 +1043,10 @@ class _SessionHistorySheetState extends State<_SessionHistorySheet> {
                       _formatSessionTitle(session, index),
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight:
-                            isCurrent ? FontWeight.w600 : FontWeight.normal,
-                        color: isCurrent
-                            ? theme.colorScheme.primary
-                            : null,
+                        fontWeight: isCurrent
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        color: isCurrent ? theme.colorScheme.primary : null,
                       ),
                     ),
                     subtitle: Text(
@@ -982,8 +1066,7 @@ class _SessionHistorySheetState extends State<_SessionHistorySheet> {
                             onPressed: () async {
                               await widget.onDelete(session.id);
                               if (!mounted) return;
-                              _sessions.removeWhere(
-                                  (s) => s.id == session.id);
+                              _sessions.removeWhere((s) => s.id == session.id);
                               if (_sessions.isEmpty) {
                                 if (context.mounted) {
                                   Navigator.pop(context);
@@ -993,9 +1076,7 @@ class _SessionHistorySheetState extends State<_SessionHistorySheet> {
                               }
                             },
                           ),
-                    onTap: isCurrent
-                        ? null
-                        : () => widget.onSwitch(session.id),
+                    onTap: isCurrent ? null : () => widget.onSwitch(session.id),
                   );
                 },
               ),

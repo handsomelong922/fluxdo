@@ -4,10 +4,14 @@ import '../../l10n/s.dart';
 import '../../pages/appearance_page.dart';
 import '../../pages/bottom_nav_settings_page.dart';
 import '../../pages/data_management_page.dart';
+import '../../pages/ai_prompt_settings_page.dart'; // CUSTOM: AI Prompt Settings
 import '../../pages/network_settings_page/network_settings_page.dart';
 import '../../pages/preferences_page.dart';
 import '../../pages/reading_settings_page.dart';
 import '../../pages/shortcut_settings_page.dart';
+import '../../pages/keyword_filter_page.dart'; // CUSTOM: Keyword Filter
+import '../../pages/tag_filter_page.dart'; // CUSTOM: Tag Filter
+import '../../pages/user_filter_page.dart'; // CUSTOM: User Filter
 import '../../utils/platform_utils.dart';
 import '../definitions/appearance_defs.dart';
 import '../definitions/bottom_nav_defs.dart';
@@ -54,13 +58,15 @@ List<SettingsSearchResult> buildSearchIndex(BuildContext context) {
           if (item is PlatformConditionalModel) return item.shouldShow;
           return true;
         })
-        .map((item) => SettingsSearchResult(
-              model: item is PlatformConditionalModel ? item.inner : item,
-              categoryName: categoryName,
-              categoryIcon: categoryIcon,
-              categoryColor: categoryColor,
-              pageBuilder: pageBuilder,
-            ))
+        .map(
+          (item) => SettingsSearchResult(
+            model: item is PlatformConditionalModel ? item.inner : item,
+            categoryName: categoryName,
+            categoryIcon: categoryIcon,
+            categoryColor: categoryColor,
+            pageBuilder: pageBuilder,
+          ),
+        )
         .toList();
   }
 
@@ -78,8 +84,7 @@ List<SettingsSearchResult> buildSearchIndex(BuildContext context) {
       categoryName: l10n.settings_preferences,
       categoryIcon: Icons.tune_rounded,
       categoryColor: Colors.deepPurple,
-      pageBuilder: ({highlightId}) =>
-          PreferencesPage(highlightId: highlightId),
+      pageBuilder: ({highlightId}) => PreferencesPage(highlightId: highlightId),
     ),
     ...fromGroups(
       buildBottomNavGroups(context),
@@ -94,8 +99,7 @@ List<SettingsSearchResult> buildSearchIndex(BuildContext context) {
       categoryName: l10n.settings_appearance,
       categoryIcon: Icons.color_lens_rounded,
       categoryColor: Colors.teal,
-      pageBuilder: ({highlightId}) =>
-          AppearancePage(highlightId: highlightId),
+      pageBuilder: ({highlightId}) => AppearancePage(highlightId: highlightId),
     ),
     ...fromGroups(
       buildNetworkGroups(context),
@@ -123,5 +127,57 @@ List<SettingsSearchResult> buildSearchIndex(BuildContext context) {
         pageBuilder: ({highlightId}) =>
             ShortcutSettingsPage(highlightId: highlightId),
       ),
+    SettingsSearchResult(
+      model: ActionModel(
+        id: 'custom_keyword_filter',
+        title: '关键词屏蔽',
+        subtitle: '按标题正则隐藏帖子',
+        icon: Icons.block_rounded,
+        onTap: (context, ref) {},
+      ),
+      categoryName: '自定义功能',
+      categoryIcon: Icons.block_rounded,
+      categoryColor: Colors.redAccent,
+      pageBuilder: ({highlightId}) => const KeywordFilterPage(),
+    ),
+    SettingsSearchResult(
+      model: ActionModel(
+        id: 'custom_tag_filter',
+        title: '标签屏蔽',
+        subtitle: '按标签隐藏帖子',
+        icon: Icons.local_offer_outlined,
+        onTap: (context, ref) {},
+      ),
+      categoryName: '自定义功能',
+      categoryIcon: Icons.local_offer_outlined,
+      categoryColor: Colors.orangeAccent,
+      pageBuilder: ({highlightId}) => const TagFilterPage(),
+    ),
+    SettingsSearchResult(
+      model: ActionModel(
+        id: 'custom_user_filter',
+        title: '用户屏蔽',
+        subtitle: '隐藏指定用户发布的内容',
+        icon: Icons.person_off_rounded,
+        onTap: (context, ref) {},
+      ),
+      categoryName: '自定义功能',
+      categoryIcon: Icons.person_off_rounded,
+      categoryColor: Colors.red,
+      pageBuilder: ({highlightId}) => const UserFilterPage(),
+    ),
+    SettingsSearchResult(
+      model: ActionModel(
+        id: 'custom_ai_prompt_settings',
+        title: 'AI 提示词配置',
+        subtitle: '配置 AI 总结、回复和标题生成 prompt',
+        icon: Icons.smart_toy_rounded,
+        onTap: (context, ref) {},
+      ),
+      categoryName: '自定义功能',
+      categoryIcon: Icons.smart_toy_rounded,
+      categoryColor: Colors.cyan,
+      pageBuilder: ({highlightId}) => const AiPromptSettingsPage(),
+    ),
   ];
 }

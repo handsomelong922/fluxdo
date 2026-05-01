@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/s.dart';
 import '../models/topic.dart';
+import '../services/settings/content_filter_service.dart'; // CUSTOM: User Filter
 import 'core_providers.dart';
 import 'message_bus/models.dart';
 
@@ -18,11 +19,16 @@ part 'topic_detail/_gap_methods.dart';
 class TopicDetailParams {
   final int topicId;
   final int? postNumber;
+
   /// 唯一实例 ID，确保每次打开页面都创建新的 provider 实例
   /// 默认为空字符串，用于 MessageBus 等不需要精确匹配的场景
   final String instanceId;
 
-  const TopicDetailParams(this.topicId, {this.postNumber, this.instanceId = ''});
+  const TopicDetailParams(
+    this.topicId, {
+    this.postNumber,
+    this.instanceId = '',
+  });
 
   @override
   bool operator ==(Object other) =>
@@ -46,9 +52,9 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   bool _isLoadingMore = false;
   bool _isLoadMoreFailed = false;
   bool _isLoadPreviousFailed = false;
-  String? _filter;  // 当前过滤模式（如 'summary' 表示热门回复）
-  String? _usernameFilter;  // 当前用户名过滤（如只看题主）
-  bool _filterTopLevelReplies = false;  // 只看顶层回复
+  String? _filter; // 当前过滤模式（如 'summary' 表示热门回复）
+  String? _usernameFilter; // 当前用户名过滤（如只看题主）
+  bool _filterTopLevelReplies = false; // 只看顶层回复
   /// 待加载的新帖子 ID 队列（对齐 Discourse _newPostsInStream）
   final List<int> _pendingNewPostIds = [];
   bool _isLoadingNewPosts = false;
@@ -62,7 +68,8 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   bool get isSummaryMode => _filter == 'summary';
   bool get isAuthorOnlyMode => _usernameFilter != null;
   bool get isTopLevelMode => _filterTopLevelReplies;
-  bool get _isFilteredMode => _filter != null || _usernameFilter != null || _filterTopLevelReplies;
+  bool get _isFilteredMode =>
+      _filter != null || _usernameFilter != null || _filterTopLevelReplies;
 
   /// 根据 posts 和 stream 统一计算边界状态
   ///
@@ -102,14 +109,34 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     final newPosts = [...currentPosts];
     newPosts[index] = newPost;
 
-    state = AsyncValue.data(currentDetail.copyWith(
-      postStream: PostStream(posts: newPosts, stream: currentDetail.postStream.stream, gaps: currentDetail.postStream.gaps),
-    ));
+    state = AsyncValue.data(
+      currentDetail.copyWith(
+        postStream: PostStream(
+          posts: newPosts,
+          stream: currentDetail.postStream.stream,
+          gaps: currentDetail.postStream.gaps,
+        ),
+      ),
+    );
+  }
+
+  // CUSTOM: User Filter
+  TopicDetail _applyUserFilter(TopicDetail detail) {
+    final filter = ref.read(contentFilterProvider.notifier);
+    return filter.applyUserFilterToDetail(detail);
+  }
+
+  // CUSTOM: User Filter
+  Post _applyUserFilterToPost(Post post) {
+    final filter = ref.read(contentFilterProvider.notifier);
+    return filter.applyUserFilterToPost(post);
   }
 
   @override
   Future<TopicDetail> build() async {
-    debugPrint('[TopicDetailNotifier] build called with topicId=${arg.topicId}, postNumber=${arg.postNumber}');
+    debugPrint(
+      '[TopicDetailNotifier] build called with topicId=${arg.topicId}, postNumber=${arg.postNumber}',
+    );
 
     // 保持存活，防止布局切换的短暂间隙被 autoDispose 清理
     // 使用 onCancel/onResume 模式：最后一个 watcher 移除后才开始倒计时
@@ -127,26 +154,38 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
       disposeTimer?.cancel();
     });
 
+    // CUSTOM: User Filter 监听屏蔽规则变化，自动重建详情数据
+    ref.watch(contentFilterProvider);
+
     _hasMoreAfter = true;
     _hasMoreBefore = true;
     _isLoadMoreFailed = false;
     _isLoadPreviousFailed = false;
     final service = ref.read(discourseServiceProvider);
-    final detail = await service.getTopicDetail(arg.topicId, postNumber: arg.postNumber, trackVisit: true);
+    final detail = await service.getTopicDetail(
+      arg.topicId,
+      postNumber: arg.postNumber,
+      trackVisit: true,
+    );
 
-    _updateBoundaryState(detail.postStream.posts, detail.postStream.stream);
+    final filteredDetail = _applyUserFilter(detail);
+    _updateBoundaryState(
+      filteredDetail.postStream.posts,
+      filteredDetail.postStream.stream,
+    );
 
-    return detail;
+    return filteredDetail;
   }
 }
 
-final topicDetailProvider = AsyncNotifierProvider.family.autoDispose<TopicDetailNotifier, TopicDetail, TopicDetailParams>(
-  TopicDetailNotifier.new,
-);
+final topicDetailProvider = AsyncNotifierProvider.family
+    .autoDispose<TopicDetailNotifier, TopicDetail, TopicDetailParams>(
+      TopicDetailNotifier.new,
+    );
 
 /// 话题 AI 摘要 Provider
 final topicSummaryProvider = FutureProvider.autoDispose
     .family<TopicSummary?, int>((ref, topicId) async {
-  final service = ref.read(discourseServiceProvider);
-  return service.getTopicSummary(topicId);
-});
+      final service = ref.read(discourseServiceProvider);
+      return service.getTopicSummary(topicId);
+    });
