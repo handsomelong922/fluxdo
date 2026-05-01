@@ -45,21 +45,32 @@ extension LoadingMethods on TopicDetailNotifier {
         );
 
         final existingIds = currentPosts.map((p) => p.id).toSet();
-        final newPosts = newPostStream.posts.where((p) => !existingIds.contains(p.id)).toList();
+        final newPosts = newPostStream.posts
+            .where((p) => !existingIds.contains(p.id))
+            .toList();
         final mergedPosts = [...newPosts, ...currentPosts];
         mergedPosts.sort((a, b) => a.postNumber.compareTo(b.postNumber));
 
         final currentStream = currentDetail.postStream.stream;
         final existingStreamIds = currentStream.toSet();
-        final newPostIds = newPosts.map((p) => p.id).where((id) => !existingStreamIds.contains(id)).toList();
+        final newPostIds = newPosts
+            .map((p) => p.id)
+            .where((id) => !existingStreamIds.contains(id))
+            .toList();
         final mergedStream = [...newPostIds, ...currentStream];
 
         final newFirstId = mergedPosts.first.id;
         final newFirstIndex = mergedStream.indexOf(newFirstId);
         _hasMoreBefore = newFirstIndex > 0;
 
-        return currentDetail.copyWith(
-          postStream: PostStream(posts: mergedPosts, stream: mergedStream, gaps: currentDetail.postStream.gaps),
+        return _applyUserFilter(
+          currentDetail.copyWith(
+            postStream: PostStream(
+              posts: mergedPosts,
+              stream: mergedStream,
+              gaps: currentDetail.postStream.gaps,
+            ),
+          ),
         );
       });
       if (!ref.mounted) return;
@@ -84,7 +95,12 @@ extension LoadingMethods on TopicDetailNotifier {
   /// 加载更多回复（向下滚动）
   Future<void> loadMore() async {
     if (_isLoadMoreFailed) return; // 失败后需手动重试
-    if (!_hasMoreAfter || state.isLoading || _isLoadingMore || _isLoadingNewPosts) return;
+    if (!_hasMoreAfter ||
+        state.isLoading ||
+        _isLoadingMore ||
+        _isLoadingNewPosts) {
+      return;
+    }
 
     if (_isFilteredMode) {
       await _loadMoreByStreamIds();
@@ -122,21 +138,32 @@ extension LoadingMethods on TopicDetailNotifier {
         );
 
         final existingIds = currentPosts.map((p) => p.id).toSet();
-        final newPosts = newPostStream.posts.where((p) => !existingIds.contains(p.id)).toList();
+        final newPosts = newPostStream.posts
+            .where((p) => !existingIds.contains(p.id))
+            .toList();
         final mergedPosts = [...currentPosts, ...newPosts];
         mergedPosts.sort((a, b) => a.postNumber.compareTo(b.postNumber));
 
         final currentStream = currentDetail.postStream.stream;
         final existingStreamIds = currentStream.toSet();
-        final newPostIds = newPosts.map((p) => p.id).where((id) => !existingStreamIds.contains(id)).toList();
+        final newPostIds = newPosts
+            .map((p) => p.id)
+            .where((id) => !existingStreamIds.contains(id))
+            .toList();
         final mergedStream = [...currentStream, ...newPostIds];
 
         final newLastId = mergedPosts.last.id;
         final newLastIndex = mergedStream.indexOf(newLastId);
         _hasMoreAfter = newLastIndex < mergedStream.length - 1;
 
-        return currentDetail.copyWith(
-          postStream: PostStream(posts: mergedPosts, stream: mergedStream, gaps: currentDetail.postStream.gaps),
+        return _applyUserFilter(
+          currentDetail.copyWith(
+            postStream: PostStream(
+              posts: mergedPosts,
+              stream: mergedStream,
+              gaps: currentDetail.postStream.gaps,
+            ),
+          ),
         );
       });
       if (!ref.mounted) return;
@@ -176,15 +203,19 @@ extension LoadingMethods on TopicDetailNotifier {
 
     // 将 post ID 加入 stream 并更新 postsCount（本地即时更新，无需请求）
     final newStream = [...currentStream, postId];
-    state = AsyncValue.data(currentDetail.copyWith(
-      postsCount: currentDetail.postsCount + 1,
-      postStream: PostStream(
-        posts: currentDetail.postStream.posts,
-        stream: newStream,
-        gaps: currentDetail.postStream.gaps,
+    state = AsyncValue.data(
+      _applyUserFilter(
+        currentDetail.copyWith(
+          postsCount: currentDetail.postsCount + 1,
+          postStream: PostStream(
+            posts: currentDetail.postStream.posts,
+            stream: newStream,
+            gaps: currentDetail.postStream.gaps,
+          ),
+        ),
       ),
-    ));
-    _updateBoundaryState(currentDetail.postStream.posts, newStream);
+    );
+    _updateBoundaryState(state.requireValue.postStream.posts, newStream);
 
     // 对齐 Discourse loadedAllPosts：收到新帖前已加载到底部时才批量拉取新帖子内容，
     // 否则只更新 stream（用户滚到底部时通过 loadMore 自然加载）。
@@ -215,7 +246,9 @@ extension LoadingMethods on TopicDetailNotifier {
 
       final currentPosts = currentDetail.postStream.posts;
       final existingIds = currentPosts.map((p) => p.id).toSet();
-      final newPosts = fetchedPosts.where((p) => !existingIds.contains(p.id)).toList();
+      final newPosts = fetchedPosts
+          .where((p) => !existingIds.contains(p.id))
+          .toList();
       if (newPosts.isEmpty) return;
 
       // 本地递增被回复帖子的 replyCount（与 Discourse 官方做法一致）
@@ -237,15 +270,21 @@ extension LoadingMethods on TopicDetailNotifier {
       final mergedPosts = [...updatedCurrentPosts, ...newPosts];
       mergedPosts.sort((a, b) => a.postNumber.compareTo(b.postNumber));
 
-      _updateBoundaryState(mergedPosts, currentDetail.postStream.stream);
-
-      state = AsyncValue.data(currentDetail.copyWith(
-        postStream: PostStream(
-          posts: mergedPosts,
-          stream: currentDetail.postStream.stream,
-          gaps: currentDetail.postStream.gaps,
+      final nextDetail = _applyUserFilter(
+        currentDetail.copyWith(
+          postStream: PostStream(
+            posts: mergedPosts,
+            stream: currentDetail.postStream.stream,
+            gaps: currentDetail.postStream.gaps,
+          ),
         ),
-      ));
+      );
+      _updateBoundaryState(
+        nextDetail.postStream.posts,
+        nextDetail.postStream.stream,
+      );
+
+      state = AsyncValue.data(nextDetail);
     } catch (e) {
       // 失败时将 post IDs 放回队列
       _pendingNewPostIds.insertAll(0, postIds);
@@ -279,9 +318,13 @@ extension LoadingMethods on TopicDetailNotifier {
         filterTopLevelReplies: _filterTopLevelReplies,
       );
 
-      _updateBoundaryState(detail.postStream.posts, detail.postStream.stream);
+      final filteredDetail = _applyUserFilter(detail);
+      _updateBoundaryState(
+        filteredDetail.postStream.posts,
+        filteredDetail.postStream.stream,
+      );
 
-      return detail;
+      return filteredDetail;
     });
     if (!ref.mounted) return;
     state = result;
@@ -305,9 +348,13 @@ extension LoadingMethods on TopicDetailNotifier {
         usernameFilters: _usernameFilter,
       );
 
-      _updateBoundaryState(detail.postStream.posts, detail.postStream.stream);
+      final filteredDetail = _applyUserFilter(detail);
+      _updateBoundaryState(
+        filteredDetail.postStream.posts,
+        filteredDetail.postStream.stream,
+      );
 
-      return detail;
+      return filteredDetail;
     });
     if (!ref.mounted) return;
     state = result;
@@ -320,32 +367,53 @@ extension LoadingMethods on TopicDetailNotifier {
 
     final currentPosts = currentDetail.postStream.posts;
 
-    final existingIndex = currentPosts.indexWhere((p) => p.postNumber == postNumber);
+    final existingIndex = currentPosts.indexWhere(
+      (p) => p.postNumber == postNumber,
+    );
     if (existingIndex != -1) return existingIndex;
 
     try {
       final service = ref.read(discourseServiceProvider);
-      final newDetail = await service.getTopicDetail(arg.topicId, postNumber: postNumber);
+      final newDetail = await service.getTopicDetail(
+        arg.topicId,
+        postNumber: postNumber,
+      );
 
       final existingIds = currentPosts.map((p) => p.id).toSet();
-      final newPosts = newDetail.postStream.posts.where((p) => !existingIds.contains(p.id)).toList();
+      final newPosts = newDetail.postStream.posts
+          .where((p) => !existingIds.contains(p.id))
+          .toList();
       final mergedPosts = [...currentPosts, ...newPosts];
       mergedPosts.sort((a, b) => a.postNumber.compareTo(b.postNumber));
 
       final currentStream = currentDetail.postStream.stream;
       final newStream = newDetail.postStream.stream;
       final existingStreamIds = currentStream.toSet();
-      final newStreamIds = newStream.where((id) => !existingStreamIds.contains(id)).toList();
+      final newStreamIds = newStream
+          .where((id) => !existingStreamIds.contains(id))
+          .toList();
       final mergedStream = [...currentStream, ...newStreamIds];
 
-      _updateBoundaryState(mergedPosts, mergedStream);
+      final filteredDetail = _applyUserFilter(
+        currentDetail.copyWith(
+          postStream: PostStream(
+            posts: mergedPosts,
+            stream: mergedStream,
+            gaps: currentDetail.postStream.gaps,
+          ),
+        ),
+      );
+      _updateBoundaryState(
+        filteredDetail.postStream.posts,
+        filteredDetail.postStream.stream,
+      );
 
       if (!ref.mounted) return -1;
-      state = AsyncValue.data(currentDetail.copyWith(
-        postStream: PostStream(posts: mergedPosts, stream: mergedStream, gaps: currentDetail.postStream.gaps),
-      ));
+      state = AsyncValue.data(filteredDetail);
 
-      return mergedPosts.indexWhere((p) => p.postNumber == postNumber);
+      return filteredDetail.postStream.posts.indexWhere(
+        (p) => p.postNumber == postNumber,
+      );
     } catch (e) {
       debugPrint('[TopicDetail] 加载帖子 #$postNumber 失败: $e');
       return -1;

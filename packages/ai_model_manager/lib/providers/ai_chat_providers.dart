@@ -116,6 +116,10 @@ final aiChatServiceProvider = Provider((ref) {
   );
 });
 
+/// 可由宿主应用覆写的标题生成 prompt
+final aiTitleGenerationPromptProvider =
+    Provider<String>((ref) => AiL10n.current.titleGenerationPrompt);
+
 /// 标题生成模型 key（providerId:modelId）
 final aiTitleModelKeyProvider = StateProvider<String?>((ref) {
   final storageService = ref.watch(aiChatStorageServiceProvider);
@@ -123,8 +127,7 @@ final aiTitleModelKeyProvider = StateProvider<String?>((ref) {
 });
 
 /// 标题生成模型
-final aiTitleModelProvider =
-    Provider<({AiProvider provider, AiModel model})?>(
+final aiTitleModelProvider = Provider<({AiProvider provider, AiModel model})?>(
   (ref) {
     final all = ref.watch(allAvailableAiModelsProvider);
     if (all.isEmpty) return null;
@@ -215,11 +218,13 @@ final topicAiChatProvider = StateNotifierProvider.autoDispose
     final chatService = ref.watch(aiChatServiceProvider);
     final storageService = ref.watch(aiChatStorageServiceProvider);
     final titleModel = ref.read(aiTitleModelProvider);
+    final titleGenerationPrompt = ref.watch(aiTitleGenerationPromptProvider);
     final notifier = TopicAiChatNotifier(
       chatService: chatService,
       storageService: storageService,
       topicId: topicId,
       titleModel: titleModel,
+      titleGenerationPrompt: titleGenerationPrompt,
     );
     ref.onDispose(() {
       notifier.saveBeforeDispose();
@@ -235,6 +240,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   final AiChatStorageService storageService;
   final int topicId;
   final ({AiProvider provider, AiModel model})? titleModel;
+  final String titleGenerationPrompt;
 
   StreamSubscription<String>? _streamSubscription;
   bool _cancelled = false;
@@ -249,6 +255,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     required this.storageService,
     required this.topicId,
     this.titleModel,
+    required this.titleGenerationPrompt,
   }) : super(const TopicAiChatState()) {
     _loadFromStorage();
   }
@@ -278,8 +285,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       topicTitle: _cachedTitle,
     );
     // 刷新会话列表
-    state = state.copyWith(
-        sessions: storageService.getTopicSessions(topicId));
+    state = state.copyWith(sessions: storageService.getTopicSessions(topicId));
   }
 
   /// dispose 前保存（由 ref.onDispose 调用）
@@ -569,7 +575,10 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     if (topicContext != null) {
       final contextText = _buildContextText(topicContext, contextScope);
       if (contextText.isNotEmpty) {
-        result.add({'role': 'user', 'content': AiL10n.current.contextContentPrefix(contextText)});
+        result.add({
+          'role': 'user',
+          'content': AiL10n.current.contextContentPrefix(contextText)
+        });
         result.add({
           'role': 'assistant',
           'content': AiL10n.current.contextReadyResponse,
@@ -650,7 +659,8 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
 
     // 只在首次对话完成时生成（用户消息 + AI 回复 = 2条）
     final completedMessages = state.messages
-        .where((m) => m.status == MessageStatus.completed && m.content.isNotEmpty)
+        .where(
+            (m) => m.status == MessageStatus.completed && m.content.isNotEmpty)
         .toList();
     if (completedMessages.length != 2) return;
 
@@ -660,13 +670,11 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     _isGeneratingTitle = true;
 
     try {
-      final apiKey =
-          await AiProviderListNotifier.getApiKey(model.provider.id);
+      final apiKey = await AiProviderListNotifier.getApiKey(model.provider.id);
       if (apiKey == null || !mounted) return;
 
-      final userMsg = completedMessages
-          .firstWhere((m) => m.role == ChatRole.user)
-          .content;
+      final userMsg =
+          completedMessages.firstWhere((m) => m.role == ChatRole.user).content;
 
       final titleStream = chatService.sendChatStream(
         provider: model.provider,
@@ -675,7 +683,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
         messages: [
           {'role': 'user', 'content': userMsg},
         ],
-        systemPrompt: AiL10n.current.titleGenerationPrompt,
+        systemPrompt: titleGenerationPrompt,
       );
 
       final buffer = StringBuffer();
@@ -686,8 +694,8 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       final title = buffer.toString().trim();
       if (title.isNotEmpty && mounted) {
         await storageService.updateSessionTitle(topicId, sessionId, title);
-        state = state.copyWith(
-            sessions: storageService.getTopicSessions(topicId));
+        state =
+            state.copyWith(sessions: storageService.getTopicSessions(topicId));
       }
     } catch (_) {
       // 标题生成失败不影响正常使用

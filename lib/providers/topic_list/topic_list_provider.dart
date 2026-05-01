@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/topic.dart';
 import '../../services/preloaded_data_service.dart';
 import '../../services/discourse/discourse_service.dart';
+import '../../services/settings/content_filter_service.dart'; // CUSTOM: Tag Filter // CUSTOM: User Filter
 import '../../services/settings/keyword_filter_service.dart'; // CUSTOM: Keyword Filter
 import '../../utils/pagination_helper.dart';
 import '../core_providers.dart';
@@ -41,6 +42,9 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
 
     // CUSTOM: Keyword Filter 监听关键词变化，用户改动屏蔽规则后会重新构建并过滤
     ref.watch(keywordFilterProvider);
+    // CUSTOM: Tag Filter
+    // CUSTOM: User Filter
+    ref.watch(contentFilterProvider);
 
     _page = 0;
     _hasMore = true;
@@ -52,44 +56,78 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
 
     // 优化：如果是 latest 列表且没有筛选条件且没有自定义排序，优先同步使用预加载数据
     // 这样可以避免显示 loading 状态
-    if (currentFilter == TopicListFilter.latest && filter.isEmpty && orderParam == null) {
+    if (currentFilter == TopicListFilter.latest &&
+        filter.isEmpty &&
+        orderParam == null) {
       final preloadedService = PreloadedDataService();
       final preloadedData = preloadedService.getInitialTopicListSync();
       if (preloadedData != null) {
         final result = _paginationHelper.processRefresh(
-          PaginationResult(items: preloadedData.topics, moreUrl: preloadedData.moreTopicsUrl),
+          PaginationResult(
+            items: preloadedData.topics,
+            moreUrl: preloadedData.moreTopicsUrl,
+          ),
         );
         _hasMore = result.hasMore;
-        return _applyKeywordFilter(result.items); // CUSTOM: Keyword Filter
+        return _applyTopicFilters(result.items); // CUSTOM: Keyword Filter
       }
       if (preloadedService.hasInitialTopicList) {
         final asyncPreloaded = await preloadedService.getInitialTopicList();
         if (asyncPreloaded != null) {
           final result = _paginationHelper.processRefresh(
-            PaginationResult(items: asyncPreloaded.topics, moreUrl: asyncPreloaded.moreTopicsUrl),
+            PaginationResult(
+              items: asyncPreloaded.topics,
+              moreUrl: asyncPreloaded.moreTopicsUrl,
+            ),
           );
           _hasMore = result.hasMore;
-          return _applyKeywordFilter(result.items); // CUSTOM: Keyword Filter
+          return _applyTopicFilters(result.items); // CUSTOM: Keyword Filter
         }
       }
     }
 
     // 如果没有预加载数据，走正常的异步流程
     final service = ref.read(discourseServiceProvider);
-    final response = await _fetchTopics(service, currentFilter, 0, filter, order: orderParam, ascending: ascendingParam);
+    final response = await _fetchTopics(
+      service,
+      currentFilter,
+      0,
+      filter,
+      order: orderParam,
+      ascending: ascendingParam,
+    );
 
     final result = _paginationHelper.processRefresh(
       PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
     );
     _hasMore = result.hasMore;
-    return _applyKeywordFilter(result.items); // CUSTOM: Keyword Filter
+    return _applyTopicFilters(result.items); // CUSTOM: Keyword Filter
   }
 
-  // CUSTOM: Keyword Filter 过滤标题命中正则的帖子
-  List<Topic> _applyKeywordFilter(List<Topic> topics) {
-    final filter = ref.read(keywordFilterProvider.notifier);
-    if (ref.read(keywordFilterProvider).isEmpty) return topics;
-    return topics.where((t) => !filter.matches(t.title)).toList();
+  // CUSTOM: Keyword Filter
+  // CUSTOM: Tag Filter
+  // CUSTOM: User Filter
+  List<Topic> _applyTopicFilters(List<Topic> topics) {
+    final keywordFilter = ref.read(keywordFilterProvider.notifier);
+    final hasKeywordFilters = ref.read(keywordFilterProvider).isNotEmpty;
+    final contentFilter = ref.read(contentFilterProvider.notifier);
+    final contentState = ref.read(contentFilterProvider);
+    final hasContentFilters =
+        contentState.hasBlockedTags || contentState.hasBlockedUsers;
+
+    if (!hasKeywordFilters && !hasContentFilters) {
+      return topics;
+    }
+
+    return topics.where((topic) {
+      if (hasKeywordFilters && keywordFilter.matches(topic.title)) {
+        return false;
+      }
+      if (hasContentFilters && contentFilter.matchesTopic(topic)) {
+        return false;
+      }
+      return true;
+    }).toList();
   }
 
   Future<TopicListResponse> _fetchTopics(
@@ -119,17 +157,37 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     // 无筛选条件，使用原有方法
     switch (filter) {
       case TopicListFilter.latest:
-        return service.getLatestTopics(page: page, order: order, ascending: ascending);
+        return service.getLatestTopics(
+          page: page,
+          order: order,
+          ascending: ascending,
+        );
       case TopicListFilter.newTopics:
-        return service.getNewTopics(page: page, order: order, ascending: ascending);
+        return service.getNewTopics(
+          page: page,
+          order: order,
+          ascending: ascending,
+        );
       case TopicListFilter.unread:
-        return service.getUnreadTopics(page: page, order: order, ascending: ascending);
+        return service.getUnreadTopics(
+          page: page,
+          order: order,
+          ascending: ascending,
+        );
       case TopicListFilter.unseen:
-        return service.getUnseenTopics(page: page, order: order, ascending: ascending);
+        return service.getUnseenTopics(
+          page: page,
+          order: order,
+          ascending: ascending,
+        );
       case TopicListFilter.top:
         return service.getTopTopics();
       case TopicListFilter.hot:
-        return service.getHotTopics(page: page, order: order, ascending: ascending);
+        return service.getHotTopics(
+          page: page,
+          order: order,
+          ascending: ascending,
+        );
     }
   }
 
@@ -170,7 +228,9 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
   (String?, bool?) _currentSortParams() {
     final sortOrder = ref.read(topicSortOrderProvider);
     final orderParam = sortOrder.apiValue;
-    final ascendingParam = orderParam != null ? ref.read(topicSortAscendingProvider) : null;
+    final ascendingParam = orderParam != null
+        ? ref.read(topicSortAscendingProvider)
+        : null;
     return (orderParam, ascendingParam);
   }
 
@@ -184,13 +244,23 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       final service = ref.read(discourseServiceProvider);
       final filterParams = _currentFilterParams();
       final (order, ascending) = _currentSortParams();
-      final response = await _fetchTopics(service, _currentFilter, 0, filterParams, order: order, ascending: ascending);
+      final response = await _fetchTopics(
+        service,
+        _currentFilter,
+        0,
+        filterParams,
+        order: order,
+        ascending: ascending,
+      );
 
       final result = _paginationHelper.processRefresh(
-        PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: response.topics,
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
       _hasMore = result.hasMore;
-      return _applyKeywordFilter(result.items); // CUSTOM: Keyword Filter
+      return _applyTopicFilters(result.items); // CUSTOM: Keyword Filter
     });
   }
 
@@ -200,15 +270,27 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     final filterParams = _currentFilterParams();
     final (order, ascending) = _currentSortParams();
     try {
-      final response = await _fetchTopics(service, _currentFilter, 0, filterParams, order: order, ascending: ascending);
+      final response = await _fetchTopics(
+        service,
+        _currentFilter,
+        0,
+        filterParams,
+        order: order,
+        ascending: ascending,
+      );
       _page = 0;
       _isLoadMoreFailed = false;
 
       final result = _paginationHelper.processRefresh(
-        PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: response.topics,
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
       _hasMore = result.hasMore;
-      state = AsyncValue.data(_applyKeywordFilter(result.items)); // CUSTOM: Keyword Filter
+      state = AsyncValue.data(
+        _applyTopicFilters(result.items),
+      ); // CUSTOM: Keyword Filter
     } catch (e) {
       debugPrint('Silent refresh failed: $e');
     }
@@ -232,13 +314,17 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       final newTopics = response.topics;
       if (newTopics.isEmpty) return [];
 
-      // CUSTOM: Keyword Filter 过滤命中关键词的新帖子
-      final filteredNewTopics = _applyKeywordFilter(newTopics);
+      // CUSTOM: Keyword Filter
+      // CUSTOM: Tag Filter
+      // CUSTOM: User Filter
+      final filteredNewTopics = _applyTopicFilters(newTopics);
       if (filteredNewTopics.isEmpty) return [];
 
       // 移除列表中已存在的同 ID 话题（刷新重复项，与网页版 removeValuesFromArray 一致）
       final newTopicIds = filteredNewTopics.map((t) => t.id).toSet();
-      final remaining = currentTopics.where((t) => !newTopicIds.contains(t.id)).toList();
+      final remaining = currentTopics
+          .where((t) => !newTopicIds.contains(t.id))
+          .toList();
       // 将新话题全部插入列表顶部
       state = AsyncValue.data([...filteredNewTopics, ...remaining]);
       return filteredNewTopics.map((t) => t.id).toList();
@@ -263,13 +349,23 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       final service = ref.read(discourseServiceProvider);
       final filterParams = _currentFilterParams();
       final (order, ascending) = _currentSortParams();
-      final response = await _fetchTopics(service, _currentFilter, nextPage, filterParams, order: order, ascending: ascending);
+      final response = await _fetchTopics(
+        service,
+        _currentFilter,
+        nextPage,
+        filterParams,
+        order: order,
+        ascending: ascending,
+      );
 
       final currentState = PaginationState(items: currentTopics);
       final paginationResult = _paginationHelper.processLoadMore(
         currentState,
         // CUSTOM: Keyword Filter 先过滤掉命中关键词的新帖，再合并
-        PaginationResult(items: _applyKeywordFilter(response.topics), moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: _applyTopicFilters(response.topics),
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
 
       _hasMore = paginationResult.hasMore;
@@ -346,12 +442,14 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     if (filter == TopicListFilter.newTopics) {
       await service.dismissNewTopics(categoryId: _categoryId);
       // 同步更新追踪状态计数
-      ref.read(topicTrackingStateProvider.notifier)
+      ref
+          .read(topicTrackingStateProvider.notifier)
           .dismissNewTopics(categoryId: _categoryId);
     } else if (filter == TopicListFilter.unread) {
       await service.dismissUnreadTopics(categoryId: _categoryId);
       // 同步更新追踪状态计数
-      ref.read(topicTrackingStateProvider.notifier)
+      ref
+          .read(topicTrackingStateProvider.notifier)
           .dismissUnreadTopics(categoryId: _categoryId);
     }
     state = const AsyncValue.data([]);
@@ -370,7 +468,10 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
 
     if (highestSeen <= currentRead) return;
 
-    final newUnread = (topic.highestPostNumber - highestSeen).clamp(0, topic.highestPostNumber);
+    final newUnread = (topic.highestPostNumber - highestSeen).clamp(
+      0,
+      topic.highestPostNumber,
+    );
 
     final updated = Topic(
       id: topic.id,
@@ -403,14 +504,16 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     state = AsyncValue.data(newList);
 
     // 同步更新追踪状态计数（阅读后减少 new/unread 计数）
-    ref.read(topicTrackingStateProvider.notifier)
+    ref
+        .read(topicTrackingStateProvider.notifier)
         .updateTopicRead(topicId, highestSeen, topic.highestPostNumber);
   }
 }
 
-final topicListProvider = AsyncNotifierProvider.family<TopicListNotifier, List<Topic>, int?>(
-  TopicListNotifier.new,
-);
+final topicListProvider =
+    AsyncNotifierProvider.family<TopicListNotifier, List<Topic>, int?>(
+      TopicListNotifier.new,
+    );
 
 /// 热门话题 Provider
 final topTopicsProvider = FutureProvider<TopicListResponse>((ref) async {
