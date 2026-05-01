@@ -126,6 +126,12 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     return filter.applyUserFilterToDetail(detail);
   }
 
+  // CUSTOM: User Filter
+  Post _applyUserFilterToPost(Post post) {
+    final filter = ref.read(contentFilterProvider.notifier);
+    return filter.applyUserFilterToPost(post);
+  }
+
   @override
   Future<TopicDetail> build() async {
     debugPrint(

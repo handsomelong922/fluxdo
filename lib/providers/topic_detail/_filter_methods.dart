@@ -141,9 +141,13 @@ extension FilterMethods on TopicDetailNotifier {
         filterTopLevelReplies: _filterTopLevelReplies,
       );
 
-      _updateBoundaryState(detail.postStream.posts, detail.postStream.stream);
+      final filteredDetail = _applyUserFilter(detail);
+      _updateBoundaryState(
+        filteredDetail.postStream.posts,
+        filteredDetail.postStream.stream,
+      );
 
-      return detail;
+      return filteredDetail;
     });
     if (!ref.mounted) return;
     state = result;

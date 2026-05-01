@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/topic.dart';
 import '../../providers/theme_provider.dart';
 
+const _filteredPostPlaceholderHtml = '<p>内容已被用户屏蔽规则隐藏</p>';
+
 class ContentFilterState {
   final List<String> blockedTags;
   final List<String> blockedUsers;
@@ -96,7 +98,7 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
   bool matchesAnyTag(Iterable<Tag> tags) {
     if (!state.hasBlockedTags) return false;
     for (final tag in tags) {
-      if (matchesTagName(tag.name)) return true;
+      if (matchesTagName(tag.name) || matchesTagName(tag.slug)) return true;
     }
     return false;
   }
@@ -107,6 +109,19 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
     }
     final target = username.toLowerCase();
     return state.blockedUsers.any((user) => user.toLowerCase() == target);
+  }
+
+  Post applyUserFilterToPost(Post post) {
+    if (!matchesUsername(post.username)) {
+      return post;
+    }
+    // CUSTOM: User Filter - never reveal filtered posts in detail view
+    return post.copyWith(
+      cooked: _filteredPostPlaceholderHtml,
+      hidden: true,
+      cookedHidden: false,
+      canSeeHiddenPost: false,
+    );
   }
 
   String? topicAuthorUsername(Topic topic) {
@@ -130,94 +145,24 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
     final originalPosts = detail.postStream.posts;
     if (originalPosts.isEmpty) return detail;
 
-    final filteredPosts = <Post>[];
-    final hiddenBuffer = <int>[];
-    final before = <int, List<int>>{};
-    final after = <int, List<int>>{};
-
-    void addBefore(int postId, List<int> ids) {
-      if (ids.isEmpty) return;
-      before.update(
-        postId,
-        (existing) => [...existing, ...ids],
-        ifAbsent: () => [...ids],
-      );
-    }
-
-    void addAfter(int postId, List<int> ids) {
-      if (ids.isEmpty) return;
-      after.update(
-        postId,
-        (existing) => [...existing, ...ids],
-        ifAbsent: () => [...ids],
-      );
-    }
-
-    for (final post in originalPosts) {
-      final shouldHide = post.postNumber != 1 && matchesUsername(post.username);
-      if (shouldHide) {
-        hiddenBuffer.add(post.id);
-        continue;
+    bool changed = false;
+    final filteredPosts = originalPosts.map((post) {
+      final filteredPost = applyUserFilterToPost(post);
+      if (filteredPost != post) {
+        changed = true;
       }
+      return filteredPost;
+    }).toList();
 
-      if (hiddenBuffer.isNotEmpty) {
-        addBefore(post.id, List<int>.from(hiddenBuffer));
-        hiddenBuffer.clear();
-      }
-      filteredPosts.add(post);
-    }
-
-    if (filteredPosts.isEmpty) {
-      return detail;
-    }
-
-    if (hiddenBuffer.isNotEmpty) {
-      addAfter(filteredPosts.last.id, List<int>.from(hiddenBuffer));
-      hiddenBuffer.clear();
-    }
-
-    final existingGaps = detail.postStream.gaps;
-    if (existingGaps != null) {
-      for (final entry in existingGaps.before.entries) {
-        addBefore(entry.key, entry.value);
-      }
-      for (final entry in existingGaps.after.entries) {
-        addAfter(entry.key, entry.value);
-      }
-    }
-
-    final dedupedBefore = <int, List<int>>{};
-    for (final entry in before.entries) {
-      dedupedBefore[entry.key] = _dedupeIds(entry.value);
-    }
-    final dedupedAfter = <int, List<int>>{};
-    for (final entry in after.entries) {
-      dedupedAfter[entry.key] = _dedupeIds(entry.value);
-    }
-
-    final mergedGaps = PostStreamGaps(
-      before: dedupedBefore,
-      after: dedupedAfter,
-    );
+    if (!changed) return detail;
 
     return detail.copyWith(
       postStream: PostStream(
         posts: filteredPosts,
         stream: detail.postStream.stream,
-        gaps: mergedGaps.isEmpty ? null : mergedGaps,
+        gaps: detail.postStream.gaps,
       ),
     );
-  }
-
-  static List<int> _dedupeIds(List<int> ids) {
-    final result = <int>[];
-    final seen = <int>{};
-    for (final id in ids) {
-      if (seen.add(id)) {
-        result.add(id);
-      }
-    }
-    return result;
   }
 }
 

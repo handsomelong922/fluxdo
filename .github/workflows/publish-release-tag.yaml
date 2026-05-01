@@ -1,0 +1,98 @@
+name: Publish Release Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 0.2.13 or v0.2.13"
+        required: true
+        type: string
+      target_branch:
+        description: "Branch to tag. Only main is allowed."
+        required: false
+        default: "main"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish-tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate RELEASE_PAT
+        shell: bash
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          if [[ -z "$RELEASE_PAT" ]]; then
+            echo "Missing required secret RELEASE_PAT."
+            echo "Create a fine-grained PAT with contents:write permission for this repository."
+            echo "GITHUB_TOKEN is intentionally not used because tag pushes made by GITHUB_TOKEN may not trigger the Build and Release workflow."
+            exit 1
+          fi
+
+      - name: Normalize version
+        id: version
+        shell: bash
+        run: |
+          input="${{ inputs.version }}"
+          input="${input#v}"
+          tag="v${input}"
+
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version: ${{ inputs.version }}"
+            echo "Expected format: 0.2.13 or v0.2.13"
+            exit 1
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure target branch is main
+        shell: bash
+        run: |
+          if [[ "${{ inputs.target_branch }}" != "main" ]]; then
+            echo "Only main can be tagged for release."
+            exit 1
+          fi
+
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_branch }}
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Ensure tag does not exist
+        shell: bash
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+          git fetch --tags origin
+
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists locally."
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Remote tag $tag already exists."
+            exit 1
+          fi
+
+      - name: Create and push tag
+        shell: bash
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$tag" -m "Release $tag"
+          git push origin "$tag"
+
+      - name: Summary
+        shell: bash
+        run: |
+          echo "Created and pushed tag ${{ steps.version.outputs.tag }}"
+          echo "The existing Build and Release workflow should run from the tag push."

@@ -211,6 +211,8 @@ typedef ContextPostsFetcher = Future<List<TopicPostContext>> Function(
   ContextScope scope,
 );
 
+typedef TitleGenerationPromptReader = String Function();
+
 /// 话题 AI 聊天状态管理（per-topic，autoDispose）
 final topicAiChatProvider = StateNotifierProvider.autoDispose
     .family<TopicAiChatNotifier, TopicAiChatState, int>(
@@ -218,13 +220,13 @@ final topicAiChatProvider = StateNotifierProvider.autoDispose
     final chatService = ref.watch(aiChatServiceProvider);
     final storageService = ref.watch(aiChatStorageServiceProvider);
     final titleModel = ref.read(aiTitleModelProvider);
-    final titleGenerationPrompt = ref.watch(aiTitleGenerationPromptProvider);
     final notifier = TopicAiChatNotifier(
       chatService: chatService,
       storageService: storageService,
       topicId: topicId,
       titleModel: titleModel,
-      titleGenerationPrompt: titleGenerationPrompt,
+      readTitleGenerationPrompt: () =>
+          ref.read(aiTitleGenerationPromptProvider),
     );
     ref.onDispose(() {
       notifier.saveBeforeDispose();
@@ -240,7 +242,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   final AiChatStorageService storageService;
   final int topicId;
   final ({AiProvider provider, AiModel model})? titleModel;
-  final String titleGenerationPrompt;
+  final TitleGenerationPromptReader readTitleGenerationPrompt;
 
   StreamSubscription<String>? _streamSubscription;
   bool _cancelled = false;
@@ -255,7 +257,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     required this.storageService,
     required this.topicId,
     this.titleModel,
-    required this.titleGenerationPrompt,
+    required this.readTitleGenerationPrompt,
   }) : super(const TopicAiChatState()) {
     _loadFromStorage();
   }
@@ -675,6 +677,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
 
       final userMsg =
           completedMessages.firstWhere((m) => m.role == ChatRole.user).content;
+      final titleGenerationPrompt = readTitleGenerationPrompt().trim();
 
       final titleStream = chatService.sendChatStream(
         provider: model.provider,
@@ -683,7 +686,9 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
         messages: [
           {'role': 'user', 'content': userMsg},
         ],
-        systemPrompt: titleGenerationPrompt,
+        systemPrompt: titleGenerationPrompt.isNotEmpty
+            ? titleGenerationPrompt
+            : AiL10n.current.titleGenerationPrompt,
       );
 
       final buffer = StringBuffer();
