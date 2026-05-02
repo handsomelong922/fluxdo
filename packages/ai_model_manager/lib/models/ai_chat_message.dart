@@ -1,4 +1,5 @@
 import '../l10n/ai_l10n.dart';
+import 'ai_chat_attachment.dart';
 
 /// 聊天角色
 enum ChatRole { system, user, assistant }
@@ -15,6 +16,21 @@ class AiChatMessage {
   final MessageStatus status;
   final String? errorMessage;
 
+  /// Anthropic Extended Thinking 块（推理过程），仅 assistant 消息可能有
+  final String? thinkingContent;
+
+  /// 用户消息的多模态附件（目前仅图片）
+  final List<AiChatAttachment>? attachments;
+
+  /// Token 用量（仅 assistant 完成态消息），来自 LLM provider 的 usage 字段
+  final int? promptTokens;
+  final int? responseTokens;
+
+  /// 标记该 assistant 消息是图像生成请求（gpt-image / DALL-E 等）。
+  /// 用于在 attachments 还为空时显示「正在生成图片」占位。
+  /// 持久化时不必保存（已完成的图像消息会有 attachments）。
+  final bool isImageGeneration;
+
   const AiChatMessage({
     required this.id,
     required this.role,
@@ -22,6 +38,11 @@ class AiChatMessage {
     required this.createdAt,
     this.status = MessageStatus.completed,
     this.errorMessage,
+    this.thinkingContent,
+    this.attachments,
+    this.promptTokens,
+    this.responseTokens,
+    this.isImageGeneration = false,
   });
 
   AiChatMessage copyWith({
@@ -31,6 +52,11 @@ class AiChatMessage {
     DateTime? createdAt,
     MessageStatus? status,
     String? errorMessage,
+    String? thinkingContent,
+    List<AiChatAttachment>? attachments,
+    int? promptTokens,
+    int? responseTokens,
+    bool? isImageGeneration,
   }) {
     return AiChatMessage(
       id: id ?? this.id,
@@ -39,6 +65,11 @@ class AiChatMessage {
       createdAt: createdAt ?? this.createdAt,
       status: status ?? this.status,
       errorMessage: errorMessage ?? this.errorMessage,
+      thinkingContent: thinkingContent ?? this.thinkingContent,
+      attachments: attachments ?? this.attachments,
+      promptTokens: promptTokens ?? this.promptTokens,
+      responseTokens: responseTokens ?? this.responseTokens,
+      isImageGeneration: isImageGeneration ?? this.isImageGeneration,
     );
   }
 
@@ -50,6 +81,11 @@ class AiChatMessage {
       'createdAt': createdAt.toIso8601String(),
       'status': status.name,
       if (errorMessage != null) 'errorMessage': errorMessage,
+      if (thinkingContent != null) 'thinkingContent': thinkingContent,
+      if (attachments != null && attachments!.isNotEmpty)
+        'attachments': attachments!.map((a) => a.toJson()).toList(),
+      if (promptTokens != null) 'promptTokens': promptTokens,
+      if (responseTokens != null) 'responseTokens': responseTokens,
     };
   }
 
@@ -61,6 +97,12 @@ class AiChatMessage {
       createdAt: DateTime.parse(json['createdAt'] as String),
       status: MessageStatus.values.byName(json['status'] as String),
       errorMessage: json['errorMessage'] as String?,
+      thinkingContent: json['thinkingContent'] as String?,
+      attachments: (json['attachments'] as List<dynamic>?)
+          ?.map((e) => AiChatAttachment.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      promptTokens: json['promptTokens'] as int?,
+      responseTokens: json['responseTokens'] as int?,
     );
   }
 }

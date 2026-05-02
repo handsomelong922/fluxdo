@@ -56,5 +56,42 @@
   "ai_title": "AI 助手",
   "ai_translatePost": "翻譯主帖",
   "ai_translatePrompt": "請將主帖內容翻譯成英文。",
-  "ai_typingIndicator": "正在輸入"
+  "ai_typingIndicator": "正在輸入",
+  "ai_thinkingLabel": "思考過程",
+  "ai_thinkingEnabled": "深度思考",
+  "ai_attachImageTooltip": "附加圖片",
+  "ai_removeAttachment": "移除附件",
+  "ai_imageGenerating": "正在生成圖片",
+  "ai_imageDraft": "草圖",
+  "ai_imageCoverLabel": "封面海報",
+  "ai_imageCoverPrompt": "為「{title}」這個話題畫一張極簡風格的封面海報，主色調克制、富有意境，適合作為話題展示圖",
+  "@ai_imageCoverPrompt": {
+    "placeholders": { "title": { "type": "String" } }
+  },
+  "ai_imageIllustrationLabel": "話題插畫",
+  "ai_imageIllustrationPrompt": "把「{title}」這個話題的核心場景畫成一幅插畫，構圖簡潔明了，能傳達話題氛圍",
+  "@ai_imageIllustrationPrompt": {
+    "placeholders": { "title": { "type": "String" } }
+  },
+  "ai_imageComicLabel": "漫畫風格",
+  "ai_imageComicPrompt": "用扁平化漫畫風格表達「{title}」這個話題的核心討論，畫面幽默有趣、富有表現力",
+  "@ai_imageComicPrompt": {
+    "placeholders": { "title": { "type": "String" } }
+  },
+  "ai_imageCardLabel": "分享卡片",
+  "ai_imageCardPrompt": "做一張可用於社交分享的「{title}」話題視覺卡片，含主題文字與裝飾元素，整體精緻美觀",
+  "@ai_imageCardPrompt": {
+    "placeholders": { "title": { "type": "String" } }
+  },
+  "ai_tokenUsage": "輸入 {prompt} · 輸出 {response}",
+  "@ai_tokenUsage": {
+    "placeholders": {
+      "prompt": {
+        "type": "int"
+      },
+      "response": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -11,6 +11,7 @@ import '../models/ai_provider.dart';
 import '../services/ai_chat_storage_service.dart';
 import '../services/ai_provider_service.dart';
 import '../services/resilient_secure_storage.dart';
+import '../utils/model_capabilities.dart';
 
 /// 需要主应用在 ProviderScope.overrides 中注入
 final aiSharedPreferencesProvider = Provider<SharedPreferences>((_) {
@@ -118,7 +119,7 @@ class AiProviderListNotifier extends StateNotifier<List<AiProvider>> {
       name: name,
       type: type,
       baseUrl: baseUrl,
-      models: models,
+      models: _inferAll(models),
     );
     state = [...state, provider];
     await _save();
@@ -161,9 +162,15 @@ class AiProviderListNotifier extends StateNotifier<List<AiProvider>> {
   Future<void> updateModels(String id, List<AiModel> models) async {
     state = state.map((p) {
       if (p.id != id) return p;
-      return p.copyWith(models: models);
+      return p.copyWith(models: _inferAll(models));
     }).toList();
     await _save();
+  }
+
+  /// 对一组模型批量补齐能力字段。已显式存在的能力会被保留，
+  /// 仅在缺失时根据模型 ID 添加默认值。
+  List<AiModel> _inferAll(List<AiModel> models) {
+    return models.map(ModelCapabilities.infer).toList(growable: false);
   }
 
   /// 获取 API Key

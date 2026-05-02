@@ -35,5 +35,42 @@
   "ai_title": "AI Assistant",
   "ai_translatePost": "Translate first post",
   "ai_translatePrompt": "Please translate the first post content into English.",
-  "ai_typingIndicator": "Typing"
+  "ai_typingIndicator": "Typing",
+  "ai_thinkingLabel": "Thinking",
+  "ai_thinkingEnabled": "Extended thinking",
+  "ai_attachImageTooltip": "Attach image",
+  "ai_removeAttachment": "Remove attachment",
+  "ai_imageGenerating": "Generating image",
+  "ai_imageDraft": "Draft",
+  "ai_imageCoverLabel": "Cover poster",
+  "ai_imageCoverPrompt": "Design a minimalist cover poster for the topic \"{title}\". Restrained palette, evocative atmosphere, suitable as a hero image",
+  "@ai_imageCoverPrompt": {
+    "placeholders": { "title": { "type": "String" } }
+  },
+  "ai_imageIllustrationLabel": "Illustration",
+  "ai_imageIllustrationPrompt": "Illustrate the core scene of the topic \"{title}\" with a clean composition that conveys the mood",
+  "@ai_imageIllustrationPrompt": {
+    "placeholders": { "title": { "type": "String" } }
+  },
+  "ai_imageComicLabel": "Comic",
+  "ai_imageComicPrompt": "Express the core discussion of the topic \"{title}\" in a flat comic style — humorous, expressive, eye-catching",
+  "@ai_imageComicPrompt": {
+    "placeholders": { "title": { "type": "String" } }
+  },
+  "ai_imageCardLabel": "Share card",
+  "ai_imageCardPrompt": "Create a polished social-share visual card for the topic \"{title}\" with title text and decorative elements",
+  "@ai_imageCardPrompt": {
+    "placeholders": { "title": { "type": "String" } }
+  },
+  "ai_tokenUsage": "Input {prompt} · Output {response}",
+  "@ai_tokenUsage": {
+    "placeholders": {
+      "prompt": {
+        "type": "int"
+      },
+      "response": {
+        "type": "int"
+      }
+    }
+  }
 }

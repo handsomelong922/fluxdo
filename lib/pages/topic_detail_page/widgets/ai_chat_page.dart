@@ -535,76 +535,139 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
         ),
 
         // 底部输入区
-        AiChatInput(
-          isGenerating: chatState.isGenerating,
-          onSend: (content) {
-            final scope = ref.read(
-              topicAiContextScopeProvider(widget.topicId),
-            );
-            final model = _currentModel();
-            if (model == null) return;
-            _rememberModel(model);
-            chatNotifier.sendMessage(
-              content,
-              scope,
-              selectedModel: model,
+        // 用 Consumer 监听模型切换：附件按钮（allowAttachments）需要根据
+        // 当前模型 input 模态实时显隐
+        Consumer(
+          builder: (context, ref, _) {
+            ref.watch(topicSelectedAiModelProvider(widget.topicId));
+            ref.watch(defaultAiModelProvider);
+            ref.watch(lastUsedAiAssistantModelProvider);
+            final currentModel = _currentModel();
+            return AiChatInput(
+              isGenerating: chatState.isGenerating,
+              allowAttachments:
+                  currentModel?.model.input.contains(Modality.image) ?? false,
+              onSend: (content, attachments) {
+                final scope = ref.read(
+                  topicAiContextScopeProvider(widget.topicId),
+                );
+                final model = _currentModel();
+                if (model == null) return;
+                _rememberModel(model);
+                chatNotifier.sendMessage(
+                  content,
+                  scope,
+                  selectedModel: model,
+                  attachments: attachments.isEmpty ? null : attachments,
+                  enableThinking:
+                      model.model.abilities.contains(ModelAbility.reasoning),
+                );
+              },
+              onStop: chatNotifier.stopGeneration,
+              bottomLeading: Consumer(
+                builder: (context, ref, _) {
+                  final allModels = ref.watch(allAvailableAiModelsProvider);
+                  final selected = ref.watch(
+                    topicSelectedAiModelProvider(widget.topicId),
+                  );
+                  final lastUsedModel = ref.watch(
+                    lastUsedAiAssistantModelProvider,
+                  );
+                  final defaultModel = ref.watch(defaultAiModelProvider);
+                  final current = selected ?? defaultModel ?? lastUsedModel;
+                  if (allModels.length <= 1 || current == null) {
+                    return const SizedBox.shrink();
+                  }
+                  return _AiModelSelector(
+                    allModels: allModels,
+                    current: current,
+                    onChanged: _rememberModel,
+                  );
+                },
+              ),
             );
           },
-          onStop: chatNotifier.stopGeneration,
-          bottomLeading: Consumer(
-            builder: (context, ref, _) {
-              final allModels = ref.watch(allAvailableAiModelsProvider);
-              final selected = ref.watch(
-                topicSelectedAiModelProvider(widget.topicId),
-              );
-              final lastUsedModel = ref.watch(
-                lastUsedAiAssistantModelProvider,
-              );
-              final defaultModel = ref.watch(defaultAiModelProvider);
-              final current = selected ?? defaultModel ?? lastUsedModel;
-              if (allModels.length <= 1 || current == null) {
-                return const SizedBox.shrink();
-              }
-              return _AiModelSelector(
-                allModels: allModels,
-                current: current,
-                onChanged: _rememberModel,
-              );
-            },
-          ),
         ),
       ],
     );
   }
 
-  /// 常用对话
-  List<({IconData icon, String label, String prompt})> get _quickPrompts => [
-    (
-      icon: Icons.summarize_outlined,
-      label: S.current.ai_summarizeTopic,
-      prompt: S.current.ai_summarizePrompt,
-    ),
-    (icon: Icons.translate_outlined, label: S.current.ai_translatePost, prompt: S.current.ai_translatePrompt),
-    (
-      icon: Icons.question_answer_outlined,
-      label: S.current.ai_listViewpoints,
-      prompt: S.current.ai_listViewpointsPrompt,
-    ),
-    (
-      icon: Icons.lightbulb_outlined,
-      label: S.current.ai_highlights,
-      prompt: S.current.ai_highlightsPrompt,
-    ),
-  ];
+  /// 文本聊天的快捷 prompt
+  List<({IconData icon, String label, String prompt})> get _chatQuickPrompts =>
+      [
+        (
+          icon: Icons.summarize_outlined,
+          label: S.current.ai_summarizeTopic,
+          prompt: S.current.ai_summarizePrompt,
+        ),
+        (
+          icon: Icons.translate_outlined,
+          label: S.current.ai_translatePost,
+          prompt: S.current.ai_translatePrompt,
+        ),
+        (
+          icon: Icons.question_answer_outlined,
+          label: S.current.ai_listViewpoints,
+          prompt: S.current.ai_listViewpointsPrompt,
+        ),
+        (
+          icon: Icons.lightbulb_outlined,
+          label: S.current.ai_highlights,
+          prompt: S.current.ai_highlightsPrompt,
+        ),
+      ];
+
+  /// 图像生成的快捷 prompt（基于话题标题模板，自动填充话题名）
+  List<({IconData icon, String label, String prompt})>
+      get _imageQuickPrompts {
+    // 话题标题为空时退回通用 placeholder，避免出现 prompt 里只有空字符串
+    final title =
+        _topicTitle.trim().isEmpty ? S.current.ai_title : _topicTitle.trim();
+    return [
+      (
+        icon: Icons.image_outlined,
+        label: S.current.ai_imageCoverLabel,
+        prompt: S.current.ai_imageCoverPrompt(title),
+      ),
+      (
+        icon: Icons.brush_outlined,
+        label: S.current.ai_imageIllustrationLabel,
+        prompt: S.current.ai_imageIllustrationPrompt(title),
+      ),
+      (
+        icon: Icons.emoji_emotions_outlined,
+        label: S.current.ai_imageComicLabel,
+        prompt: S.current.ai_imageComicPrompt(title),
+      ),
+      (
+        icon: Icons.share_outlined,
+        label: S.current.ai_imageCardLabel,
+        prompt: S.current.ai_imageCardPrompt(title),
+      ),
+    ];
+  }
+
+  /// 根据当前模型能力返回对应的快捷 prompt 列表
+  List<({IconData icon, String label, String prompt})> get _quickPrompts {
+    final model = _currentModel()?.model;
+    if (model != null && model.output.contains(Modality.image)) {
+      return _imageQuickPrompts;
+    }
+    return _chatQuickPrompts;
+  }
 
   void _sendQuickPrompt(String prompt) {
     final scope = ref.read(topicAiContextScopeProvider(widget.topicId));
     final model = _currentModel();
     if (model == null) return;
     _rememberModel(model);
-    ref
-        .read(topicAiChatProvider(widget.topicId).notifier)
-        .sendMessage(prompt, scope, selectedModel: model);
+    ref.read(topicAiChatProvider(widget.topicId).notifier).sendMessage(
+          prompt,
+          scope,
+          selectedModel: model,
+          enableThinking:
+              model.model.abilities.contains(ModelAbility.reasoning),
+        );
   }
 
   Widget _buildEmptyState(BuildContext context, ThemeData theme) {
@@ -636,17 +699,26 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
               ),
             ),
             const SizedBox(height: 28),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children: _quickPrompts.map((item) {
-                return ActionChip(
-                  avatar: Icon(item.icon, size: 18),
-                  label: Text(item.label),
-                  onPressed: () => _sendQuickPrompt(item.prompt),
+            // 用 Consumer 监听模型变化：用户在底部切换模型后，
+            // 这里的快捷词会自动从聊天版切到图像版（或反向）
+            Consumer(
+              builder: (context, ref, _) {
+                ref.watch(topicSelectedAiModelProvider(widget.topicId));
+                ref.watch(defaultAiModelProvider);
+                ref.watch(lastUsedAiAssistantModelProvider);
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: _quickPrompts.map((item) {
+                    return ActionChip(
+                      avatar: Icon(item.icon, size: 18),
+                      label: Text(item.label),
+                      onPressed: () => _sendQuickPrompt(item.prompt),
+                    );
+                  }).toList(),
                 );
-              }).toList(),
+              },
             ),
           ],
         ),

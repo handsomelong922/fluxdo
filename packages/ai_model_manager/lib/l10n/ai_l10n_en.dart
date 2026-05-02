@@ -200,6 +200,15 @@ class AiL10nEn extends AiL10n {
   @override
   String serverInternalError(int code) => 'Server internal error ($code)';
   @override
+  String get upstreamBadGatewayError =>
+      'Upstream service error (502 Bad Gateway). If using a proxy (one-api / aihubmix etc.), check that the proxy is healthy.';
+  @override
+  String get upstreamUnavailableError =>
+      'Upstream service unavailable (503). OpenAI is busy or the proxy is overloaded; auto-retried 3 times without success, please try again later.';
+  @override
+  String get upstreamGatewayTimeoutError =>
+      'Upstream timeout (504 Gateway Timeout). Slow requests such as gpt-image often trigger this; try a shorter prompt, lower quality, or connect directly without a proxy.';
+  @override
   String requestFailed(int code) => 'Request failed ($code)';
   @override
   String get requestCancelled => 'Request cancelled';

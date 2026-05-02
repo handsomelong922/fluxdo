@@ -185,6 +185,15 @@ class AiL10nZhTW extends AiL10n {
   @override
   String serverInternalError(int code) => '伺服器內部錯誤 ($code)';
   @override
+  String get upstreamBadGatewayError =>
+      '上游服務異常 (502 Bad Gateway)。如使用代理（one-api / aihubmix 等），請檢查代理服務是否正常。';
+  @override
+  String get upstreamUnavailableError =>
+      '上游服務暫時不可用 (503)。OpenAI 服務繁忙或代理過載，已自動重試 3 次仍失敗，請稍後再試。';
+  @override
+  String get upstreamGatewayTimeoutError =>
+      '上游回應逾時 (504 Gateway Timeout)。gpt-image 等慢請求容易觸發；請嘗試更短 prompt、降低畫質，或直連官方 API 不走代理。';
+  @override
   String requestFailed(int code) => '請求失敗 ($code)';
   @override
   String get requestCancelled => '請求已取消';

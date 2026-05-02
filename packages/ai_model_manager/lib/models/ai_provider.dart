@@ -19,16 +19,59 @@ enum AiProviderType {
   }
 }
 
+/// 模型支持的输入/输出模态
+enum Modality { text, image }
+
+/// 模型支持的能力
+enum ModelAbility { tool, reasoning }
+
+List<Modality> _parseModalities(dynamic raw, List<Modality> fallback) {
+  if (raw is! List) return List.unmodifiable(fallback);
+  final out = <Modality>{};
+  for (final e in raw) {
+    final s = e?.toString().toLowerCase();
+    if (s == 'text') out.add(Modality.text);
+    if (s == 'image') out.add(Modality.image);
+  }
+  if (out.isEmpty) return List.unmodifiable(fallback);
+  return List.unmodifiable(out.toList()..sort((a, b) => a.index.compareTo(b.index)));
+}
+
+List<ModelAbility> _parseAbilities(dynamic raw) {
+  if (raw is! List) return const [];
+  final out = <ModelAbility>{};
+  for (final e in raw) {
+    final s = e?.toString().toLowerCase();
+    if (s == 'tool') out.add(ModelAbility.tool);
+    if (s == 'reasoning') out.add(ModelAbility.reasoning);
+  }
+  return List.unmodifiable(out.toList()..sort((a, b) => a.index.compareTo(b.index)));
+}
+
 /// AI 模型
 class AiModel {
   final String id;
   final String? name;
   final bool enabled;
 
+  /// 输入支持的模态。默认 `[text]`。
+  /// 多模态模型（vision）会包含 `image`。
+  final List<Modality> input;
+
+  /// 输出支持的模态。默认 `[text]`。
+  /// 图像生成模型会包含 `image`。
+  final List<Modality> output;
+
+  /// 模型支持的能力（工具调用、推理思考等）。
+  final List<ModelAbility> abilities;
+
   const AiModel({
     required this.id,
     this.name,
     this.enabled = true,
+    this.input = const [Modality.text],
+    this.output = const [Modality.text],
+    this.abilities = const [],
   });
 
   factory AiModel.fromJson(Map<String, dynamic> json) {
@@ -36,6 +79,9 @@ class AiModel {
       id: json['id'] as String,
       name: json['name'] as String?,
       enabled: json['enabled'] as bool? ?? true,
+      input: _parseModalities(json['input'], const [Modality.text]),
+      output: _parseModalities(json['output'], const [Modality.text]),
+      abilities: _parseAbilities(json['abilities']),
     );
   }
 
@@ -44,6 +90,9 @@ class AiModel {
       'id': id,
       if (name != null) 'name': name,
       'enabled': enabled,
+      'input': input.map((m) => m.name).toList(),
+      'output': output.map((m) => m.name).toList(),
+      'abilities': abilities.map((a) => a.name).toList(),
     };
   }
 
@@ -51,11 +100,17 @@ class AiModel {
     String? id,
     String? name,
     bool? enabled,
+    List<Modality>? input,
+    List<Modality>? output,
+    List<ModelAbility>? abilities,
   }) {
     return AiModel(
       id: id ?? this.id,
       name: name ?? this.name,
       enabled: enabled ?? this.enabled,
+      input: input ?? this.input,
+      output: output ?? this.output,
+      abilities: abilities ?? this.abilities,
     );
   }
 }

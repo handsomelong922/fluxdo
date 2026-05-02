@@ -135,6 +135,12 @@ class AiL10n {
   String get endpointNotFoundError => '接口地址不存在，请检查 Base URL (404)';
   String get tooManyRequestsError => '请求过于频繁，请稍后重试 (429)';
   String serverInternalError(int code) => '服务器内部错误 ($code)';
+  String get upstreamBadGatewayError =>
+      '上游服务异常 (502 Bad Gateway)。如使用代理（one-api / aihubmix 等），请检查代理服务是否正常。';
+  String get upstreamUnavailableError =>
+      '上游服务暂时不可用 (503)。OpenAI 服务繁忙或代理过载，已自动重试 3 次仍失败，请稍后再试。';
+  String get upstreamGatewayTimeoutError =>
+      '上游响应超时 (504 Gateway Timeout)。gpt-image 等慢请求容易触发；请尝试更短 prompt、降低画质，或直连官方 API 不走代理。';
   String requestFailed(int code) => '请求失败 ($code)';
   String get requestCancelled => '请求已取消';
   String get sslCertificateError => 'SSL 证书验证失败';
