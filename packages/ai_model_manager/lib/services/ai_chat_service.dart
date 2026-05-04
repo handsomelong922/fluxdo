@@ -15,6 +15,7 @@ import 'package:uuid/uuid.dart';
 import '../l10n/ai_l10n.dart';
 import '../models/ai_chat_attachment.dart';
 import '../models/ai_chat_message.dart';
+import '../utils/model_capabilities.dart';
 import '../models/ai_provider.dart';
 
 /// 流式响应中的事件类型（统一各 SDK 输出）
@@ -71,10 +72,18 @@ class ImageGenerated extends AiChatChunk {
 ///
 /// 所有 SDK 都基于 `package:http`，通过 [bridgedClient] 注入应用 dio 网络栈。
 class AiChatService {
-  AiChatService({this.bridgedClient});
+  AiChatService({
+    this.bridgedClient,
+    this.enablePartialImages = false,
+  });
 
   /// 可选 http.Client。传 [DioBackedHttpClient] 即可让所有请求复用应用网络栈。
   final http.Client? bridgedClient;
+
+  /// 是否启用 gpt-image 系列的渐进式生成（partial frames）。
+  /// 默认 false；需要 OpenAI 已验证 organization 的账号才能开启，
+  /// 未验证账号开启会让服务端立即关流（onDone 时 buffer 空，报错）。
+  final bool enablePartialImages;
 
   Stream<AiChatChunk> sendChatStream({
     required AiProvider provider,
@@ -84,16 +93,39 @@ class AiChatService {
     String? systemPrompt,
     bool enableThinking = false,
     int thinkingBudgetTokens = 4096,
+    /// 仅图像生成路径使用：话题上下文摘要（含标题+正文楼层），
+    /// 会被前置拼接到 image prompt 之前，让生成的图与话题相关。
+    /// 文本聊天路径忽略此参数（话题上下文走 [messages] 注入）。
+    String? imagePromptContext,
+    /// 仅图像生成路径使用：用户在 PromptPreset 维度面板选择的 aspect。
+    /// 取值 '1:1' / '16:9' / '9:16' / '4:3' / '3:4'，null = 用模型默认。
+    String? imageAspect,
   }) {
-    // OpenAI 系图像模型（gpt-image-* / dall-e-*）走 /images/generations 端点，
-    // 不能套聊天接口。模仿 Kelivo 的路由策略：从最后一条 user 消息抽 prompt，
-    // 有附件则走 /images/edits，否则 /images/generations。
+    // OpenAI 系图像模型（gpt-image-* / dall-e-* / grok-2-image / cogview /
+    // qwen-image / sd / flux / midjourney 经 OpenAI 兼容代理等）走
+    // /images/generations 端点。
+    // 路由判断从「硬编码 prefix」改为「ModelCapabilities.isImageOutputModel
+    // 正则」，覆盖所有主流图像生成模型 id。
     if (_isOpenAIImageRoute(provider, model)) {
       return _streamOpenAiImageGeneration(
         baseUrl: provider.baseUrl,
         apiKey: apiKey,
         model: model,
         messages: messages,
+        contextSummary: imagePromptContext,
+        imageAspect: imageAspect,
+      );
+    }
+    // Google 原生图像生成（gemini-2.5-flash-image / gemini-3-flash-image-preview /
+    // imagen-3 等）走 generateContent + responseModalities=[image, text]。
+    if (_isGeminiImageRoute(provider, model)) {
+      return _streamGeminiImageGeneration(
+        baseUrl: provider.baseUrl,
+        apiKey: apiKey,
+        model: model,
+        messages: messages,
+        contextSummary: imagePromptContext,
+        imageAspect: imageAspect,
       );
     }
     switch (provider.type) {
@@ -134,18 +166,25 @@ class AiChatService {
     }
   }
 
-  /// 检测是否为 OpenAI 系图像生成模型（gpt-image-* / chatgpt-image-* / dall-e-*）。
-  /// 仅 openai / openaiResponse provider 类型适用。
+  /// 检测是否为 OpenAI 系（含 OpenAI 兼容代理）图像生成模型。
+  /// 覆盖：gpt-image-* / chatgpt-image-* / dall-e-* / grok-2-image /
+  /// cogview / qwen-image / sd / flux / midjourney 等所有走
+  /// /v1/images/generations 端点的模型。
+  ///
+  /// Gemini 自己的 image 模型（gemini-*-image / imagen-*）走 [_isGeminiImageRoute]。
   bool _isOpenAIImageRoute(AiProvider provider, String modelId) {
     if (provider.type != AiProviderType.openai &&
         provider.type != AiProviderType.openaiResponse) {
       return false;
     }
-    final id = modelId.toLowerCase();
-    return id.startsWith('gpt-image-') ||
-        id.startsWith('chatgpt-image-') ||
-        id == 'dall-e-2' ||
-        id == 'dall-e-3';
+    return ModelCapabilities.isImageOutputModel(modelId);
+  }
+
+  /// 检测是否为 Google 原生图像生成模型。
+  /// 覆盖：gemini-2.5-flash-image / gemini-3-(flash|pro)-image / imagen-* 等。
+  bool _isGeminiImageRoute(AiProvider provider, String modelId) {
+    if (provider.type != AiProviderType.gemini) return false;
+    return ModelCapabilities.isImageOutputModel(modelId);
   }
 
   // ────────────────────────── OpenAI Chat Completions ──────────────────────────
@@ -240,6 +279,8 @@ class AiChatService {
     required String apiKey,
     required String model,
     required List<AiChatMessage> messages,
+    String? contextSummary,
+    String? imageAspect,
   }) async* {
     // 提取最后一条 user 消息作为 prompt
     AiChatMessage? lastUser;
@@ -249,10 +290,13 @@ class AiChatService {
         break;
       }
     }
-    final prompt = (lastUser?.content ?? '').trim();
-    if (prompt.isEmpty) {
+    final userPrompt = (lastUser?.content ?? '').trim();
+    if (userPrompt.isEmpty) {
       throw Exception(AiL10n.current.emptyResponseError);
     }
+    // 拼接话题上下文（如果有），让生成的图与话题相关
+    final prompt = _buildImagePrompt(contextSummary, userPrompt);
+    final size = _aspectToOpenAiSize(imageAspect);
 
     final inputAttachments = lastUser?.attachments ?? const [];
     final hasInput = inputAttachments.isNotEmpty;
@@ -278,6 +322,7 @@ class AiChatService {
                   image: bytes,
                   imageFilename: 'input.${_extFromMime(att.mimeType)}',
                   partialImages: partialImages,
+                  size: size,
                 ),
               ),
             );
@@ -289,6 +334,7 @@ class AiChatService {
                 prompt: prompt,
                 image: bytes,
                 imageFilename: 'input.${_extFromMime(att.mimeType)}',
+                size: size,
               ),
             ));
             yield* _emitImageResponse(response);
@@ -301,12 +347,13 @@ class AiChatService {
                   model: model,
                   prompt: prompt,
                   partialImages: partialImages,
+                  size: size,
                 ),
               ),
             );
           } else {
             final response = await _withServerErrorRetry(() => client.images.generate(
-              o.ImageGenerationRequest(model: model, prompt: prompt),
+              o.ImageGenerationRequest(model: model, prompt: prompt, size: size),
             ));
             yield* _emitImageResponse(response);
           }
@@ -319,18 +366,41 @@ class AiChatService {
     }
   }
 
+  /// 把 PromptPreset 的 aspect ('1:1' / '16:9' / ...) 映射到 OpenAI ImageSize。
+  ///
+  /// gpt-image-1 / chatgpt-image 支持 `auto` + 1024x1024 / 1536x1024 / 1024x1536。
+  /// dall-e-3 支持 1024x1024 / 1792x1024 / 1024x1792。
+  /// dall-e-2 仅 256/512/1024 方图。
+  ///
+  /// 我们用一个尽量兼容的映射：1:1 → 1024，16:9/4:3 偏宽 → 1792x1024，
+  /// 9:16/3:4 偏高 → 1024x1792。null 或未识别值返回 null（用模型默认）。
+  o.ImageSize? _aspectToOpenAiSize(String? aspect) {
+    if (aspect == null || aspect.isEmpty) return null;
+    switch (aspect) {
+      case '1:1':
+        return o.ImageSize.size1024x1024;
+      case '16:9':
+      case '4:3':
+        return o.ImageSize.size1792x1024;
+      case '9:16':
+      case '3:4':
+        return o.ImageSize.size1024x1792;
+      default:
+        return null;
+    }
+  }
+
   /// 是否启用 streaming + partial_images。
   ///
-  /// 当前默认 **关闭**，原因：
+  /// 默认关闭（构造时 [enablePartialImages] 默认 false）：
   /// - OpenAI gpt-image streaming 要求 organization 完成 verification，
-  ///   未验证的 org 会收到 200 响应但 stream 立即关闭、无任何事件，
-  ///   表现为「未收到 AI 回复」错误（onDone 时 buffer 空）。
-  /// - 部分 OpenAI 兼容服务器对 `partial_images` 参数不熟。
-  /// - 非流式 `generate()` 走 `_emitImageResponse` 路径稳定可靠。
-  ///
-  /// 待后续验证 org 普及后再考虑默认开启，或加用户开关。
+  ///   未验证的 org 会收到 200 响应但 stream 立即关闭、无任何事件
+  /// - 用户在设置里主动启用后才走 stream 路径
+  /// - 仅 gpt-image-* / chatgpt-image-* 系列支持，dall-e 系列即使开启也走非流式
   bool _supportsPartialImages(String modelId) {
-    return false;
+    if (!enablePartialImages) return false;
+    final id = modelId.toLowerCase();
+    return id.startsWith('gpt-image-') || id.startsWith('chatgpt-image-');
   }
 
   /// 消费 generateStream 事件流，把 partial 帧和终态帧统一映射成 [ImageGenerated]
@@ -616,6 +686,113 @@ class AiChatService {
       } catch (e) {
         throw _mapError(e);
       }
+      if (promptTokens != null || responseTokens != null) {
+        yield UsageReport(
+          promptTokens: promptTokens,
+          responseTokens: responseTokens,
+        );
+      }
+    } finally {
+      client.close();
+    }
+  }
+
+  // ────────────────────────── Gemini Image (gemini-*-image / imagen-*) ──────────────────────────
+
+  /// Google 原生图像生成。
+  ///
+  /// 跟 Chat 不同：走 `streamGenerateContent` + `generationConfig.responseModalities=[image,text]`，
+  /// 响应里 candidates[0].content.parts 含 [InlineDataPart]（mime + base64）。
+  ///
+  /// gemini-2.5-flash-image / gemini-3-flash-image 系列原生支持流式，
+  /// 可能边描述边出图（多个 part）；imagen-* 走 Vertex 端点不在本路径覆盖。
+  Stream<AiChatChunk> _streamGeminiImageGeneration({
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+    required List<AiChatMessage> messages,
+    String? contextSummary,
+    String? imageAspect,
+  }) async* {
+    AiChatMessage? lastUser;
+    for (var i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role == ChatRole.user) {
+        lastUser = messages[i];
+        break;
+      }
+    }
+    final userPrompt = (lastUser?.content ?? '').trim();
+    if (userPrompt.isEmpty) {
+      throw Exception(AiL10n.current.emptyResponseError);
+    }
+    // Gemini 通过修改 messages 注入 context 比较麻烦，
+    // 我们直接把 contextSummary 拼到最后一条 user prompt 前。
+    // 同时要把这条 user content 改成增强版，重建 contents。
+    final prompt = _buildImagePrompt(contextSummary, userPrompt);
+
+    final client = g.GoogleAIClient(
+      config: g.GoogleAIConfig(
+        authProvider: g.ApiKeyProvider(apiKey),
+        baseUrl: baseUrl.isEmpty
+            ? 'https://generativelanguage.googleapis.com'
+            : _stripGeminiVersion(baseUrl),
+        apiMode: g.ApiMode.googleAI,
+      ),
+      httpClient: bridgedClient,
+    );
+
+    try {
+      // 复用普通 chat 的消息转换（带附件作为输入图，也支持 image edit 场景）；
+      // 但要把最后一条 user 文本替换成增强版 prompt（拼了话题上下文）
+      final messagesWithEnhancedPrompt = _replaceLastUserContent(messages, prompt);
+      final contents = _toGeminiContents(messagesWithEnhancedPrompt);
+      final request = g.GenerateContentRequest(
+        contents: contents,
+        generationConfig: g.GenerationConfig(
+          // 关键：要求模型同时输出图像和文本（image-only 会拒绝纯文本 prompt）
+          responseModalities: const ['IMAGE', 'TEXT'],
+          // aspect ratio 用 imageConfig.aspectRatio 透传（gemini-3-image preview 支持）
+          imageConfig: imageAspect != null
+              ? g.ImageConfig(aspectRatio: imageAspect)
+              : null,
+        ),
+      );
+
+      int? promptTokens;
+      int? responseTokens;
+      try {
+        await for (final response in client.models.streamGenerateContent(
+          model: model,
+          request: request,
+        )) {
+          final parts =
+              response.candidates?.firstOrNull?.content?.parts ?? const [];
+          for (final part in parts) {
+            if (part is g.TextPart && part.text.isNotEmpty) {
+              yield TextDelta(part.text);
+            } else if (part is g.InlineDataPart) {
+              final blob = part.inlineData;
+              final cleaned = blob.data.replaceAll(RegExp(r'\s'), '');
+              try {
+                final bytes = base64Decode(cleaned);
+                final mime = blob.mimeType.isEmpty ? 'image/png' : blob.mimeType;
+                final localPath = await _saveImageBytes(bytes, mime);
+                yield ImageGenerated(localPath: localPath, mimeType: mime);
+              } catch (_) {
+                // 单帧解码失败不中断后续 part
+              }
+            }
+          }
+          final usage = response.usageMetadata;
+          if (usage != null) {
+            promptTokens = usage.promptTokenCount;
+            responseTokens = usage.candidatesTokenCount;
+          }
+        }
+      } catch (e) {
+        throw _mapError(e);
+      }
+
       if (promptTokens != null || responseTokens != null) {
         yield UsageReport(
           promptTokens: promptTokens,
@@ -1034,6 +1211,37 @@ class AiChatService {
     }
     if (code != null && code >= 500) return _serverErrorMessage(code, null);
     return l10n.requestFailed(code ?? 0);
+  }
+
+  // ────────────────────────── 图像 prompt 工具 ──────────────────────────
+
+  /// 把话题上下文摘要拼到用户的 image prompt 之前，让生成的图与话题相关。
+  /// 模板含「不要在图中嵌字」的指令避免乱出文字。
+  /// 上下文为空时直接返回原 prompt。
+  String _buildImagePrompt(String? contextSummary, String userPrompt) {
+    final ctx = contextSummary?.trim() ?? '';
+    if (ctx.isEmpty) return userPrompt;
+    // 防止 context 过长爆 prompt 限额（OpenAI gpt-image 单 prompt 32000 字符
+    // 上限，但太长 image 模型容易跑偏；安全截断 4000 字符）
+    final trimmedCtx = ctx.length > 4000 ? '${ctx.substring(0, 4000)}…' : ctx;
+    return AiL10n.current.imageContextPromptTemplate(trimmedCtx, userPrompt);
+  }
+
+  /// 把 messages 列表里**最后一条** user 消息的 content 替换成新值。
+  /// 用于 Gemini image gen 路径：把拼了话题上下文的 prompt 替换进去，
+  /// 不影响其他消息（含附件等）。
+  List<AiChatMessage> _replaceLastUserContent(
+    List<AiChatMessage> messages,
+    String newContent,
+  ) {
+    final result = [...messages];
+    for (var i = result.length - 1; i >= 0; i--) {
+      if (result[i].role == ChatRole.user) {
+        result[i] = result[i].copyWith(content: newContent);
+        break;
+      }
+    }
+    return result;
   }
 
   // ────────────────────────── URL 处理 ──────────────────────────

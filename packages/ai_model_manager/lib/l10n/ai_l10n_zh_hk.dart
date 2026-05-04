@@ -24,6 +24,89 @@ class AiL10nZhHK extends AiL10n {
   @override
   String get import_ => '導入';
 
+  // ---- 快捷詞管理 ----
+  @override
+  String get quickPromptsManageTitle => '快捷詞管理';
+  @override
+  String get quickPromptsImageTab => '圖像';
+  @override
+  String get quickPromptsTextTab => '文本';
+  @override
+  String get quickPromptsBuiltInSection => '內置';
+  @override
+  String get quickPromptsCustomSection => '自定義';
+  @override
+  String get quickPromptsAddNew => '新建快捷詞';
+  @override
+  String get quickPromptsEditTitle => '編輯快捷詞';
+  @override
+  String get quickPromptsCreateTitle => '新建快捷詞';
+  @override
+  String get quickPromptsName => '名稱';
+  @override
+  String get quickPromptsNameHint => '如：手繪小報';
+  @override
+  String get quickPromptsType => '類型';
+  @override
+  String get quickPromptsIcon => '圖示';
+  @override
+  String get quickPromptsIconTab => '圖示';
+  @override
+  String get quickPromptsEmojiTab => 'Emoji';
+  @override
+  String get quickPromptsEmojiInputHint => '輸入或貼上 emoji';
+  @override
+  String get quickPromptsTemplate => 'Prompt 模板';
+  @override
+  String get quickPromptsTemplateHint => '支援 {title} {context}';
+  @override
+  String get quickPromptsAspect => '預設比例';
+  @override
+  String get quickPromptsTags => '標籤';
+  @override
+  String get quickPromptsTagsHint => '用逗號分隔';
+  @override
+  String get quickPromptsDimensions => '維度組合（進階）';
+  @override
+  String get quickPromptsTestGenerate => '測試生成';
+  @override
+  String get quickPromptsTesting => '測試中…';
+  @override
+  String get quickPromptsTestSuccess => '測試圖已生成';
+  @override
+  String get quickPromptsTestFailed => '測試失敗';
+  @override
+  String get quickPromptsResetBuiltIns => '恢復內置預設';
+  @override
+  String get quickPromptsResetBuiltInsConfirm =>
+      '確定要恢復所有內置快捷詞的預設配置嗎？（不影響自定義）';
+  @override
+  String get quickPromptsHide => '隱藏';
+  @override
+  String get quickPromptsUnhide => '顯示';
+  @override
+  String get quickPromptsDuplicate => '複製';
+  @override
+  String quickPromptsDeleteConfirm(String name) => '確定刪除快捷詞「$name」嗎？';
+  @override
+  String get quickPromptsPin => 'Pin 到聊天頁';
+  @override
+  String get quickPromptsUnpin => '取消 Pin';
+  @override
+  String get quickPromptsValidateNameRequired => '請輸入名稱';
+  @override
+  String get quickPromptsValidateTemplateRequired => '請輸入 prompt 模板';
+  @override
+  String get quickPromptsEmpty => '還沒有自定義快捷詞';
+  @override
+  String get quickPromptsAspectAuto => '自動';
+  @override
+  String get quickPromptsTypeImage => '圖像';
+  @override
+  String get quickPromptsTypeText => '文本';
+  @override
+  String get quickPromptsManageHint => '管理 AI 助手底部的快捷詞';
+
   // ---- AI 模型服務頁 ----
   @override
   String get aiModelService => 'AI 模型服務';
@@ -118,6 +201,22 @@ class AiL10nZhHK extends AiL10n {
   @override
   String get cancelDefault => '取消預設';
   @override
+  String get setAsImageDefault => '設為圖像預設';
+  @override
+  String get imageDefaultActive => '圖像預設';
+  @override
+  String get setAsTextDefault => '設為文本預設';
+  @override
+  String get textDefaultActive => '文本預設';
+  @override
+  String get imageDefaultModelCleared => '已取消圖像預設';
+  @override
+  String get textDefaultModelCleared => '已取消文本預設';
+  @override
+  String get setAsImageDefaultDone => '已設為圖像預設';
+  @override
+  String get setAsTextDefaultDone => '已設為文本預設';
+  @override
   String get setAsDefault => '設為預設';
 
   // ---- 聊天歷史頁 ----
@@ -206,6 +305,36 @@ class AiL10nZhHK extends AiL10n {
   @override
   String get emptyResponseError => '未收到 AI 回覆，請檢查網絡設定或重試';
 
+  // ---- 圖像生成設置 ----
+  @override
+  String get partialImagesTitle => '圖像生成漸進幀';
+  @override
+  String get partialImagesSubtitle =>
+      '開啟後 gpt-image 系列會先返回模糊草圖再返回終態圖；'
+      '需要 OpenAI 已驗證 organization，未驗證賬號開啟會失敗';
+  @override
+  String get imagePromptOptimizerModel => '圖像 Prompt 優化模型';
+  @override
+  String get imagePromptOptimizerSubtitle =>
+      '畫圖前用聊天模型把話題上下文翻譯成視覺化 prompt，顯著提升出圖質量；'
+      '推薦用 gpt-4o-mini / haiku 等輕量模型';
+  @override
+  String get optimizerNotSet => '不優化（直接拼接上下文）';
+
+  // ---- 模型能力 chip ----
+  @override
+  String get capabilityVisionLabel => '識圖';
+  @override
+  String get capabilityReasoningLabel => '推理';
+  @override
+  String get capabilityToolLabel => '工具';
+  @override
+  String get capabilityImageOutputLabel => '畫圖';
+  @override
+  String get capabilityResetTooltip => '重置為自動';
+  @override
+  String get capabilityResetSnack => '已重置為自動推斷';
+
   // ---- System Prompts ----
   @override
   String get systemPromptIntro =>
@@ -221,6 +350,12 @@ class AiL10nZhHK extends AiL10n {
   String contextContentPrefix(String text) => '以下是話題內容：\n$text';
   @override
   String get contextReadyResponse => '好的，我已經閱讀了話題內容。請問你有什麼問題？';
+  @override
+  String imageContextPromptTemplate(String context, String userPrompt) =>
+      '請基於下面的話題上下文生成一張圖，但不要把上下文文字直接畫到圖中。\n\n'
+      '話題上下文：\n---\n$context\n---\n\n'
+      '畫圖需求：$userPrompt';
+
   @override
   String get titleGenerationPrompt =>
       '請用不超過15個字概括用戶這段話的主題，直接輸出標題文字，不要加標點符號和引號。';

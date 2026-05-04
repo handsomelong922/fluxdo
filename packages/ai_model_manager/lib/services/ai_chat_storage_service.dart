@@ -16,6 +16,7 @@ class AiChatStorageService {
   static const _allSessionsIndexKey = 'ai_chat_all_sessions_index';
   static const _maxSessionsKey = 'ai_chat_max_sessions';
   static const _titleModelKey = 'ai_chat_title_model';
+  static const _imagePromptOptimizerModelKey = 'ai_image_prompt_optimizer_model';
   static const _topicSessionsKeyPrefix = 'ai_chat_topic_sessions_';
   static const _sessionMessagesKeyPrefix = 'ai_chat_session_messages_';
   static const _defaultMaxSessions = 50;
@@ -50,6 +51,22 @@ class AiChatStorageService {
       await _prefs.remove(_titleModelKey);
     } else {
       await _prefs.setString(_titleModelKey, key);
+    }
+  }
+
+  // ===== 图像 Prompt 优化模型 =====
+  // 用于在调 image gen 模型前先用一个聊天模型把话题上下文+用户简短指令
+  // 翻译成精炼的 image prompt（200 词内、视觉化、英文常见关键词）。
+
+  String? getImagePromptOptimizerModelKey() {
+    return _prefs.getString(_imagePromptOptimizerModelKey);
+  }
+
+  Future<void> setImagePromptOptimizerModelKey(String? key) async {
+    if (key == null) {
+      await _prefs.remove(_imagePromptOptimizerModelKey);
+    } else {
+      await _prefs.setString(_imagePromptOptimizerModelKey, key);
     }
   }
 

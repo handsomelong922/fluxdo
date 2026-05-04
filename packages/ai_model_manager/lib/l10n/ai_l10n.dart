@@ -49,6 +49,49 @@ class AiL10n {
   String get name => '名称';
   String get import_ => '导入';
 
+  // ---- 快捷词管理（PromptPreset） ----
+  String get quickPromptsManageTitle => '快捷词管理';
+  String get quickPromptsImageTab => '图像';
+  String get quickPromptsTextTab => '文本';
+  String get quickPromptsBuiltInSection => '内置';
+  String get quickPromptsCustomSection => '自定义';
+  String get quickPromptsAddNew => '新建快捷词';
+  String get quickPromptsEditTitle => '编辑快捷词';
+  String get quickPromptsCreateTitle => '新建快捷词';
+  String get quickPromptsName => '名称';
+  String get quickPromptsNameHint => '如：手绘小报';
+  String get quickPromptsType => '类型';
+  String get quickPromptsIcon => '图标';
+  String get quickPromptsIconTab => '图标';
+  String get quickPromptsEmojiTab => 'Emoji';
+  String get quickPromptsEmojiInputHint => '输入或粘贴 emoji';
+  String get quickPromptsTemplate => 'Prompt 模板';
+  String get quickPromptsTemplateHint => '支持 {title} {context}';
+  String get quickPromptsAspect => '默认比例';
+  String get quickPromptsTags => '标签';
+  String get quickPromptsTagsHint => '用逗号分隔';
+  String get quickPromptsDimensions => '维度组合（高级）';
+  String get quickPromptsTestGenerate => '测试生成';
+  String get quickPromptsTesting => '测试中…';
+  String get quickPromptsTestSuccess => '测试图已生成';
+  String get quickPromptsTestFailed => '测试失败';
+  String get quickPromptsResetBuiltIns => '恢复内置默认';
+  String get quickPromptsResetBuiltInsConfirm =>
+      '确定要恢复所有内置快捷词的默认配置吗？（不影响自定义）';
+  String get quickPromptsHide => '隐藏';
+  String get quickPromptsUnhide => '显示';
+  String get quickPromptsDuplicate => '复制';
+  String quickPromptsDeleteConfirm(String name) => '确定删除快捷词「$name」吗？';
+  String get quickPromptsPin => 'Pin 到聊天页';
+  String get quickPromptsUnpin => '取消 Pin';
+  String get quickPromptsValidateNameRequired => '请输入名称';
+  String get quickPromptsValidateTemplateRequired => '请输入 prompt 模板';
+  String get quickPromptsEmpty => '还没有自定义快捷词';
+  String get quickPromptsAspectAuto => '自动';
+  String get quickPromptsTypeImage => '图像';
+  String get quickPromptsTypeText => '文本';
+  String get quickPromptsManageHint => '管理 AI 助手底部的快捷词';
+
   // ---- AI 模型服务页 ----
   String get aiModelService => 'AI 模型服务';
   String get addProvider => '添加供应商';
@@ -99,6 +142,15 @@ class AiL10n {
   String get manuallyAdd => '手动添加';
   String get cancelDefault => '取消默认';
   String get setAsDefault => '设为默认';
+  // 分模式默认（按模型 modality 显示）
+  String get setAsImageDefault => '设为图像默认';
+  String get imageDefaultActive => '图像默认';
+  String get setAsTextDefault => '设为文本默认';
+  String get textDefaultActive => '文本默认';
+  String get imageDefaultModelCleared => '已取消图像默认';
+  String get textDefaultModelCleared => '已取消文本默认';
+  String get setAsImageDefaultDone => '已设为图像默认';
+  String get setAsTextDefaultDone => '已设为文本默认';
 
   // ---- 聊天历史页 ----
   String get sessionHistory => '会话记录';
@@ -148,6 +200,25 @@ class AiL10n {
   String get unknownNetworkError => '未知网络错误';
   String get emptyResponseError => '未收到 AI 回复，请检查网络设置或重试';
 
+  // ---- 图像生成设置 ----
+  String get partialImagesTitle => '图像生成渐进帧';
+  String get partialImagesSubtitle =>
+      '开启后 gpt-image 系列会先返回模糊草图再返回终态图；'
+      '需要 OpenAI 已验证 organization，未验证账号开启会失败';
+  String get imagePromptOptimizerModel => '图像 Prompt 优化模型';
+  String get imagePromptOptimizerSubtitle =>
+      '画图前用聊天模型把话题上下文翻译成视觉化 prompt，显著提升出图质量；'
+      '推荐用 gpt-4o-mini / haiku 等轻量模型';
+  String get optimizerNotSet => '不优化（直接拼接上下文）';
+
+  // ---- 模型能力 chip ----
+  String get capabilityVisionLabel => '识图';
+  String get capabilityReasoningLabel => '推理';
+  String get capabilityToolLabel => '工具';
+  String get capabilityImageOutputLabel => '画图';
+  String get capabilityResetTooltip => '重置为自动';
+  String get capabilityResetSnack => '已重置为自动推断';
+
   // ---- System Prompts（影响 AI 回复语言） ----
   String get systemPromptIntro =>
       '你是一个有帮助的 AI 助手，正在帮助用户理解和讨论一个论坛话题。';
@@ -159,4 +230,11 @@ class AiL10n {
   String get contextReadyResponse => '好的，我已经阅读了话题内容。请问你有什么问题？';
   String get titleGenerationPrompt =>
       '请用不超过15个字概括用户这段话的主题，直接输出标题文字，不要加标点符号和引号。';
+
+  /// 图像生成 prompt 模板：拼接话题上下文 + 用户的画图需求。
+  /// 用于 gpt-image / gemini-image / DALL-E 等图像生成路径。
+  String imageContextPromptTemplate(String context, String userPrompt) =>
+      '请基于下面的话题上下文生成一张图，但不要把上下文文字直接画到图中。\n\n'
+      '话题上下文：\n---\n$context\n---\n\n'
+      '画图需求：$userPrompt';
 }

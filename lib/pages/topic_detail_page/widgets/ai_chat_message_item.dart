@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:ai_model_manager/ai_model_manager.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:gal/gal.dart';
+import 'package:super_clipboard/super_clipboard.dart';
 import '../../../l10n/s.dart';
 import '../../../pages/image_viewer_page.dart';
+import '../../../services/toast_service.dart';
 
 import '../../../widgets/markdown_editor/markdown_renderer.dart';
 
@@ -16,6 +19,10 @@ class AiChatMessageItem extends StatelessWidget {
   final VoidCallback? onRetry;
   final VoidCallback? onShareAsImage;
   final VoidCallback? onCopyText;
+
+  /// 把消息中的某张生成图片回复到话题（上传到 Discourse 后插入回复框）
+  /// null = 不显示「回复」按钮
+  final void Function(AiChatAttachment attachment)? onReplyImage;
 
   /// 多选模式相关
   final bool selectionMode;
@@ -28,6 +35,7 @@ class AiChatMessageItem extends StatelessWidget {
     this.onRetry,
     this.onShareAsImage,
     this.onCopyText,
+    this.onReplyImage,
     this.selectionMode = false,
     this.isSelected = false,
     this.onSelectionToggle,
@@ -188,6 +196,16 @@ class AiChatMessageItem extends StatelessWidget {
                 _GeneratedImagesGrid(
                   attachments: attachments,
                   isStreaming: isStreaming,
+                  loadingStage: message.loadingStage,
+                ),
+              ],
+              // 优化后的 image prompt（用户可展开验证 optimizer 真的工作了）
+              if (message.optimizedPrompt != null &&
+                  message.optimizedPrompt!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _OptimizedPromptBlock(
+                  prompt: message.optimizedPrompt!,
+                  optimizerName: message.optimizerModelName,
                 ),
               ],
               if (isError && message.content.isNotEmpty) ...[
@@ -286,9 +304,46 @@ class AiChatMessageItem extends StatelessWidget {
   }
 
   /// 操作按钮行
+  ///
+  /// 纯图像消息（无文本，仅 attachments）→ 复制图片 / 保存到相册
+  /// 其他（含文本）→ 导出图片 / 复制文本
   Widget _buildActionBar(BuildContext context) {
     final theme = Theme.of(context);
     final color = theme.colorScheme.onSurfaceVariant;
+    final hasContent = message.content.isNotEmpty;
+    final attachments = message.attachments ?? const [];
+    // 仅取已 finalize 的图片（partial 草图不允许操作）
+    final finalAttachments =
+        attachments.where((a) => !a.isPartial).toList(growable: false);
+    final isImageOnly = !hasContent && finalAttachments.isNotEmpty;
+
+    if (isImageOnly) {
+      return Wrap(
+        spacing: 12,
+        runSpacing: 6,
+        children: [
+          if (onReplyImage != null)
+            _ActionButton(
+              icon: Icons.reply_outlined,
+              label: context.l10n.ai_replyToTopicLabel,
+              color: color,
+              onTap: () => onReplyImage!(finalAttachments.first),
+            ),
+          _ActionButton(
+            icon: Icons.copy_outlined,
+            label: context.l10n.ai_copyImageLabel,
+            color: color,
+            onTap: () => _copyImageAttachment(context, finalAttachments.first),
+          ),
+          _ActionButton(
+            icon: Icons.save_alt_outlined,
+            label: context.l10n.ai_saveImageLabel,
+            color: color,
+            onTap: () => _saveImageAttachment(context, finalAttachments.first),
+          ),
+        ],
+      );
+    }
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -309,23 +364,108 @@ class AiChatMessageItem extends StatelessWidget {
       ],
     );
   }
+
+  Future<Uint8List?> _readAttachmentBytes(AiChatAttachment att) async {
+    final localPath = att.localPath;
+    if (localPath != null && localPath.isNotEmpty) {
+      try {
+        return await File(localPath).readAsBytes();
+      } catch (_) {}
+    }
+    final base64Data = att.base64Data;
+    if (base64Data != null && base64Data.isNotEmpty) {
+      try {
+        return base64Decode(base64Data);
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<void> _copyImageAttachment(
+    BuildContext context,
+    AiChatAttachment att,
+  ) async {
+    final bytes = await _readAttachmentBytes(att);
+    if (bytes == null || bytes.isEmpty) {
+      if (context.mounted) {
+        ToastService.showError(context.l10n.ai_imageCopyFailed);
+      }
+      return;
+    }
+    try {
+      final clipboard = SystemClipboard.instance;
+      if (clipboard == null) {
+        if (context.mounted) {
+          ToastService.showError(context.l10n.ai_imageCopyFailed);
+        }
+        return;
+      }
+      final item = DataWriterItem();
+      item.add(Formats.png(bytes));
+      await clipboard.write([item]);
+      if (context.mounted) {
+        ToastService.showSuccess(context.l10n.ai_imageCopied);
+      }
+    } catch (e) {
+      debugPrint('[AiChatMessageItem] copyImage error: $e');
+      if (context.mounted) {
+        ToastService.showError(context.l10n.ai_imageCopyFailed);
+      }
+    }
+  }
+
+  Future<void> _saveImageAttachment(
+    BuildContext context,
+    AiChatAttachment att,
+  ) async {
+    final bytes = await _readAttachmentBytes(att);
+    if (bytes == null || bytes.isEmpty) {
+      if (context.mounted) {
+        ToastService.showError(context.l10n.ai_imageSaveFailed);
+      }
+      return;
+    }
+    try {
+      final hasAccess = await Gal.hasAccess() || await Gal.requestAccess();
+      if (!hasAccess) {
+        if (context.mounted) {
+          ToastService.showInfo(context.l10n.ai_imageSavePermission);
+        }
+        return;
+      }
+      await Gal.putImageBytes(
+        bytes,
+        name: 'fluxdo_ai_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+      if (context.mounted) {
+        ToastService.showSuccess(context.l10n.ai_imageSaved);
+      }
+    } catch (e) {
+      debugPrint('[AiChatMessageItem] saveImage error: $e');
+      if (context.mounted) {
+        ToastService.showError(context.l10n.ai_imageSaveFailed);
+      }
+    }
+  }
 }
 
 /// 模型生成的图片网格（大图，可点击查看原图）
 class _GeneratedImagesGrid extends StatelessWidget {
   final List<AiChatAttachment> attachments;
   final bool isStreaming;
+  final String? loadingStage;
 
   const _GeneratedImagesGrid({
     required this.attachments,
     required this.isStreaming,
+    this.loadingStage,
   });
 
   @override
   Widget build(BuildContext context) {
     // 流式中且还没有任何图片 → 整体显示占位
     if (attachments.isEmpty && isStreaming) {
-      return const _ImageGenerationPlaceholder();
+      return _ImageGenerationPlaceholder(stage: loadingStage);
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -444,6 +584,106 @@ class _TappableImage extends StatelessWidget {
       );
 }
 
+/// 折叠展示「优化后的 image prompt」
+///
+/// 当用户配置了 image prompt optimizer 模型，两步生成成功后会把 LLM 翻译过的
+/// 精炼 prompt 持久化在 [AiChatMessage.optimizedPrompt]，UI 用这个块展示，
+/// 让用户能验证「优化器真的工作了」+「实际发给 image 模型的是什么」+
+/// 长按可复制学习 prompt 工程技巧。
+class _OptimizedPromptBlock extends StatefulWidget {
+  final String prompt;
+  final String? optimizerName;
+
+  const _OptimizedPromptBlock({required this.prompt, this.optimizerName});
+
+  @override
+  State<_OptimizedPromptBlock> createState() => _OptimizedPromptBlockState();
+}
+
+class _OptimizedPromptBlockState extends State<_OptimizedPromptBlock> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+          width: 0.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.auto_fix_high_outlined, size: 14, color: color),
+                  const SizedBox(width: 6),
+                  Text(
+                    widget.optimizerName != null
+                        ? '${context.l10n.ai_optimizedPromptLabel} · ${widget.optimizerName}'
+                        : context.l10n.ai_optimizedPromptLabel,
+                    style: theme.textTheme.labelSmall?.copyWith(color: color),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 16,
+                    color: color,
+                  ),
+                  if (_expanded) ...[
+                    const Spacer(),
+                    InkWell(
+                      onTap: () async {
+                        await Clipboard.setData(
+                            ClipboardData(text: widget.prompt));
+                        if (!context.mounted) return;
+                        ToastService.showSuccess(
+                            context.l10n.ai_copiedToClipboard);
+                      },
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.all(2),
+                        child: Icon(Icons.copy_outlined,
+                            size: 14, color: color),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          if (_expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+              child: SelectableText(
+                widget.prompt,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: color,
+                  fontSize: 12,
+                  height: 1.4,
+                  fontFamilyFallback: const ['monospace'],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 渐进帧的「草图」角标
 class _PartialBadge extends StatelessWidget {
   @override
@@ -483,11 +723,17 @@ class _PartialBadge extends StatelessWidget {
 /// 「正在生成图片」占位
 ///
 /// gpt-image 系列单图通常 10-30s，给用户一个明确的进度感。
+/// 两步生成时根据 [stage] 切换文案：
+/// - `'optimizing_prompt'` → "正在分析话题..."
+/// - `'generating_image'` 或 null → "正在生成图片..."
 class _ImageGenerationPlaceholder extends StatefulWidget {
   /// compact = true 时小尺寸（用于多张图场景下补位），false = 主占位（首次生成）
   final bool compact;
 
-  const _ImageGenerationPlaceholder({this.compact = false});
+  /// 加载阶段标识，决定显示文案
+  final String? stage;
+
+  const _ImageGenerationPlaceholder({this.compact = false, this.stage});
 
   @override
   State<_ImageGenerationPlaceholder> createState() =>
@@ -563,14 +809,18 @@ class _ImageGenerationPlaceholderState
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    Icons.auto_awesome_outlined,
+                    widget.stage == 'optimizing_prompt'
+                        ? Icons.psychology_alt_outlined
+                        : Icons.auto_awesome_outlined,
                     size: 32,
                     color: theme.colorScheme.onSurfaceVariant
                         .withValues(alpha: 0.7),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    context.l10n.ai_imageGenerating,
+                    widget.stage == 'optimizing_prompt'
+                        ? context.l10n.ai_optimizingPrompt
+                        : context.l10n.ai_imageGenerating,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),

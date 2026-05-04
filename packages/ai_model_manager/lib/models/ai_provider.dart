@@ -25,6 +25,13 @@ enum Modality { text, image }
 /// 模型支持的能力
 enum ModelAbility { tool, reasoning }
 
+/// 用于 UI 编辑的统一能力维度（合并 Modality / ModelAbility）
+///
+/// vision = input 含 image
+/// imageOutput = output 含 image
+/// tool / reasoning = abilities 对应项
+enum ModelCapability { vision, reasoning, tool, imageOutput }
+
 List<Modality> _parseModalities(dynamic raw, List<Modality> fallback) {
   if (raw is! List) return List.unmodifiable(fallback);
   final out = <Modality>{};
@@ -65,6 +72,11 @@ class AiModel {
   /// 模型支持的能力（工具调用、推理思考等）。
   final List<ModelAbility> abilities;
 
+  /// 标记 input/output/abilities 是否被用户手动编辑过。
+  /// 为 true 时 [ModelCapabilities.infer] 会跳过自动推断，
+  /// 避免下次拉模型列表覆盖用户的选择。
+  final bool capabilitiesUserEdited;
+
   const AiModel({
     required this.id,
     this.name,
@@ -72,6 +84,7 @@ class AiModel {
     this.input = const [Modality.text],
     this.output = const [Modality.text],
     this.abilities = const [],
+    this.capabilitiesUserEdited = false,
   });
 
   factory AiModel.fromJson(Map<String, dynamic> json) {
@@ -82,6 +95,8 @@ class AiModel {
       input: _parseModalities(json['input'], const [Modality.text]),
       output: _parseModalities(json['output'], const [Modality.text]),
       abilities: _parseAbilities(json['abilities']),
+      capabilitiesUserEdited:
+          json['capabilitiesUserEdited'] as bool? ?? false,
     );
   }
 
@@ -93,6 +108,7 @@ class AiModel {
       'input': input.map((m) => m.name).toList(),
       'output': output.map((m) => m.name).toList(),
       'abilities': abilities.map((a) => a.name).toList(),
+      if (capabilitiesUserEdited) 'capabilitiesUserEdited': true,
     };
   }
 
@@ -103,6 +119,7 @@ class AiModel {
     List<Modality>? input,
     List<Modality>? output,
     List<ModelAbility>? abilities,
+    bool? capabilitiesUserEdited,
   }) {
     return AiModel(
       id: id ?? this.id,
@@ -111,6 +128,8 @@ class AiModel {
       input: input ?? this.input,
       output: output ?? this.output,
       abilities: abilities ?? this.abilities,
+      capabilitiesUserEdited:
+          capabilitiesUserEdited ?? this.capabilitiesUserEdited,
     );
   }
 }

@@ -102,7 +102,10 @@ class ModelCapabilities {
 
   /// 推断模型能力。
   /// 已有的字段会被保留，仅在缺失时根据模型 ID 添加默认值。
+  /// 如果模型已被用户手动编辑过（[AiModel.capabilitiesUserEdited]），
+  /// 直接返回原对象，不做任何推断 —— 避免下次拉模型列表覆盖用户的选择。
   static AiModel infer(AiModel base) {
+    if (base.capabilitiesUserEdited) return base;
     final id = base.id.toLowerCase();
     final input = [...base.input];
     final output = [...base.output];
@@ -142,5 +145,98 @@ class ModelCapabilities {
   /// 是否为嵌入模型
   static bool isEmbedding(String modelId) {
     return _embedding.hasMatch(modelId.toLowerCase());
+  }
+
+  /// 是否为图像生成模型（output 含 image）。
+  /// 用于 service 层路由到 /images/generations 端点（OpenAI 系）
+  /// 或 generateContent + responseModalities=[image]（Gemini 系）。
+  static bool isImageOutputModel(String modelId) {
+    return _imageOutput.hasMatch(modelId.toLowerCase());
+  }
+
+  // ────────────────────────── 能力维度统一查询 / 写入 ──────────────────────────
+  // 把 input/output/abilities 三个字段抽象为统一的 [ModelCapability]，
+  // 方便 UI 用一组 chip 编辑而不必关心底层是 Modality 还是 ModelAbility。
+
+  /// 查询模型是否具备某项能力
+  static bool hasCapability(AiModel model, ModelCapability cap) {
+    switch (cap) {
+      case ModelCapability.vision:
+        return model.input.contains(Modality.image);
+      case ModelCapability.imageOutput:
+        return model.output.contains(Modality.image);
+      case ModelCapability.tool:
+        return model.abilities.contains(ModelAbility.tool);
+      case ModelCapability.reasoning:
+        return model.abilities.contains(ModelAbility.reasoning);
+    }
+  }
+
+  /// 切换某项能力的开关，并标记为用户已编辑（infer 时不再覆盖）
+  static AiModel withCapability(
+    AiModel model,
+    ModelCapability cap,
+    bool enabled,
+  ) {
+    var input = [...model.input];
+    var output = [...model.output];
+    var abilities = [...model.abilities];
+
+    switch (cap) {
+      case ModelCapability.vision:
+        if (enabled) {
+          if (!input.contains(Modality.image)) input.add(Modality.image);
+        } else {
+          input.remove(Modality.image);
+          if (input.isEmpty) input.add(Modality.text);
+        }
+      case ModelCapability.imageOutput:
+        if (enabled) {
+          if (!output.contains(Modality.image)) output.add(Modality.image);
+        } else {
+          output.remove(Modality.image);
+          if (output.isEmpty) output.add(Modality.text);
+        }
+      case ModelCapability.tool:
+        if (enabled) {
+          if (!abilities.contains(ModelAbility.tool)) {
+            abilities.add(ModelAbility.tool);
+          }
+        } else {
+          abilities.remove(ModelAbility.tool);
+        }
+      case ModelCapability.reasoning:
+        if (enabled) {
+          if (!abilities.contains(ModelAbility.reasoning)) {
+            abilities.add(ModelAbility.reasoning);
+          }
+        } else {
+          abilities.remove(ModelAbility.reasoning);
+        }
+    }
+
+    // 排序保持稳定（toJson 顺序一致，便于 diff）
+    input.sort((a, b) => a.index.compareTo(b.index));
+    output.sort((a, b) => a.index.compareTo(b.index));
+    abilities.sort((a, b) => a.index.compareTo(b.index));
+
+    return model.copyWith(
+      input: input,
+      output: output,
+      abilities: abilities,
+      capabilitiesUserEdited: true,
+    );
+  }
+
+  /// 重置某模型为「自动推断」模式：清掉用户编辑标记后重新 infer。
+  /// 用于「重置为自动」按钮。
+  static AiModel resetToAuto(AiModel model) {
+    final cleared = model.copyWith(
+      input: const [Modality.text],
+      output: const [Modality.text],
+      abilities: const [],
+      capabilitiesUserEdited: false,
+    );
+    return infer(cleared);
   }
 }

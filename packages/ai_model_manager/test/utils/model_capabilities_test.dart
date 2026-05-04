@@ -140,6 +140,83 @@ void main() {
       }
     });
 
+    group('user override', () {
+      test('capabilitiesUserEdited=true → infer skips entirely', () {
+        // 用户改过：把 gpt-4o 的 vision 关掉
+        final user = AiModel(
+          id: 'gpt-4o',
+          input: const [Modality.text], // 用户故意去掉了 image
+          capabilitiesUserEdited: true,
+        );
+        final inferred = ModelCapabilities.infer(user);
+        // 不应被自动推断重新加上 image
+        expect(inferred.input, [Modality.text]);
+        expect(inferred.capabilitiesUserEdited, isTrue);
+      });
+
+      test('hasCapability returns correct status', () {
+        final m = AiModel(
+          id: 'gpt-4o',
+          input: const [Modality.text, Modality.image],
+          abilities: const [ModelAbility.tool],
+        );
+        expect(ModelCapabilities.hasCapability(m, ModelCapability.vision),
+            isTrue);
+        expect(ModelCapabilities.hasCapability(m, ModelCapability.imageOutput),
+            isFalse);
+        expect(ModelCapabilities.hasCapability(m, ModelCapability.tool),
+            isTrue);
+        expect(ModelCapabilities.hasCapability(m, ModelCapability.reasoning),
+            isFalse);
+      });
+
+      test('withCapability toggles + sets capabilitiesUserEdited', () {
+        var m = AiModel(id: 'unknown-model');
+        // 启用 vision
+        m = ModelCapabilities.withCapability(m, ModelCapability.vision, true);
+        expect(m.input, contains(Modality.image));
+        expect(m.capabilitiesUserEdited, isTrue);
+
+        // 禁用 vision
+        m = ModelCapabilities.withCapability(m, ModelCapability.vision, false);
+        expect(m.input, isNot(contains(Modality.image)));
+        expect(m.input, [Modality.text]); // 至少保留 text
+      });
+
+      test('resetToAuto clears edit flag and re-infers', () {
+        // 用户先关掉了 gpt-4o 的 vision
+        var m = AiModel(
+          id: 'gpt-4o',
+          input: const [Modality.text],
+          capabilitiesUserEdited: true,
+        );
+        // 重置 → 应该重新识别为 vision 模型
+        m = ModelCapabilities.resetToAuto(m);
+        expect(m.capabilitiesUserEdited, isFalse);
+        expect(m.input, contains(Modality.image));
+      });
+
+      test('persistence: capabilitiesUserEdited round-trips', () {
+        final original = AiModel(
+          id: 'custom-model',
+          input: const [Modality.text, Modality.image],
+          abilities: const [ModelAbility.tool],
+          capabilitiesUserEdited: true,
+        );
+        final restored = AiModel.fromJson(original.toJson());
+        expect(restored.capabilitiesUserEdited, isTrue);
+        expect(restored.input, contains(Modality.image));
+      });
+
+      test('persistence: legacy json without flag → defaults false', () {
+        final restored = AiModel.fromJson({
+          'id': 'gpt-4o',
+          'input': ['text', 'image'],
+        });
+        expect(restored.capabilitiesUserEdited, isFalse);
+      });
+    });
+
     test('infer is incremental — preserves user-set capabilities', () {
       // 用户手动给一个不常见的模型勾选了 vision
       final user = AiModel(

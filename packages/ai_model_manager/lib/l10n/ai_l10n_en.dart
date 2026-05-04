@@ -24,6 +24,92 @@ class AiL10nEn extends AiL10n {
   @override
   String get import_ => 'Import';
 
+  // ---- Quick prompts ----
+  @override
+  String get quickPromptsManageTitle => 'Quick prompts';
+  @override
+  String get quickPromptsImageTab => 'Image';
+  @override
+  String get quickPromptsTextTab => 'Text';
+  @override
+  String get quickPromptsBuiltInSection => 'Built-in';
+  @override
+  String get quickPromptsCustomSection => 'Custom';
+  @override
+  String get quickPromptsAddNew => 'New quick prompt';
+  @override
+  String get quickPromptsEditTitle => 'Edit quick prompt';
+  @override
+  String get quickPromptsCreateTitle => 'New quick prompt';
+  @override
+  String get quickPromptsName => 'Name';
+  @override
+  String get quickPromptsNameHint => 'e.g. Hand-drawn infographic';
+  @override
+  String get quickPromptsType => 'Type';
+  @override
+  String get quickPromptsIcon => 'Icon';
+  @override
+  String get quickPromptsIconTab => 'Icon';
+  @override
+  String get quickPromptsEmojiTab => 'Emoji';
+  @override
+  String get quickPromptsEmojiInputHint => 'Type or paste an emoji';
+  @override
+  String get quickPromptsTemplate => 'Prompt template';
+  @override
+  String get quickPromptsTemplateHint => 'Supports {title} {context}';
+  @override
+  String get quickPromptsAspect => 'Default aspect';
+  @override
+  String get quickPromptsTags => 'Tags';
+  @override
+  String get quickPromptsTagsHint => 'Comma-separated';
+  @override
+  String get quickPromptsDimensions => 'Dimensions (advanced)';
+  @override
+  String get quickPromptsTestGenerate => 'Test generate';
+  @override
+  String get quickPromptsTesting => 'Testing…';
+  @override
+  String get quickPromptsTestSuccess => 'Test image generated';
+  @override
+  String get quickPromptsTestFailed => 'Test failed';
+  @override
+  String get quickPromptsResetBuiltIns => 'Reset built-ins';
+  @override
+  String get quickPromptsResetBuiltInsConfirm =>
+      'Reset all built-in quick prompts to default? (Custom prompts unaffected)';
+  @override
+  String get quickPromptsHide => 'Hide';
+  @override
+  String get quickPromptsUnhide => 'Show';
+  @override
+  String get quickPromptsDuplicate => 'Duplicate';
+  @override
+  String quickPromptsDeleteConfirm(String name) =>
+      'Delete quick prompt "$name"?';
+  @override
+  String get quickPromptsPin => 'Pin to chat';
+  @override
+  String get quickPromptsUnpin => 'Unpin';
+  @override
+  String get quickPromptsValidateNameRequired => 'Please enter a name';
+  @override
+  String get quickPromptsValidateTemplateRequired =>
+      'Please enter a prompt template';
+  @override
+  String get quickPromptsEmpty => 'No custom quick prompts yet';
+  @override
+  String get quickPromptsAspectAuto => 'Auto';
+  @override
+  String get quickPromptsTypeImage => 'Image';
+  @override
+  String get quickPromptsTypeText => 'Text';
+  @override
+  String get quickPromptsManageHint =>
+      'Manage the quick prompts at the bottom of the AI assistant';
+
   // ---- AI 模型服务页 ----
   @override
   String get aiModelService => 'AI Model Service';
@@ -128,6 +214,22 @@ class AiL10nEn extends AiL10n {
   String get cancelDefault => 'Unset Default';
   @override
   String get setAsDefault => 'Set Default';
+  @override
+  String get setAsImageDefault => 'Set as image default';
+  @override
+  String get imageDefaultActive => 'Image default';
+  @override
+  String get setAsTextDefault => 'Set as text default';
+  @override
+  String get textDefaultActive => 'Text default';
+  @override
+  String get imageDefaultModelCleared => 'Image default cleared';
+  @override
+  String get textDefaultModelCleared => 'Text default cleared';
+  @override
+  String get setAsImageDefaultDone => 'Set as image default';
+  @override
+  String get setAsTextDefaultDone => 'Set as text default';
 
   // ---- 聊天历史页 ----
   @override
@@ -223,6 +325,37 @@ class AiL10nEn extends AiL10n {
   String get emptyResponseError =>
       'No response received from AI. Please check network settings or retry';
 
+  // ---- Image generation settings ----
+  @override
+  String get partialImagesTitle => 'Image generation: progressive frames';
+  @override
+  String get partialImagesSubtitle =>
+      'When enabled, gpt-image models stream blurry drafts before the final image. '
+      'Requires a verified OpenAI organization; unverified accounts will fail.';
+  @override
+  String get imagePromptOptimizerModel => 'Image prompt optimizer model';
+  @override
+  String get imagePromptOptimizerSubtitle =>
+      'Before image generation, use a chat model to translate topic context into '
+      'a visual prompt — substantially improves image quality. '
+      'Suggested: gpt-4o-mini / claude-haiku and other lightweight models.';
+  @override
+  String get optimizerNotSet => 'No optimization (concat raw context)';
+
+  // ---- Model capability chips ----
+  @override
+  String get capabilityVisionLabel => 'Vision';
+  @override
+  String get capabilityReasoningLabel => 'Reasoning';
+  @override
+  String get capabilityToolLabel => 'Tools';
+  @override
+  String get capabilityImageOutputLabel => 'Image';
+  @override
+  String get capabilityResetTooltip => 'Reset to auto';
+  @override
+  String get capabilityResetSnack => 'Reset to auto-detection';
+
   // ---- System Prompts ----
   @override
   String get systemPromptIntro =>
@@ -240,6 +373,13 @@ class AiL10nEn extends AiL10n {
   @override
   String get contextReadyResponse =>
       'OK, I have read the topic content. What questions do you have?';
+  @override
+  String imageContextPromptTemplate(String context, String userPrompt) =>
+      'Please generate an image based on the discussion topic context below, '
+      'but do NOT include the literal text in the image.\n\n'
+      'Topic context:\n---\n$context\n---\n\n'
+      'Image request: $userPrompt';
+
   @override
   String get titleGenerationPrompt =>
       'Summarize the topic of this text in no more than 10 words. Output the title text directly without punctuation or quotes.';

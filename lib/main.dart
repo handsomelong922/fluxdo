@@ -13,6 +13,7 @@ import 'pages/topics_page.dart';
 import 'pages/data_management_page.dart';
 import 'providers/discourse_providers.dart';
 import 'providers/locale_provider.dart';
+import 'widgets/ai/builtin_presets_factory.dart';
 import 'providers/message_bus_providers.dart';
 import 'services/auth_issue_notice_service.dart';
 import 'services/discourse/discourse_service.dart';
@@ -319,6 +320,14 @@ Future<void> main() async {
         aiDioAdapterFactoryProvider.overrideWithValue(
           createExternalHttpAdapter,
         ),
+        // 内置 PromptPreset 列表：在 override 函数内 watch localeProvider，
+        // locale 切换时整个 builtInPresetsProvider 重建 → 下游
+        // promptPresetListProvider 的 StateNotifier 重新构造 → preset i18n
+        // 文本随之刷新。
+        builtInPresetsProvider.overrideWith((ref) {
+          ref.watch(localeProvider);
+          return BuiltInPresetsFactory.create();
+        }),
       ],
       child: const MainApp(),
     ),

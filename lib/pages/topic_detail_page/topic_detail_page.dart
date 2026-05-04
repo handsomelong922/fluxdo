@@ -144,6 +144,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   );
   bool _isSwitchingMode = false; // 切换热门回复模式
   bool _isNestedView = false; // 嵌套视图模式
+  bool _defaultNestedViewApplied = false; // 默认嵌套视图配置是否已应用（依赖 detail 加载后判定）
   // 搜索相关
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -199,8 +200,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             _isOverlayVisibleNotifier.value = false;
           }
         });
-
-    _isNestedView = ref.read(preferencesProvider).defaultNestedView;
 
     final trackEnabled = ref.read(currentUserProvider).value != null;
     _topicSearchNotifier = ref.read(
@@ -1124,7 +1123,21 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     // 预解析帖子 HTML
     ref.listen(topicDetailProvider(params), (previous, next) {
       if (!mounted) return;
-      final posts = next.value?.postStream.posts;
+      final detail = next.value;
+      // 首次拿到 detail 后再决定是否应用默认嵌套视图：
+      // 私信场景下树形视图 API 拉不到数据，跳过该配置
+      if (!_defaultNestedViewApplied && detail != null) {
+        _defaultNestedViewApplied = true;
+        if (!detail.isPrivateMessage &&
+            ref.read(preferencesProvider).defaultNestedView) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() => _isNestedView = true);
+            }
+          });
+        }
+      }
+      final posts = detail?.postStream.posts;
       if (posts != null && posts.isNotEmpty) {
         final htmlList = posts.map((p) => p.cooked).toList();
         ChunkedHtmlContent.preloadAll(htmlList);

@@ -132,6 +132,7 @@ flutter:
     - assets/logo_modern_light.svg
     - assets/images/
     - assets/certs/
+    - assets/ai_brands/
 
   fonts:
     - family: MiSans

@@ -31,6 +31,22 @@ class AiChatMessage {
   /// 持久化时不必保存（已完成的图像消息会有 attachments）。
   final bool isImageGeneration;
 
+  /// 流式过程中的细分阶段（仅 streaming 状态有效，不持久化）。
+  /// 例如图像生成的两步流程会经历：
+  /// - `'optimizing_prompt'` → 正在调聊天模型分析话题、优化 prompt
+  /// - `'generating_image'` → 正在调 image API 出图
+  /// UI 据此切换 placeholder 文案。
+  final String? loadingStage;
+
+  /// 图像生成时被 LLM 优化器精炼后的实际 prompt（持久化）。
+  /// UI 会在 assistant 消息上渲染一个折叠块，让用户验证 optimizer 真的工作了
+  /// 以及看清楚到底发给 image 模型的是什么 prompt。
+  /// null = 未走优化（默认场景或 fallback）；非空 = 走了优化且成功。
+  final String? optimizedPrompt;
+
+  /// 优化器使用的模型 display name（持久化，用于 UI 显示「Optimized by xxx」）。
+  final String? optimizerModelName;
+
   const AiChatMessage({
     required this.id,
     required this.role,
@@ -43,6 +59,9 @@ class AiChatMessage {
     this.promptTokens,
     this.responseTokens,
     this.isImageGeneration = false,
+    this.loadingStage,
+    this.optimizedPrompt,
+    this.optimizerModelName,
   });
 
   AiChatMessage copyWith({
@@ -57,6 +76,9 @@ class AiChatMessage {
     int? promptTokens,
     int? responseTokens,
     bool? isImageGeneration,
+    String? loadingStage,
+    String? optimizedPrompt,
+    String? optimizerModelName,
   }) {
     return AiChatMessage(
       id: id ?? this.id,
@@ -70,6 +92,9 @@ class AiChatMessage {
       promptTokens: promptTokens ?? this.promptTokens,
       responseTokens: responseTokens ?? this.responseTokens,
       isImageGeneration: isImageGeneration ?? this.isImageGeneration,
+      loadingStage: loadingStage ?? this.loadingStage,
+      optimizedPrompt: optimizedPrompt ?? this.optimizedPrompt,
+      optimizerModelName: optimizerModelName ?? this.optimizerModelName,
     );
   }
 
@@ -86,6 +111,9 @@ class AiChatMessage {
         'attachments': attachments!.map((a) => a.toJson()).toList(),
       if (promptTokens != null) 'promptTokens': promptTokens,
       if (responseTokens != null) 'responseTokens': responseTokens,
+      if (optimizedPrompt != null) 'optimizedPrompt': optimizedPrompt,
+      if (optimizerModelName != null)
+        'optimizerModelName': optimizerModelName,
     };
   }
 
@@ -103,6 +131,8 @@ class AiChatMessage {
           .toList(),
       promptTokens: json['promptTokens'] as int?,
       responseTokens: json['responseTokens'] as int?,
+      optimizedPrompt: json['optimizedPrompt'] as String?,
+      optimizerModelName: json['optimizerModelName'] as String?,
     );
   }
 }

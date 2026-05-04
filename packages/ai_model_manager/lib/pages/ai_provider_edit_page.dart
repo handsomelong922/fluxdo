@@ -7,6 +7,8 @@ import '../providers/ai_provider_providers.dart';
 import '../services/ai_provider_service.dart';
 import '../services/toast_delegate.dart';
 import '../utils/dialog_utils.dart';
+import '../utils/model_capabilities.dart';
+import '../widgets/model_icon.dart';
 
 /// AI 供应商添加/编辑页面
 class AiProviderEditPage extends ConsumerStatefulWidget {
@@ -262,14 +264,26 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
     }
   }
 
+  /// [isImageModel] 由调用方传入（看模型 output），决定写入哪个分模式 key
+  ///
+  /// 文本是常态：用通用 toast 文案；图像是扩展：明示是图像默认。
   void _setDefaultModel(
-      WidgetRef ref, String providerId, String modelId, bool isDefault) {
+    WidgetRef ref,
+    String providerId,
+    String modelId,
+    bool isDefault, {
+    required bool isImageModel,
+  }) {
     if (isDefault) {
-      clearDefaultAiModel(ref);
-      AiToastDelegate.showInfo(AiL10n.current.defaultModelCleared);
+      clearDefaultAiModel(ref, isImageMode: isImageModel);
+      AiToastDelegate.showInfo(isImageModel
+          ? AiL10n.current.imageDefaultModelCleared
+          : AiL10n.current.defaultModelCleared);
     } else {
-      setDefaultAiModel(ref, providerId, modelId);
-      AiToastDelegate.showSuccess(AiL10n.current.setAsDefaultModel);
+      setDefaultAiModel(ref, providerId, modelId, isImageMode: isImageModel);
+      AiToastDelegate.showSuccess(isImageModel
+          ? AiL10n.current.setAsImageDefaultDone
+          : AiL10n.current.setAsDefaultModel);
     }
   }
 
@@ -523,7 +537,13 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
               const SizedBox(height: 12),
               Consumer(
                 builder: (context, ref, _) {
-                  final defaultKey = ref.watch(defaultAiModelKeyProvider);
+                  // 同时 watch 三个 default key —— 通用 + 文本 + 图像，
+                  // 模型按自己的 modality 判断在对应 mode 是否为默认
+                  ref.watch(defaultAiModelKeyProvider);
+                  final textDefaultKey =
+                      ref.watch(defaultTextAiModelKeyProvider);
+                  final imageDefaultKey =
+                      ref.watch(defaultImageAiModelKeyProvider);
                   final providerId = widget.provider?.id;
 
                   return Column(
@@ -534,8 +554,14 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
                       final testResult = _modelTestResults[model.id];
                       final hasTestResult =
                           _modelTestResults.containsKey(model.id);
+                      // 按模型 modality 判断 isDefault：
+                      // 图像模型看 image 默认；文本模型看 text 默认
+                      final isImageModel =
+                          model.output.contains(Modality.image);
+                      final modeDefaultKey =
+                          isImageModel ? imageDefaultKey : textDefaultKey;
                       final isDefault = providerId != null &&
-                          defaultKey == '$providerId:${model.id}';
+                          modeDefaultKey == '$providerId:${model.id}';
 
                       return _buildModelItem(
                         theme: theme,
@@ -578,11 +604,19 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
       ),
       child: Column(
         children: [
-          // 主行：模型名称 + 启用开关
+          // 主行：brand logo + 模型名称 + 启用开关
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 6, 0),
             child: Row(
               children: [
+                // ModelIcon 跟模型选择 sheet 风格一致：brand logo 优先，
+                // fallback 首字母 + 哈希色
+                ModelIcon(
+                  providerName: widget.provider?.name ?? '',
+                  modelName: model.name ?? model.id,
+                  size: 28,
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -622,6 +656,54 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
               ],
             ),
           ),
+          // 能力 chip 行：用户可手动启用/禁用，点击「重置」回到自动推断
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 6, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      for (final cap in ModelCapability.values)
+                        _CapabilityChip(
+                          capability: cap,
+                          enabled:
+                              ModelCapabilities.hasCapability(model, cap),
+                          onTap: () {
+                            setState(() {
+                              _models[index] =
+                                  ModelCapabilities.withCapability(
+                                model,
+                                cap,
+                                !ModelCapabilities.hasCapability(model, cap),
+                              );
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+                if (model.capabilitiesUserEdited)
+                  IconButton(
+                    icon: const Icon(Icons.restart_alt, size: 16),
+                    tooltip: AiL10n.current.capabilityResetTooltip,
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 28, minHeight: 28),
+                    onPressed: () {
+                      setState(() {
+                        _models[index] = ModelCapabilities.resetToAuto(model);
+                      });
+                      AiToastDelegate.showInfo(
+                          AiL10n.current.capabilityResetSnack);
+                    },
+                  ),
+              ],
+            ),
+          ),
           // 底部操作栏
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
@@ -645,11 +727,26 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
                 if (_isEditing) ...[
                   const SizedBox(width: 8),
                   _ModelActionChip(
-                    icon: isDefault ? Icons.star_rounded : Icons.star_outline_rounded,
-                    label: isDefault ? AiL10n.current.cancelDefault : AiL10n.current.setAsDefault,
+                    icon: isDefault
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    // 不对称：文本是常态，沿用通用「默认/设为默认」；
+                    // 图像是扩展功能，明示「图像默认/设为图像默认」
+                    label: model.output.contains(Modality.image)
+                        ? (isDefault
+                            ? AiL10n.current.imageDefaultActive
+                            : AiL10n.current.setAsImageDefault)
+                        : (isDefault
+                            ? AiL10n.current.cancelDefault
+                            : AiL10n.current.setAsDefault),
                     highlightColor: isDefault ? Colors.amber[700] : null,
                     onTap: () => _setDefaultModel(
-                        ref, providerId!, model.id, isDefault),
+                      ref,
+                      providerId!,
+                      model.id,
+                      isDefault,
+                      isImageModel: model.output.contains(Modality.image),
+                    ),
                   ),
                 ],
                 const Spacer(),
@@ -728,5 +825,86 @@ class _ModelActionChip extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 能力 chip：显示模型当前是否具备某项能力，点击切换并标记为用户已编辑
+class _CapabilityChip extends StatelessWidget {
+  final ModelCapability capability;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _CapabilityChip({
+    required this.capability,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = enabled
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: enabled
+              ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
+              : theme.colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: enabled
+                ? theme.colorScheme.primary.withValues(alpha: 0.5)
+                : theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+            width: 0.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(_iconFor(capability), size: 12, color: color),
+            const SizedBox(width: 4),
+            Text(
+              _labelFor(capability),
+              style: TextStyle(
+                fontSize: 11,
+                color: color,
+                fontWeight: enabled ? FontWeight.w500 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _iconFor(ModelCapability cap) {
+    switch (cap) {
+      case ModelCapability.vision:
+        return Icons.visibility_outlined;
+      case ModelCapability.reasoning:
+        return Icons.psychology_alt_outlined;
+      case ModelCapability.tool:
+        return Icons.handyman_outlined;
+      case ModelCapability.imageOutput:
+        return Icons.image_outlined;
+    }
+  }
+
+  String _labelFor(ModelCapability cap) {
+    switch (cap) {
+      case ModelCapability.vision:
+        return AiL10n.current.capabilityVisionLabel;
+      case ModelCapability.reasoning:
+        return AiL10n.current.capabilityReasoningLabel;
+      case ModelCapability.tool:
+        return AiL10n.current.capabilityToolLabel;
+      case ModelCapability.imageOutput:
+        return AiL10n.current.capabilityImageOutputLabel;
+    }
   }
 }
