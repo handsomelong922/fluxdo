@@ -105,6 +105,14 @@ class AiL10n {
   String get defaultChatModel => '默认聊天模型';
   String get defaultImageModel => '默认图像模型';
   String get advancedSettings => '高级设置';
+  String get presetExport => '导出';
+  String get presetExportAll => '导出全部自定义';
+  String get presetImport => '从剪贴板导入';
+  String get presetExportSuccess => '已复制到剪贴板';
+  String presetImportCount(int count) => '导入了 $count 个快捷词';
+  String get presetImportEmpty => '剪贴板中没有有效的快捷词数据';
+  String get presetImportPreview => '即将导入以下快捷词';
+  String get presetImportConfirm => '确认导入';
   String get thinkingLevelLabel => '思考深度';
   String get thinkingOff => '关闭思考';
   String get thinkingAuto => '自动';

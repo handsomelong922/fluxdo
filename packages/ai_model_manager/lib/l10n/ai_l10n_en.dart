@@ -139,6 +139,22 @@ class AiL10nEn extends AiL10n {
   @override
   String get advancedSettings => 'Advanced';
   @override
+  String get presetExport => 'Export';
+  @override
+  String get presetExportAll => 'Export all custom';
+  @override
+  String get presetImport => 'Import from clipboard';
+  @override
+  String get presetExportSuccess => 'Copied to clipboard';
+  @override
+  String presetImportCount(int count) => 'Imported $count presets';
+  @override
+  String get presetImportEmpty => 'No valid preset data in clipboard';
+  @override
+  String get presetImportPreview => 'Presets to import';
+  @override
+  String get presetImportConfirm => 'Import';
+  @override
   String get thinkingLevelLabel => 'Thinking Depth';
   @override
   String get thinkingOff => 'Off';

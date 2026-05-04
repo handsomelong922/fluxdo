@@ -1,9 +1,15 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../l10n/ai_l10n.dart';
 import '../models/prompt_preset.dart';
 import '../providers/prompt_preset_providers.dart';
+import '../services/toast_delegate.dart';
+import '../utils/dialog_utils.dart';
 import '../widgets/preset_icon.dart';
 import '../widgets/swipe_action_cell.dart';
 import 'prompt_preset_edit_page.dart';
@@ -52,9 +58,36 @@ class _PromptPresetsPageState extends ConsumerState<PromptPresetsPage> {
           ),
           PopupMenuButton<String>(
             onSelected: (v) {
-              if (v == 'reset') _confirmReset();
+              switch (v) {
+                case 'reset':
+                  _confirmReset();
+                case 'export_all':
+                  _exportAll(customs);
+                case 'import':
+                  _importFromClipboard();
+              }
             },
             itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'import',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: const Icon(Icons.paste_outlined, size: 20),
+                  title: Text(AiL10n.current.presetImport),
+                ),
+              ),
+              if (customs.isNotEmpty)
+                PopupMenuItem(
+                  value: 'export_all',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    leading:
+                        const Icon(Icons.file_upload_outlined, size: 20),
+                    title: Text(AiL10n.current.presetExportAll),
+                  ),
+                ),
               PopupMenuItem(
                 value: 'reset',
                 child: ListTile(
@@ -171,6 +204,128 @@ class _PromptPresetsPageState extends ConsumerState<PromptPresetsPage> {
           .resetBuiltInsToDefault();
     }
   }
+
+  // ────────────── 导入/导出 ──────────────
+
+  static Map<String, dynamic> _presetToExport(PromptPreset p) => {
+        'type': p.type.toJson(),
+        'name': p.name,
+        'iconRaw': p.iconRaw,
+        'promptTemplate': p.promptTemplate,
+        if (p.aspectRatio != null) 'aspectRatio': p.aspectRatio,
+        if (p.tags.isNotEmpty) 'tags': p.tags,
+        if (p.dimensions != null)
+          'dimensions': p.dimensions!.map((d) => d.toJson()).toList(),
+        if (p.defaultDimensionValues != null)
+          'defaultDimensionValues': p.defaultDimensionValues,
+      };
+
+  static void exportPreset(PromptPreset preset) {
+    final json = jsonEncode({
+      'version': 1,
+      'presets': [_presetToExport(preset)],
+    });
+    Clipboard.setData(ClipboardData(text: json));
+    AiToastDelegate.showSuccess(AiL10n.current.presetExportSuccess);
+  }
+
+  void _exportAll(List<PromptPreset> customs) {
+    if (customs.isEmpty) return;
+    final json = jsonEncode({
+      'version': 1,
+      'presets': customs.map(_presetToExport).toList(),
+    });
+    Clipboard.setData(ClipboardData(text: json));
+    AiToastDelegate.showSuccess(AiL10n.current.presetExportSuccess);
+  }
+
+  Future<void> _importFromClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text?.trim();
+    if (text == null || text.isEmpty) {
+      AiToastDelegate.showInfo(AiL10n.current.presetImportEmpty);
+      return;
+    }
+
+    List<PromptPreset> parsed;
+    try {
+      final json = jsonDecode(text);
+      if (json is Map<String, dynamic>) {
+        final list = json['presets'] as List<dynamic>?;
+        if (list == null || list.isEmpty) throw FormatException('no presets');
+        parsed = list
+            .map((e) => PromptPreset.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } else if (json is List) {
+        parsed = json
+            .map((e) => PromptPreset.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } else {
+        throw FormatException('invalid format');
+      }
+    } catch (_) {
+      AiToastDelegate.showError(AiL10n.current.presetImportEmpty);
+      return;
+    }
+
+    if (parsed.isEmpty) {
+      AiToastDelegate.showInfo(AiL10n.current.presetImportEmpty);
+      return;
+    }
+
+    if (!mounted) return;
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AiL10n.current.presetImportPreview),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: parsed.length,
+            itemBuilder: (_, i) {
+              final p = parsed[i];
+              return ListTile(
+                leading: PresetIcon(iconRaw: p.iconRaw, size: 28),
+                title: Text(p.name),
+                subtitle: Text(p.type == PromptType.image
+                    ? AiL10n.current.quickPromptsImageTab
+                    : AiL10n.current.quickPromptsTextTab),
+                dense: true,
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(AiL10n.current.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(AiL10n.current.presetImportConfirm),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    const uuid = Uuid();
+    final notifier = ref.read(promptPresetListProvider.notifier);
+    var count = 0;
+    for (final p in parsed) {
+      await notifier.addUserPreset(p.copyWith(
+        id: uuid.v4(),
+        builtIn: false,
+        hidden: false,
+        pinned: false,
+        sortOrder: 999 + count,
+      ));
+      count++;
+    }
+    AiToastDelegate.showSuccess(AiL10n.current.presetImportCount(count));
+  }
 }
 
 class _SectionLabel extends StatelessWidget {
@@ -263,6 +418,13 @@ class _ReorderableGroupState extends ConsumerState<_ReorderableGroup> {
                       notifier.hide(preset.id);
                     }
                   },
+                ),
+              if (!preset.builtIn)
+                SwipeAction(
+                  icon: Icons.copy_outlined,
+                  color: Colors.teal,
+                  label: AiL10n.current.presetExport,
+                  onPressed: () => _PromptPresetsPageState.exportPreset(preset),
                 ),
               if (!preset.builtIn)
                 SwipeAction(

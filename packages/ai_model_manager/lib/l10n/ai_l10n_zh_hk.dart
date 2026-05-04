@@ -134,6 +134,22 @@ class AiL10nZhHK extends AiL10n {
   @override
   String get advancedSettings => '高級設置';
   @override
+  String get presetExport => '導出';
+  @override
+  String get presetExportAll => '導出全部自定義';
+  @override
+  String get presetImport => '從剪貼板導入';
+  @override
+  String get presetExportSuccess => '已複製到剪貼板';
+  @override
+  String presetImportCount(int count) => '導入了 $count 個快捷詞';
+  @override
+  String get presetImportEmpty => '剪貼板中沒有有效的快捷詞數據';
+  @override
+  String get presetImportPreview => '即將導入以下快捷詞';
+  @override
+  String get presetImportConfirm => '確認導入';
+  @override
   String get thinkingLevelLabel => '思考深度';
   @override
   String get thinkingOff => '關閉思考';
