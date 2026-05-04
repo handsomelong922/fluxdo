@@ -497,8 +497,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     ContextScope contextScope, {
     required ({AiProvider provider, AiModel model}) selectedModel,
     List<AiChatAttachment>? attachments,
-    bool enableThinking = false,
-    int thinkingBudgetTokens = 4096,
+    ThinkingConfig thinkingConfig = const ThinkingConfig(),
     String? imageAspect,
   }) async {
     if (content.trim().isEmpty &&
@@ -635,8 +634,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
         apiKey: apiKey,
         messages: messagesForGen,
         systemPrompt: _buildSystemPrompt(topicContext),
-        enableThinking: enableThinking,
-        thinkingBudgetTokens: thinkingBudgetTokens,
+        thinkingConfig: thinkingConfig,
         imagePromptContext: imagePromptContext,
         imageAspect: imageAspect,
       );

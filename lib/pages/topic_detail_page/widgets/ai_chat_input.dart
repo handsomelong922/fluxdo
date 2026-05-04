@@ -36,9 +36,10 @@ class AiChatInput extends StatefulWidget {
   final VoidCallback? onToggleImageMode;
 
   /// 底部行最左侧的模型按钮（圆形 logo），父级传入
-  ///
-  /// 视觉参考 Kelivo：底部一行 [模型 logo] - spacer - [+] [send]
   final Widget? modelButton;
+
+  /// 思考深度按钮（灯泡图标），父级传入
+  final Widget? thinkingButton;
 
   const AiChatInput({
     super.key,
@@ -50,6 +51,7 @@ class AiChatInput extends StatefulWidget {
     this.canEnterImageMode = false,
     this.onToggleImageMode,
     this.modelButton,
+    this.thinkingButton,
   });
 
   @override
@@ -200,6 +202,10 @@ class _AiChatInputState extends State<AiChatInput> {
           Row(
             children: [
               if (widget.modelButton != null) widget.modelButton!,
+              if (widget.thinkingButton != null) ...[
+                const SizedBox(width: 4),
+                widget.thinkingButton!,
+              ],
               const Spacer(),
               // + 号：默认无背景，只 hover/按下时才有色调；展开时旋转成 ×。
               // 尺寸跟发送按钮对齐（36×36 + icon 20）

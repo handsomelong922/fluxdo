@@ -134,6 +134,20 @@ class AiL10nZhTW extends AiL10n {
   @override
   String get advancedSettings => '進階設定';
   @override
+  String get thinkingLevelLabel => '思考深度';
+  @override
+  String get thinkingOff => '關閉思考';
+  @override
+  String get thinkingAuto => '自動';
+  @override
+  String get thinkingCustom => '自訂';
+  @override
+  String get thinkingLow => '輕度思考';
+  @override
+  String get thinkingMedium => '中度思考';
+  @override
+  String get thinkingHigh => '深度思考';
+  @override
   String get chatHistory => '聊天紀錄';
   @override
   String get titleGenerationModel => '標題產生模型';

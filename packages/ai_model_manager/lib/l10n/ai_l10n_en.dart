@@ -139,6 +139,20 @@ class AiL10nEn extends AiL10n {
   @override
   String get advancedSettings => 'Advanced';
   @override
+  String get thinkingLevelLabel => 'Thinking Depth';
+  @override
+  String get thinkingOff => 'Off';
+  @override
+  String get thinkingAuto => 'Auto';
+  @override
+  String get thinkingCustom => 'Custom';
+  @override
+  String get thinkingLow => 'Light';
+  @override
+  String get thinkingMedium => 'Medium';
+  @override
+  String get thinkingHigh => 'Deep';
+  @override
   String get chatHistory => 'Chat History';
   @override
   String get titleGenerationModel => 'Title Generation Model';

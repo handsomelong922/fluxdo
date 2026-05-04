@@ -45,6 +45,12 @@ final aiChatStorageServiceProvider = Provider<AiChatStorageService>((ref) {
   return AiChatStorageService(prefs);
 });
 
+/// 思考配置
+final aiThinkingConfigProvider = StateProvider<ThinkingConfig>((ref) {
+  final storage = ref.watch(aiChatStorageServiceProvider);
+  return storage.getThinkingConfig();
+});
+
 /// 供应商列表状态管理
 final aiProviderListProvider =
     StateNotifierProvider<AiProviderListNotifier, List<AiProvider>>((ref) {

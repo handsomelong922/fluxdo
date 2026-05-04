@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:jovial_svg/jovial_svg.dart';
 
 import 'package:ai_model_manager/ai_model_manager.dart';
 import 'package:flutter/material.dart';
@@ -416,25 +417,10 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
   /// 把生成的图片附件回复到话题：上传到 Discourse → 拿 markdown → 通过
   /// [widget.onReplyToTopic] 让外层把 markdown 预填到回复框
   Future<void> _replyImageToTopic(AiChatAttachment attachment) async {
-    if (widget.onReplyToTopic == null) return;
-    final loadingMessenger = ScaffoldMessenger.maybeOf(context);
-    final loadingBar = loadingMessenger?.showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const SizedBox(
-              height: 16,
-              width: 16,
-              child:
-                  CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-            ),
-            const SizedBox(width: 12),
-            Text(S.current.ai_replyToTopicUploading),
-          ],
-        ),
-        duration: const Duration(seconds: 30),
-      ),
-    );
+    final replyCallback = widget.onReplyToTopic;
+    if (replyCallback == null) return;
+
+    ToastService.showInfo(S.current.ai_replyToTopicUploading);
 
     try {
       final filePath = await _attachmentToTempFile(attachment);
@@ -444,14 +430,11 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
       final service = DiscourseService();
       final result = await service.uploadImage(filePath);
       final markdown = result.toMarkdown(alt: 'AI generated');
-      loadingBar?.close();
-      if (!mounted) return;
-      widget.onReplyToTopic!(markdown);
+      replyCallback(markdown);
       ToastService.showSuccess(S.current.ai_replyToTopicSuccess);
     } catch (e) {
       debugPrint('[AiChatPage] _replyImageToTopic error: $e');
-      loadingBar?.close();
-      if (mounted) ToastService.showError(S.current.ai_replyToTopicUploadFailed);
+      ToastService.showError(S.current.ai_replyToTopicUploadFailed);
     }
   }
 
@@ -807,8 +790,7 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
                   scope,
                   selectedModel: model,
                   attachments: attachments.isEmpty ? null : attachments,
-                  enableThinking:
-                      model.model.abilities.contains(ModelAbility.reasoning),
+                  thinkingConfig: ref.read(aiThinkingConfigProvider),
                 );
               },
               onStop: chatNotifier.stopGeneration,
@@ -820,6 +802,12 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
                       current: currentModel,
                       onChanged: _rememberModel,
                     ),
+              thinkingButton:
+                  currentModel != null &&
+                          currentModel.model.abilities
+                              .contains(ModelAbility.reasoning)
+                      ? _ThinkingButton(ref: ref)
+                      : null,
             );
           },
         ),
@@ -853,8 +841,7 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
           prompt,
           scope,
           selectedModel: model,
-          enableThinking:
-              model.model.abilities.contains(ModelAbility.reasoning),
+          thinkingConfig: ref.read(aiThinkingConfigProvider),
           imageAspect: aspect,
         );
   }
@@ -1280,5 +1267,196 @@ class _SessionHistorySheetState extends State<_SessionHistorySheet> {
     if (diff.inDays < 30) return S.current.time_daysAgo(diff.inDays);
 
     return '${time.month}/${time.day}';
+  }
+}
+
+/// 思考深度按钮：灯泡图标随等级变化，点击 toggle，长按弹出选择面板
+class _ThinkingButton extends StatelessWidget {
+  final WidgetRef ref;
+  const _ThinkingButton({required this.ref});
+
+  static String _svgAsset(ThinkingLevel level) {
+    return switch (level) {
+      ThinkingLevel.off => 'assets/icons/thinking/idea-01-no-rays.svg',
+      ThinkingLevel.auto => 'assets/icons/thinking/idea-01-stroke-rounded.svg',
+      ThinkingLevel.low => 'assets/icons/thinking/idea-01-no-side-rays.svg',
+      ThinkingLevel.medium => 'assets/icons/thinking/idea-01-stroke-rounded.svg',
+      ThinkingLevel.high => 'assets/icons/thinking/idea-01-more-rays.svg',
+      ThinkingLevel.custom => 'assets/icons/thinking/idea-01-moremore-rays.svg',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final config = ref.watch(aiThinkingConfigProvider);
+    final isOn = config.isEnabled;
+    final theme = Theme.of(context);
+    final color = isOn
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
+
+    return IconButton(
+        onPressed: () => _showLevelSheet(context),
+        icon: _IdeaIcon(asset: _svgAsset(config.level), color: color, size: 20),
+        tooltip: AiL10n.current.thinkingLevelLabel,
+        style: IconButton.styleFrom(
+          minimumSize: const Size(36, 36),
+          padding: EdgeInsets.zero,
+        ),
+    );
+  }
+
+  void _setConfig(ThinkingConfig config) {
+    ref.read(aiThinkingConfigProvider.notifier).state = config;
+    ref.read(aiChatStorageServiceProvider).setThinkingConfig(config);
+  }
+
+  void _showLevelSheet(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) {
+        final current = ref.read(aiThinkingConfigProvider);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: cs.onSurface.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _levelTile(ctx, ThinkingLevel.off,
+                  AiL10n.current.thinkingOff, current.level),
+              _levelTile(ctx, ThinkingLevel.auto,
+                  AiL10n.current.thinkingAuto, current.level),
+              _levelTile(ctx, ThinkingLevel.low,
+                  AiL10n.current.thinkingLow, current.level),
+              _levelTile(ctx, ThinkingLevel.medium,
+                  AiL10n.current.thinkingMedium, current.level),
+              _levelTile(ctx, ThinkingLevel.high,
+                  AiL10n.current.thinkingHigh, current.level),
+              _customTile(ctx, current),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _levelTile(BuildContext context, ThinkingLevel level,
+      String label, ThinkingLevel current) {
+    final cs = Theme.of(context).colorScheme;
+    final isSelected = level == current;
+    final color = isSelected ? cs.primary : cs.onSurfaceVariant;
+    return ListTile(
+      leading: _IdeaIcon(asset: _svgAsset(level), color: color, size: 22),
+      title: Text(label, style: TextStyle(
+          color: isSelected ? cs.primary : null,
+          fontWeight: isSelected ? FontWeight.w600 : null)),
+      trailing: isSelected
+          ? Icon(Icons.check, color: cs.primary, size: 20) : null,
+      onTap: () {
+        _setConfig(ref.read(aiThinkingConfigProvider)
+            .copyWith(level: level));
+        Navigator.pop(context);
+      },
+    );
+  }
+
+  Widget _customTile(BuildContext context, ThinkingConfig current) {
+    final cs = Theme.of(context).colorScheme;
+    final isSelected = current.level == ThinkingLevel.custom;
+    return ListTile(
+      leading: Icon(Icons.tune, size: 22,
+          color: isSelected ? cs.primary : cs.onSurfaceVariant),
+      title: Text(AiL10n.current.thinkingCustom, style: TextStyle(
+          color: isSelected ? cs.primary : null,
+          fontWeight: isSelected ? FontWeight.w600 : null)),
+      trailing: isSelected
+          ? Text('${current.customBudget}', style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w600, color: cs.primary))
+          : null,
+      onTap: () {
+        Navigator.pop(context);
+        _showCustomDialog(context, current);
+      },
+    );
+  }
+
+  void _showCustomDialog(BuildContext context, ThinkingConfig current) {
+    final controller = TextEditingController(
+        text: '${current.customBudget}');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AiL10n.current.thinkingCustom),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: '1024 - 64000',
+            border: const OutlineInputBorder(),
+            suffixText: 'tokens',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(AiL10n.current.cancel),
+          ),
+          FilledButton(
+            onPressed: () {
+              final val = int.tryParse(controller.text.trim());
+              if (val != null && val >= 1024) {
+                _setConfig(ThinkingConfig(
+                  level: ThinkingLevel.custom,
+                  customBudget: val.clamp(1024, 64000),
+                ));
+              }
+              Navigator.pop(ctx);
+            },
+            child: Text(AiL10n.current.modelDetailConfirm),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 灯泡图标，用 Kelivo 的 idea-01 系列 SVG 渲染，ColorFiltered 着色。
+class _IdeaIcon extends StatelessWidget {
+  final String asset;
+  final Color color;
+  final double size;
+
+  const _IdeaIcon({
+    required this.asset,
+    required this.color,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: ColorFiltered(
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+        child: ScalableImageWidget.fromSISource(
+          si: ScalableImageSource.fromSvg(
+            rootBundle,
+            asset,
+            warnF: (_) {},
+          ),
+        ),
+      ),
+    );
   }
 }

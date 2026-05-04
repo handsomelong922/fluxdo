@@ -133,6 +133,7 @@ flutter:
     - assets/images/
     - assets/certs/
     - assets/ai_brands/
+    - assets/icons/thinking/
 
   fonts:
     - family: MiSans

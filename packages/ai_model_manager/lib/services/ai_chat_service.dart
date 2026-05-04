@@ -91,8 +91,7 @@ class AiChatService {
     required String apiKey,
     required List<AiChatMessage> messages,
     String? systemPrompt,
-    bool enableThinking = false,
-    int thinkingBudgetTokens = 4096,
+    ThinkingConfig thinkingConfig = const ThinkingConfig(),
     /// 仅图像生成路径使用：话题上下文摘要（含标题+正文楼层），
     /// 会被前置拼接到 image prompt 之前，让生成的图与话题相关。
     /// 文本聊天路径忽略此参数（话题上下文走 [messages] 注入）。
@@ -136,6 +135,7 @@ class AiChatService {
           model: model,
           messages: messages,
           systemPrompt: systemPrompt,
+          thinkingConfig: thinkingConfig,
         );
       case AiProviderType.openaiResponse:
         return _streamOpenAiResponses(
@@ -152,6 +152,7 @@ class AiChatService {
           model: model,
           messages: messages,
           systemPrompt: systemPrompt,
+          thinkingConfig: thinkingConfig,
         );
       case AiProviderType.anthropic:
         return _streamAnthropic(
@@ -160,8 +161,7 @@ class AiChatService {
           model: model,
           messages: messages,
           systemPrompt: systemPrompt,
-          enableThinking: enableThinking,
-          thinkingBudgetTokens: thinkingBudgetTokens,
+          thinkingConfig: thinkingConfig,
         );
     }
   }
@@ -195,6 +195,7 @@ class AiChatService {
     required String model,
     required List<AiChatMessage> messages,
     String? systemPrompt,
+    ThinkingConfig thinkingConfig = const ThinkingConfig(),
   }) async* {
     final client = _createOpenAIClient(baseUrl, apiKey);
     try {
@@ -202,6 +203,7 @@ class AiChatService {
         model: model,
         messages: _toOpenAiMessages(systemPrompt, messages),
         streamOptions: const o.StreamOptions(includeUsage: true),
+        reasoningEffort: _toOpenAiReasoningEffort(thinkingConfig),
       );
       int? promptTokens;
       int? responseTokens;
@@ -646,6 +648,7 @@ class AiChatService {
     required String model,
     required List<AiChatMessage> messages,
     String? systemPrompt,
+    ThinkingConfig thinkingConfig = const ThinkingConfig(),
   }) async* {
     final client = g.GoogleAIClient(
       config: g.GoogleAIConfig(
@@ -663,6 +666,11 @@ class AiChatService {
         systemInstruction: systemPrompt == null
             ? null
             : g.Content(parts: [g.Part.text(systemPrompt)]),
+        generationConfig: thinkingConfig.level == ThinkingLevel.off
+            ? null
+            : g.GenerationConfig(
+                thinkingConfig: _toGeminiThinkingConfig(thinkingConfig),
+              ),
       );
       int? promptTokens;
       int? responseTokens;
@@ -674,7 +682,11 @@ class AiChatService {
           final parts = response.candidates?.firstOrNull?.content?.parts ?? [];
           for (final part in parts) {
             if (part is g.TextPart && part.text.isNotEmpty) {
-              yield TextDelta(part.text);
+              if (part.thought == true) {
+                yield ThinkingDelta(part.text);
+              } else {
+                yield TextDelta(part.text);
+              }
             }
           }
           final usage = response.usageMetadata;
@@ -812,8 +824,7 @@ class AiChatService {
     required String model,
     required List<AiChatMessage> messages,
     String? systemPrompt,
-    bool enableThinking = false,
-    int thinkingBudgetTokens = 4096,
+    ThinkingConfig thinkingConfig = const ThinkingConfig(),
   }) async* {
     final client = a.AnthropicClient(
       apiKey: apiKey,
@@ -821,17 +832,18 @@ class AiChatService {
       client: bridgedClient,
     );
 
+    final budgetTokens = _toAnthropicBudget(thinkingConfig);
     final request = a.CreateMessageRequest(
       model: a.Model.modelId(model),
       messages: _toAnthropicMessages(messages),
-      maxTokens: 8192,
+      maxTokens: thinkingConfig.isEnabled ? 16384 : 8192,
       system: systemPrompt == null
           ? null
           : a.CreateMessageRequestSystem.text(systemPrompt),
-      thinking: enableThinking
+      thinking: budgetTokens != null
           ? a.ThinkingConfig.enabled(
               type: a.ThinkingConfigEnabledType.enabled,
-              budgetTokens: thinkingBudgetTokens,
+              budgetTokens: budgetTokens,
             )
           : null,
     );
@@ -1258,5 +1270,49 @@ class AiChatService {
       }
     }
     return trimmed;
+  }
+
+  // ────────────────────────── ThinkingLevel 映射 ──────────────────────────
+
+  static o.ReasoningEffort? _toOpenAiReasoningEffort(ThinkingConfig config) {
+    return switch (config.level) {
+      ThinkingLevel.off => null,
+      ThinkingLevel.auto => o.ReasoningEffort.medium,
+      ThinkingLevel.low => o.ReasoningEffort.low,
+      ThinkingLevel.medium => o.ReasoningEffort.medium,
+      ThinkingLevel.high => o.ReasoningEffort.high,
+      ThinkingLevel.custom => o.ReasoningEffort.high,
+    };
+  }
+
+  static g.ThinkingConfig? _toGeminiThinkingConfig(ThinkingConfig config) {
+    if (config.level == ThinkingLevel.off) return null;
+    if (config.level == ThinkingLevel.custom) {
+      return g.ThinkingConfig(
+        includeThoughts: true,
+        thinkingBudget: config.customBudget,
+      );
+    }
+    return g.ThinkingConfig(
+      includeThoughts: true,
+      thinkingLevel: switch (config.level) {
+        ThinkingLevel.auto => g.ThinkingLevel.unspecified,
+        ThinkingLevel.low => g.ThinkingLevel.low,
+        ThinkingLevel.medium => g.ThinkingLevel.medium,
+        ThinkingLevel.high => g.ThinkingLevel.high,
+        _ => g.ThinkingLevel.unspecified,
+      },
+    );
+  }
+
+  static int? _toAnthropicBudget(ThinkingConfig config) {
+    return switch (config.level) {
+      ThinkingLevel.off => null,
+      ThinkingLevel.auto => 8192,
+      ThinkingLevel.low => 1024,
+      ThinkingLevel.medium => 8192,
+      ThinkingLevel.high => 32000,
+      ThinkingLevel.custom => config.customBudget,
+    };
   }
 }

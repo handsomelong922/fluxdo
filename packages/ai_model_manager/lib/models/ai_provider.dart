@@ -32,6 +32,29 @@ enum ModelAbility { tool, reasoning }
 /// tool / reasoning = abilities 对应项
 enum ModelCapability { vision, reasoning, tool, imageOutput }
 
+/// 思考深度等级，统一映射到各供应商 API 参数。
+/// [custom] 使用 [ThinkingConfig.customBudget] 自定义 token 数。
+enum ThinkingLevel { off, auto, low, medium, high, custom }
+
+/// 思考配置：等级 + 自定义预算
+class ThinkingConfig {
+  final ThinkingLevel level;
+  final int customBudget;
+
+  const ThinkingConfig({
+    this.level = ThinkingLevel.off,
+    this.customBudget = 8192,
+  });
+
+  bool get isEnabled => level != ThinkingLevel.off;
+
+  ThinkingConfig copyWith({ThinkingLevel? level, int? customBudget}) =>
+      ThinkingConfig(
+        level: level ?? this.level,
+        customBudget: customBudget ?? this.customBudget,
+      );
+}
+
 List<Modality> _parseModalities(dynamic raw, List<Modality> fallback) {
   if (raw is! List) return List.unmodifiable(fallback);
   final out = <Modality>{};

@@ -105,6 +105,13 @@ class AiL10n {
   String get defaultChatModel => '默认聊天模型';
   String get defaultImageModel => '默认图像模型';
   String get advancedSettings => '高级设置';
+  String get thinkingLevelLabel => '思考深度';
+  String get thinkingOff => '关闭思考';
+  String get thinkingAuto => '自动';
+  String get thinkingCustom => '自定义';
+  String get thinkingLow => '轻度思考';
+  String get thinkingMedium => '中度思考';
+  String get thinkingHigh => '深度思考';
   String get chatHistory => '聊天记录';
   String get titleGenerationModel => '标题生成模型';
   String get autoGenerateTitleSubtitle => '自动为新会话生成标题';
