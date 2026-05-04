@@ -291,11 +291,16 @@ class AiChatMessageItem extends StatelessWidget {
   /// Token 用量小字
   Widget _buildTokenUsage(BuildContext context) {
     final theme = Theme.of(context);
+    var text = context.l10n.ai_tokenUsage(
+      message.promptTokens ?? 0,
+      message.responseTokens ?? 0,
+    );
+    final cached = message.cachedTokens;
+    if (cached != null && cached > 0) {
+      text += ' · cached $cached';
+    }
     return Text(
-      context.l10n.ai_tokenUsage(
-        message.promptTokens ?? 0,
-        message.responseTokens ?? 0,
-      ),
+      text,
       style: theme.textTheme.bodySmall?.copyWith(
         fontSize: 11,
         color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),

@@ -648,6 +648,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       final generatedImages = <AiChatAttachment>[];
       int? promptTokens;
       int? responseTokens;
+      int? cachedTokens;
 
       _streamSubscription = stream.listen(
         (chunk) {
@@ -718,6 +719,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
             case final UsageReport u:
               promptTokens = u.promptTokens;
               responseTokens = u.responseTokens;
+              cachedTokens = u.cachedTokens;
           }
         },
         onDone: () {
@@ -758,6 +760,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
                   : List.unmodifiable(finalized),
               promptTokens: promptTokens,
               responseTokens: responseTokens,
+              cachedTokens: cachedTokens,
             );
             _saveToStorage();
             _tryGenerateTitle();
@@ -857,6 +860,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     List<AiChatAttachment>? attachments,
     int? promptTokens,
     int? responseTokens,
+    int? cachedTokens,
     String? loadingStage,
     String? optimizedPrompt,
     String? optimizerModelName,
@@ -872,6 +876,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
           attachments: attachments,
           promptTokens: promptTokens,
           responseTokens: responseTokens,
+          cachedTokens: cachedTokens,
           loadingStage: loadingStage,
           optimizedPrompt: optimizedPrompt,
           optimizerModelName: optimizerModelName,

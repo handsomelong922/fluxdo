@@ -39,9 +39,10 @@ class ThinkingDelta extends AiChatChunk {
 
 /// Token 用量报告，流结束时发送
 class UsageReport extends AiChatChunk {
-  const UsageReport({this.promptTokens, this.responseTokens});
+  const UsageReport({this.promptTokens, this.responseTokens, this.cachedTokens});
   final int? promptTokens;
   final int? responseTokens;
+  final int? cachedTokens;
 }
 
 /// 模型生成的图片（gpt-image / DALL-E 等）
@@ -216,6 +217,7 @@ class AiChatService {
       );
       int? promptTokens;
       int? responseTokens;
+      int? cachedTokens;
       try {
         await for (final event in client.chat.completions.createStream(
           request,
@@ -233,6 +235,7 @@ class AiChatService {
           if (usage != null) {
             promptTokens = usage.promptTokens;
             responseTokens = usage.completionTokens;
+            cachedTokens = usage.promptTokensDetails?.cachedTokens;
           }
         }
       } catch (e) {
@@ -242,6 +245,7 @@ class AiChatService {
         yield UsageReport(
           promptTokens: promptTokens,
           responseTokens: responseTokens,
+          cachedTokens: cachedTokens,
         );
       }
     } finally {
@@ -854,7 +858,12 @@ class AiChatService {
       maxTokens: thinkingConfig.isEnabled ? 16384 : 8192,
       system: systemPrompt == null
           ? null
-          : a.CreateMessageRequestSystem.text(systemPrompt),
+          : a.CreateMessageRequestSystem.blocks([
+              a.Block.text(
+                text: systemPrompt,
+                cacheControl: const a.CacheControlEphemeral(),
+              ),
+            ]),
       thinking: budgetTokens != null
           ? a.ThinkingConfig.enabled(
               type: a.ThinkingConfigEnabledType.enabled,
@@ -865,12 +874,14 @@ class AiChatService {
 
     int? promptTokens;
     int? responseTokens;
+    int? cachedTokens;
     try {
       await for (final event in client.createMessageStream(request: request)) {
         switch (event) {
           case final a.MessageStartEvent e:
             promptTokens = e.message.usage?.inputTokens;
             responseTokens = e.message.usage?.outputTokens;
+            cachedTokens = e.message.usage?.cacheReadInputTokens;
           case final a.ContentBlockDeltaEvent e:
             switch (e.delta) {
               case final a.TextBlockDelta d:
@@ -897,6 +908,7 @@ class AiChatService {
       yield UsageReport(
         promptTokens: promptTokens,
         responseTokens: responseTokens,
+        cachedTokens: cachedTokens,
       );
     }
   }
@@ -1063,6 +1075,7 @@ class AiChatService {
   List<a.Message> _toAnthropicMessages(List<AiChatMessage> history) {
     final result = <a.Message>[];
     for (final msg in history) {
+      final isContext = msg.id == 'context-user' || msg.id == 'context-assistant';
       switch (msg.role) {
         case ChatRole.system:
           continue;
@@ -1070,7 +1083,7 @@ class AiChatService {
           result.add(
             a.Message(
               role: a.MessageRole.user,
-              content: _toAnthropicContent(msg),
+              content: _toAnthropicContent(msg, cache: isContext),
             ),
           );
         case ChatRole.assistant:
@@ -1078,7 +1091,14 @@ class AiChatService {
           result.add(
             a.Message(
               role: a.MessageRole.assistant,
-              content: a.MessageContent.text(msg.content),
+              content: isContext
+                  ? a.MessageContent.blocks([
+                      a.Block.text(
+                        text: msg.content,
+                        cacheControl: const a.CacheControlEphemeral(),
+                      ),
+                    ])
+                  : a.MessageContent.text(msg.content),
             ),
           );
       }
@@ -1086,13 +1106,26 @@ class AiChatService {
     return result;
   }
 
-  a.MessageContent _toAnthropicContent(AiChatMessage msg) {
+  a.MessageContent _toAnthropicContent(AiChatMessage msg,
+      {bool cache = false}) {
     final attachments = msg.attachments;
     if (attachments == null || attachments.isEmpty) {
+      if (cache) {
+        return a.MessageContent.blocks([
+          a.Block.text(
+            text: msg.content,
+            cacheControl: const a.CacheControlEphemeral(),
+          ),
+        ]);
+      }
       return a.MessageContent.text(msg.content);
     }
     final blocks = <a.Block>[
-      if (msg.content.isNotEmpty) a.Block.text(text: msg.content),
+      if (msg.content.isNotEmpty)
+        a.Block.text(
+          text: msg.content,
+          cacheControl: cache ? const a.CacheControlEphemeral() : null,
+        ),
       for (final att in attachments)
         if (_anthropicImageBlock(att) case final block?) block,
     ];

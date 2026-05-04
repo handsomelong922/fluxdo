@@ -25,6 +25,7 @@ class AiChatMessage {
   /// Token 用量（仅 assistant 完成态消息），来自 LLM provider 的 usage 字段
   final int? promptTokens;
   final int? responseTokens;
+  final int? cachedTokens;
 
   /// 标记该 assistant 消息是图像生成请求（gpt-image / DALL-E 等）。
   /// 用于在 attachments 还为空时显示「正在生成图片」占位。
@@ -58,6 +59,7 @@ class AiChatMessage {
     this.attachments,
     this.promptTokens,
     this.responseTokens,
+    this.cachedTokens,
     this.isImageGeneration = false,
     this.loadingStage,
     this.optimizedPrompt,
@@ -75,6 +77,7 @@ class AiChatMessage {
     List<AiChatAttachment>? attachments,
     int? promptTokens,
     int? responseTokens,
+    int? cachedTokens,
     bool? isImageGeneration,
     String? loadingStage,
     String? optimizedPrompt,
@@ -91,6 +94,7 @@ class AiChatMessage {
       attachments: attachments ?? this.attachments,
       promptTokens: promptTokens ?? this.promptTokens,
       responseTokens: responseTokens ?? this.responseTokens,
+      cachedTokens: cachedTokens ?? this.cachedTokens,
       isImageGeneration: isImageGeneration ?? this.isImageGeneration,
       loadingStage: loadingStage ?? this.loadingStage,
       optimizedPrompt: optimizedPrompt ?? this.optimizedPrompt,
@@ -111,6 +115,7 @@ class AiChatMessage {
         'attachments': attachments!.map((a) => a.toJson()).toList(),
       if (promptTokens != null) 'promptTokens': promptTokens,
       if (responseTokens != null) 'responseTokens': responseTokens,
+      if (cachedTokens != null) 'cachedTokens': cachedTokens,
       if (optimizedPrompt != null) 'optimizedPrompt': optimizedPrompt,
       if (optimizerModelName != null)
         'optimizerModelName': optimizerModelName,
@@ -131,6 +136,7 @@ class AiChatMessage {
           .toList(),
       promptTokens: json['promptTokens'] as int?,
       responseTokens: json['responseTokens'] as int?,
+      cachedTokens: json['cachedTokens'] as int?,
       optimizedPrompt: json['optimizedPrompt'] as String?,
       optimizerModelName: json['optimizerModelName'] as String?,
     );
