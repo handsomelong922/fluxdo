@@ -99,7 +99,11 @@ class AiChatService {
     /// 仅图像生成路径使用：用户在 PromptPreset 维度面板选择的 aspect。
     /// 取值 '1:1' / '16:9' / '9:16' / '4:3' / '3:4'，null = 用模型默认。
     String? imageAspect,
+    /// 可取消的 HTTP client。外部 close 后底层 HTTP 连接立即断开，
+    /// 不再等 stream 自然结束。未传则 fallback 到 [bridgedClient]。
+    http.Client? requestClient,
   }) {
+    final effectiveClient = requestClient ?? bridgedClient;
     // OpenAI 系图像模型（gpt-image-* / dall-e-* / grok-2-image / cogview /
     // qwen-image / sd / flux / midjourney 经 OpenAI 兼容代理等）走
     // /images/generations 端点。
@@ -113,10 +117,9 @@ class AiChatService {
         messages: messages,
         contextSummary: imagePromptContext,
         imageAspect: imageAspect,
+        httpClient: effectiveClient,
       );
     }
-    // Google 原生图像生成（gemini-2.5-flash-image / gemini-3-flash-image-preview /
-    // imagen-3 等）走 generateContent + responseModalities=[image, text]。
     if (_isGeminiImageRoute(provider, model)) {
       return _streamGeminiImageGeneration(
         baseUrl: provider.baseUrl,
@@ -125,6 +128,7 @@ class AiChatService {
         messages: messages,
         contextSummary: imagePromptContext,
         imageAspect: imageAspect,
+        httpClient: effectiveClient,
       );
     }
     switch (provider.type) {
@@ -136,6 +140,7 @@ class AiChatService {
           messages: messages,
           systemPrompt: systemPrompt,
           thinkingConfig: thinkingConfig,
+          httpClient: effectiveClient,
         );
       case AiProviderType.openaiResponse:
         return _streamOpenAiResponses(
@@ -144,6 +149,7 @@ class AiChatService {
           model: model,
           messages: messages,
           systemPrompt: systemPrompt,
+          httpClient: effectiveClient,
         );
       case AiProviderType.gemini:
         return _streamGemini(
@@ -153,6 +159,7 @@ class AiChatService {
           messages: messages,
           systemPrompt: systemPrompt,
           thinkingConfig: thinkingConfig,
+          httpClient: effectiveClient,
         );
       case AiProviderType.anthropic:
         return _streamAnthropic(
@@ -162,6 +169,7 @@ class AiChatService {
           messages: messages,
           systemPrompt: systemPrompt,
           thinkingConfig: thinkingConfig,
+          httpClient: effectiveClient,
         );
     }
   }
@@ -196,8 +204,9 @@ class AiChatService {
     required List<AiChatMessage> messages,
     String? systemPrompt,
     ThinkingConfig thinkingConfig = const ThinkingConfig(),
+    http.Client? httpClient,
   }) async* {
-    final client = _createOpenAIClient(baseUrl, apiKey);
+    final client = _createOpenAIClient(baseUrl, apiKey, httpClient: httpClient);
     try {
       final request = o.ChatCompletionCreateRequest(
         model: model,
@@ -283,6 +292,7 @@ class AiChatService {
     required List<AiChatMessage> messages,
     String? contextSummary,
     String? imageAspect,
+    http.Client? httpClient,
   }) async* {
     // 提取最后一条 user 消息作为 prompt
     AiChatMessage? lastUser;
@@ -303,7 +313,7 @@ class AiChatService {
     final inputAttachments = lastUser?.attachments ?? const [];
     final hasInput = inputAttachments.isNotEmpty;
 
-    final client = _createOpenAIClient(baseUrl, apiKey);
+    final client = _createOpenAIClient(baseUrl, apiKey, httpClient: httpClient);
     try {
       // gpt-image 系列原生支持流式 partial frames（先发草图后发终态）。
       // dall-e-2/3 不支持 stream，会被 SDK 自动忽略 stream 参数走非流式。
@@ -590,8 +600,9 @@ class AiChatService {
     required String model,
     required List<AiChatMessage> messages,
     String? systemPrompt,
+    http.Client? httpClient,
   }) async* {
-    final client = _createOpenAIClient(baseUrl, apiKey);
+    final client = _createOpenAIClient(baseUrl, apiKey, httpClient: httpClient);
     try {
       final request = o.CreateResponseRequest(
         model: model,
@@ -630,13 +641,14 @@ class AiChatService {
     }
   }
 
-  o.OpenAIClient _createOpenAIClient(String baseUrl, String apiKey) {
+  o.OpenAIClient _createOpenAIClient(String baseUrl, String apiKey,
+      {http.Client? httpClient}) {
     return o.OpenAIClient(
       config: o.OpenAIConfig(
         authProvider: o.ApiKeyProvider(apiKey),
         baseUrl: _trimTrailingSlash(baseUrl),
       ),
-      httpClient: bridgedClient,
+      httpClient: httpClient ?? bridgedClient,
     );
   }
 
@@ -649,6 +661,7 @@ class AiChatService {
     required List<AiChatMessage> messages,
     String? systemPrompt,
     ThinkingConfig thinkingConfig = const ThinkingConfig(),
+    http.Client? httpClient,
   }) async* {
     final client = g.GoogleAIClient(
       config: g.GoogleAIConfig(
@@ -658,7 +671,7 @@ class AiChatService {
             : _stripGeminiVersion(baseUrl),
         apiMode: g.ApiMode.googleAI,
       ),
-      httpClient: bridgedClient,
+      httpClient: httpClient ?? bridgedClient,
     );
     try {
       final request = g.GenerateContentRequest(
@@ -725,6 +738,7 @@ class AiChatService {
     required List<AiChatMessage> messages,
     String? contextSummary,
     String? imageAspect,
+    http.Client? httpClient,
   }) async* {
     AiChatMessage? lastUser;
     for (var i = messages.length - 1; i >= 0; i--) {
@@ -750,7 +764,7 @@ class AiChatService {
             : _stripGeminiVersion(baseUrl),
         apiMode: g.ApiMode.googleAI,
       ),
-      httpClient: bridgedClient,
+      httpClient: httpClient ?? bridgedClient,
     );
 
     try {
@@ -825,11 +839,12 @@ class AiChatService {
     required List<AiChatMessage> messages,
     String? systemPrompt,
     ThinkingConfig thinkingConfig = const ThinkingConfig(),
+    http.Client? httpClient,
   }) async* {
     final client = a.AnthropicClient(
       apiKey: apiKey,
       baseUrl: baseUrl.isEmpty ? null : _trimTrailingSlash(baseUrl),
-      client: bridgedClient,
+      client: httpClient ?? bridgedClient,
     );
 
     final budgetTokens = _toAnthropicBudget(thinkingConfig);

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 // ignore: depend_on_referenced_packages
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:uuid/uuid.dart';
@@ -380,6 +381,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   final ({AiProvider provider, AiModel model})? imagePromptOptimizerModel;
 
   StreamSubscription<AiChatChunk>? _streamSubscription;
+  http.Client? _requestClient;
   bool _cancelled = false;
   bool _isGeneratingTitle = false;
 
@@ -627,7 +629,8 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
         }
       }
 
-      // 发起流式请求
+      // 为本次请求创建独立 HTTP client，stop 时 close 可立即断开连接
+      _requestClient = http.Client();
       final stream = chatService.sendChatStream(
         provider: selectedModel.provider,
         model: selectedModel.model.id,
@@ -637,6 +640,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
         thinkingConfig: thinkingConfig,
         imagePromptContext: imagePromptContext,
         imageAspect: imageAspect,
+        requestClient: _requestClient,
       );
 
       final textBuffer = StringBuffer();
@@ -717,6 +721,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
           }
         },
         onDone: () {
+          _requestClient = null;
           if (!mounted) return;
           // onDone 时清理残留 partial（如果流提前结束没收到 final，
           // 把最后一张草图升级为终态，避免持久化 partial）
@@ -791,6 +796,8 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     _cancelled = true;
     _streamSubscription?.cancel();
     _streamSubscription = null;
+    _requestClient?.close();
+    _requestClient = null;
 
     if (!mounted) return;
 
@@ -1125,6 +1132,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   @override
   void dispose() {
     _streamSubscription?.cancel();
+    _requestClient?.close();
     super.dispose();
   }
 }
