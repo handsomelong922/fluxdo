@@ -101,6 +101,10 @@ class AiL10n {
   String get confirmDelete => '确认删除';
   String confirmDeleteProvider(String name) => '确定要删除供应商「$name」吗？';
   String modelCount(int enabled, int total) => '$enabled/$total 个模型';
+  String get modelConfig => '模型配置';
+  String get defaultChatModel => '默认聊天模型';
+  String get defaultImageModel => '默认图像模型';
+  String get advancedSettings => '高级设置';
   String get chatHistory => '聊天记录';
   String get titleGenerationModel => '标题生成模型';
   String get autoGenerateTitleSubtitle => '自动为新会话生成标题';
@@ -218,6 +222,36 @@ class AiL10n {
   String get capabilityImageOutputLabel => '画图';
   String get capabilityResetTooltip => '重置为自动';
   String get capabilityResetSnack => '已重置为自动推断';
+
+  // ---- 模型详情 sheet ----
+  String get modelDetailTitle => '编辑模型';
+  String get modelDetailAddTitle => '添加模型';
+  String get modelDetailIdLabel => '模型 ID';
+  String get modelDetailIdHint => '例如: gpt-4o';
+  String get modelDetailNameLabel => '显示名称';
+  String get modelDetailInputLabel => '输入模态';
+  String get modelDetailOutputLabel => '输出模态';
+  String get modelDetailAbilitiesLabel => '模型能力';
+  String get modelDetailTextMode => '文本';
+  String get modelDetailImageMode => '图像';
+  String get modelDetailToolAbility => '工具调用';
+  String get modelDetailReasoningAbility => '推理';
+  String get modelDetailConfirm => '确认';
+  String get modelDetailResetAuto => '重置为自动推断';
+  String get modelDetailIdCopied => '模型 ID 已复制';
+  String get modelDetailIdRequired => '请输入模型 ID';
+
+  // ---- 供应商编辑页 Tab ----
+  String get configTab => '配置';
+  String get modelsTab => '模型';
+  String get fetchModelsSelect => '选择要添加的模型';
+  String get fetchModelsSelectAll => '全选';
+  String get fetchModelsDeselectAll => '取消全选';
+  String addSelectedModels(int count) => '添加选中的 $count 个模型';
+  String get modelAlreadyAdded => '已添加';
+  String get searchModelsHint => '搜索模型';
+  String get testModel => '测试模型';
+  String get selectModelToTest => '选择要测试的模型';
 
   // ---- System Prompts（影响 AI 回复语言） ----
   String get systemPromptIntro =>

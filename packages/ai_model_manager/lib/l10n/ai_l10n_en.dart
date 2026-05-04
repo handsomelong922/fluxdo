@@ -130,6 +130,15 @@ class AiL10nEn extends AiL10n {
   @override
   String modelCount(int enabled, int total) => '$enabled/$total models';
   @override
+  @override
+  String get modelConfig => 'Model Config';
+  @override
+  String get defaultChatModel => 'Default Chat Model';
+  @override
+  String get defaultImageModel => 'Default Image Model';
+  @override
+  String get advancedSettings => 'Advanced';
+  @override
   String get chatHistory => 'Chat History';
   @override
   String get titleGenerationModel => 'Title Generation Model';
@@ -355,6 +364,62 @@ class AiL10nEn extends AiL10n {
   String get capabilityResetTooltip => 'Reset to auto';
   @override
   String get capabilityResetSnack => 'Reset to auto-detection';
+
+  // ---- Model detail sheet ----
+  @override
+  String get modelDetailTitle => 'Edit Model';
+  @override
+  String get modelDetailAddTitle => 'Add Model';
+  @override
+  String get modelDetailIdLabel => 'Model ID';
+  @override
+  String get modelDetailIdHint => 'e.g. gpt-4o';
+  @override
+  String get modelDetailNameLabel => 'Display Name';
+  @override
+  String get modelDetailInputLabel => 'Input Modalities';
+  @override
+  String get modelDetailOutputLabel => 'Output Modalities';
+  @override
+  String get modelDetailAbilitiesLabel => 'Abilities';
+  @override
+  String get modelDetailTextMode => 'Text';
+  @override
+  String get modelDetailImageMode => 'Image';
+  @override
+  String get modelDetailToolAbility => 'Tools';
+  @override
+  String get modelDetailReasoningAbility => 'Reasoning';
+  @override
+  String get modelDetailConfirm => 'Confirm';
+  @override
+  String get modelDetailResetAuto => 'Reset to auto';
+  @override
+  String get modelDetailIdCopied => 'Model ID copied';
+  @override
+  String get modelDetailIdRequired => 'Please enter a model ID';
+
+  // ---- Provider edit tabs ----
+  @override
+  String get configTab => 'Config';
+  @override
+  String get modelsTab => 'Models';
+  @override
+  String get fetchModelsSelect => 'Select models to add';
+  @override
+  String get fetchModelsSelectAll => 'Select all';
+  @override
+  String get fetchModelsDeselectAll => 'Deselect all';
+  @override
+  String addSelectedModels(int count) => 'Add $count selected models';
+  @override
+  String get modelAlreadyAdded => 'Added';
+  @override
+  String get searchModelsHint => 'Search models';
+  @override
+  String get testModel => 'Test model';
+  @override
+  String get selectModelToTest => 'Select a model to test';
 
   // ---- System Prompts ----
   @override

@@ -29,6 +29,7 @@ import 'services/local_notification_service.dart';
 import 'services/data_management/cache_size_service.dart';
 import 'services/discourse_cache_manager.dart';
 import 'services/toast_service.dart';
+import 'widgets/common/loading_spinner.dart';
 import 'l10n/s.dart';
 
 import 'services/preloaded_data_service.dart';
@@ -265,6 +266,11 @@ Future<void> main() async {
       case AiToastType.info:
         ToastService.showInfo(message);
     }
+  });
+
+  // 注入自定义加载指示器
+  AiToastDelegate.configureLoading(({color, size = 48}) {
+    return LoadingSpinner(color: color, size: size);
   });
 
   // 根据当前语言配置 AI 模型管理包的语言

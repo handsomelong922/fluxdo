@@ -125,6 +125,15 @@ class AiL10nZhHK extends AiL10n {
   @override
   String modelCount(int enabled, int total) => '$enabled/$total 個模型';
   @override
+  @override
+  String get modelConfig => '模型配置';
+  @override
+  String get defaultChatModel => '默認聊天模型';
+  @override
+  String get defaultImageModel => '默認圖像模型';
+  @override
+  String get advancedSettings => '高級設置';
+  @override
   String get chatHistory => '聊天記錄';
   @override
   String get titleGenerationModel => '標題生成模型';
@@ -334,6 +343,62 @@ class AiL10nZhHK extends AiL10n {
   String get capabilityResetTooltip => '重置為自動';
   @override
   String get capabilityResetSnack => '已重置為自動推斷';
+
+  // ---- 模型詳情 sheet ----
+  @override
+  String get modelDetailTitle => '編輯模型';
+  @override
+  String get modelDetailAddTitle => '添加模型';
+  @override
+  String get modelDetailIdLabel => '模型 ID';
+  @override
+  String get modelDetailIdHint => '例如: gpt-4o';
+  @override
+  String get modelDetailNameLabel => '顯示名稱';
+  @override
+  String get modelDetailInputLabel => '輸入模態';
+  @override
+  String get modelDetailOutputLabel => '輸出模態';
+  @override
+  String get modelDetailAbilitiesLabel => '模型能力';
+  @override
+  String get modelDetailTextMode => '文本';
+  @override
+  String get modelDetailImageMode => '圖像';
+  @override
+  String get modelDetailToolAbility => '工具調用';
+  @override
+  String get modelDetailReasoningAbility => '推理';
+  @override
+  String get modelDetailConfirm => '確認';
+  @override
+  String get modelDetailResetAuto => '重置為自動推斷';
+  @override
+  String get modelDetailIdCopied => '模型 ID 已複製';
+  @override
+  String get modelDetailIdRequired => '請輸入模型 ID';
+
+  // ---- 供應商編輯頁 Tab ----
+  @override
+  String get configTab => '配置';
+  @override
+  String get modelsTab => '模型';
+  @override
+  String get fetchModelsSelect => '選擇要添加的模型';
+  @override
+  String get fetchModelsSelectAll => '全選';
+  @override
+  String get fetchModelsDeselectAll => '取消全選';
+  @override
+  String addSelectedModels(int count) => '添加選中的 $count 個模型';
+  @override
+  String get modelAlreadyAdded => '已添加';
+  @override
+  String get searchModelsHint => '搜索模型';
+  @override
+  String get testModel => '測試模型';
+  @override
+  String get selectModelToTest => '選擇要測試的模型';
 
   // ---- System Prompts ----
   @override
