@@ -21,7 +21,6 @@ import '../services/toast_service.dart';
 import '../services/hcaptcha_accessibility_service.dart';
 import '../services/webview_settings.dart';
 import '../services/windows_webview_environment_service.dart';
-import '../services/fingerprint_service.dart';
 import '../services/log/log_writer.dart';
 import '../widgets/common/dismissible_popup_menu.dart';
 import '../l10n/s.dart';
@@ -172,16 +171,11 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                   child: WebViewSettings.wrapWithScrollFix(
                   InAppWebView(
                     webViewEnvironment: windowsWebViewEnvironment,
-                    initialUrlRequest: URLRequest(
-                      url: WebUri(
-                        widget.initialUrl ?? '${AppConstants.baseUrl}/login',
-                      ),
-                    ),
                     initialSettings: WebViewSettings.visible,
                     initialUserScripts: WebViewSettings.ios15PolyfillScripts,
                     onReceivedServerTrustAuthRequest: (_, challenge) =>
                         WebViewSettings.handleServerTrustAuthRequest(challenge),
-                    onWebViewCreated: (controller) {
+                    onWebViewCreated: (controller) async {
                       _controller = controller;
                       // 注册 JS Handler，用于在登录按钮点击时接收凭证
                       controller.addJavaScriptHandler(
@@ -205,6 +199,17 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                             } catch (_) {}
                           }
                         },
+                      );
+                      // 等待 cookie flush 完成再加载 URL，
+                      // 确保 WebView 引擎初始化后 cookie 已就位
+                      await _awaitInitialCookieFlush();
+                      await controller.loadUrl(
+                        urlRequest: URLRequest(
+                          url: WebUri(
+                            widget.initialUrl ??
+                                '${AppConstants.baseUrl}/login',
+                          ),
+                        ),
                       );
                       // Android: 启用 WebAuthn/PassKey 支持
                       if (Platform.isAndroid) {
@@ -578,8 +583,6 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         'jarSessionCookies': jarSessionCookies,
       });
 
-      // 上报浏览器指纹（防止因缺少指纹触发风控）
-      unawaited(FingerprintService.instance.collectAndReport());
     } catch (e) {
       debugPrint('[Login] 登录态后台收尾失败: $e');
     }
