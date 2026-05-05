@@ -7,20 +7,29 @@ import '../../providers/nested_topic_provider.dart';
 import '../../providers/preferences_provider.dart';
 import '../../providers/topic_session_provider.dart';
 import '../../pages/user_profile_page.dart';
+import '../../utils/responsive.dart';
 import '../../utils/time_utils.dart';
+import '../content/collapsed_html_content.dart';
 import '../content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../post/post_item/widgets/post_footer_section/post_footer_section.dart';
 import 'nested_collapsed_bar.dart';
 import 'nested_post_gutter.dart';
 import 'nested_thread_sheet.dart';
+import '../../services/discourse_cache_manager.dart';
 
-// 布局常量
+// 桌面端布局常量
 const double _avatarSize = NestedPostAvatar.size;
 const double _columnGap = 8.0;
 const double _verticalGap = 6.0;
 const double _lineWidth = 2.0;
-const double _lineCenterX = _avatarSize / 2; // 竖线 X 中心（相对于帖子左边缘）
-const double _lineAvatarGap = 4.0; // L 连接线末端与头像之间的间距
+const double _lineCenterX = _avatarSize / 2;
+const double _lineAvatarGap = 4.0;
+
+// 移动端布局常量
+const double _mobileGutterWidth = 10.0;
+const double _mobileColumnGap = 4.0;
+const double _mobileVerticalGap = 4.0;
+const double _mobileInlineAvatarSize = _avatarSize;
 
 /// 嵌套帖子卡片
 ///
@@ -100,6 +109,28 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       _expanded = _children.isNotEmpty;
       _collapsed = false;
     }
+
+    _listenChildCreated();
+  }
+
+  void _listenChildCreated() {
+    ref.listenManual(
+      nestedTopicProvider(widget.params).select((s) => s.value?.lastChildCreated),
+      (previous, next) {
+        if (next == null || next == previous) return;
+        if (next.parentPostNumber != widget.node.post.postNumber) return;
+
+        // 去重
+        if (_children.any((n) => n.post.id == next.post.id)) return;
+
+        setState(() {
+          _children.insert(0, NestedNode(post: next.post));
+          _expanded = true;
+          _collapsed = false;
+          widget.expansionState?[widget.node.post.postNumber] = true;
+        });
+      },
+    );
   }
 
   bool get _hasReplies => widget.node.directReplyCount > 0 || _children.isNotEmpty;
@@ -159,6 +190,18 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     final theme = Theme.of(context);
     final post = widget.node.post;
     final isRoot = widget.depth == 0;
+    final lineStyle = ref.watch(preferencesProvider).nestedLineStyle;
+    final isMobile = switch (lineStyle) {
+      NestedLineStyle.auto => Responsive.isMobile(context),
+      NestedLineStyle.lLine => false,
+      NestedLineStyle.straight => true,
+    };
+
+    // 根据设备类型选择布局参数
+    final gutterWidth = isMobile ? _mobileGutterWidth : _avatarSize;
+    final colGap = isMobile ? _mobileColumnGap : _columnGap;
+    final vGap = isMobile ? _mobileVerticalGap : _verticalGap;
+    final childIndent = gutterWidth + colGap;
 
     // 线条颜色
     final defaultLineColor = theme.colorScheme.outlineVariant;
@@ -166,7 +209,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     final depthLineColor = _depthLineHovered ? highlightColor : defaultLineColor;
     final connectorColor = widget.parentLineHighlighted ? highlightColor : defaultLineColor;
 
-    // 已删除帖子：删除图标替代头像，只显示"已删除"
+    // 已删除帖子
     final bool isDeletedPlaceholder = widget.node.isDeletedPlaceholder;
 
     // 帖子内容列
@@ -178,56 +221,77 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
                 replyCount: _replyCount,
                 onTap: _toggleExpanded,
               )
-            : _buildArticle(theme, post);
+            : _buildArticle(theme, post, isMobile: isMobile);
 
-    // 主体行 + 视觉竖线（IgnorePointer，仅绘制，不处理事件）
-    Widget mainRow = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (isDeletedPlaceholder)
-          SizedBox(
-            width: _avatarSize,
-            height: _avatarSize,
-            child: Icon(Icons.delete_outline, size: 18, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
-          )
-        else
-          NestedPostAvatar(avatarTemplate: post.avatarTemplate, username: post.username),
-        const SizedBox(width: _columnGap),
-        Expanded(child: contentColumn),
-      ],
-    );
-    if (_showDepthLine) {
-      mainRow = Stack(
+    // 主体行
+    Widget mainRow;
+    if (isMobile) {
+      // 移动端：窄竖线 gutter + 内联头像在 header
+      mainRow = Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          mainRow,
-          // 视觉竖线 + ⊖ 图标（仅绘制，不拦截事件）
-          Positioned(
-            left: _lineCenterX - 8,
-            top: _avatarSize + 4,
-            bottom: 0,
-            child: IgnorePointer(
-              child: SizedBox(
-                width: 16,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Center(child: Container(width: _lineWidth, color: depthLineColor)),
-                    if (_expanded)
-                      Positioned(
-                        bottom: 0,
-                        child: Container(
-                          width: 16, height: 16,
-                          decoration: BoxDecoration(shape: BoxShape.circle, color: theme.colorScheme.surface),
-                          child: Icon(Icons.remove_circle_outline, size: 14, color: depthLineColor),
+          if (isDeletedPlaceholder)
+            SizedBox(
+              width: _mobileGutterWidth,
+              child: Icon(Icons.delete_outline, size: 14, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+            )
+          else
+            SizedBox(width: _mobileGutterWidth),
+          SizedBox(width: colGap),
+          Expanded(child: contentColumn),
+        ],
+      );
+    } else {
+      // 桌面端：头像 gutter
+      mainRow = Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isDeletedPlaceholder)
+            SizedBox(
+              width: _avatarSize,
+              height: _avatarSize,
+              child: Icon(Icons.delete_outline, size: 18, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+            )
+          else
+            NestedPostAvatar(avatarTemplate: post.avatarTemplate, username: post.username),
+          const SizedBox(width: _columnGap),
+          Expanded(child: contentColumn),
+        ],
+      );
+
+      // 桌面端竖线 + 折叠图标（仅绘制在 mainRow 区域）
+      if (_showDepthLine) {
+        mainRow = Stack(
+          children: [
+            mainRow,
+            Positioned(
+              left: _lineCenterX - 8,
+              top: _avatarSize + 4,
+              bottom: 0,
+              child: IgnorePointer(
+                child: SizedBox(
+                  width: 16,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Center(child: Container(width: _lineWidth, color: depthLineColor)),
+                      if (_expanded)
+                        Positioned(
+                          bottom: 0,
+                          child: Container(
+                            width: 16, height: 16,
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: theme.colorScheme.surface),
+                            child: Icon(Icons.remove_circle_outline, size: 14, color: depthLineColor),
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
-      );
+          ],
+        );
+      }
     }
 
     // 子节点
@@ -243,35 +307,43 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         mainRow,
         if (showChildren)
           Padding(
-            padding: const EdgeInsets.only(left: _avatarSize + _columnGap),
-            child: _buildChildren(theme),
+            padding: EdgeInsets.only(left: childIndent),
+            child: _buildChildren(theme, isMobile: isMobile),
           ),
         if (showExpandBtn)
           Padding(
-            padding: const EdgeInsets.only(left: _avatarSize + _columnGap),
-            child: _wrapWithConnector(theme, _buildExpandButton(theme)),
+            padding: EdgeInsets.only(left: childIndent),
+            child: isMobile
+                ? Padding(padding: EdgeInsets.only(top: vGap), child: _buildExpandButton(theme))
+                : _wrapWithConnector(theme, _buildExpandButton(theme)),
           ),
         if (showContinueThread)
           Padding(
-            padding: const EdgeInsets.only(left: _avatarSize + _columnGap),
-            child: _wrapWithConnector(theme, _buildContinueThread(theme)),
+            padding: EdgeInsets.only(left: childIndent),
+            child: isMobile
+                ? Padding(padding: EdgeInsets.only(top: vGap), child: _buildContinueThread(theme))
+                : _wrapWithConnector(theme, _buildContinueThread(theme)),
           ),
       ],
     );
 
-    // 外层 Stack：透明交互区 + L 连接线 + 兄弟延续线
-    final bool needsStack = _showDepthLine || !isRoot;
-    if (needsStack) {
-      card = Stack(
-        clipBehavior: Clip.none,
-        children: [
-          card,
-
-          // 竖线交互区（覆盖整个 gutter 宽度，包括子节点 L 弯的横线区域）
-          if (_showDepthLine)
+    if (isMobile) {
+      // 移动端：竖线贯穿全高（包括 children），无 L 连接线
+      if (_showDepthLine) {
+        card = Stack(
+          children: [
+            card,
+            // 竖线（贯穿全高）
+            Positioned(
+              left: _mobileGutterWidth / 2 - _lineWidth / 2,
+              top: 0,
+              bottom: 0,
+              child: IgnorePointer(child: SizedBox(width: _lineWidth, child: ColoredBox(color: depthLineColor))),
+            ),
+            // 竖线交互区（含 hover 高亮）
             Positioned(
               left: 0,
-              top: _avatarSize + 4,
+              top: 0,
               bottom: 0,
               child: MouseRegion(
                 onEnter: (_) => setState(() => _depthLineHovered = true),
@@ -280,41 +352,65 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
                 child: GestureDetector(
                   onTap: _toggleExpanded,
                   behavior: HitTestBehavior.translucent,
-                  child: SizedBox(width: _avatarSize + _columnGap),
+                  child: SizedBox(width: _mobileGutterWidth + _mobileColumnGap),
                 ),
               ),
             ),
-
-          // L 形连接线（纯视觉，末端与头像保留间距）
-          if (!isRoot)
-            Positioned(
-              left: -(_columnGap + _lineCenterX) - _lineWidth / 2,
-              top: -_verticalGap,
-              child: IgnorePointer(
-                child: CustomPaint(
-                  size: Size(_lineCenterX + _columnGap + _lineWidth / 2 - _lineAvatarGap, _verticalGap + _avatarSize / 2),
-                  painter: _LConnectorPainter(color: connectorColor),
+          ],
+        );
+      }
+    } else {
+      // 桌面端：L 连接线 + 兄弟延续线 + 竖线交互区
+      final bool needsStack = _showDepthLine || !isRoot;
+      if (needsStack) {
+        card = Stack(
+          clipBehavior: Clip.none,
+          children: [
+            card,
+            if (_showDepthLine)
+              Positioned(
+                left: 0,
+                top: _avatarSize + 4,
+                bottom: 0,
+                child: MouseRegion(
+                  onEnter: (_) => setState(() => _depthLineHovered = true),
+                  onExit: (_) => setState(() => _depthLineHovered = false),
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: _toggleExpanded,
+                    behavior: HitTestBehavior.translucent,
+                    child: SizedBox(width: _avatarSize + _columnGap),
+                  ),
                 ),
               ),
-            ),
-
-          // 兄弟延续线（纯视觉）
-          if (!isRoot && !widget.isLastChild)
-            Positioned(
-              left: -(_columnGap + _lineCenterX) - _lineWidth / 2,
-              top: -_verticalGap,
-              bottom: 0,
-              width: _lineWidth,
-              child: IgnorePointer(child: ColoredBox(color: connectorColor)),
-            ),
-        ],
-      );
+            if (!isRoot)
+              Positioned(
+                left: -(_columnGap + _lineCenterX) - _lineWidth / 2,
+                top: -_verticalGap,
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    size: Size(_lineCenterX + _columnGap + _lineWidth / 2 - _lineAvatarGap, _verticalGap + _avatarSize / 2),
+                    painter: _LConnectorPainter(color: connectorColor),
+                  ),
+                ),
+              ),
+            if (!isRoot && !widget.isLastChild)
+              Positioned(
+                left: -(_columnGap + _lineCenterX) - _lineWidth / 2,
+                top: -_verticalGap,
+                bottom: 0,
+                width: _lineWidth,
+                child: IgnorePointer(child: ColoredBox(color: connectorColor)),
+              ),
+          ],
+        );
+      }
     }
 
-    // 非根帖子添加顶部间距（padding 在 Stack 外面！）
+    // 非根帖子添加顶部间距
     if (!isRoot) {
       card = Padding(
-        padding: const EdgeInsets.only(top: _verticalGap),
+        padding: EdgeInsets.only(top: vGap),
         child: card,
       );
     }
@@ -339,7 +435,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   }
 
   /// 帖子文章区
-  Widget _buildArticle(ThemeData theme, Post post) {
+  Widget _buildArticle(ThemeData theme, Post post, {bool isMobile = false}) {
     final isOp = widget.detail.createdBy?.username == post.username;
 
     return Column(
@@ -347,7 +443,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Header
-        _buildHeader(theme, post, isOp),
+        _buildHeader(theme, post, isOp, isMobile: isMobile),
         const SizedBox(height: 4),
         // Content
         ChunkedHtmlContent(
@@ -360,6 +456,33 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           post: post,
           topicId: widget.topicId,
         ),
+        // 用户签名
+        if (ref.watch(preferencesProvider).showSignatures &&
+            post.signatureCooked != null &&
+            post.signatureCooked!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Container(
+              padding: const EdgeInsets.only(top: 6),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+                    width: 0.5,
+                  ),
+                ),
+              ),
+              child: CollapsedHtmlContent(
+                html: post.signatureCooked!,
+                textStyle: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  fontSize: 11,
+                  height: 1.4,
+                ),
+                maxLines: 2,
+              ),
+            ),
+          ),
         // 完整操作栏（复用 PostFooterSection，隐藏回复展开按钮）
         PostFooterSection(
           post: post,
@@ -393,9 +516,24 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     );
   }
 
-  Widget _buildHeader(ThemeData theme, Post post, bool isOp) {
+  Widget _buildHeader(ThemeData theme, Post post, bool isOp, {bool isMobile = false}) {
     return Row(
       children: [
+        // 移动端内联头像
+        if (isMobile) ...[
+          GestureDetector(
+            onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => UserProfilePage(username: post.username))),
+            child: CircleAvatar(
+              radius: _mobileInlineAvatarSize / 2,
+              backgroundImage: post.avatarTemplate.isNotEmpty
+                  ? discourseImageProvider(NestedPostAvatar.resolveUrl(post.avatarTemplate))
+                  : null,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
         // 用户名（可点击）
         GestureDetector(
           onTap: () => Navigator.push(context,
@@ -477,7 +615,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     );
   }
 
-  Widget _buildChildren(ThemeData theme) {
+  Widget _buildChildren(ThemeData theme, {bool isMobile = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -501,7 +639,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
             expansionState: widget.expansionState,
           ),
         if (_hasMore)
-          _buildLoadMoreWithConnector(theme),
+          isMobile ? _buildLoadMoreSimple(theme) : _buildLoadMoreWithConnector(theme),
       ],
     );
   }
@@ -537,7 +675,21 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     );
   }
 
-  /// 带 L 形连接线的"加载更多回复"按钮
+  /// 移动端简单的"加载更多回复"按钮（无连接线）
+  Widget _buildLoadMoreSimple(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(top: _mobileVerticalGap, bottom: 8),
+      child: _isLoadingMore
+          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+          : GestureDetector(
+              onTap: _loadChildren,
+              child: Text(context.l10n.nested_loadMoreReplies,
+                style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary)),
+            ),
+    );
+  }
+
+  /// 桌面端带 L 形连接线的"加载更多回复"按钮
   Widget _buildLoadMoreWithConnector(ThemeData theme) {
     Widget btn = Padding(
       padding: const EdgeInsets.only(bottom: 8),

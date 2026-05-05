@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/s.dart';
 import '../../providers/preferences_provider.dart';
@@ -80,6 +81,15 @@ List<SettingsGroup> buildReadingGroups(BuildContext context) {
           onChanged: (ref, v) =>
               ref.read(preferencesProvider.notifier).setExpandRelatedLinks(v),
         ),
+        SwitchModel(
+          id: 'showSignatures',
+          title: l10n.reading_showSignatures,
+          subtitle: l10n.reading_showSignaturesDesc,
+          icon: Icons.draw_rounded,
+          getValue: (ref) => ref.watch(preferencesProvider).showSignatures,
+          onChanged: (ref, v) =>
+              ref.read(preferencesProvider.notifier).setShowSignatures(v),
+        ),
         PlatformConditionalModel(
           inner: SwitchModel(
             id: 'aiSwipeEntry',
@@ -94,5 +104,83 @@ List<SettingsGroup> buildReadingGroups(BuildContext context) {
         ),
       ],
     ),
+    SettingsGroup(
+      title: l10n.nested_title,
+      icon: Icons.account_tree_outlined,
+      items: [
+        SwitchModel(
+          id: 'defaultNestedView',
+          title: l10n.nested_defaultView,
+          subtitle: l10n.nested_defaultViewDesc,
+          icon: Icons.account_tree_rounded,
+          getValue: (ref) => ref.watch(preferencesProvider).defaultNestedView,
+          onChanged: (ref, v) =>
+              ref.read(preferencesProvider.notifier).setDefaultNestedView(v),
+        ),
+        CustomModel(
+          id: 'nestedLineStyle',
+          title: l10n.nested_lineStyle,
+          builder: (context, ref) {
+            final currentStyle = ref.watch(preferencesProvider).nestedLineStyle;
+            final l = context.l10n;
+            return ListTile(
+              leading: Icon(
+                Icons.linear_scale_rounded,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              title: Text(l.nested_lineStyle),
+              subtitle: Text(switch (currentStyle) {
+                NestedLineStyle.auto => l.nested_lineStyleAuto,
+                NestedLineStyle.lLine => l.nested_lineStyleL,
+                NestedLineStyle.straight => l.nested_lineStyleStraight,
+              }),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _showLineStylePicker(context, ref, currentStyle),
+            );
+          },
+        ),
+      ],
+    ),
   ];
+}
+
+void _showLineStylePicker(
+  BuildContext context,
+  WidgetRef ref,
+  NestedLineStyle current,
+) {
+  final l10n = context.l10n;
+  final options = [
+    (NestedLineStyle.auto, l10n.nested_lineStyleAuto),
+    (NestedLineStyle.lLine, l10n.nested_lineStyleL),
+    (NestedLineStyle.straight, l10n.nested_lineStyleStraight),
+  ];
+
+  showDialog<NestedLineStyle>(
+    context: context,
+    builder: (context) => SimpleDialog(
+      title: Text(l10n.nested_lineStyle),
+      children: [
+        for (final (style, label) in options)
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, style),
+            child: Row(
+              children: [
+                Icon(
+                  style == current ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                  color: style == current ? Theme.of(context).colorScheme.primary : null,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Text(label),
+              ],
+            ),
+          ),
+      ],
+    ),
+  ).then((selected) {
+    if (selected != null) {
+      ref.read(preferencesProvider.notifier).setNestedLineStyle(selected);
+    }
+  });
 }

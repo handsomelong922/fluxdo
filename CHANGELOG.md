@@ -1167,7 +1167,12 @@
 - feat: Implement comprehensive CI/CD pipeline for Android builds, including Rust DOH proxy compilation, artifact generation, changelog, and release automation.
 
 
-- mvp
+## v0.2.13
+
+
+- ✨ 默认树形视图支持，树形视图功能优化
+
+- ✨ 话题详情更多菜单中支持更多的功能
 
 ## v0.2.12
 
