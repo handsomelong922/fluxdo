@@ -166,6 +166,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
       imageUrl: _currentImageUrl,
       showViewFullImage: false,
       position: position,
+      onClose: () => Navigator.of(context).pop(),
     );
   }
 
@@ -601,7 +602,11 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                   mode: ExtendedImageMode.gesture,
                   enableSlideOutPage: true,
                   heroBuilderForSlidingPage: widget.heroTag != null
-                      ? (child) => Hero(tag: widget.heroTag!, child: child)
+                      ? (child) => Hero(
+                          tag: widget.heroTag!,
+                          flightShuttleBuilder: (_, _, _, _, _) => child,
+                          child: child,
+                        )
                       : null,
                   initGestureConfigHandler: (state) {
                     return GestureConfig(
@@ -694,7 +699,11 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                           mode: ExtendedImageMode.gesture,
                           enableSlideOutPage: true,
                           heroBuilderForSlidingPage: heroTag != null
-                              ? (child) => Hero(tag: heroTag!, child: child)
+                              ? (child) => Hero(
+                                  tag: heroTag!,
+                                  flightShuttleBuilder: (_, _, _, _, _) => child,
+                                  child: child,
+                                )
                               : null,
                           initGestureConfigHandler: (state) {
                             return GestureConfig(
