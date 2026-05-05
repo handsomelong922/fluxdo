@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/topic.dart';
 import '../../../pages/topic_detail_page/topic_detail_page.dart';
 import '../../../providers/preferences_provider.dart';
+import '../../content/collapsed_html_content.dart';
 import '../../content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../../content/discourse_html_content/chunked/html_chunk.dart';
 import '../../content/discourse_html_content/image_utils.dart';
@@ -170,7 +171,7 @@ class LongPostChunkSegment extends ConsumerWidget {
   }
 }
 
-class LongPostFooterSegment extends StatelessWidget {
+class LongPostFooterSegment extends ConsumerWidget {
   final Post post;
   final int topicId;
   final bool selected;
@@ -209,30 +210,63 @@ class LongPostFooterSegment extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final showSignatures = ref.watch(preferencesProvider).showSignatures;
     return PostSegmentFrame(
       post: post,
       selected: selected,
       highlight: highlight,
       showBottomDateSeparator: bottomDateSeparatorLabel != null,
       bottomDateSeparatorLabel: bottomDateSeparatorLabel,
-      child: SelectionContainer.disabled(
-        child: PostFooterSection(
-          post: post,
-          topicId: topicId,
-          topicHasAcceptedAnswer: topicHasAcceptedAnswer,
-          acceptedAnswerPostNumber: acceptedAnswerPostNumber,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          highlightBoostUsername: highlightBoostUsername,
-          onReply: onReply,
-          onEdit: onEdit,
-          onShareAsImage: onShareAsImage,
-          onRefreshPost: onRefreshPost,
-          onJumpToPost: onJumpToPost,
-          onSolutionChanged: onSolutionChanged,
-          useReplyDialog: useReplyDialog,
-          onShowPostDetail: onShowPostDetail,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showSignatures &&
+              post.signatureCooked != null &&
+              post.signatureCooked!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.only(top: 8),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+                      width: 0.5,
+                    ),
+                  ),
+                ),
+                child: CollapsedHtmlContent(
+                  html: post.signatureCooked!,
+                  textStyle: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                  maxLines: 2,
+                ),
+              ),
+            ),
+          SelectionContainer.disabled(
+            child: PostFooterSection(
+              post: post,
+              topicId: topicId,
+              topicHasAcceptedAnswer: topicHasAcceptedAnswer,
+              acceptedAnswerPostNumber: acceptedAnswerPostNumber,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              highlightBoostUsername: highlightBoostUsername,
+              onReply: onReply,
+              onEdit: onEdit,
+              onShareAsImage: onShareAsImage,
+              onRefreshPost: onRefreshPost,
+              onJumpToPost: onJumpToPost,
+              onSolutionChanged: onSolutionChanged,
+              useReplyDialog: useReplyDialog,
+              onShowPostDetail: onShowPostDetail,
+            ),
+          ),
+        ],
       ),
     );
   }

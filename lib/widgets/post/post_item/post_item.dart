@@ -6,6 +6,7 @@ import '../../../pages/topic_detail_page/topic_detail_page.dart';
 import '../../../l10n/s.dart';
 import '../../../providers/preferences_provider.dart';
 import '../../../utils/code_selection_context.dart';
+import '../../content/collapsed_html_content.dart';
 import '../../content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../small_action_item.dart';
 import 'quote_selection_helper.dart';
@@ -203,6 +204,35 @@ class _PostItemState extends ConsumerState<PostItem> {
                 ),
               ),
             ),
+            // 用户签名
+            if (ref.watch(preferencesProvider).showSignatures &&
+                post.signatureCooked != null &&
+                post.signatureCooked!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: SelectionContainer.disabled(
+                  child: Container(
+                    padding: const EdgeInsets.only(top: 8),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(
+                          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+                          width: 0.5,
+                        ),
+                      ),
+                    ),
+                    child: CollapsedHtmlContent(
+                      html: post.signatureCooked!,
+                      textStyle: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                      maxLines: 2,
+                    ),
+                  ),
+                ),
+              ),
             // 举报隐藏帖子：显示展开按钮
             if (post.cookedHidden &&
                 post.canSeeHiddenPost &&
