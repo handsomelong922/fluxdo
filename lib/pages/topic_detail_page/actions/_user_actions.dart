@@ -41,7 +41,9 @@ extension _UserActions on _TopicDetailPageState {
 
   Future<void> _handleReply(Post? replyToPost) async {
     final params = _params;
+    final notifier = ref.read(topicDetailProvider(params).notifier);
     final detail = ref.read(topicDetailProvider(params)).value;
+    final wasAtBottom = !notifier.hasMoreAfter;
 
     // 预加载草稿：在点击回复时就发起请求，利用 BottomSheet 动画时间并行加载
     final draftKey = Draft.replyKey(
@@ -67,7 +69,7 @@ extension _UserActions on _TopicDetailPageState {
     if (newPost != null && mounted) {
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
-          .addPost(newPost);
+          .addPost(newPost, wasAtBottom: wasAtBottom);
 
       if (addedToView) {
         // 回复面板关闭后键盘收起动画约 700ms，期间 viewport 高度持续增大、
@@ -354,7 +356,9 @@ extension _UserActions on _TopicDetailPageState {
 
   Future<void> _handleQuotePost(Post post) async {
     final params = _params;
+    final notifier = ref.read(topicDetailProvider(params).notifier);
     final detail = ref.read(topicDetailProvider(params)).value;
+    final wasAtBottom = !notifier.hasMoreAfter;
 
     String markdown = '';
     final raw = await DiscourseService().getPostRaw(post.id);
@@ -398,7 +402,7 @@ extension _UserActions on _TopicDetailPageState {
     if (newPost != null && mounted) {
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
-          .addPost(newPost);
+          .addPost(newPost, wasAtBottom: wasAtBottom);
 
       if (addedToView) {
         _scrollAfterKeyboardDismiss(newPost.postNumber);
@@ -652,7 +656,9 @@ extension _UserActions on _TopicDetailPageState {
   /// 处理划词引用
   Future<void> _handleQuoteSelection(String selectedText, Post post) async {
     final params = _params;
+    final notifier = ref.read(topicDetailProvider(params).notifier);
     final detail = ref.read(topicDetailProvider(params)).value;
+    final wasAtBottom = !notifier.hasMoreAfter;
     final codePayload = CodeSelectionContextTracker.instance.decodePayload(
       selectedText,
     );
@@ -719,7 +725,7 @@ extension _UserActions on _TopicDetailPageState {
     if (newPost != null && mounted) {
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
-          .addPost(newPost);
+          .addPost(newPost, wasAtBottom: wasAtBottom);
 
       if (addedToView) {
         _scrollAfterKeyboardDismiss(newPost.postNumber);
@@ -739,7 +745,9 @@ extension _UserActions on _TopicDetailPageState {
   /// 处理图片引用（quote 已在 ImageContextMenu 中构建好）
   Future<void> _handleImageQuote(String quote, Post post) async {
     final params = _params;
+    final notifier = ref.read(topicDetailProvider(params).notifier);
     final detail = ref.read(topicDetailProvider(params)).value;
+    final wasAtBottom = !notifier.hasMoreAfter;
 
     // 预加载草稿
     final draftKey = Draft.replyKey(
@@ -767,7 +775,7 @@ extension _UserActions on _TopicDetailPageState {
     if (newPost != null && mounted) {
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
-          .addPost(newPost);
+          .addPost(newPost, wasAtBottom: wasAtBottom);
 
       if (addedToView) {
         _scrollAfterKeyboardDismiss(newPost.postNumber);
