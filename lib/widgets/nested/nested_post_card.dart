@@ -108,6 +108,28 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       _expanded = _children.isNotEmpty;
       _collapsed = false;
     }
+
+    _listenChildCreated();
+  }
+
+  void _listenChildCreated() {
+    ref.listenManual(
+      nestedTopicProvider(widget.params).select((s) => s.value?.lastChildCreated),
+      (previous, next) {
+        if (next == null || next == previous) return;
+        if (next.parentPostNumber != widget.node.post.postNumber) return;
+
+        // 去重
+        if (_children.any((n) => n.post.id == next.post.id)) return;
+
+        setState(() {
+          _children.insert(0, NestedNode(post: next.post));
+          _expanded = true;
+          _collapsed = false;
+          widget.expansionState?[widget.node.post.postNumber] = true;
+        });
+      },
+    );
   }
 
   bool get _hasReplies => widget.node.directReplyCount > 0 || _children.isNotEmpty;

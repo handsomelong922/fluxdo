@@ -67,6 +67,8 @@ extension _UserActions on _TopicDetailPageState {
     );
 
     if (newPost != null && mounted) {
+      _updateNestedViewAfterReply(newPost);
+
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
           .addPost(newPost, wasAtBottom: wasAtBottom);
@@ -400,6 +402,8 @@ extension _UserActions on _TopicDetailPageState {
     );
 
     if (newPost != null && mounted) {
+      _updateNestedViewAfterReply(newPost);
+
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
           .addPost(newPost, wasAtBottom: wasAtBottom);
@@ -723,6 +727,8 @@ extension _UserActions on _TopicDetailPageState {
     );
 
     if (newPost != null && mounted) {
+      _updateNestedViewAfterReply(newPost);
+
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
           .addPost(newPost, wasAtBottom: wasAtBottom);
@@ -773,6 +779,8 @@ extension _UserActions on _TopicDetailPageState {
     );
 
     if (newPost != null && mounted) {
+      _updateNestedViewAfterReply(newPost);
+
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
           .addPost(newPost, wasAtBottom: wasAtBottom);
@@ -792,11 +800,43 @@ extension _UserActions on _TopicDetailPageState {
     }
   }
 
+  /// 回复成功后更新嵌套视图
+  void _updateNestedViewAfterReply(Post newPost) {
+    if (!_isNestedView) return;
+    final nestedParams = NestedTopicParams(topicId: widget.topicId);
+    ref.read(nestedTopicProvider(nestedParams).notifier).addNewPost(newPost, isOwnPost: true);
+  }
+
+  /// MessageBus created 事件：获取完整帖子数据并更新嵌套视图
+  Future<void> _handleNestedCreated(int postId, int? userId) async {
+    final nestedParams = NestedTopicParams(topicId: widget.topicId);
+    final nestedNotifier = ref.read(nestedTopicProvider(nestedParams).notifier);
+
+    // 去重：如果已存在（自己回复时 _updateNestedViewAfterReply 可能已处理）
+    final current = ref.read(nestedTopicProvider(nestedParams)).value;
+    if (current == null) return;
+    if (current.roots.any((n) => n.post.id == postId)) return;
+
+    try {
+      final post = await DiscourseService().getPost(postId);
+      if (!mounted) return;
+
+      final currentUser = ref.read(currentUserProvider).value;
+      final isOwnPost = userId != null && userId == currentUser?.id;
+      nestedNotifier.addNewPost(post, isOwnPost: isOwnPost);
+    } catch (e) {
+      debugPrint('[TopicDetail] _handleNestedCreated 失败: $e');
+    }
+  }
+
   /// 处理帖子级别的 MessageBus 更新
   void _handlePostUpdate(TopicDetailNotifier notifier, PostUpdate update) {
     switch (update.type) {
       case TopicMessageType.created:
         notifier.onNewPostCreated(update.postId);
+        if (_isNestedView) {
+          _handleNestedCreated(update.postId, update.userId);
+        }
         break;
       case TopicMessageType.revised:
       case TopicMessageType.rebaked:
