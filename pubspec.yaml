@@ -110,7 +110,7 @@ dependencies:
 dependency_overrides:
   # super_clipboard 0.9.1 要求 device_info_plus <12.0.0，
   # 但实际 12.x 接口兼容，强制使用项目版本
-  device_info_plus: ^12.3.0
+  device_info_plus: 12.3.0
   flutter_inappwebview_linux:
     path: packages/flutter_inappwebview_linux
 
