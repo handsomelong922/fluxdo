@@ -54,6 +54,11 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     final orderParam = sortOrder.apiValue;
     final ascendingParam = orderParam != null ? sortAscending : null;
 
+    // 「新话题」子过滤
+    final subset = currentFilter == TopicListFilter.newTopics
+        ? ref.read(topicNewSubsetProvider).apiValue
+        : null;
+
     // 优化：如果是 latest 列表且没有筛选条件且没有自定义排序，优先同步使用预加载数据
     // 这样可以避免显示 loading 状态
     if (currentFilter == TopicListFilter.latest &&
@@ -95,6 +100,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       filter,
       order: orderParam,
       ascending: ascendingParam,
+      subset: subset,
     );
 
     final result = _paginationHelper.processRefresh(
@@ -137,6 +143,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     TopicFilterParams filterParams, {
     String? order,
     bool? ascending,
+    String? subset,
   }) {
     // 如果有筛选条件，使用 getFilteredTopics
     if (filterParams.isNotEmpty) {
@@ -151,6 +158,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         page: page,
         order: order,
         ascending: ascending,
+        subset: subset,
       );
     }
 
@@ -167,6 +175,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
           page: page,
           order: order,
           ascending: ascending,
+          subset: subset,
         );
       case TopicListFilter.unread:
         return service.getUnreadTopics(
@@ -244,6 +253,9 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       final service = ref.read(discourseServiceProvider);
       final filterParams = _currentFilterParams();
       final (order, ascending) = _currentSortParams();
+      final subset = _currentFilter == TopicListFilter.newTopics
+          ? ref.read(topicNewSubsetProvider).apiValue
+          : null;
       final response = await _fetchTopics(
         service,
         _currentFilter,
@@ -251,6 +263,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         filterParams,
         order: order,
         ascending: ascending,
+        subset: subset,
       );
 
       final result = _paginationHelper.processRefresh(
@@ -269,6 +282,9 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     final service = ref.read(discourseServiceProvider);
     final filterParams = _currentFilterParams();
     final (order, ascending) = _currentSortParams();
+    final subset = _currentFilter == TopicListFilter.newTopics
+        ? ref.read(topicNewSubsetProvider).apiValue
+        : null;
     try {
       final response = await _fetchTopics(
         service,
@@ -277,6 +293,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         filterParams,
         order: order,
         ascending: ascending,
+        subset: subset,
       );
       _page = 0;
       _isLoadMoreFailed = false;
@@ -349,6 +366,9 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       final service = ref.read(discourseServiceProvider);
       final filterParams = _currentFilterParams();
       final (order, ascending) = _currentSortParams();
+      final subset = _currentFilter == TopicListFilter.newTopics
+          ? ref.read(topicNewSubsetProvider).apiValue
+          : null;
       final response = await _fetchTopics(
         service,
         _currentFilter,
@@ -356,6 +376,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         filterParams,
         order: order,
         ascending: ascending,
+        subset: subset,
       );
 
       final currentState = PaginationState(items: currentTopics);
@@ -440,11 +461,20 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     final service = ref.read(discourseServiceProvider);
     final filter = _currentFilter;
     if (filter == TopicListFilter.newTopics) {
-      await service.dismissNewTopics(categoryId: _categoryId);
-      // 同步更新追踪状态计数
-      ref
-          .read(topicTrackingStateProvider.notifier)
-          .dismissNewTopics(categoryId: _categoryId);
+      final subset = ref.read(topicNewSubsetProvider);
+      await service.dismissNewTopics(
+        categoryId: _categoryId,
+        dismissTopics: subset != NewSubset.replies,
+        dismissPosts: subset != NewSubset.topics,
+      );
+      // 同步更新追踪状态计数（与服务端 dismiss 对齐）
+      final trackingNotifier = ref.read(topicTrackingStateProvider.notifier);
+      if (subset != NewSubset.replies) {
+        trackingNotifier.dismissNewTopics(categoryId: _categoryId);
+      }
+      if (subset != NewSubset.topics) {
+        trackingNotifier.dismissUnreadTopics(categoryId: _categoryId);
+      }
     } else if (filter == TopicListFilter.unread) {
       await service.dismissUnreadTopics(categoryId: _categoryId);
       // 同步更新追踪状态计数

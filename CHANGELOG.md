@@ -1166,7 +1166,6 @@
 
 - feat: Implement comprehensive CI/CD pipeline for Android builds, including Rust DOH proxy compilation, artifact generation, changelog, and release automation.
 
-
 ## v0.2.13
 
 

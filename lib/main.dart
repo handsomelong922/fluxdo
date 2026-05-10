@@ -20,6 +20,7 @@ import 'services/discourse/discourse_service.dart';
 import 'providers/app_state_refresher.dart';
 import 'services/highlighter_service.dart';
 import 'widgets/common/notification_icon_button.dart';
+import 'widgets/common/clipboard_topic_link_snack_content.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'services/network/cookie/android_cdp_feature.dart';
 import 'services/network/cookie/csrf_token_service.dart';
@@ -43,9 +44,9 @@ import 'services/hcaptcha_accessibility_service.dart';
 import 'services/network/doh_proxy/proxy_certificate.dart';
 import 'services/cf_challenge_logger.dart';
 import 'services/cf_clearance_refresh_service.dart';
-import 'services/fingerprint_service.dart';
 import 'services/update_service.dart';
 import 'services/update_checker_helper.dart';
+import 'services/clipboard_topic_link_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/background/background_notification_service.dart';
 import 'services/message_bus_service.dart';
@@ -239,16 +240,7 @@ Future<void> main() async {
 
   // 提前触发预加载数据请求，与 runApp 并行执行
   // PreheatGate 中的 ensureLoaded() 会复用这个已在进行的请求
-  unawaited(
-    PreloadedDataService()
-        .ensureLoaded()
-        .then((_) {
-          if (PreloadedDataService().currentUserSync != null) {
-            unawaited(FingerprintService.instance.collectAndReport());
-          }
-        })
-        .catchError((Object _) {}),
-  );
+  unawaited(PreloadedDataService().ensureLoaded().catchError((Object _) {}));
 
   // 记录应用启动日志
   LogWriter.instance.write({
@@ -571,14 +563,11 @@ class _MainPageState extends ConsumerState<MainPage>
 
       // 初始化 Deep Link 服务
       DeepLinkService.instance.initialize(context);
-
-      // 自动检查更新
-      _autoCheckUpdate();
-
-      // 一次性数据收集告知（仅 Android）
-      if (Platform.isAndroid) {
-        _showCrashlyticsNotice();
-      }
+      unawaited(
+        _runStartupUiTasks().catchError((Object e, StackTrace s) {
+          debugPrint('[MainPage] 启动 UI 任务失败: $e\n$s');
+        }),
+      );
     });
     // 监听登录失效事件
     _authErrorSub = ref.listenManual<AsyncValue<String>>(authErrorProvider, (
@@ -656,6 +645,20 @@ class _MainPageState extends ConsumerState<MainPage>
     final prefs = ref.read(sharedPreferencesProvider);
     final updateService = UpdateService(prefs: prefs);
     await UpdateCheckerHelper.checkUpdateOnStartup(context, updateService);
+  }
+
+  Future<void> _runStartupUiTasks() async {
+    // 启动弹窗先于剪贴板提示，避免 SnackBar 被弹窗遮挡后仍被记为已提示。
+    await _autoCheckUpdate();
+    if (!mounted) return;
+
+    // 一次性数据收集告知（仅 Android）
+    if (Platform.isAndroid) {
+      await _showCrashlyticsNotice();
+      if (!mounted) return;
+    }
+
+    await _checkClipboardTopicLink();
   }
 
   Future<void> _showCrashlyticsNotice() async {
@@ -825,8 +828,63 @@ class _MainPageState extends ConsumerState<MainPage>
         ConnectivityService().check();
         // 恢复 cf_clearance 自动续期监控
         CfClearanceRefreshService().resume();
+        _checkClipboardTopicLink();
       });
     }
+  }
+
+  Future<void> _checkClipboardTopicLink() async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final clipboardTopicLinkService = ClipboardTopicLinkService.instance;
+    final candidate = await clipboardTopicLinkService.checkClipboard(
+      enabled: ref.read(preferencesProvider).clipboardTopicLinkDetection,
+      lastPromptedHash: prefs.getInt(
+        ClipboardTopicLinkService.lastPromptedHashPrefsKey,
+      ),
+    );
+    if (!mounted || candidate == null) return;
+
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+
+    var promptHandled = false;
+    void markPromptedOnce() {
+      if (promptHandled) return;
+      promptHandled = true;
+      unawaited(
+        clipboardTopicLinkService.markPrompted(candidate, prefs: prefs),
+      );
+    }
+
+    messenger.hideCurrentSnackBar();
+    final controller = messenger.showSnackBar(
+      SnackBar(
+        content: ClipboardTopicLinkSnackContent(
+          message: context.l10n.preferences_clipboardTopicLink_detected,
+          actionLabel: context.l10n.preferences_clipboardTopicLink_open,
+          onOpen: () {
+            markPromptedOnce();
+            messenger.hideCurrentSnackBar();
+            DeepLinkService.instance.handleUri(candidate.uri);
+          },
+          onDismiss: () {
+            markPromptedOnce();
+            messenger.hideCurrentSnackBar();
+          },
+        ),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        duration: const Duration(seconds: 8),
+        elevation: 0,
+        padding: EdgeInsets.zero,
+        margin: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom: 16 + MediaQuery.paddingOf(context).bottom,
+        ),
+      ),
+    );
+    unawaited(controller.closed.then((_) => markPromptedOnce()));
   }
 
   /// App 进入后台：先启动前台服务保活，再切换到只轮询通知频道

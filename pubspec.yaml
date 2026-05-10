@@ -1,7 +1,7 @@
 name: fluxdo
 description: "A new Flutter project."
 publish_to: 'none'
-version: 0.2.15-beta.1+2026042623
+version: 0.2.15+2026051001
 
 environment:
   sdk: ^3.10.4
@@ -81,8 +81,8 @@ dependencies:
   flutter_image_compress: ^2.4.0
   image: ^4.7.2
   flutter_math_fork: ^0.7.2
-  device_info_plus: ^12.3.0
-  connectivity_plus: ^7.0.0
+  device_info_plus: 12.3.0
+  connectivity_plus: 7.0.0
   ua_client_hints: ^1.4.1
   ota_update: ^7.1.0
   app_links: ^7.0.0
@@ -110,7 +110,7 @@ dependencies:
 dependency_overrides:
   # super_clipboard 0.9.1 要求 device_info_plus <12.0.0，
   # 但实际 12.x 接口兼容，强制使用项目版本
-  device_info_plus: ^12.3.0
+  device_info_plus: 12.3.0
   flutter_inappwebview_linux:
     path: packages/flutter_inappwebview_linux
 
