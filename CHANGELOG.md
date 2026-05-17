@@ -1,3 +1,16 @@
+## v0.3.4
+
+- feat: route third-party login to browser
+
+- feat: default topic tree view and quick blacklist
+
+## v0.3.1
+
+- fix(content): 修复屏蔽泄露并补发布标签工作流
+
+- feat: add content filters and configurable AI prompts
+
+
 ## v0.3.0
 
 
