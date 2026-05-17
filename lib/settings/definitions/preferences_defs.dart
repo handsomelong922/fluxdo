@@ -82,6 +82,36 @@ List<SettingsGroup> buildPreferencesGroups(BuildContext context) {
         ),
       ],
     ),
+    SettingsGroup(
+      title: l10n.ai_title,
+      icon: Icons.auto_awesome_rounded,
+      items: [
+        SwitchModel(
+          id: 'autoSummarizeTopicOnEnter',
+          title: l10n.preferences_autoSummarizeTopicOnEnter,
+          subtitle: l10n.preferences_autoSummarizeTopicOnEnterDesc,
+          icon: Icons.summarize_rounded,
+          getValue: (ref) =>
+              ref.watch(preferencesProvider).autoSummarizeTopicOnEnter,
+          onChanged: (ref, v) => ref
+              .read(preferencesProvider.notifier)
+              .setAutoSummarizeTopicOnEnter(v),
+        ),
+        IntSliderModel(
+          id: 'autoSummarizeMinReplies',
+          title: l10n.preferences_autoSummarizeMinReplies,
+          subtitle: l10n.preferences_autoSummarizeMinRepliesDesc,
+          icon: Icons.format_list_numbered_rounded,
+          min: 0,
+          max: 200,
+          getValue: (ref) =>
+              ref.watch(preferencesProvider).autoSummarizeMinReplies,
+          onChanged: (ref, v) => ref
+              .read(preferencesProvider.notifier)
+              .setAutoSummarizeMinReplies(v),
+        ),
+      ],
+    ),
     if (Platform.isAndroid)
       SettingsGroup(
         title: l10n.preferences_advanced,

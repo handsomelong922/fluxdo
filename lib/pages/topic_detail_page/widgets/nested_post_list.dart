@@ -26,6 +26,7 @@ class NestedPostList extends ConsumerStatefulWidget {
   final void Function(TopicNotificationLevel)? onNotificationLevelChanged;
   final void Function(int postId, bool accepted)? onSolutionChanged;
   final bool Function(ScrollNotification) onScrollNotification;
+
   /// 可见帖子上报（走 ScreenTrack 上报链路）
   final void Function(Set<int> visiblePostNumbers)? onVisiblePostsChanged;
 
@@ -55,6 +56,7 @@ class NestedPostList extends ConsumerStatefulWidget {
 
 class _NestedPostListState extends ConsumerState<NestedPostList> {
   final Map<int, bool> _expansionState = {};
+
   /// 当前正在渲染的根帖子号集合（SliverList.builder 渲染时收集）
   final Set<int> _builtPostNumbers = {};
 
@@ -80,7 +82,8 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
   /// 递归收集节点及其展开子节点中的所有 postNumber
   void _collectVisiblePostNumbers(NestedNode node) {
     _builtPostNumbers.add(node.post.postNumber);
-    final expanded = _expansionState[node.post.postNumber] ?? node.children.isNotEmpty;
+    final expanded =
+        _expansionState[node.post.postNumber] ?? node.children.isNotEmpty;
     if (expanded) {
       for (final child in node.children) {
         _collectVisiblePostNumbers(child);
@@ -99,7 +102,6 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     _builtPostNumbers.clear();
     final maxDepth = _getMaxDepth(context);
 
@@ -120,7 +122,6 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                 headerKey: widget.headerKey,
                 onVoteChanged: widget.onVoteChanged,
                 onNotificationLevelChanged: widget.onNotificationLevelChanged,
-                autoExpandSummary: true,
                 onJumpToPost: widget.onJumpToPost,
               ),
             ),
@@ -133,9 +134,12 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                 topicId: widget.topicId,
                 isTopicOwner: true,
                 topicHasAcceptedAnswer: widget.detail.hasAcceptedAnswer,
-                acceptedAnswerPostNumber: widget.detail.acceptedAnswerPostNumber,
+                acceptedAnswerPostNumber:
+                    widget.detail.acceptedAnswerPostNumber,
                 onReply: widget.isLoggedIn ? () => widget.onReply(null) : null,
-                onEdit: widget.isLoggedIn && ns.opPost!.canEdit ? () => widget.onEdit(ns.opPost!) : null,
+                onEdit: widget.isLoggedIn && ns.opPost!.canEdit
+                    ? () => widget.onEdit(ns.opPost!)
+                    : null,
                 onRefreshPost: widget.onRefreshPost,
                 onJumpToPost: widget.onJumpToPost,
                 onSolutionChanged: widget.onSolutionChanged,
@@ -148,21 +152,40 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  _SortChip(label: context.l10n.nested_sortTop, value: 'top', current: ns.sort,
-                    onTap: () => ref.read(nestedTopicProvider(p).notifier).changeSort('top')),
+                  _SortChip(
+                    label: context.l10n.nested_sortTop,
+                    value: 'top',
+                    current: ns.sort,
+                    onTap: () => ref
+                        .read(nestedTopicProvider(p).notifier)
+                        .changeSort('top'),
+                  ),
                   const SizedBox(width: 6),
-                  _SortChip(label: context.l10n.nested_sortNew, value: 'new', current: ns.sort,
-                    onTap: () => ref.read(nestedTopicProvider(p).notifier).changeSort('new')),
+                  _SortChip(
+                    label: context.l10n.nested_sortNew,
+                    value: 'new',
+                    current: ns.sort,
+                    onTap: () => ref
+                        .read(nestedTopicProvider(p).notifier)
+                        .changeSort('new'),
+                  ),
                   const SizedBox(width: 6),
-                  _SortChip(label: context.l10n.nested_sortOld, value: 'old', current: ns.sort,
-                    onTap: () => ref.read(nestedTopicProvider(p).notifier).changeSort('old')),
+                  _SortChip(
+                    label: context.l10n.nested_sortOld,
+                    value: 'old',
+                    current: ns.sort,
+                    onTap: () => ref
+                        .read(nestedTopicProvider(p).notifier)
+                        .changeSort('old'),
+                  ),
                 ],
               ),
             ),
           ),
 
           SliverList.builder(
-            itemCount: ns.roots.length + (ns.hasMoreRoots || ns.isLoadingMore ? 1 : 0),
+            itemCount:
+                ns.roots.length + (ns.hasMoreRoots || ns.isLoadingMore ? 1 : 0),
             itemBuilder: (context, index) {
               if (index >= ns.roots.length) {
                 return _buildLoadMore(context);
@@ -189,7 +212,9 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
           ),
 
           SliverToBoxAdapter(
-            child: SizedBox(height: MediaQuery.of(context).padding.bottom + 100),
+            child: SizedBox(
+              height: MediaQuery.of(context).padding.bottom + 100,
+            ),
           ),
         ],
       ),
@@ -205,7 +230,8 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
           ? const Center(child: CircularProgressIndicator())
           : Center(
               child: TextButton(
-                onPressed: () => ref.read(nestedTopicProvider(p).notifier).loadMoreRoots(),
+                onPressed: () =>
+                    ref.read(nestedTopicProvider(p).notifier).loadMoreRoots(),
                 child: Text(context.l10n.nested_loadMore),
               ),
             ),
@@ -220,7 +246,12 @@ class _SortChip extends StatelessWidget {
   final String current;
   final VoidCallback onTap;
 
-  const _SortChip({required this.label, required this.value, required this.current, required this.onTap});
+  const _SortChip({
+    required this.label,
+    required this.value,
+    required this.current,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -231,13 +262,22 @@ class _SortChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isActive ? theme.colorScheme.primaryContainer : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+          color: isActive
+              ? theme.colorScheme.primaryContainer
+              : theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.4,
+                ),
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Text(label, style: theme.textTheme.labelSmall?.copyWith(
-          color: isActive ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
-          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-        )),
+        child: Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: isActive
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurfaceVariant,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
       ),
     );
   }

@@ -107,6 +107,12 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
             tooltip: context.l10n.webviewLogin_emailLoginPaste,
             onPressed: _pasteEmailLoginLink,
           ),
+          if (!_isInitialEmailLoginFlow)
+            IconButton(
+              icon: const Icon(Icons.open_in_browser_outlined),
+              tooltip: context.l10n.webview_openExternal,
+              onPressed: _openCurrentPageInExternalBrowser,
+            ),
           if (_savedUsername != null)
             SwipeDismissiblePopupMenuButton<String>(
               icon: const Icon(Icons.key_rounded),
@@ -202,90 +208,93 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                 Offstage(
                   offstage: _webViewSnapshot != null,
                   child: WebViewSettings.wrapWithScrollFix(
-                  InAppWebView(
-                    webViewEnvironment: windowsWebViewEnvironment,
-                    initialUrlRequest: URLRequest(
-                      url: WebUri(
-                        widget.initialUrl ?? '${AppConstants.baseUrl}/login',
+                    InAppWebView(
+                      webViewEnvironment: windowsWebViewEnvironment,
+                      initialUrlRequest: URLRequest(
+                        url: WebUri(
+                          widget.initialUrl ?? '${AppConstants.baseUrl}/login',
+                        ),
                       ),
-                    ),
-                    initialSettings: WebViewSettings.visible
-                      ..useShouldOverrideUrlLoading = true,
-                    initialUserScripts: WebViewSettings.ios15PolyfillScripts,
-                    shouldOverrideUrlLoading: _shouldOverrideUrlLoading,
-                    onReceivedServerTrustAuthRequest: (_, challenge) =>
-                        WebViewSettings.handleServerTrustAuthRequest(challenge),
-                    onWebViewCreated: (controller) {
-                      _controller = controller;
-                      // 注册 JS Handler，用于在登录按钮点击时接收凭证
-                      controller.addJavaScriptHandler(
-                        handlerName: 'onLoginCredentials',
-                        callback: (args) {
-                          if (args.isNotEmpty &&
-                              ref.read(preferencesProvider).autoFillLogin) {
-                            try {
-                              final data = args[0] as Map<String, dynamic>;
-                              final username = data['username'] as String?;
-                              final password = data['password'] as String?;
-                              if (username != null &&
-                                  username.isNotEmpty &&
-                                  password != null &&
-                                  password.isNotEmpty) {
-                                _credentialStore.save(username, password);
-                                if (mounted) {
-                                  setState(() => _savedUsername = username);
+                      initialSettings: WebViewSettings.visible
+                        ..useShouldOverrideUrlLoading = true,
+                      initialUserScripts: WebViewSettings.ios15PolyfillScripts,
+                      shouldOverrideUrlLoading: _shouldOverrideUrlLoading,
+                      onReceivedServerTrustAuthRequest: (_, challenge) =>
+                          WebViewSettings.handleServerTrustAuthRequest(
+                            challenge,
+                          ),
+                      onWebViewCreated: (controller) {
+                        _controller = controller;
+                        // 注册 JS Handler，用于在登录按钮点击时接收凭证
+                        controller.addJavaScriptHandler(
+                          handlerName: 'onLoginCredentials',
+                          callback: (args) {
+                            if (args.isNotEmpty &&
+                                ref.read(preferencesProvider).autoFillLogin) {
+                              try {
+                                final data = args[0] as Map<String, dynamic>;
+                                final username = data['username'] as String?;
+                                final password = data['password'] as String?;
+                                if (username != null &&
+                                    username.isNotEmpty &&
+                                    password != null &&
+                                    password.isNotEmpty) {
+                                  _credentialStore.save(username, password);
+                                  if (mounted) {
+                                    setState(() => _savedUsername = username);
+                                  }
                                 }
-                              }
-                            } catch (_) {}
-                          }
-                        },
-                      );
-                      // Android: 启用 WebAuthn/PassKey 支持
-                      if (Platform.isAndroid) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          const MethodChannel('com.fluxdo/webauthn')
-                              .invokeMethod('enableWebAuthentication');
-                        });
-                      }
-                    },
-                    onLoadStart: (controller, url) => setState(() {
-                      _isLoading = true;
-                      _url = url?.toString() ?? '';
-                      _lastHomeResponseUrl = null;
-                    }),
-                    onProgressChanged: (controller, progress) =>
-                        setState(() => _progress = progress / 100),
-                    onLoadResource: (controller, resource) {
-                      _handleLoadedResource(controller, resource);
-                    },
-                    onLoadStop: (controller, url) async {
-                      setState(() {
-                        _isLoading = false;
+                              } catch (_) {}
+                            }
+                          },
+                        );
+                        // Android: 启用 WebAuthn/PassKey 支持
+                        if (Platform.isAndroid) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            const MethodChannel(
+                              'com.fluxdo/webauthn',
+                            ).invokeMethod('enableWebAuthentication');
+                          });
+                        }
+                      },
+                      onLoadStart: (controller, url) => setState(() {
+                        _isLoading = true;
                         _url = url?.toString() ?? '';
-                      });
-                      _recheckCount = 0;
-                      await WebViewSettings.injectScrollFix(controller);
-                      // 自动填充登录表单
-                      await _autoFillLoginForm(controller, url);
-                      // 自动检测登录状态
-                      await _checkLoginStatus(
-                        controller,
-                        currentUrl: url?.toString(),
-                      );
-                    },
-                    onUpdateVisitedHistory: (controller, url, isReload) {
-                      if (!_loginHandled && isReload != true) {
-                        // SPA 路由变化时也尝试检测登录状态
+                        _lastHomeResponseUrl = null;
+                      }),
+                      onProgressChanged: (controller, progress) =>
+                          setState(() => _progress = progress / 100),
+                      onLoadResource: (controller, resource) {
+                        _handleLoadedResource(controller, resource);
+                      },
+                      onLoadStop: (controller, url) async {
+                        setState(() {
+                          _isLoading = false;
+                          _url = url?.toString() ?? '';
+                        });
                         _recheckCount = 0;
-                        _checkLoginStatus(
+                        await WebViewSettings.injectScrollFix(controller);
+                        // 自动填充登录表单
+                        await _autoFillLoginForm(controller, url);
+                        // 自动检测登录状态
+                        await _checkLoginStatus(
                           controller,
                           currentUrl: url?.toString(),
                         );
-                      }
-                    },
+                      },
+                      onUpdateVisitedHistory: (controller, url, isReload) {
+                        if (!_loginHandled && isReload != true) {
+                          // SPA 路由变化时也尝试检测登录状态
+                          _recheckCount = 0;
+                          _checkLoginStatus(
+                            controller,
+                            currentUrl: url?.toString(),
+                          );
+                        }
+                      },
+                    ),
+                    getController: () => _controller,
                   ),
-                  getController: () => _controller,
-                ),
                 ),
                 if (_webViewSnapshot != null)
                   Positioned.fill(
@@ -375,25 +384,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
 
     final scheme = uri.scheme.toLowerCase();
     if (_allowedSchemes.contains(scheme)) {
-      if (navigationAction.isForMainFrame == false ||
-          !_navigationDecider.shouldOpenThirdPartyLoginInBrowser(uri)) {
-        return NavigationActionPolicy.ALLOW;
-      }
-
-      if (!mounted) {
-        return NavigationActionPolicy.CANCEL;
-      }
-
-      final confirmed = await _confirmOpenThirdPartyLoginInBrowser(uri);
-      if (!confirmed) {
-        return NavigationActionPolicy.CANCEL;
-      }
-
-      final success = await launchInExternalBrowser(uri.toString());
-      if (!success) {
-        ToastService.showError(S.current.webview_cannotOpenBrowser);
-      }
-      return NavigationActionPolicy.CANCEL;
+      return NavigationActionPolicy.ALLOW;
     }
 
     if (scheme == 'javascript') {
@@ -422,6 +413,24 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
 
     // 在 WebView 中加载该链接
     _controller?.loadUrl(urlRequest: URLRequest(url: WebUri(text)));
+  }
+
+  Future<void> _openCurrentPageInExternalBrowser() async {
+    final uri = Uri.tryParse(_url);
+    if (uri == null || !_allowedSchemes.contains(uri.scheme.toLowerCase())) {
+      ToastService.showError(S.current.webview_cannotOpenBrowser);
+      return;
+    }
+
+    final confirmed = await _confirmOpenInExternalBrowser(uri);
+    if (!confirmed) {
+      return;
+    }
+
+    final success = await launchInExternalBrowser(uri.toString());
+    if (!success) {
+      ToastService.showError(S.current.webview_cannotOpenBrowser);
+    }
   }
 
   /// 自动填充登录表单 + 注入凭证捕获脚本
@@ -593,9 +602,10 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         ? jarToken
         : webViewToken;
     final tokenMatch = jarToken == webViewToken;
-    final jarSessionCookies = await _cookieJar.getSessionCookieDiagnosticsForRequest(
-      uri: Uri.parse(AppConstants.baseUrl),
-    );
+    final jarSessionCookies = await _cookieJar
+        .getSessionCookieDiagnosticsForRequest(
+          uri: Uri.parse(AppConstants.baseUrl),
+        );
     LogWriter.instance.write({
       'timestamp': DateTime.now().toIso8601String(),
       'level': tokenMatch ? 'info' : 'warning',
@@ -635,9 +645,10 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
 
       final jarToken = await _cookieJar.getTToken();
       final tokenMatch = jarToken == token;
-      final jarSessionCookies = await _cookieJar.getSessionCookieDiagnosticsForRequest(
-        uri: Uri.parse(AppConstants.baseUrl),
-      );
+      final jarSessionCookies = await _cookieJar
+          .getSessionCookieDiagnosticsForRequest(
+            uri: Uri.parse(AppConstants.baseUrl),
+          );
       LogWriter.instance.write({
         'timestamp': DateTime.now().toIso8601String(),
         'level': 'info',
@@ -802,7 +813,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     return currentPath == homePath;
   }
 
-  Future<bool> _confirmOpenThirdPartyLoginInBrowser(Uri uri) async {
+  Future<bool> _confirmOpenInExternalBrowser(Uri uri) async {
     final result = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(

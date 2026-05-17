@@ -8572,6 +8572,30 @@ abstract class AppLocalizations {
   /// **'基础'**
   String get preferences_basic;
 
+  /// No description provided for @preferences_autoSummarizeTopicOnEnter.
+  ///
+  /// In zh, this message translates to:
+  /// **'进入帖子自动总结'**
+  String get preferences_autoSummarizeTopicOnEnter;
+
+  /// No description provided for @preferences_autoSummarizeTopicOnEnterDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'满足阈值时自动展开并生成当前话题摘要'**
+  String get preferences_autoSummarizeTopicOnEnterDesc;
+
+  /// No description provided for @preferences_autoSummarizeMinReplies.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动总结最小回复数'**
+  String get preferences_autoSummarizeMinReplies;
+
+  /// No description provided for @preferences_autoSummarizeMinRepliesDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'只有回复数达到该阈值时才会自动触发摘要'**
+  String get preferences_autoSummarizeMinRepliesDesc;
+
   /// No description provided for @preferences_cfClearanceRefresh.
   ///
   /// In zh, this message translates to:
@@ -11102,13 +11126,13 @@ abstract class AppLocalizations {
   /// No description provided for @webviewLogin_thirdPartyLoginDialog.
   ///
   /// In zh, this message translates to:
-  /// **'为了复用你现有的第三方账号登录状态，这一步会改在系统浏览器中完成。浏览器内完成登录后，App 不一定能自动接回当前会话，之后可能仍需按页面提示手动继续。'**
+  /// **'这会把当前登录页面切到系统浏览器继续。浏览器里的登录状态通常不会自动同步回 App，只有在当前页面确实无法继续时再使用这个回退方案。'**
   String get webviewLogin_thirdPartyLoginDialog;
 
   /// No description provided for @webviewLogin_thirdPartyLoginHint.
   ///
   /// In zh, this message translates to:
-  /// **'第三方登录会改用系统浏览器，以便复用已有账号状态；浏览器内完成后，App 不一定能自动接回当前会话。站内账号密码登录与邮件登录链接仍会留在 App 内。'**
+  /// **'第三方登录默认会留在 App 内完成，避免授权过程中丢失当前会话；如果某个提供商在内置页面中无法继续，再手动切到外部浏览器继续当前页面。'**
   String get webviewLogin_thirdPartyLoginHint;
 
   /// No description provided for @webviewLogin_title.

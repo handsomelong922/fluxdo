@@ -4579,6 +4579,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get preferences_basic => '基础';
 
   @override
+  String get preferences_autoSummarizeTopicOnEnter => '进入帖子自动总结';
+
+  @override
+  String get preferences_autoSummarizeTopicOnEnterDesc => '满足阈值时自动展开并生成当前话题摘要';
+
+  @override
+  String get preferences_autoSummarizeMinReplies => '自动总结最小回复数';
+
+  @override
+  String get preferences_autoSummarizeMinRepliesDesc => '只有回复数达到该阈值时才会自动触发摘要';
+
+  @override
   String get preferences_cfClearanceRefresh => 'cf_clearance 自动续期';
 
   @override
@@ -5947,11 +5959,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get webviewLogin_thirdPartyLoginDialog =>
-      '为了复用你现有的第三方账号登录状态，这一步会改在系统浏览器中完成。浏览器内完成登录后，App 不一定能自动接回当前会话，之后可能仍需按页面提示手动继续。';
+      '这会把当前登录页面切到系统浏览器继续。浏览器里的登录状态通常不会自动同步回 App，只有在当前页面确实无法继续时再使用这个回退方案。';
 
   @override
   String get webviewLogin_thirdPartyLoginHint =>
-      '第三方登录会改用系统浏览器，以便复用已有账号状态；浏览器内完成后，App 不一定能自动接回当前会话。站内账号密码登录与邮件登录链接仍会留在 App 内。';
+      '第三方登录默认会留在 App 内完成，避免授权过程中丢失当前会话；如果某个提供商在内置页面中无法继续，再手动切到外部浏览器继续当前页面。';
 
   @override
   String get webviewLogin_title => '登录 Linux.do';
@@ -10497,6 +10509,18 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get preferences_basic => '基礎';
 
   @override
+  String get preferences_autoSummarizeTopicOnEnter => '進入話題自動總結';
+
+  @override
+  String get preferences_autoSummarizeTopicOnEnterDesc => '達到閾值時自動展開並生成目前話題摘要';
+
+  @override
+  String get preferences_autoSummarizeMinReplies => '自動總結最小回覆數';
+
+  @override
+  String get preferences_autoSummarizeMinRepliesDesc => '只有回覆數達到此閾值時才會自動觸發摘要';
+
+  @override
   String get preferences_cfClearanceRefresh => 'cf_clearance 自動續期';
 
   @override
@@ -11759,11 +11783,11 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
 
   @override
   String get webviewLogin_thirdPartyLoginDialog =>
-      '為了復用你現有的第三方賬號登錄狀態，這一步會改在系統瀏覽器中完成。瀏覽器內完成登錄後，App 不一定能自動接回當前會話，之後可能仍需按頁面提示手動繼續。';
+      '這會把當前登錄頁面切到系統瀏覽器繼續。瀏覽器裏的登錄狀態通常不會自動同步回 App，只有當前頁面確實無法繼續時再使用這個回退方案。';
 
   @override
   String get webviewLogin_thirdPartyLoginHint =>
-      '第三方登錄會改用系統瀏覽器，以便復用已有賬號狀態；瀏覽器內完成後，App 不一定能自動接回當前會話。站內賬號密碼登錄與郵件登錄鏈接仍會留在 App 內。';
+      '第三方登錄現在默認留在 App 內完成，避免授權過程中丟失當前會話；如果某個提供商在內置頁面中無法繼續，再手動切到外部瀏覽器繼續當前頁面。';
 
   @override
   String get webviewLogin_title => '登錄 Linux.do';
@@ -16291,6 +16315,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get preferences_basic => '基礎';
 
   @override
+  String get preferences_autoSummarizeTopicOnEnter => '進入話題自動總結';
+
+  @override
+  String get preferences_autoSummarizeTopicOnEnterDesc => '達到閾值時自動展開並生成目前話題摘要';
+
+  @override
+  String get preferences_autoSummarizeMinReplies => '自動總結最小回覆數';
+
+  @override
+  String get preferences_autoSummarizeMinRepliesDesc => '只有回覆數達到此閾值時才會自動觸發摘要';
+
+  @override
   String get preferences_cfClearanceRefresh => 'cf_clearance 自動續期';
 
   @override
@@ -17535,11 +17571,11 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get webviewLogin_thirdPartyLoginDialog =>
-      '為了復用你現有的第三方帳號登入狀態，這一步會改在系統瀏覽器中完成。瀏覽器內完成登入後，App 不一定能自動接回目前會話，之後可能仍需依頁面提示手動繼續。';
+      '這會把目前登入頁面切到系統瀏覽器繼續。瀏覽器裡的登入狀態通常不會自動同步回 App，只有目前頁面確實無法繼續時再使用這個回退方案。';
 
   @override
   String get webviewLogin_thirdPartyLoginHint =>
-      '第三方登入會改用系統瀏覽器，以便復用已有帳號狀態；瀏覽器內完成後，App 不一定能自動接回目前會話。站內帳號密碼登入與郵件登入連結仍會留在 App 內。';
+      '第三方登入現在預設留在 App 內完成，避免授權過程中丟失目前會話；如果某個提供商在內建頁面中無法繼續，再手動切到外部瀏覽器繼續目前頁面。';
 
   @override
   String get webviewLogin_title => '登入 Linux.do';

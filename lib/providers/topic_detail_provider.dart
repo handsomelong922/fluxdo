@@ -182,10 +182,3 @@ final topicDetailProvider = AsyncNotifierProvider.family
     .autoDispose<TopicDetailNotifier, TopicDetail, TopicDetailParams>(
       TopicDetailNotifier.new,
     );
-
-/// 话题 AI 摘要 Provider
-final topicSummaryProvider = FutureProvider.autoDispose
-    .family<TopicSummary?, int>((ref, topicId) async {
-      final service = ref.read(discourseServiceProvider);
-      return service.getTopicSummary(topicId);
-    });

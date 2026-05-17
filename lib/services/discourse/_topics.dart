@@ -15,7 +15,11 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     return TopicListResponse.fromJson(response.data);
   }
 
-  Future<TopicListResponse> getLatestTopics({int page = 0, String? order, bool? ascending}) async {
+  Future<TopicListResponse> getLatestTopics({
+    int page = 0,
+    String? order,
+    bool? ascending,
+  }) async {
     if (page == 0 && order == null) {
       final preloaded = PreloadedDataService();
       final preloadedList = await preloaded.getInitialTopicList();
@@ -70,7 +74,8 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     if (categoryId != null && categorySlug != null) {
       // 分类路径，标签通过 tags[] 查询参数传递
       if (parentCategorySlug != null) {
-        path = '/c/$parentCategorySlug/$categorySlug/$categoryId/l/$filter.json';
+        path =
+            '/c/$parentCategorySlug/$categorySlug/$categoryId/l/$filter.json';
       } else {
         path = '/c/$categorySlug/$categoryId/l/$filter.json';
       }
@@ -88,11 +93,18 @@ mixin _TopicsMixin on _DiscourseServiceBase {
       path = '/$filter.json';
     }
 
-    final response = await _dio.get(path, queryParameters: queryParams.isNotEmpty ? queryParams : null);
+    final response = await _dio.get(
+      path,
+      queryParameters: queryParams.isNotEmpty ? queryParams : null,
+    );
     return TopicListResponse.fromJson(response.data);
   }
 
-  Future<TopicListResponse> getNewTopics({int page = 0, String? order, bool? ascending}) async {
+  Future<TopicListResponse> getNewTopics({
+    int page = 0,
+    String? order,
+    bool? ascending,
+  }) async {
     final queryParams = <String, dynamic>{};
     if (page > 0) queryParams['page'] = page;
     if (order != null) queryParams['order'] = order;
@@ -105,7 +117,11 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     return TopicListResponse.fromJson(response.data);
   }
 
-  Future<TopicListResponse> getUnreadTopics({int page = 0, String? order, bool? ascending}) async {
+  Future<TopicListResponse> getUnreadTopics({
+    int page = 0,
+    String? order,
+    bool? ascending,
+  }) async {
     final queryParams = <String, dynamic>{};
     if (page > 0) queryParams['page'] = page;
     if (order != null) queryParams['order'] = order;
@@ -118,7 +134,11 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     return TopicListResponse.fromJson(response.data);
   }
 
-  Future<TopicListResponse> getUnseenTopics({int page = 0, String? order, bool? ascending}) async {
+  Future<TopicListResponse> getUnseenTopics({
+    int page = 0,
+    String? order,
+    bool? ascending,
+  }) async {
     final queryParams = <String, dynamic>{};
     if (page > 0) queryParams['page'] = page;
     if (order != null) queryParams['order'] = order;
@@ -131,7 +151,11 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     return TopicListResponse.fromJson(response.data);
   }
 
-  Future<TopicListResponse> getHotTopics({int page = 0, String? order, bool? ascending}) async {
+  Future<TopicListResponse> getHotTopics({
+    int page = 0,
+    String? order,
+    bool? ascending,
+  }) async {
     final queryParams = <String, dynamic>{};
     if (page > 0) queryParams['page'] = page;
     if (order != null) queryParams['order'] = order;
@@ -145,7 +169,14 @@ mixin _TopicsMixin on _DiscourseServiceBase {
   }
 
   /// 获取话题详情
-  Future<TopicDetail> getTopicDetail(int id, {int? postNumber, bool trackVisit = false, String? filter, String? usernameFilters, bool filterTopLevelReplies = false}) async {
+  Future<TopicDetail> getTopicDetail(
+    int id, {
+    int? postNumber,
+    bool trackVisit = false,
+    String? filter,
+    String? usernameFilters,
+    bool filterTopLevelReplies = false,
+  }) async {
     final path = postNumber != null ? '/t/$id/$postNumber.json' : '/t/$id.json';
     final queryParams = <String, dynamic>{};
     if (trackVisit) {
@@ -161,10 +192,12 @@ mixin _TopicsMixin on _DiscourseServiceBase {
       queryParams['filter_top_level_replies'] = true;
     }
     final options = trackVisit
-        ? Options(headers: {
-            'Discourse-Track-View': '1',
-            'Discourse-Track-View-Topic-Id': '$id',
-          })
+        ? Options(
+            headers: {
+              'Discourse-Track-View': '1',
+              'Discourse-Track-View-Topic-Id': '$id',
+            },
+          )
         : null;
     final response = await _dio.get(
       path,
@@ -175,17 +208,21 @@ mixin _TopicsMixin on _DiscourseServiceBase {
   }
 
   /// 通过 slug 获取话题详情（返回真实的 topic ID）
-  Future<TopicDetail> getTopicDetailBySlug(String slug, {int? postNumber, bool trackVisit = false}) async {
-    final path = postNumber != null ? '/t/$slug/$postNumber.json' : '/t/$slug.json';
+  Future<TopicDetail> getTopicDetailBySlug(
+    String slug, {
+    int? postNumber,
+    bool trackVisit = false,
+  }) async {
+    final path = postNumber != null
+        ? '/t/$slug/$postNumber.json'
+        : '/t/$slug.json';
     final queryParams = <String, dynamic>{};
     if (trackVisit) {
       queryParams['track_visit'] = true;
     }
     // 通过 slug 获取时无法提前知道 topic_id，仅设置 Track-View 头
     final options = trackVisit
-        ? Options(headers: {
-            'Discourse-Track-View': '1',
-          })
+        ? Options(headers: {'Discourse-Track-View': '1'})
         : null;
     final response = await _dio.get(
       path,
@@ -199,9 +236,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
   Future<PostStream> getPosts(int topicId, List<int> postIds) async {
     final response = await _dio.get(
       '/t/$topicId/posts.json',
-      queryParameters: {
-        'post_ids[]': postIds,
-      },
+      queryParameters: {'post_ids[]': postIds},
     );
     final data = response.data as Map<String, dynamic>;
     final streamJson = data.containsKey('post_stream')
@@ -209,18 +244,23 @@ mixin _TopicsMixin on _DiscourseServiceBase {
         : data;
     final postStream = PostStream.fromJson(streamJson);
     // 注入 topic 级别的 badges 数据
-    PostStream.injectBadges(postStream.posts, data, streamJson['posts'] as List<dynamic>?);
+    PostStream.injectBadges(
+      postStream.posts,
+      data,
+      streamJson['posts'] as List<dynamic>?,
+    );
     return postStream;
   }
 
   /// 按帖子编号获取帖子
-  Future<PostStream> getPostsByNumber(int topicId, {required int postNumber, required bool asc}) async {
+  Future<PostStream> getPostsByNumber(
+    int topicId, {
+    required int postNumber,
+    required bool asc,
+  }) async {
     final response = await _dio.get(
       '/t/$topicId/posts.json',
-      queryParameters: {
-        'post_number': postNumber,
-        'asc': asc,
-      },
+      queryParameters: {'post_number': postNumber, 'asc': asc},
     );
     final data = response.data as Map<String, dynamic>;
     final streamJson = data.containsKey('post_stream')
@@ -228,7 +268,11 @@ mixin _TopicsMixin on _DiscourseServiceBase {
         : data;
     final postStream = PostStream.fromJson(streamJson);
     // 注入 topic 级别的 badges 数据
-    PostStream.injectBadges(postStream.posts, data, streamJson['posts'] as List<dynamic>?);
+    PostStream.injectBadges(
+      postStream.posts,
+      data,
+      streamJson['posts'] as List<dynamic>?,
+    );
     return postStream;
   }
 
@@ -275,7 +319,9 @@ mixin _TopicsMixin on _DiscourseServiceBase {
       );
     }
 
-    if (respData is Map && respData.containsKey('post') && respData['post']['topic_id'] != null) {
+    if (respData is Map &&
+        respData.containsKey('post') &&
+        respData['post']['topic_id'] != null) {
       return respData['post']['topic_id'] as int;
     }
 
@@ -317,14 +363,14 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     if (categoryId != null) {
       data['category_id'] = categoryId;
     }
-    await _dio.put(
-      '/topics/bulk.json',
-      data: data,
-    );
+    await _dio.put('/topics/bulk.json', data: data);
   }
 
   /// 设置话题订阅级别
-  Future<void> setTopicNotificationLevel(int topicId, TopicNotificationLevel level) async {
+  Future<void> setTopicNotificationLevel(
+    int topicId,
+    TopicNotificationLevel level,
+  ) async {
     await _dio.post(
       '/t/$topicId/notifications',
       data: {'notification_level': level.value},
@@ -352,33 +398,6 @@ mixin _TopicsMixin on _DiscourseServiceBase {
       );
     } on DioException catch (e) {
       _throwApiError(e);
-    }
-  }
-
-  /// 获取话题 AI 摘要
-  Future<TopicSummary?> getTopicSummary(int topicId, {bool skipAgeCheck = false}) async {
-    try {
-      final queryParams = <String, dynamic>{};
-      if (skipAgeCheck) {
-        queryParams['skip_age_check'] = 'true';
-      }
-
-      final response = await _dio.get(
-        '/discourse-ai/summarization/t/$topicId',
-        queryParameters: queryParams.isNotEmpty ? queryParams : null,
-      );
-
-      final data = response.data;
-      if (data is Map && data['ai_topic_summary'] != null) {
-        return TopicSummary.fromJson(data['ai_topic_summary'] as Map<String, dynamic>);
-      }
-      return null;
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 404 || e.response?.statusCode == 403) {
-        return null;
-      }
-      debugPrint('[DiscourseService] getTopicSummary failed: $e');
-      rethrow;
     }
   }
 

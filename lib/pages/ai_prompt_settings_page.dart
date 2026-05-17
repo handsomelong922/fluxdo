@@ -49,11 +49,9 @@ class _AiPromptSettingsPageState extends ConsumerState<AiPromptSettingsPage> {
 
   String _defaultSummaryTopicPrompt() => S.current.ai_summarizePrompt;
 
-  String _defaultSummaryAllRepliesPrompt() =>
-      '请总结这个话题中全部回帖的主要观点、分歧和结论，输出精炼的中文摘要。';
+  String _defaultSummaryAllRepliesPrompt() => defaultSummaryAllRepliesPrompt();
 
-  String _defaultGenerateReplyPrompt() =>
-      '请基于当前话题内容生成一条适合直接发布的中文回复，语气自然、观点明确，并尽量给出有价值的信息。';
+  String _defaultGenerateReplyPrompt() => defaultGenerateReplyPrompt();
 
   String _defaultGenerateTitlePrompt() => AiL10n.current.titleGenerationPrompt;
 

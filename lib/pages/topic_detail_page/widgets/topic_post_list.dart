@@ -529,7 +529,6 @@ class _TopicPostListState extends State<TopicPostList> {
                         headerKey: headerKey,
                         onVoteChanged: onVoteChanged,
                         onNotificationLevelChanged: onNotificationLevelChanged,
-                        autoExpandSummary: true,
                         onJumpToPost: onJumpToPost,
                       ),
                     ),
@@ -569,7 +568,6 @@ class _TopicPostListState extends State<TopicPostList> {
                             onVoteChanged: onVoteChanged,
                             onNotificationLevelChanged:
                                 onNotificationLevelChanged,
-                            autoExpandSummary: true,
                             onJumpToPost: onJumpToPost,
                           ),
                         ),
@@ -673,7 +671,8 @@ class _TopicPostListState extends State<TopicPostList> {
     final isTargetPost = highlightPostNumber == post.postNumber;
     final boostUsername = isTargetPost ? widget.highlightBoostUsername : null;
     // 能匹配到具体 boost 时不高亮帖子，匹配不到时回退到高亮帖子
-    final canLocateBoost = boostUsername != null &&
+    final canLocateBoost =
+        boostUsername != null &&
         (post.boosts ?? []).any((b) => b.user.username == boostUsername);
     final highlight = isTargetPost && !canLocateBoost;
     final Widget child;

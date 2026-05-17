@@ -9,7 +9,7 @@ class WebViewLoginNavigationDecider {
 
   final Uri baseUri;
 
-  bool shouldOpenThirdPartyLoginInBrowser(Uri uri) {
+  bool isThirdPartyLoginUri(Uri uri) {
     if (isEmailLoginUri(uri)) {
       return false;
     }

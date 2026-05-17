@@ -8,8 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/s.dart';
 import '../../../models/topic.dart';
 import '../../../utils/dialog_utils.dart';
-import '../../../services/discourse/discourse_service.dart';
 import '../../../services/settings/ai_prompt_settings_service.dart'; // CUSTOM: AI Prompt Settings
+import '../../../services/topic_ai/topic_ai_context_service.dart';
+import '../../../services/topic_ai/topic_ai_model_selection.dart';
 import '../../../services/toast_service.dart';
 import '../../../widgets/share/ai_share_image_preview.dart';
 import '../../../widgets/common/dismissible_popup_menu.dart';
@@ -49,10 +50,7 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
   final ScrollController _messageScrollController = ScrollController();
 
   /// 已获取到的上下文帖子（按 postNumber 升序）
-  final List<TopicPostContext> _contextPosts = [];
-
-  /// 已获取的帖子 ID 集合（避免重复请求）
-  final Set<int> _fetchedPostIds = {};
+  final List<TopicAiContextPost> _contextPosts = [];
 
   /// 是否正在加载上下文
   bool _isLoadingContext = false;
@@ -88,82 +86,24 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
     final ContextScope scope =
         scopeOverride ?? ref.read(topicAiContextScopeProvider(widget.topicId));
 
-    // 计算需要多少条帖子
-    final stream = detail.postStream.stream;
-    final needed = _postCountForScope(scope, stream.length);
-    final neededIds = stream.take(needed).toList();
-
-    // 检查是否已经有足够的帖子
-    if (neededIds.every(_fetchedPostIds.contains)) {
-      _lastLoadedScope = scope;
-      _syncToNotifier(detail.title);
-      return;
-    }
-
-    // 找出缺失的帖子 ID
-    final missingIds = neededIds
-        .where((id) => !_fetchedPostIds.contains(id))
-        .toList();
-    if (missingIds.isEmpty) return;
-
     setState(() => _isLoadingContext = true);
 
     try {
-      // 优先从已加载的 detail.postStream.posts 中取
-      final loadedPosts = detail.postStream.posts;
-      final loadedMap = {for (final p in loadedPosts) p.id: p};
-
-      final fromLoaded = <TopicPostContext>[];
-      final stillMissing = <int>[];
-
-      for (final id in missingIds) {
-        final post = loadedMap[id];
-        if (post != null) {
-          fromLoaded.add(
-            TopicPostContext(
-              postNumber: post.postNumber,
-              username: post.username,
-              cooked: post.cooked,
-            ),
+      final posts = await ref
+          .read(topicAiContextServiceProvider)
+          .loadContextPosts(
+            topicId: widget.topicId,
+            detail: detail,
+            scope: scope,
+            fetchPosts: ref.read(topicAiPostsFetcherProvider),
+            cachedPosts: _contextPosts,
           );
-          _fetchedPostIds.add(id);
-        } else {
-          stillMissing.add(id);
-        }
-      }
-
-      _contextPosts.addAll(fromLoaded);
-
-      // 仍然缺失的通过 API 获取
-      if (stillMissing.isNotEmpty) {
-        final service = DiscourseService();
-        // getPosts 一次最多获取合理数量，分批获取
-        for (var i = 0; i < stillMissing.length; i += 20) {
-          final batch = stillMissing.sublist(
-            i,
-            (i + 20).clamp(0, stillMissing.length),
-          );
-          final postStream = await service.getPosts(widget.topicId, batch);
-          for (final post in postStream.posts) {
-            if (!_fetchedPostIds.contains(post.id)) {
-              _contextPosts.add(
-                TopicPostContext(
-                  postNumber: post.postNumber,
-                  username: post.username,
-                  cooked: post.cooked,
-                ),
-              );
-              _fetchedPostIds.add(post.id);
-            }
-          }
-        }
-      }
-
-      // 按 postNumber 排序
-      _contextPosts.sort((a, b) => a.postNumber.compareTo(b.postNumber));
 
       _lastLoadedScope = scope;
       if (mounted) {
+        _contextPosts
+          ..clear()
+          ..addAll(posts);
         _syncToNotifier(detail.title);
       }
     } catch (_) {
@@ -180,50 +120,27 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
     ref.read(topicAiContextScopeProvider(widget.topicId).notifier).state =
         newScope;
 
-    final detail = widget.detail;
-    if (detail == null) return;
-
-    final stream = detail.postStream.stream;
-    final needed = _postCountForScope(newScope, stream.length);
-    final neededIds = stream.take(needed).toSet();
-
-    // 检查是否缺少帖子
-    if (!neededIds.every(_fetchedPostIds.contains)) {
+    if (_lastLoadedScope != newScope) {
       _ensureContextPosts(newScope);
     }
-  }
-
-  /// 根据 scope 返回需要的帖子数量
-  int _postCountForScope(ContextScope scope, int total) {
-    return switch (scope) {
-      ContextScope.firstPostOnly => 1,
-      ContextScope.first5 => 5.clamp(0, total),
-      ContextScope.first10 => 10.clamp(0, total),
-      ContextScope.first20 => 20.clamp(0, total),
-      ContextScope.all => total,
-    };
   }
 
   /// 同步上下文帖子到 Notifier
   void _syncToNotifier(String title) {
     ref
         .read(topicAiChatProvider(widget.topicId).notifier)
-        .setContextPosts(title, _contextPosts);
+        .setContextPosts(
+          title,
+          _contextPosts.map((post) => post.toTopicPostContext()).toList(),
+        );
   }
 
   ({AiProvider provider, AiModel model})? _currentModel() {
-    final selected = ref.read(topicSelectedAiModelProvider(widget.topicId));
-    final defaultModel = ref.read(defaultAiModelProvider);
-    final lastUsed = ref.read(lastUsedAiAssistantModelProvider);
-    return selected ?? defaultModel ?? lastUsed;
+    return resolveTopicAiModel(ref, widget.topicId);
   }
 
   void _rememberModel(({AiProvider provider, AiModel model}) model) {
-    ref.read(topicSelectedAiModelProvider(widget.topicId).notifier).state =
-        model;
-    unawaited(
-      setLastUsedAiAssistantModel(ref, model.provider.id, model.model.id),
-    );
+    unawaited(rememberTopicAiModel(ref, widget.topicId, model));
   }
 
   /// 获取话题标题
@@ -650,11 +567,11 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
     final summaryAllRepliesPrompt =
         promptSettings.summaryAllRepliesPrompt.trim().isNotEmpty
         ? promptSettings.summaryAllRepliesPrompt.trim()
-        : '请总结这个话题中全部回帖的主要观点、分歧和结论，输出精炼的中文摘要。';
+        : defaultSummaryAllRepliesPrompt();
     final generateReplyPrompt =
         promptSettings.generateReplyPrompt.trim().isNotEmpty
         ? promptSettings.generateReplyPrompt.trim()
-        : '请基于当前话题内容生成一条适合直接发布的中文回复，语气自然、观点明确，并尽量给出有价值的信息。';
+        : defaultGenerateReplyPrompt();
     final quickPrompts =
         <({IconData icon, String label, String prompt, ContextScope? scope})>[
           (

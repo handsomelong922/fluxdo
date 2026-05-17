@@ -4700,6 +4700,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get preferences_basic => 'Basic';
 
   @override
+  String get preferences_autoSummarizeTopicOnEnter =>
+      'Auto summarize on topic open';
+
+  @override
+  String get preferences_autoSummarizeTopicOnEnterDesc =>
+      'Automatically expand and generate a summary when the threshold is met';
+
+  @override
+  String get preferences_autoSummarizeMinReplies =>
+      'Minimum replies for auto summary';
+
+  @override
+  String get preferences_autoSummarizeMinRepliesDesc =>
+      'Auto summary only runs when the reply count reaches this threshold';
+
+  @override
   String get preferences_cfClearanceRefresh => 'cf_clearance auto refresh';
 
   @override
@@ -6091,11 +6107,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get webviewLogin_thirdPartyLoginDialog =>
-      'To reuse your existing third-party account session, this step will open in the system browser. After you finish there, the app may still need you to continue manually because browser cookies cannot always be handed back to the in-app session.';
+      'This will continue the current sign-in page in the system browser. Browser session state usually does not sync back into the app automatically, so use this fallback only when the in-app page cannot continue.';
 
   @override
   String get webviewLogin_thirdPartyLoginHint =>
-      'Third-party sign-in opens in the system browser so you can reuse an existing session. After that, the app may still need manual continuation because browser cookies cannot always be handed back. Forum password login and email login links stay in the app.';
+      'Third-party sign-in now stays in the app by default so the OAuth flow keeps the same session context. If a provider still refuses to continue inside the WebView, switch the current page to the external browser manually.';
 
   @override
   String get webviewLogin_title => 'Log in to Linux.do';

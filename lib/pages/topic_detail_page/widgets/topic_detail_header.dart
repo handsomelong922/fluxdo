@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/s.dart';
 import '../../../models/topic.dart';
+import '../../../providers/preferences_provider.dart';
 import '../../../providers/discourse_providers.dart';
+import '../../../services/topic_ai/topic_ai_model_selection.dart';
 import '../../../utils/font_awesome_helper.dart';
 import '../../../widgets/topic/topic_summary_widget.dart';
 import '../../../widgets/common/emoji_text.dart';
@@ -21,7 +23,7 @@ class TopicDetailHeader extends ConsumerWidget {
   final GlobalKey? headerKey;
   final void Function(int, bool)? onVoteChanged;
   final void Function(TopicNotificationLevel)? onNotificationLevelChanged;
-  final bool autoExpandSummary;
+
   /// 跳转到当前话题的指定帖子
   final void Function(int postNumber)? onJumpToPost;
 
@@ -31,13 +33,20 @@ class TopicDetailHeader extends ConsumerWidget {
     this.headerKey,
     this.onVoteChanged,
     this.onNotificationLevelChanged,
-    this.autoExpandSummary = false,
     this.onJumpToPost,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final preferences = ref.watch(preferencesProvider);
+    final hasConfiguredAiModel = ref.watch(
+      hasConfiguredTopicAiModelProvider(detail.id),
+    ).maybeWhen(data: (value) => value, orElse: () => false);
+    final autoExpandSummary =
+        hasConfiguredAiModel &&
+        preferences.autoSummarizeTopicOnEnter &&
+        (detail.postsCount - 1) >= preferences.autoSummarizeMinReplies;
 
     // 获取分类信息
     final categoryMap = ref.watch(categoryMapProvider).value;
@@ -50,7 +59,9 @@ class TopicDetailHeader extends ConsumerWidget {
       faIcon = FontAwesomeHelper.getIcon(category.icon);
       logoUrl = category.uploadedLogo;
 
-      if (faIcon == null && (logoUrl == null || logoUrl.isEmpty) && category.parentCategoryId != null) {
+      if (faIcon == null &&
+          (logoUrl == null || logoUrl.isEmpty) &&
+          category.parentCategoryId != null) {
         final parent = categoryMap?[category.parentCategoryId];
         faIcon = FontAwesomeHelper.getIcon(parent?.icon);
         logoUrl = parent?.uploadedLogo;
@@ -63,7 +74,7 @@ class TopicDetailHeader extends ConsumerWidget {
         color: theme.colorScheme.surface,
         border: Border(
           bottom: BorderSide(
-            color: theme.colorScheme.outlineVariant.withValues(alpha:0.3),
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
             width: 0.5,
           ),
         ),
@@ -116,19 +127,25 @@ class TopicDetailHeader extends ConsumerWidget {
                       ),
                     ),
                   ),
-                ...EmojiText.buildEmojiSpans(context, detail.title, theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  height: 1.4,
-                )),
+                ...EmojiText.buildEmojiSpans(
+                  context,
+                  detail.title,
+                  theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    height: 1.4,
+                  ),
+                ),
               ],
             ),
             key: headerKey,
           ),
 
           const SizedBox(height: 16),
-          
+
           // 分类与标签（私信话题不显示）
-          if (!detail.isPrivateMessage && (category != null || (detail.tags != null && detail.tags!.isNotEmpty))) ...[
+          if (!detail.isPrivateMessage &&
+              (category != null ||
+                  (detail.tags != null && detail.tags!.isNotEmpty))) ...[
             Wrap(
               spacing: 6,
               runSpacing: 8,
@@ -142,24 +159,30 @@ class TopicDetailHeader extends ConsumerWidget {
                     logoUrl: logoUrl,
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => CategoryTopicsPage(category: category)),
+                      MaterialPageRoute(
+                        builder: (_) => CategoryTopicsPage(category: category),
+                      ),
                     ),
                   ),
 
                 // 标签 Badges
                 if (detail.tags != null)
-                  ...detail.tags!.map((tag) => TagBadge(
-                    name: tag.name,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => TagTopicsPage(tagName: tag.name)),
+                  ...detail.tags!.map(
+                    (tag) => TagBadge(
+                      name: tag.name,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TagTopicsPage(tagName: tag.name),
+                        ),
+                      ),
                     ),
-                  )),
+                  ),
               ],
             ),
             const SizedBox(height: 16),
           ],
-          
+
           // Metadata Row (Replies, Views, Date, Vote Button)
           Row(
             children: [
@@ -172,13 +195,13 @@ class TopicDetailHeader extends ConsumerWidget {
                       context,
                       Icons.chat_bubble_outline_rounded,
                       '${detail.postsCount - 1}',
-                      label: context.l10n.topicDetail_replyLabel
+                      label: context.l10n.topicDetail_replyLabel,
                     ),
                     _buildMetadataItem(
                       context,
                       Icons.visibility_outlined,
                       NumberUtils.formatCount(detail.views),
-                      label: context.l10n.topicDetail_viewsLabel
+                      label: context.l10n.topicDetail_viewsLabel,
                     ),
                     Tooltip(
                       message: TimeUtils.formatTooltipTime(detail.createdAt),
@@ -188,15 +211,22 @@ class TopicDetailHeader extends ConsumerWidget {
                           Icon(
                             Icons.schedule_rounded,
                             size: 14,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant
+                                .withValues(alpha: 0.7),
                           ),
                           const SizedBox(width: 4),
                           RelativeTimeText(
                             dateTime: detail.createdAt,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant
+                                      .withValues(alpha: 0.8),
+                                  fontWeight: FontWeight.w500,
+                                ),
                           ),
                         ],
                       ),
@@ -205,10 +235,7 @@ class TopicDetailHeader extends ConsumerWidget {
                 ),
               ),
               // 投票按钮
-              TopicVoteButton(
-                topic: detail,
-                onVoteChanged: onVoteChanged,
-              ),
+              TopicVoteButton(topic: detail, onVoteChanged: onVoteChanged),
             ],
           ),
 
@@ -230,7 +257,12 @@ class TopicDetailHeader extends ConsumerWidget {
     );
   }
 
-  Widget _buildMetadataItem(BuildContext context, IconData icon, String text, {String? label}) {
+  Widget _buildMetadataItem(
+    BuildContext context,
+    IconData icon,
+    String text, {
+    String? label,
+  }) {
     final theme = Theme.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -238,13 +270,13 @@ class TopicDetailHeader extends ConsumerWidget {
         Icon(
           icon,
           size: 14,
-          color: theme.colorScheme.onSurfaceVariant.withValues(alpha:0.7),
+          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
         ),
         const SizedBox(width: 4),
         Text(
           text,
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha:0.8),
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -253,13 +285,11 @@ class TopicDetailHeader extends ConsumerWidget {
           Text(
             label,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha:0.5),
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
             ),
           ),
         ],
       ],
     );
   }
-
-
 }

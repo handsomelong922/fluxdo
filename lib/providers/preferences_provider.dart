@@ -12,45 +12,70 @@ import 'theme_provider.dart';
 
 class AppPreferences {
   final bool autoPanguSpacing;
+
   /// 阅读时自动优化中英文混排间距
   final bool displayPanguSpacing;
   final bool anonymousShare;
   final bool longPressPreview;
   final bool openExternalLinksInAppBrowser;
+
   /// 内容字体缩放比例，范围 0.8 ~ 1.4，默认 1.0
   final double contentFontScale;
+
   /// 分享图片主题索引
   final int shareImageThemeIndex;
+
   /// 自动填充登录凭证
   final bool autoFillLogin;
+
   /// 崩溃日志上报（仅 Android）
   final bool crashlytics;
+
   /// Android 原生 CDP Cookie 同步
   final bool androidNativeCdp;
+
   /// 竖屏锁定
   final bool portraitLock;
+
   /// 滚动时收起顶栏和底栏
   final bool hideBarOnScroll;
+
   /// 退出时清除图片缓存
   final bool clearCacheOnExit;
+
   /// cf_clearance 自动续期
   final bool cfClearanceRefresh;
+
   /// 相关链接默认展开
   final bool expandRelatedLinks;
+
   /// AI 助手左滑入口（PageView 模式）
   final bool aiSwipeEntry;
+
+  /// 进入帖子后自动触发 AI 总结
+  final bool autoSummarizeTopicOnEnter;
+
+  /// 自动总结需要达到的最小回复数
+  final int autoSummarizeMinReplies;
+
   /// 对话框背景高斯模糊
   final bool dialogBlur;
+
   /// 最大并发请求数
   final int maxConcurrent;
+
   /// 滑动窗口内最大请求数
   final int maxPerWindow;
+
   /// 滑动窗口时长（秒）
   final int windowSeconds;
+
   /// 底栏：单击已选中 tab 执行的动作
   final NavTapAction bottomSingleTapAction;
+
   /// 底栏：双击已选中 tab 执行的动作
   final NavTapAction bottomDoubleTapAction;
+
   /// 底栏入口 id 列表（顺序即显示顺序）
   final List<String> bottomNavIds;
 
@@ -71,6 +96,8 @@ class AppPreferences {
     required this.cfClearanceRefresh,
     required this.expandRelatedLinks,
     required this.aiSwipeEntry,
+    required this.autoSummarizeTopicOnEnter,
+    required this.autoSummarizeMinReplies,
     required this.dialogBlur,
     required this.maxConcurrent,
     required this.maxPerWindow,
@@ -97,6 +124,8 @@ class AppPreferences {
     bool? cfClearanceRefresh,
     bool? expandRelatedLinks,
     bool? aiSwipeEntry,
+    bool? autoSummarizeTopicOnEnter,
+    int? autoSummarizeMinReplies,
     bool? dialogBlur,
     int? maxConcurrent,
     int? maxPerWindow,
@@ -123,6 +152,10 @@ class AppPreferences {
       cfClearanceRefresh: cfClearanceRefresh ?? this.cfClearanceRefresh,
       expandRelatedLinks: expandRelatedLinks ?? this.expandRelatedLinks,
       aiSwipeEntry: aiSwipeEntry ?? this.aiSwipeEntry,
+      autoSummarizeTopicOnEnter:
+          autoSummarizeTopicOnEnter ?? this.autoSummarizeTopicOnEnter,
+      autoSummarizeMinReplies:
+          autoSummarizeMinReplies ?? this.autoSummarizeMinReplies,
       dialogBlur: dialogBlur ?? this.dialogBlur,
       maxConcurrent: maxConcurrent ?? this.maxConcurrent,
       maxPerWindow: maxPerWindow ?? this.maxPerWindow,
@@ -155,6 +188,10 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
       CfClearanceRefreshService.prefKeyEnabled;
   static const String _expandRelatedLinksKey = 'pref_expand_related_links';
   static const String _aiSwipeEntryKey = 'pref_ai_swipe_entry';
+  static const String _autoSummarizeTopicOnEnterKey =
+      'pref_auto_summarize_topic_on_enter';
+  static const String _autoSummarizeMinRepliesKey =
+      'pref_auto_summarize_min_replies';
   static const String _dialogBlurKey = 'pref_dialog_blur';
   static const String _maxConcurrentKey = 'pref_max_concurrent';
   static const String _maxPerWindowKey = 'pref_max_per_window';
@@ -165,47 +202,51 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
       'pref_bottom_double_tap_action';
   static const String _bottomNavIdsKey = 'pref_bottom_nav_ids';
 
-  static const _crashlyticsChannel =
-      MethodChannel('com.github.lingyan000.fluxdo/crashlytics');
+  static const _crashlyticsChannel = MethodChannel(
+    'com.github.lingyan000.fluxdo/crashlytics',
+  );
 
   PreferencesNotifier(this._prefs)
-      : super(
-          AppPreferences(
-            autoPanguSpacing: _prefs.getBool(_autoPanguSpacingKey) ?? false,
-            displayPanguSpacing: _prefs.getBool(_displayPanguSpacingKey) ?? false,
-            anonymousShare: _prefs.getBool(_anonymousShareKey) ?? false,
-            longPressPreview: _prefs.getBool(_longPressPreviewKey) ?? true,
-            openExternalLinksInAppBrowser:
-                _prefs.getBool(_openExternalLinksInAppBrowserKey) ?? false,
-            contentFontScale: _prefs.getDouble(_contentFontScaleKey) ?? 1.0,
-            shareImageThemeIndex: _prefs.getInt(_shareImageThemeIndexKey) ?? 0,
-            autoFillLogin: _prefs.getBool(_autoFillLoginKey) ?? true,
-            crashlytics: _prefs.getBool(_crashlyticsKey) ?? true,
-            androidNativeCdp: _prefs.getBool(_androidNativeCdpKey) ?? false,
-            portraitLock: _prefs.getBool(_portraitLockKey) ?? false,
-            hideBarOnScroll: _prefs.getBool(_hideBarOnScrollKey) ?? true,
-            clearCacheOnExit: _prefs.getBool(_clearCacheOnExitKey) ?? false,
-            cfClearanceRefresh:
-                _prefs.getBool(_cfClearanceRefreshKey) ?? false,
-            expandRelatedLinks:
-                _prefs.getBool(_expandRelatedLinksKey) ?? false,
-            aiSwipeEntry: _prefs.getBool(_aiSwipeEntryKey) ?? false,
-            dialogBlur: _prefs.getBool(_dialogBlurKey) ?? true,
-            maxConcurrent: _prefs.getInt(_maxConcurrentKey) ?? 3,
-            maxPerWindow: _prefs.getInt(_maxPerWindowKey) ?? 6,
-            windowSeconds: _prefs.getInt(_windowSecondsKey) ?? 3,
-            bottomSingleTapAction: NavTapActionX.fromStorageKey(
-              _prefs.getString(_bottomSingleTapActionKey),
-              fallback: NavTapAction.scrollToTop,
-            ),
-            bottomDoubleTapAction: NavTapActionX.fromStorageKey(
-              _prefs.getString(_bottomDoubleTapActionKey),
-              fallback: NavTapAction.refresh,
-            ),
-            bottomNavIds: _prefs.getStringList(_bottomNavIdsKey) ??
-                const [NavEntryIds.home, NavEntryIds.profile],
+    : super(
+        AppPreferences(
+          autoPanguSpacing: _prefs.getBool(_autoPanguSpacingKey) ?? false,
+          displayPanguSpacing: _prefs.getBool(_displayPanguSpacingKey) ?? false,
+          anonymousShare: _prefs.getBool(_anonymousShareKey) ?? false,
+          longPressPreview: _prefs.getBool(_longPressPreviewKey) ?? true,
+          openExternalLinksInAppBrowser:
+              _prefs.getBool(_openExternalLinksInAppBrowserKey) ?? false,
+          contentFontScale: _prefs.getDouble(_contentFontScaleKey) ?? 1.0,
+          shareImageThemeIndex: _prefs.getInt(_shareImageThemeIndexKey) ?? 0,
+          autoFillLogin: _prefs.getBool(_autoFillLoginKey) ?? true,
+          crashlytics: _prefs.getBool(_crashlyticsKey) ?? true,
+          androidNativeCdp: _prefs.getBool(_androidNativeCdpKey) ?? false,
+          portraitLock: _prefs.getBool(_portraitLockKey) ?? false,
+          hideBarOnScroll: _prefs.getBool(_hideBarOnScrollKey) ?? true,
+          clearCacheOnExit: _prefs.getBool(_clearCacheOnExitKey) ?? false,
+          cfClearanceRefresh: _prefs.getBool(_cfClearanceRefreshKey) ?? false,
+          expandRelatedLinks: _prefs.getBool(_expandRelatedLinksKey) ?? false,
+          aiSwipeEntry: _prefs.getBool(_aiSwipeEntryKey) ?? false,
+          autoSummarizeTopicOnEnter:
+              _prefs.getBool(_autoSummarizeTopicOnEnterKey) ?? false,
+          autoSummarizeMinReplies:
+              _prefs.getInt(_autoSummarizeMinRepliesKey) ?? 20,
+          dialogBlur: _prefs.getBool(_dialogBlurKey) ?? true,
+          maxConcurrent: _prefs.getInt(_maxConcurrentKey) ?? 3,
+          maxPerWindow: _prefs.getInt(_maxPerWindowKey) ?? 6,
+          windowSeconds: _prefs.getInt(_windowSecondsKey) ?? 3,
+          bottomSingleTapAction: NavTapActionX.fromStorageKey(
+            _prefs.getString(_bottomSingleTapActionKey),
+            fallback: NavTapAction.scrollToTop,
           ),
-        ) {
+          bottomDoubleTapAction: NavTapActionX.fromStorageKey(
+            _prefs.getString(_bottomDoubleTapActionKey),
+            fallback: NavTapAction.refresh,
+          ),
+          bottomNavIds:
+              _prefs.getStringList(_bottomNavIdsKey) ??
+              const [NavEntryIds.home, NavEntryIds.profile],
+        ),
+      ) {
     isPortraitLocked = state.portraitLock;
     _syncSchedulerConfig();
   }
@@ -258,10 +299,9 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     state = state.copyWith(crashlytics: enabled);
     await _prefs.setBool(_crashlyticsKey, enabled);
     if (Platform.isAndroid) {
-      await _crashlyticsChannel.invokeMethod(
-        'setCrashlyticsEnabled',
-        {'enabled': enabled},
-      );
+      await _crashlyticsChannel.invokeMethod('setCrashlyticsEnabled', {
+        'enabled': enabled,
+      });
     }
   }
 
@@ -307,6 +347,17 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setAiSwipeEntry(bool enabled) async {
     state = state.copyWith(aiSwipeEntry: enabled);
     await _prefs.setBool(_aiSwipeEntryKey, enabled);
+  }
+
+  Future<void> setAutoSummarizeTopicOnEnter(bool enabled) async {
+    state = state.copyWith(autoSummarizeTopicOnEnter: enabled);
+    await _prefs.setBool(_autoSummarizeTopicOnEnterKey, enabled);
+  }
+
+  Future<void> setAutoSummarizeMinReplies(int value) async {
+    final clamped = value.clamp(0, 200);
+    state = state.copyWith(autoSummarizeMinReplies: clamped);
+    await _prefs.setInt(_autoSummarizeMinRepliesKey, clamped);
   }
 
   Future<void> setDialogBlur(bool enabled) async {
@@ -374,6 +425,6 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
 
 final preferencesProvider =
     StateNotifierProvider<PreferencesNotifier, AppPreferences>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return PreferencesNotifier(prefs);
-});
+      final prefs = ref.watch(sharedPreferencesProvider);
+      return PreferencesNotifier(prefs);
+    });

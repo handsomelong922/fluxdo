@@ -4,6 +4,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../providers/theme_provider.dart';
 
+String defaultSummaryAllRepliesPrompt() => '请总结这个话题中全部回帖的主要观点、分歧和结论，输出精炼的中文摘要。';
+
+String defaultGenerateReplyPrompt() =>
+    '请基于当前话题内容生成一条适合直接发布的中文回复，语气自然、观点明确，并尽量给出有价值的信息。';
+
 class AiPromptSettingsState {
   final String summaryTopicPrompt;
   final String summaryAllRepliesPrompt;
