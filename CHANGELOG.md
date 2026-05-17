@@ -1,3 +1,9 @@
+## v0.3.5
+
+
+- feat: improve topic ai summary and login flow
+
+
 ## v0.3.4
 
 - feat: route third-party login to browser
