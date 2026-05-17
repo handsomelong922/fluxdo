@@ -36,7 +36,7 @@ class NestedTopicState {
     this.roots = const [],
     this.hasMoreRoots = false,
     this.currentPage = 0,
-    this.sort = 'old',
+    this.sort = 'top',
     this.pinnedPostNumber,
     this.isLoadingMore = false,
   });
@@ -74,7 +74,12 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
   @override
   Future<NestedTopicState> build() async {
     final service = ref.read(discourseServiceProvider);
-    final response = await service.getNestedRoots(arg.topicId, sort: 'old', page: 0, trackVisit: true);
+    final response = await service.getNestedRoots(
+      arg.topicId,
+      sort: 'top',
+      page: 0,
+      trackVisit: true,
+    );
 
     return NestedTopicState(
       topicJson: response.topicJson,
@@ -82,7 +87,7 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
       roots: response.roots,
       hasMoreRoots: response.hasMoreRoots,
       currentPage: 0,
-      sort: response.sort ?? 'old',
+      sort: response.sort ?? 'top',
       pinnedPostNumber: response.pinnedPostNumber,
     );
   }
@@ -157,7 +162,7 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
     return service.getNestedChildren(
       arg.topicId,
       postNumber,
-      sort: current?.sort ?? 'old',
+      sort: current?.sort ?? 'top',
       page: page,
       depth: depth,
     );

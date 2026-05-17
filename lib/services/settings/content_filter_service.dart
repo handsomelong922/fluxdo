@@ -65,6 +65,17 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
     return result;
   }
 
+  static String? normalizeSingleValue(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    return trimmed;
+  }
+
+  bool _containsIgnoreCase(Iterable<String> values, String target) {
+    final normalizedTarget = target.toLowerCase();
+    return values.any((value) => value.toLowerCase() == normalizedTarget);
+  }
+
   void setBlockedTagsFromInput(String raw) {
     final nextTags = normalizeCommaSeparated(raw);
     state = state.copyWith(blockedTags: nextTags);
@@ -75,6 +86,38 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
     final nextUsers = normalizeCommaSeparated(raw);
     state = state.copyWith(blockedUsers: nextUsers);
     _prefs.setStringList(blockedUsersKey, nextUsers);
+  }
+
+  Future<bool> addBlockedUser(String username) async {
+    final normalized = normalizeSingleValue(username);
+    if (normalized == null || _containsIgnoreCase(state.blockedUsers, normalized)) {
+      return false;
+    }
+
+    final nextUsers = [...state.blockedUsers, normalized];
+    state = state.copyWith(blockedUsers: nextUsers);
+    await _prefs.setStringList(blockedUsersKey, nextUsers);
+    return true;
+  }
+
+  Future<bool> removeBlockedUser(String username) async {
+    final normalized = normalizeSingleValue(username);
+    if (normalized == null) return false;
+
+    final nextUsers = state.blockedUsers
+        .where((user) => user.toLowerCase() != normalized.toLowerCase())
+        .toList();
+    if (nextUsers.length == state.blockedUsers.length) {
+      return false;
+    }
+
+    state = state.copyWith(blockedUsers: nextUsers);
+    if (nextUsers.isEmpty) {
+      await _prefs.remove(blockedUsersKey);
+    } else {
+      await _prefs.setStringList(blockedUsersKey, nextUsers);
+    }
+    return true;
   }
 
   void clearBlockedTags() {
@@ -108,7 +151,7 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
       return false;
     }
     final target = username.toLowerCase();
-    return state.blockedUsers.any((user) => user.toLowerCase() == target);
+    return _containsIgnoreCase(state.blockedUsers, target);
   }
 
   Post applyUserFilterToPost(Post post) {

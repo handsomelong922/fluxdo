@@ -101,6 +101,10 @@ FluxDO 是为 [Linux.do](https://linux.do/) 社区打造的现代化移动和桌
    flutter run -d macos
    ```
 
+## 开发补充
+
+- Git 分支、tag 与回退流程见 [docs/git-workflow.md](docs/git-workflow.md)
+
 ## 项目结构
 
 ```

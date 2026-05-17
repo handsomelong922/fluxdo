@@ -21,6 +21,7 @@ class TopicDetailHeader extends ConsumerWidget {
   final GlobalKey? headerKey;
   final void Function(int, bool)? onVoteChanged;
   final void Function(TopicNotificationLevel)? onNotificationLevelChanged;
+  final bool autoExpandSummary;
   /// 跳转到当前话题的指定帖子
   final void Function(int postNumber)? onJumpToPost;
 
@@ -30,6 +31,7 @@ class TopicDetailHeader extends ConsumerWidget {
     this.headerKey,
     this.onVoteChanged,
     this.onNotificationLevelChanged,
+    this.autoExpandSummary = false,
     this.onJumpToPost,
   });
 
@@ -215,6 +217,7 @@ class TopicDetailHeader extends ConsumerWidget {
           CollapsibleTopicSummary(
             topicId: detail.id,
             topicDetail: detail,
+            initiallyExpanded: autoExpandSummary,
             onJumpToPost: onJumpToPost,
             headerExtra: TopicNotificationButton(
               level: detail.notificationLevel,

@@ -140,7 +140,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     false,
   );
   bool _isSwitchingMode = false; // 切换热门回复模式
-  bool _isNestedView = false; // 嵌套视图模式
+  late bool _isNestedView; // 嵌套视图模式
   // 搜索相关
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -168,6 +168,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _isParentActive = widget.parentActive;
+    // 默认进入树形视图，但保留“跳到指定楼层”入口的平铺定位能力。
+    _isNestedView =
+        widget.scrollToPostNumber == null || widget.scrollToPostNumber! <= 1;
 
     _expandController = AnimationController(
       vsync: this,

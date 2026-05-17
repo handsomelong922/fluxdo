@@ -529,6 +529,7 @@ class _TopicPostListState extends State<TopicPostList> {
                         headerKey: headerKey,
                         onVoteChanged: onVoteChanged,
                         onNotificationLevelChanged: onNotificationLevelChanged,
+                        autoExpandSummary: true,
                         onJumpToPost: onJumpToPost,
                       ),
                     ),
@@ -568,6 +569,7 @@ class _TopicPostListState extends State<TopicPostList> {
                             onVoteChanged: onVoteChanged,
                             onNotificationLevelChanged:
                                 onNotificationLevelChanged,
+                            autoExpandSummary: true,
                             onJumpToPost: onJumpToPost,
                           ),
                         ),

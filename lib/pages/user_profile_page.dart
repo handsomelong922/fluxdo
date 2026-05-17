@@ -35,6 +35,7 @@ import 'badge_page.dart';
 import '../widgets/common/dismissible_popup_menu.dart';
 import '../l10n/s.dart';
 import '../utils/dialog_utils.dart';
+import '../services/settings/content_filter_service.dart';
 
 /// 用户个人页
 class UserProfilePage extends ConsumerStatefulWidget {
@@ -58,6 +59,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
   // 关注状态
   bool _isFollowed = false;
   bool _isFollowLoading = false;
+  bool _isBlockActionLoading = false;
 
   // 订阅级别: normal / mute / ignore
   String _notificationLevel = 'normal';
@@ -178,6 +180,81 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
         setState(() => _isFollowLoading = false);
       }
     }
+  }
+
+  Future<void> _toggleBlockedUser() async {
+    final user = _user;
+    if (user == null || _isBlockActionLoading) return;
+
+    final notifier = ref.read(contentFilterProvider.notifier);
+    final isBlocked = ref.read(contentFilterProvider).blockedUsers.any(
+      (name) => name.toLowerCase() == user.username.toLowerCase(),
+    );
+
+    setState(() => _isBlockActionLoading = true);
+    try {
+      final changed = isBlocked
+          ? await notifier.removeBlockedUser(user.username)
+          : await notifier.addBlockedUser(user.username);
+      if (!mounted) return;
+
+      if (!changed) {
+        ToastService.show(
+          _blockedUserNoopMessage(isBlocked),
+          type: ToastType.info,
+        );
+        return;
+      }
+
+      ToastService.showSuccess(
+        _blockedUserChangedMessage(user.username, isBlocked),
+      );
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
+    } finally {
+      if (mounted) {
+        setState(() => _isBlockActionLoading = false);
+      }
+    }
+  }
+
+  bool get _isEnglishLocale => Localizations.localeOf(context).languageCode == 'en';
+
+  bool get _isTraditionalChineseLocale {
+    final locale = Localizations.localeOf(context);
+    return locale.countryCode == 'HK' || locale.countryCode == 'TW';
+  }
+
+  String _blockedUserNoopMessage(bool wasBlocked) {
+    if (_isEnglishLocale) {
+      return wasBlocked
+          ? 'This user is not in your blocked list'
+          : 'This user is already in your blocked list';
+    }
+    if (_isTraditionalChineseLocale) {
+      return wasBlocked ? '該使用者目前不在封鎖清單中' : '該使用者已在封鎖清單中';
+    }
+    return wasBlocked ? '该用户当前不在屏蔽列表中' : '该用户已在屏蔽列表中';
+  }
+
+  String _blockedUserChangedMessage(String username, bool wasBlocked) {
+    if (_isEnglishLocale) {
+      return wasBlocked ? 'Unblocked @$username' : 'Blocked @$username';
+    }
+    if (_isTraditionalChineseLocale) {
+      return wasBlocked ? '已取消封鎖 @$username' : '已封鎖 @$username';
+    }
+    return wasBlocked ? '已取消拉黑 @$username' : '已拉黑 @$username';
+  }
+
+  String _blockedUserButtonLabel(bool isBlocked) {
+    if (_isEnglishLocale) {
+      return isBlocked ? 'Blocked' : 'Block';
+    }
+    if (_isTraditionalChineseLocale) {
+      return isBlocked ? '已封鎖' : '封鎖';
+    }
+    return isBlocked ? '已拉黑' : '拉黑';
   }
 
   /// 打开私信对话框
@@ -1098,10 +1175,10 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                             ),
                           ),
 
-                          // 3. 操作按钮 (关注)
+                          // 3. 操作按钮（关注 / 拉黑）
                           if (_user != null && !isOwnProfile) ...[
                             const SizedBox(width: 12),
-                            _buildFollowButton(isOwnProfile),
+                            _buildProfileActionButtons(isOwnProfile),
                           ],
                         ],
                       ),
@@ -1365,11 +1442,23 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
     );
   }
 
-  Widget _buildFollowButton(bool isOwnProfile) {
-    if (_user == null || _user!.canFollow != true || isOwnProfile) {
+  Widget _buildProfileActionButtons(bool isOwnProfile) {
+    if (_user == null || isOwnProfile) {
       return const SizedBox.shrink();
     }
 
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (_user!.canFollow == true) _buildFollowButton(),
+        if (_user!.canFollow == true) const SizedBox(height: 8),
+        _buildBlockedUserButton(),
+      ],
+    );
+  }
+
+  Widget _buildFollowButton() {
     return _isFollowLoading
         ? Container(
             width: 32,
@@ -1393,6 +1482,58 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
                 side: _isFollowed ? const BorderSide(color: Colors.white38) : BorderSide.none,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          );
+  }
+
+  Widget _buildBlockedUserButton() {
+    final user = _user;
+    if (user == null) {
+      return const SizedBox.shrink();
+    }
+
+    final isBlocked = ref.watch(
+      contentFilterProvider.select(
+        (state) => state.blockedUsers.any(
+          (name) => name.toLowerCase() == user.username.toLowerCase(),
+        ),
+      ),
+    );
+
+    return _isBlockActionLoading
+        ? Container(
+            width: 32,
+            height: 32,
+            padding: const EdgeInsets.all(8),
+            child: const CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          )
+        : TextButton.icon(
+            onPressed: _toggleBlockedUser,
+            icon: Icon(
+              isBlocked ? Icons.block : Icons.block_outlined,
+              size: 16,
+            ),
+            label: Text(_blockedUserButtonLabel(isBlocked)),
+            style: TextButton.styleFrom(
+              backgroundColor: isBlocked
+                  ? Colors.redAccent.withValues(alpha: 0.18)
+                  : Colors.white.withValues(alpha: 0.12),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(
+                  color: isBlocked
+                      ? Colors.redAccent.withValues(alpha: 0.55)
+                      : Colors.white30,
+                ),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
               minimumSize: const Size(0, 32),

@@ -270,8 +270,9 @@ class TopicSummaryWidget extends ConsumerWidget {
 /// 可折叠的话题摘要组件（懒加载：点击时才请求）
 class CollapsibleTopicSummary extends ConsumerStatefulWidget {
   final int topicId;
-  final TopicDetail? topicDetail;  // 新增：传入话题详情以检查 summarizable
+  final TopicDetail? topicDetail; // 新增：传入话题详情以检查 summarizable
   final Widget? headerExtra; // 新增：头部额外组件（如订阅按钮）
+  final bool initiallyExpanded;
   /// 跳转到当前话题的指定帖子
   final void Function(int postNumber)? onJumpToPost;
 
@@ -280,6 +281,7 @@ class CollapsibleTopicSummary extends ConsumerStatefulWidget {
     required this.topicId,
     this.topicDetail,
     this.headerExtra,
+    this.initiallyExpanded = false,
     this.onJumpToPost,
   });
 
@@ -291,7 +293,7 @@ class CollapsibleTopicSummary extends ConsumerStatefulWidget {
 class _CollapsibleTopicSummaryState
     extends ConsumerState<CollapsibleTopicSummary>
     with SingleTickerProviderStateMixin {
-  bool _isExpanded = false;
+  late bool _isExpanded;
   bool _hasRequested = false; // 是否已触发过请求
   late final AnimationController _controller;
   late final Animation<double> _animation;
@@ -302,6 +304,12 @@ class _CollapsibleTopicSummaryState
     _controller = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 300));
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+    _isExpanded = widget.initiallyExpanded;
+    _hasRequested =
+        widget.initiallyExpanded && (widget.topicDetail?.summarizable ?? true);
+    if (_isExpanded) {
+      _controller.value = 1;
+    }
   }
 
   @override
@@ -319,7 +327,7 @@ class _CollapsibleTopicSummaryState
     if (topicDetail != null && !topicDetail.summarizable) {
       // 即使不可摘要，如果有 headerExtra 也要显示 headerExtra
       if (widget.headerExtra != null) {
-         return widget.headerExtra!;
+        return widget.headerExtra!;
       }
       return const SizedBox.shrink();
     }
@@ -358,7 +366,9 @@ class _CollapsibleTopicSummaryState
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      hasCachedSummary ? S.current.topic_aiSummary : S.current.topic_generateAiSummary,
+                      hasCachedSummary || _hasRequested
+                          ? S.current.topic_aiSummary
+                          : S.current.topic_generateAiSummary,
                       style: theme.textTheme.labelMedium?.copyWith(
                         color: theme.colorScheme.primary,
                         fontWeight: FontWeight.w500,

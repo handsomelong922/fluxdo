@@ -120,6 +120,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                 headerKey: widget.headerKey,
                 onVoteChanged: widget.onVoteChanged,
                 onNotificationLevelChanged: widget.onNotificationLevelChanged,
+                autoExpandSummary: true,
                 onJumpToPost: widget.onJumpToPost,
               ),
             ),
