@@ -6090,6 +6090,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get webviewLogin_savedPassword => 'Saved password';
 
   @override
+  String get webviewLogin_thirdPartyLoginDialog =>
+      'To reuse your existing third-party account session, this step will open in the system browser. After you finish there, the app may still need you to continue manually because browser cookies cannot always be handed back to the in-app session.';
+
+  @override
+  String get webviewLogin_thirdPartyLoginHint =>
+      'Third-party sign-in opens in the system browser so you can reuse an existing session. After that, the app may still need manual continuation because browser cookies cannot always be handed back. Forum password login and email login links stay in the app.';
+
+  @override
   String get webviewLogin_title => 'Log in to Linux.do';
 
   @override

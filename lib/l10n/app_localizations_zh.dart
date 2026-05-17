@@ -5946,6 +5946,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get webviewLogin_savedPassword => '已保存的密码';
 
   @override
+  String get webviewLogin_thirdPartyLoginDialog =>
+      '为了复用你现有的第三方账号登录状态，这一步会改在系统浏览器中完成。浏览器内完成登录后，App 不一定能自动接回当前会话，之后可能仍需按页面提示手动继续。';
+
+  @override
+  String get webviewLogin_thirdPartyLoginHint =>
+      '第三方登录会改用系统浏览器，以便复用已有账号状态；浏览器内完成后，App 不一定能自动接回当前会话。站内账号密码登录与邮件登录链接仍会留在 App 内。';
+
+  @override
   String get webviewLogin_title => '登录 Linux.do';
 
   @override
@@ -11750,6 +11758,14 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get webviewLogin_savedPassword => '已保存的密碼';
 
   @override
+  String get webviewLogin_thirdPartyLoginDialog =>
+      '為了復用你現有的第三方賬號登錄狀態，這一步會改在系統瀏覽器中完成。瀏覽器內完成登錄後，App 不一定能自動接回當前會話，之後可能仍需按頁面提示手動繼續。';
+
+  @override
+  String get webviewLogin_thirdPartyLoginHint =>
+      '第三方登錄會改用系統瀏覽器，以便復用已有賬號狀態；瀏覽器內完成後，App 不一定能自動接回當前會話。站內賬號密碼登錄與郵件登錄鏈接仍會留在 App 內。';
+
+  @override
   String get webviewLogin_title => '登錄 Linux.do';
 
   @override
@@ -17516,6 +17532,14 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get webviewLogin_savedPassword => '已儲存的密碼';
+
+  @override
+  String get webviewLogin_thirdPartyLoginDialog =>
+      '為了復用你現有的第三方帳號登入狀態，這一步會改在系統瀏覽器中完成。瀏覽器內完成登入後，App 不一定能自動接回目前會話，之後可能仍需依頁面提示手動繼續。';
+
+  @override
+  String get webviewLogin_thirdPartyLoginHint =>
+      '第三方登入會改用系統瀏覽器，以便復用已有帳號狀態；瀏覽器內完成後，App 不一定能自動接回目前會話。站內帳號密碼登入與郵件登入連結仍會留在 App 內。';
 
   @override
   String get webviewLogin_title => '登入 Linux.do';

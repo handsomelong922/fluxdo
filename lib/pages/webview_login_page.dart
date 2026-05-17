@@ -26,6 +26,8 @@ import '../services/log/log_writer.dart';
 import '../widgets/common/dismissible_popup_menu.dart';
 import '../l10n/s.dart';
 import '../utils/dialog_utils.dart';
+import '../utils/link_launcher.dart';
+import 'webview_login_navigation_decider.dart';
 
 /// WebView 登录页面（统一使用 flutter_inappwebview）
 class WebViewLoginPage extends ConsumerStatefulWidget {
@@ -40,10 +42,13 @@ class WebViewLoginPage extends ConsumerStatefulWidget {
 }
 
 class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
+  static const _allowedSchemes = {'http', 'https', 'about', 'data', 'blob'};
+
   final _service = DiscourseService();
   final _cookieJar = CookieJarService();
   final _credentialStore = CredentialStoreService();
   final Uri _baseUri = Uri.parse(AppConstants.baseUrl);
+  late final WebViewLoginNavigationDecider _navigationDecider;
   InAppWebViewController? _controller;
   bool _isLoading = true;
   bool _loginHandled = false;
@@ -62,6 +67,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   @override
   void initState() {
     super.initState();
+    _navigationDecider = WebViewLoginNavigationDecider(baseUri: _baseUri);
     _initialCookieFlushFuture = () async {
       await WebViewHttpAdapter().runStartupSessionCookieSelfCheckOnce(
         reason: 'login_page',
@@ -164,6 +170,32 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
               ],
             ),
           ),
+          if (!_isInitialEmailLoginFlow)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.open_in_browser_outlined,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onSecondaryContainer,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _thirdPartyLoginHintText(context),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSecondaryContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: Stack(
               children: [
@@ -177,8 +209,10 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                         widget.initialUrl ?? '${AppConstants.baseUrl}/login',
                       ),
                     ),
-                    initialSettings: WebViewSettings.visible,
+                    initialSettings: WebViewSettings.visible
+                      ..useShouldOverrideUrlLoading = true,
                     initialUserScripts: WebViewSettings.ios15PolyfillScripts,
+                    shouldOverrideUrlLoading: _shouldOverrideUrlLoading,
                     onReceivedServerTrustAuthRequest: (_, challenge) =>
                         WebViewSettings.handleServerTrustAuthRequest(challenge),
                     onWebViewCreated: (controller) {
@@ -328,6 +362,45 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       await _credentialStore.clear();
       if (mounted) setState(() => _savedUsername = null);
     }
+  }
+
+  Future<NavigationActionPolicy> _shouldOverrideUrlLoading(
+    InAppWebViewController _,
+    NavigationAction navigationAction,
+  ) async {
+    final uri = navigationAction.request.url;
+    if (uri == null) {
+      return NavigationActionPolicy.ALLOW;
+    }
+
+    final scheme = uri.scheme.toLowerCase();
+    if (_allowedSchemes.contains(scheme)) {
+      if (navigationAction.isForMainFrame == false ||
+          !_navigationDecider.shouldOpenThirdPartyLoginInBrowser(uri)) {
+        return NavigationActionPolicy.ALLOW;
+      }
+
+      if (!mounted) {
+        return NavigationActionPolicy.CANCEL;
+      }
+
+      final confirmed = await _confirmOpenThirdPartyLoginInBrowser(uri);
+      if (!confirmed) {
+        return NavigationActionPolicy.CANCEL;
+      }
+
+      final success = await launchInExternalBrowser(uri.toString());
+      if (!success) {
+        ToastService.showError(S.current.webview_cannotOpenBrowser);
+      }
+      return NavigationActionPolicy.CANCEL;
+    }
+
+    if (scheme == 'javascript') {
+      return NavigationActionPolicy.CANCEL;
+    }
+
+    return NavigationActionPolicy.ALLOW;
   }
 
   /// 从剪贴板粘贴邮箱登录链接
@@ -729,6 +802,48 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     return currentPath == homePath;
   }
 
+  Future<bool> _confirmOpenThirdPartyLoginInBrowser(Uri uri) async {
+    final result = await showAppDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(dialogContext.l10n.webview_browser),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_thirdPartyLoginDialogText(dialogContext)),
+            if (!_navigationDecider.isSameSiteUri(uri)) ...[
+              const SizedBox(height: 12),
+              Text(
+                uri.host,
+                style: Theme.of(dialogContext).textTheme.bodySmall,
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(dialogContext.l10n.common_cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(dialogContext.l10n.common_continue),
+          ),
+        ],
+      ),
+    );
+    return result == true;
+  }
+
+  String _thirdPartyLoginHintText(BuildContext context) {
+    return context.l10n.webviewLogin_thirdPartyLoginHint;
+  }
+
+  String _thirdPartyLoginDialogText(BuildContext context) {
+    return context.l10n.webviewLogin_thirdPartyLoginDialog;
+  }
+
   String _normalizePath(String path) {
     if (path.isEmpty || path == '/') {
       return '/';
@@ -736,5 +851,14 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     return path.endsWith('/') && path.length > 1
         ? path.substring(0, path.length - 1)
         : path;
+  }
+
+  bool get _isInitialEmailLoginFlow {
+    final initialUrl = widget.initialUrl;
+    if (initialUrl == null || initialUrl.isEmpty) {
+      return false;
+    }
+    final uri = Uri.tryParse(initialUrl);
+    return uri != null && _navigationDecider.isEmailLoginUri(uri);
   }
 }

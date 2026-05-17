@@ -61,6 +61,8 @@
   },
   "webviewLogin_loginSuccess": "登录成功！",
   "webviewLogin_savedPassword": "已保存的密码",
+  "webviewLogin_thirdPartyLoginDialog": "为了复用你现有的第三方账号登录状态，这一步会改在系统浏览器中完成。浏览器内完成登录后，App 不一定能自动接回当前会话，之后可能仍需按页面提示手动继续。",
+  "webviewLogin_thirdPartyLoginHint": "第三方登录会改用系统浏览器，以便复用已有账号状态；浏览器内完成后，App 不一定能自动接回当前会话。站内账号密码登录与邮件登录链接仍会留在 App 内。",
   "webviewLogin_title": "登录 Linux.do",
   "webview_addBookmark": "收藏此页",
   "webview_bookmarkAdded": "已收藏",

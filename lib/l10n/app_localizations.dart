@@ -11099,6 +11099,18 @@ abstract class AppLocalizations {
   /// **'已保存的密码'**
   String get webviewLogin_savedPassword;
 
+  /// No description provided for @webviewLogin_thirdPartyLoginDialog.
+  ///
+  /// In zh, this message translates to:
+  /// **'为了复用你现有的第三方账号登录状态，这一步会改在系统浏览器中完成。浏览器内完成登录后，App 不一定能自动接回当前会话，之后可能仍需按页面提示手动继续。'**
+  String get webviewLogin_thirdPartyLoginDialog;
+
+  /// No description provided for @webviewLogin_thirdPartyLoginHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'第三方登录会改用系统浏览器，以便复用已有账号状态；浏览器内完成后，App 不一定能自动接回当前会话。站内账号密码登录与邮件登录链接仍会留在 App 内。'**
+  String get webviewLogin_thirdPartyLoginHint;
+
   /// No description provided for @webviewLogin_title.
   ///
   /// In zh, this message translates to:
