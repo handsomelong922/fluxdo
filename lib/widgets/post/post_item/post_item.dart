@@ -7,6 +7,7 @@ import '../../../l10n/s.dart';
 import '../../../providers/preferences_provider.dart';
 import '../../../utils/code_selection_context.dart';
 import '../../content/discourse_html_content/chunked/chunked_html_content.dart';
+import '../post_signature.dart';
 import '../small_action_item.dart';
 import 'quote_selection_helper.dart';
 import 'widgets/post_footer_section/post_footer_section.dart';
@@ -135,19 +136,25 @@ class _PostItemState extends ConsumerState<PostItem> {
             Container(
               decoration: isModeratorAction
                   ? BoxDecoration(
-                      color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.2),
+                      color: theme.colorScheme.tertiaryContainer.withValues(
+                        alpha: 0.2,
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     )
                   : null,
-              padding: isModeratorAction ? const EdgeInsets.all(12) : EdgeInsets.zero,
+              padding: isModeratorAction
+                  ? const EdgeInsets.all(12)
+                  : EdgeInsets.zero,
               child: Listener(
                 behavior: HitTestBehavior.translucent,
-                onPointerDown: (_) => CodeSelectionContextTracker.instance.clear(),
+                onPointerDown: (_) =>
+                    CodeSelectionContextTracker.instance.clear(),
                 child: ChunkedHtmlContent(
                   html: post.cooked,
                   textStyle: theme.textTheme.bodyMedium?.copyWith(
                     height: 1.5,
-                    fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) *
+                    fontSize:
+                        (theme.textTheme.bodyMedium?.fontSize ?? 14) *
                         ref.watch(preferencesProvider).contentFontScale,
                   ),
                   linkCounts: post.linkCounts,
@@ -194,8 +201,11 @@ class _PostItemState extends ConsumerState<PostItem> {
                 ),
               ),
             ),
+            PostSignature(post: post),
             // 举报隐藏帖子：显示展开按钮
-            if (post.cookedHidden && post.canSeeHiddenPost && widget.onExpandHiddenPost != null)
+            if (post.cookedHidden &&
+                post.canSeeHiddenPost &&
+                widget.onExpandHiddenPost != null)
               SelectionContainer.disabled(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -203,7 +213,10 @@ class _PostItemState extends ConsumerState<PostItem> {
                     onTap: () => widget.onExpandHiddenPost!(post.id),
                     borderRadius: BorderRadius.circular(6),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 4,
+                        horizontal: 8,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [

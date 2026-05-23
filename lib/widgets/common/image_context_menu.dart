@@ -28,6 +28,7 @@ class ImageContextMenu {
   /// [topicId] 话题 ID（用于引用功能）
   /// [onQuoteImage] 引用回调（打开回复框），为 null 时隐藏「引用」选项
   /// [position] 鼠标全局位置（桌面端右键时传入，用于定位 Popup Menu）
+  /// [onClose] 关闭回调（图片查看页内传入，显示「关闭」选项）
   static void show({
     required BuildContext context,
     required String imageUrl,
@@ -36,6 +37,7 @@ class ImageContextMenu {
     int? topicId,
     void Function(String quote, Post post)? onQuoteImage,
     Offset? position,
+    VoidCallback? onClose,
   }) {
     final originalUrl = DiscourseImageUtils.getOriginalUrl(imageUrl);
 
@@ -49,6 +51,7 @@ class ImageContextMenu {
         topicId: topicId,
         onQuoteImage: onQuoteImage,
         position: position,
+        onClose: onClose,
       );
     } else {
       _showMobileMenu(
@@ -59,6 +62,7 @@ class ImageContextMenu {
         post: post,
         topicId: topicId,
         onQuoteImage: onQuoteImage,
+        onClose: onClose,
       );
     }
   }
@@ -73,9 +77,9 @@ class ImageContextMenu {
     int? topicId,
     void Function(String quote, Post post)? onQuoteImage,
     required Offset position,
+    VoidCallback? onClose,
   }) {
-    final overlayRenderObject =
-        Overlay.of(context).context.findRenderObject();
+    final overlayRenderObject = Overlay.of(context).context.findRenderObject();
     if (overlayRenderObject is! RenderBox || !overlayRenderObject.hasSize) {
       // Overlay 未就绪，回退到移动端菜单
       _showMobileMenu(
@@ -86,6 +90,7 @@ class ImageContextMenu {
         post: post,
         topicId: topicId,
         onQuoteImage: onQuoteImage,
+        onClose: onClose,
       );
       return;
     }
@@ -105,17 +110,11 @@ class ImageContextMenu {
         ),
       PopupMenuItem(
         value: 'copyImage',
-        child: _MenuItemRow(
-          icon: Icons.copy,
-          label: S.current.image_copyImage,
-        ),
+        child: _MenuItemRow(icon: Icons.copy, label: S.current.image_copyImage),
       ),
       PopupMenuItem(
         value: 'copyLink',
-        child: _MenuItemRow(
-          icon: Icons.link,
-          label: S.current.image_copyLink,
-        ),
+        child: _MenuItemRow(icon: Icons.link, label: S.current.image_copyLink),
       ),
       PopupMenuItem(
         value: 'share',
@@ -140,6 +139,13 @@ class ImageContextMenu {
             label: S.current.common_copyQuote,
           ),
         ),
+      if (onClose != null) ...[
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'close',
+          child: _MenuItemRow(icon: Icons.close, label: S.current.common_close),
+        ),
+      ],
     ];
 
     showMenu<String>(
@@ -147,7 +153,7 @@ class ImageContextMenu {
       position: relativeRect,
       items: items,
     ).then((value) {
-      if (value == null) return;
+      if (value == null || !context.mounted) return;
       _handleMenuAction(
         context: context,
         action: value,
@@ -156,6 +162,7 @@ class ImageContextMenu {
         post: post,
         topicId: topicId,
         onQuoteImage: onQuoteImage,
+        onClose: onClose,
       );
     });
   }
@@ -169,6 +176,7 @@ class ImageContextMenu {
     Post? post,
     int? topicId,
     void Function(String quote, Post post)? onQuoteImage,
+    VoidCallback? onClose,
   }) {
     showAppBottomSheet(
       context: context,
@@ -246,6 +254,15 @@ class ImageContextMenu {
                     ToastService.showSuccess(S.current.common_quoteCopied);
                   },
                 ),
+              if (onClose != null)
+                ListTile(
+                  leading: const Icon(Icons.close),
+                  title: Text(S.current.common_close),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    onClose();
+                  },
+                ),
             ],
           ),
         );
@@ -262,6 +279,7 @@ class ImageContextMenu {
     Post? post,
     int? topicId,
     void Function(String quote, Post post)? onQuoteImage,
+    VoidCallback? onClose,
   }) {
     switch (action) {
       case 'viewFull':
@@ -294,6 +312,8 @@ class ImageContextMenu {
           Clipboard.setData(ClipboardData(text: quote));
           ToastService.showSuccess(S.current.common_quoteCopied);
         }
+      case 'close':
+        onClose?.call();
     }
   }
 
@@ -356,11 +376,7 @@ class _MenuItemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: [
-        Icon(icon, size: 20),
-        const SizedBox(width: 12),
-        Text(label),
-      ],
+      children: [Icon(icon, size: 20), const SizedBox(width: 12), Text(label)],
     );
   }
 }

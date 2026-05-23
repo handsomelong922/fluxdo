@@ -6,6 +6,7 @@ import '../../../providers/preferences_provider.dart';
 import '../../content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../../content/discourse_html_content/chunked/html_chunk.dart';
 import '../../content/discourse_html_content/image_utils.dart';
+import '../post_signature.dart';
 import '../small_action_item.dart';
 import 'widgets/post_footer_section/post_footer_section.dart';
 import 'widgets/post_header_section.dart';
@@ -110,7 +111,8 @@ class LongPostChunkSegment extends ConsumerWidget {
     final isModeratorAction = post.postType == PostTypes.moderatorAction;
     final contentTextStyle = theme.textTheme.bodyMedium?.copyWith(
       height: 1.5,
-      fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) *
+      fontSize:
+          (theme.textTheme.bodyMedium?.fontSize ?? 14) *
           ref.watch(preferencesProvider).contentFontScale,
     );
 
@@ -123,11 +125,15 @@ class LongPostChunkSegment extends ConsumerWidget {
         child: Container(
           decoration: isModeratorAction
               ? BoxDecoration(
-                  color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.2),
+                  color: theme.colorScheme.tertiaryContainer.withValues(
+                    alpha: 0.2,
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 )
               : null,
-          padding: isModeratorAction ? const EdgeInsets.all(12) : EdgeInsets.zero,
+          padding: isModeratorAction
+              ? const EdgeInsets.all(12)
+              : EdgeInsets.zero,
           child: HtmlChunkWidget(
             chunk: chunk,
             textStyle: contentTextStyle,
@@ -202,23 +208,32 @@ class LongPostFooterSegment extends StatelessWidget {
       highlight: highlight,
       showBottomDateSeparator: bottomDateSeparatorLabel != null,
       bottomDateSeparatorLabel: bottomDateSeparatorLabel,
-      child: SelectionContainer.disabled(
-        child: PostFooterSection(
-          post: post,
-          topicId: topicId,
-          topicHasAcceptedAnswer: topicHasAcceptedAnswer,
-          acceptedAnswerPostNumber: acceptedAnswerPostNumber,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          highlightBoostUsername: highlightBoostUsername,
-          onReply: onReply,
-          onEdit: onEdit,
-          onShareAsImage: onShareAsImage,
-          onRefreshPost: onRefreshPost,
-          onJumpToPost: onJumpToPost,
-          onSolutionChanged: onSolutionChanged,
-          useReplyDialog: useReplyDialog,
-          onShowPostDetail: onShowPostDetail,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PostSignature(
+            post: post,
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          ),
+          SelectionContainer.disabled(
+            child: PostFooterSection(
+              post: post,
+              topicId: topicId,
+              topicHasAcceptedAnswer: topicHasAcceptedAnswer,
+              acceptedAnswerPostNumber: acceptedAnswerPostNumber,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              highlightBoostUsername: highlightBoostUsername,
+              onReply: onReply,
+              onEdit: onEdit,
+              onShareAsImage: onShareAsImage,
+              onRefreshPost: onRefreshPost,
+              onJumpToPost: onJumpToPost,
+              onSolutionChanged: onSolutionChanged,
+              useReplyDialog: useReplyDialog,
+              onShowPostDetail: onShowPostDetail,
+            ),
+          ),
+        ],
       ),
     );
   }

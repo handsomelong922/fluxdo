@@ -335,6 +335,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Show related links expanded in posts';
 
   @override
+  String get reading_showSignatures => 'Show user signatures';
+
+  @override
+  String get reading_showSignaturesDesc =>
+      'Show custom user signatures below posts';
+
+  @override
   String get reading_title => 'Reading Settings';
 
   @override
@@ -3513,6 +3520,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nested_loadMoreReplies => 'Load more replies';
+
+  @override
+  String nested_newReplies(int count) {
+    return '$count new replies';
+  }
 
   @override
   String nested_repliesCount(int count) {

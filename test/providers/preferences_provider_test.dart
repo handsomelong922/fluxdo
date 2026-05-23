@@ -12,6 +12,7 @@ void main() {
       expect(notifier.state.autoSummarizeTopicOnEnter, isFalse);
       expect(notifier.state.autoSummarizeMinReplies, 20);
       expect(notifier.state.defaultNestedTopicView, isTrue);
+      expect(notifier.state.showSignatures, isTrue);
     });
 
     test('persists switch and clamps minimum replies', () async {
@@ -42,6 +43,22 @@ void main() {
 
       expect(notifier.state.defaultNestedTopicView, isTrue);
       expect(prefs.getBool('pref_default_nested_topic_view'), isTrue);
+    });
+
+    test('persists user signature display preference', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final notifier = PreferencesNotifier(prefs);
+
+      await notifier.setShowSignatures(false);
+
+      expect(notifier.state.showSignatures, isFalse);
+      expect(prefs.getBool('pref_show_signatures'), isFalse);
+
+      await notifier.setShowSignatures(true);
+
+      expect(notifier.state.showSignatures, isTrue);
+      expect(prefs.getBool('pref_show_signatures'), isTrue);
     });
   });
 }

@@ -49,6 +49,9 @@ class AppPreferences {
   /// 相关链接默认展开
   final bool expandRelatedLinks;
 
+  /// 显示用户签名
+  final bool showSignatures;
+
   /// AI 助手左滑入口（PageView 模式）
   final bool aiSwipeEntry;
 
@@ -98,6 +101,7 @@ class AppPreferences {
     required this.clearCacheOnExit,
     required this.cfClearanceRefresh,
     required this.expandRelatedLinks,
+    required this.showSignatures,
     required this.aiSwipeEntry,
     required this.defaultNestedTopicView,
     required this.autoSummarizeTopicOnEnter,
@@ -127,6 +131,7 @@ class AppPreferences {
     bool? clearCacheOnExit,
     bool? cfClearanceRefresh,
     bool? expandRelatedLinks,
+    bool? showSignatures,
     bool? aiSwipeEntry,
     bool? defaultNestedTopicView,
     bool? autoSummarizeTopicOnEnter,
@@ -156,6 +161,7 @@ class AppPreferences {
       clearCacheOnExit: clearCacheOnExit ?? this.clearCacheOnExit,
       cfClearanceRefresh: cfClearanceRefresh ?? this.cfClearanceRefresh,
       expandRelatedLinks: expandRelatedLinks ?? this.expandRelatedLinks,
+      showSignatures: showSignatures ?? this.showSignatures,
       aiSwipeEntry: aiSwipeEntry ?? this.aiSwipeEntry,
       defaultNestedTopicView:
           defaultNestedTopicView ?? this.defaultNestedTopicView,
@@ -194,6 +200,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _cfClearanceRefreshKey =
       CfClearanceRefreshService.prefKeyEnabled;
   static const String _expandRelatedLinksKey = 'pref_expand_related_links';
+  static const String _showSignaturesKey = 'pref_show_signatures';
   static const String _aiSwipeEntryKey = 'pref_ai_swipe_entry';
   static const String _defaultNestedTopicViewKey =
       'pref_default_nested_topic_view';
@@ -234,6 +241,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           clearCacheOnExit: _prefs.getBool(_clearCacheOnExitKey) ?? false,
           cfClearanceRefresh: _prefs.getBool(_cfClearanceRefreshKey) ?? false,
           expandRelatedLinks: _prefs.getBool(_expandRelatedLinksKey) ?? false,
+          showSignatures: _prefs.getBool(_showSignaturesKey) ?? true,
           aiSwipeEntry: _prefs.getBool(_aiSwipeEntryKey) ?? false,
           defaultNestedTopicView:
               _prefs.getBool(_defaultNestedTopicViewKey) ?? true,
@@ -353,6 +361,11 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setExpandRelatedLinks(bool enabled) async {
     state = state.copyWith(expandRelatedLinks: enabled);
     await _prefs.setBool(_expandRelatedLinksKey, enabled);
+  }
+
+  Future<void> setShowSignatures(bool enabled) async {
+    state = state.copyWith(showSignatures: enabled);
+    await _prefs.setBool(_showSignaturesKey, enabled);
   }
 
   Future<void> setAiSwipeEntry(bool enabled) async {

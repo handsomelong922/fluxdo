@@ -293,6 +293,22 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
               ),
             ),
 
+            if (ns.newRootPostIds.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => ref
+                        .read(nestedTopicProvider(p).notifier)
+                        .loadNewRoots(),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                    label: Text(
+                      context.l10n.nested_newReplies(ns.newRootPostIds.length),
+                    ),
+                  ),
+                ),
+              ),
+
             SliverList.builder(
               itemCount:
                   ns.roots.length +
@@ -302,6 +318,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                   return _buildLoadMore(context);
                 }
                 return NestedPostCard(
+                  key: ValueKey('nested-root-${ns.roots[index].post.id}'),
                   node: ns.roots[index],
                   topicId: widget.topicId,
                   detail: widget.detail,

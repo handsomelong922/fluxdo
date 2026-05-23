@@ -1,5 +1,29 @@
 {
   "@@locale": "zh_HK",
+  "nested_flatView": "切換平鋪視圖",
+  "nested_loadMore": "加載更多",
+  "nested_loadMoreReplies": "加載更多回覆",
+  "nested_newReplies": "{count} 條新回覆",
+  "@nested_newReplies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "nested_repliesCount": "{count} 條回覆",
+  "@nested_repliesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "nested_sortNew": "最新",
+  "nested_sortOld": "最舊",
+  "nested_sortTop": "熱門",
+  "nested_title": "樹形視圖",
+  "nested_continueThread": "繼續此主題",
   "poll_closed": "已關閉",
   "poll_count": "計數",
   "poll_percentage": "百分比",

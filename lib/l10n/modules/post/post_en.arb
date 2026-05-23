@@ -21,6 +21,14 @@
   "nested_flatView": "Switch to flat view",
   "nested_loadMore": "Load more",
   "nested_loadMoreReplies": "Load more replies",
+  "nested_newReplies": "{count} new replies",
+  "@nested_newReplies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nested_repliesCount": "{count} replies",
   "@nested_repliesCount": {
     "placeholders": {
