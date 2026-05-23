@@ -153,7 +153,7 @@ Future<void> setAiTitleModel(
 
 /// 话题 AI 上下文范围（独立管理，避免切换时影响消息列表滚动）
 final topicAiContextScopeProvider = StateProvider.autoDispose
-    .family<ContextScope, int>((ref, topicId) => ContextScope.first5);
+    .family<ContextScope, int>((ref, topicId) => ContextScope.all);
 
 /// 话题 AI 聊天状态
 class TopicAiChatState {

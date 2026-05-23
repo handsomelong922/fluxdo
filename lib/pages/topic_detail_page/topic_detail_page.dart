@@ -639,6 +639,40 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     );
   }
 
+  Widget _buildCollapsibleAppBarOverlay({
+    required ThemeData theme,
+    required TopicDetail? detail,
+    required TopicDetailNotifier notifier,
+    required bool visible,
+  }) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: IgnorePointer(
+        ignoring: !visible,
+        child: AnimatedSlide(
+          offset: visible ? Offset.zero : const Offset(0, -1),
+          duration: topicDetailBarAnimationDuration,
+          curve: topicDetailBarAnimationCurve,
+          child: AnimatedOpacity(
+            opacity: visible ? 1 : 0,
+            duration: topicDetailBarAnimationDuration,
+            curve: topicDetailBarAnimationCurve,
+            child: SizedBox(
+              height: kToolbarHeight + MediaQuery.of(context).padding.top,
+              child: _buildAppBar(
+                theme: theme,
+                detail: detail,
+                notifier: notifier,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 构建 AppBar Actions
   List<Widget> _buildAppBarActions({
     required TopicDetail? detail,
@@ -997,22 +1031,44 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final hideBarOnScroll = ref.watch(
       preferencesProvider.select((p) => p.hideBarOnScroll),
     );
-    final topicBody = _buildBody(
-      context,
-      detailAsync,
-      detail,
-      notifier,
-      isLoggedIn,
-    );
     final topicScaffold = ValueListenableBuilder<bool>(
       valueListenable: _controller.showBottomBarNotifier,
       builder: (context, showBars, _) {
         final shouldShowAppBar = isSearchMode || !hideBarOnScroll || showBars;
+        final appBarHeight =
+            kToolbarHeight + MediaQuery.of(context).padding.top;
+        final topicBody = _buildBody(
+          context,
+          detailAsync,
+          detail,
+          notifier,
+          isLoggedIn,
+          contentTopInset: isSearchMode || !shouldShowAppBar ? 0 : appBarHeight,
+        );
+        if (isSearchMode) {
+          return Scaffold(
+            appBar: _buildAppBar(
+              theme: theme,
+              detail: detail,
+              notifier: notifier,
+            ),
+            body: topicBody,
+          );
+        }
+
         return Scaffold(
-          appBar: shouldShowAppBar
-              ? _buildAppBar(theme: theme, detail: detail, notifier: notifier)
-              : null,
-          body: topicBody,
+          extendBodyBehindAppBar: true,
+          body: Stack(
+            children: [
+              topicBody,
+              _buildCollapsibleAppBarOverlay(
+                theme: theme,
+                detail: detail,
+                notifier: notifier,
+                visible: shouldShowAppBar,
+              ),
+            ],
+          ),
         );
       },
     );
@@ -1136,8 +1192,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     AsyncValue<TopicDetail> detailAsync,
     TopicDetail? detail,
     TopicDetailNotifier notifier,
-    bool isLoggedIn,
-  ) {
+    bool isLoggedIn, {
+    double contentTopInset = 0,
+  }) {
     final params = _params;
     final searchState = ref.watch(topicSearchProvider(widget.topicId));
     final isSearchMode = searchState.isSearchMode;
@@ -1196,7 +1253,15 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     return Stack(
       children: [
         // 使用 Offstage 保持帖子列表存在但在搜索模式下隐藏，保留滚动位置
-        Offstage(offstage: isSearchMode, child: content),
+        Offstage(
+          offstage: isSearchMode,
+          child: AnimatedPadding(
+            duration: topicDetailBarAnimationDuration,
+            curve: topicDetailBarAnimationCurve,
+            padding: EdgeInsets.only(top: contentTopInset),
+            child: content,
+          ),
+        ),
 
         // 搜索视图
         if (isSearchMode)
@@ -1425,6 +1490,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             }
           },
           onContinueAiSummary: _continueAiSummary,
+          onFirstVisiblePostChanged: _updateStreamIndexForPostNumber,
           onVisiblePostsChanged: _updateVisiblePosts,
         ),
       );

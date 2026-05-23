@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import '../../../l10n/s.dart';
-import '../../../models/nested_topic.dart';
 import '../../../models/topic.dart';
 import '../../../providers/nested_topic_provider.dart';
 import '../../../utils/responsive.dart';
@@ -35,6 +34,7 @@ class NestedPostList extends ConsumerStatefulWidget {
 
   /// 可见帖子上报（走 ScreenTrack 上报链路）
   final void Function(Set<int> visiblePostNumbers)? onVisiblePostsChanged;
+  final ValueChanged<int>? onFirstVisiblePostChanged;
 
   const NestedPostList({
     super.key,
@@ -57,6 +57,7 @@ class NestedPostList extends ConsumerStatefulWidget {
     this.onPostNumberScrollIndexMappingChanged,
     this.onContinueAiSummary,
     this.onVisiblePostsChanged,
+    this.onFirstVisiblePostChanged,
   });
 
   @override
@@ -66,16 +67,21 @@ class NestedPostList extends ConsumerStatefulWidget {
 class _NestedPostListState extends ConsumerState<NestedPostList> {
   final Map<int, bool> _expansionState = {};
   final Map<int, int> _postNumberToScrollIndex = {};
+  final Map<int, int> _scrollIndexToPostNumber = {};
   final NestedLoadMoreTrigger _loadMoreTrigger = NestedLoadMoreTrigger();
   int _nextScrollIndex = 0;
-
-  /// 当前正在渲染的根帖子号集合（SliverList.builder 渲染时收集）
-  final Set<int> _builtPostNumbers = {};
+  bool _isVisibilityUpdateThrottled = false;
+  int? _lastReportedPostNumber;
 
   @override
   void initState() {
     super.initState();
     widget.scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _updateVisiblePostsFromViewport();
+      }
+    });
   }
 
   @override
@@ -85,10 +91,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
   }
 
   void _onScroll() {
-    // 上报当前可见帖子
-    if (_builtPostNumbers.isNotEmpty) {
-      widget.onVisiblePostsChanged?.call(Set.from(_builtPostNumbers));
-    }
+    _scheduleVisiblePostsUpdate();
 
     if (!widget.scrollController.hasClients) return;
     final position = widget.scrollController.position;
@@ -108,21 +111,75 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
   int _nextIndexForPost(int postNumber) {
     final index = _nextScrollIndex++;
     _postNumberToScrollIndex[postNumber] = index;
+    _scrollIndexToPostNumber[index] = postNumber;
     widget.onPostNumberScrollIndexMappingChanged?.call(
       Map<int, int>.from(_postNumberToScrollIndex),
     );
     return index;
   }
 
-  /// 递归收集节点及其展开子节点中的所有 postNumber
-  void _collectVisiblePostNumbers(NestedNode node) {
-    _builtPostNumbers.add(node.post.postNumber);
-    final expanded =
-        _expansionState[node.post.postNumber] ?? node.children.isNotEmpty;
-    if (expanded) {
-      for (final child in node.children) {
-        _collectVisiblePostNumbers(child);
+  void _scheduleVisiblePostsUpdate() {
+    if (_isVisibilityUpdateThrottled) return;
+    _isVisibilityUpdateThrottled = true;
+    Future.delayed(const Duration(milliseconds: 16), () {
+      if (!mounted) return;
+      _isVisibilityUpdateThrottled = false;
+      _updateVisiblePostsFromViewport();
+    });
+  }
+
+  void _updateVisiblePostsFromViewport() {
+    if (!widget.scrollController.hasClients) return;
+    final tagMap = widget.scrollController.tagMap;
+    if (tagMap.isEmpty) return;
+
+    final position = widget.scrollController.position;
+    final viewportHeight = position.viewportDimension;
+    final topBoundary = kToolbarHeight + MediaQuery.of(context).padding.top;
+    final eyeline = topBoundary;
+    final visiblePostNumbers = <int>{};
+    int? eyelinePostNumber;
+    int? closestPostNumber;
+    double closestDistance = double.infinity;
+
+    for (final entry in tagMap.entries) {
+      final postNumber = _scrollIndexToPostNumber[entry.key];
+      if (postNumber == null) continue;
+
+      final ctx = entry.value.context;
+      if (!ctx.mounted) continue;
+      final renderBox = ctx.findRenderObject() as RenderBox?;
+      if (renderBox == null || !renderBox.hasSize) continue;
+
+      final topY = renderBox.localToGlobal(Offset.zero).dy;
+      final bottomY = topY + renderBox.size.height;
+
+      if (topY < viewportHeight && bottomY > topBoundary) {
+        visiblePostNumbers.add(postNumber);
       }
+
+      if (topY <= eyeline && bottomY > eyeline) {
+        eyelinePostNumber = postNumber;
+      }
+
+      final distance = topY > eyeline
+          ? topY - eyeline
+          : (bottomY < eyeline ? eyeline - bottomY : 0.0);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestPostNumber = postNumber;
+      }
+    }
+
+    if (visiblePostNumbers.isNotEmpty) {
+      widget.onVisiblePostsChanged?.call(visiblePostNumbers);
+    }
+
+    final currentPostNumber = eyelinePostNumber ?? closestPostNumber;
+    if (currentPostNumber != null &&
+        currentPostNumber != _lastReportedPostNumber) {
+      _lastReportedPostNumber = currentPostNumber;
+      widget.onFirstVisiblePostChanged?.call(currentPostNumber);
     }
   }
 
@@ -137,14 +194,12 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
 
   @override
   Widget build(BuildContext context) {
-    _builtPostNumbers.clear();
     _postNumberToScrollIndex.clear();
+    _scrollIndexToPostNumber.clear();
     _nextScrollIndex = 0;
     final maxDepth = _getMaxDepth(context);
 
-    // OP 也算可见
     final ns = widget.nestedState;
-    if (ns.opPost != null) _builtPostNumbers.add(ns.opPost!.postNumber);
     final p = widget.params;
 
     return NotificationListener<ScrollNotification>(
@@ -246,8 +301,6 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                 if (index >= ns.roots.length) {
                   return _buildLoadMore(context);
                 }
-                // 收集可见帖子号（含子节点）
-                _collectVisiblePostNumbers(ns.roots[index]);
                 return NestedPostCard(
                   node: ns.roots[index],
                   topicId: widget.topicId,

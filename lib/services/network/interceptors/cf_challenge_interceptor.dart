@@ -177,8 +177,8 @@ class CfChallengeInterceptor extends Interceptor {
         );
       }
 
-      // 默认为前台强制验证，除非明确标记为静默
-      const forceForeground = true;
+      // 自动验证保持后台静默，避免阅读过程中被频繁打断。
+      const forceForeground = false;
 
       final result = await cfService.showManualVerify(null, forceForeground);
 

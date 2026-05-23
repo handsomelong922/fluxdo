@@ -8,11 +8,9 @@ import 'network/cookie/cookie_jar_service.dart';
 import 'local_notification_service.dart'; // 用于获取全局 navigatorKey
 import 'cf_challenge_logger.dart';
 import 'cf_clearance_refresh_service.dart';
-import 'toast_service.dart';
 import 'webview_settings.dart';
 import 'windows_webview_environment_service.dart';
 import '../l10n/s.dart';
-import '../widgets/draggable_floating_pill.dart';
 
 CookieManager get _cfCookieManager =>
     WindowsWebViewEnvironmentService.instance.cookieManager;
@@ -132,17 +130,9 @@ class CfChallengeService {
   }
 
   static void showGlobalMessage(String message, {bool isError = true}) {
-    final now = DateTime.now();
-    if (_lastToastAt != null &&
-        now.difference(_lastToastAt!) < _toastCooldown) {
-      return;
-    }
-    _lastToastAt = now;
-    if (isError) {
-      ToastService.showError(message);
-    } else {
-      ToastService.showInfo(message);
-    }
+    _lastToastAt = DateTime.now();
+    debugPrint('[CfChallenge] 前台提示已静默: $message');
+    CfChallengeLogger.log('[VERIFY] Foreground message suppressed: $message');
   }
 
   void setContext(BuildContext context) {
@@ -726,9 +716,10 @@ class _CfChallengePageState extends State<CfChallengePage> {
       if (_checkCount > _activeMaxCheckCount) {
         if (_isBackground) {
           CfChallengeLogger.log(
-            '[VERIFY] Background timeout after $_activeMaxCheckCount seconds, prompting manual verify',
+            '[VERIFY] Background timeout after $_activeMaxCheckCount seconds, finishing silently',
           );
-          _promoteToForeground();
+          timer.cancel();
+          _finish(false);
           return;
         }
         timer.cancel();
@@ -883,20 +874,6 @@ class _CfChallengePageState extends State<CfChallengePage> {
     _controller?.reload();
   }
 
-  void _promoteToForeground() {
-    if (!_isBackground) return;
-    setState(() {
-      _isBackground = false;
-      _checkCount = 0;
-    });
-    widget.onPromoteRequest?.call();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _showInfo(S.current.cf_autoVerifyTimeout);
-    });
-  }
-
   void _finish(bool success) {
     if (_hasPopped) return;
     _hasPopped = true;
@@ -907,11 +884,6 @@ class _CfChallengePageState extends State<CfChallengePage> {
     } else {
       Navigator.of(context).pop(success);
     }
-  }
-
-  void _showInfo(String message) {
-    if (!mounted) return;
-    ToastService.showInfo(message);
   }
 
   void _showHelp() {
@@ -930,7 +902,8 @@ class _CfChallengePageState extends State<CfChallengePage> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ToastService.showError(message);
+    debugPrint('[CfChallenge] 前台错误提示已静默: $message');
+    CfChallengeLogger.log('[VERIFY] Error suppressed: $message');
   }
 
   void _handlePageReady(InAppWebViewController controller, {String? reason}) {
@@ -1229,14 +1202,6 @@ class _CfChallengePageState extends State<CfChallengePage> {
                 ),
               ),
             ],
-          ),
-
-        // 悬浮验证胶囊
-        if (_isBackground)
-          DraggableFloatingPill(
-            initialTop: 100,
-            onTap: _promoteToForeground,
-            child: Text(S.current.cf_backgroundVerifying),
           ),
       ],
     );

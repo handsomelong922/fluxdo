@@ -90,6 +90,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   bool _hasMore = false;
   int _page = 0;
   bool _depthLineHovered = false;
+  bool _autoLoadScheduled = false;
 
   @override
   void initState() {
@@ -103,9 +104,13 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       _expanded = cached;
       _collapsed = !cached && _hasReplies;
     } else {
-      _expanded = _children.isNotEmpty;
+      _expanded = _hasReplies && !_atMaxDepth;
       _collapsed = false;
+      if (_expanded) {
+        widget.expansionState?[widget.node.post.postNumber] = true;
+      }
     }
+    _scheduleAutoLoadChildren();
   }
 
   bool get _hasReplies =>
@@ -159,6 +164,31 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       if (!mounted) return;
       setState(() => _isLoadingMore = false);
     }
+  }
+
+  void _scheduleAutoLoadChildren() {
+    if (!_expanded ||
+        _atMaxDepth ||
+        _children.isNotEmpty ||
+        widget.node.directReplyCount <= 0 ||
+        _isLoadingMore ||
+        _autoLoadScheduled) {
+      return;
+    }
+
+    _autoLoadScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _autoLoadScheduled = false;
+      if (!mounted ||
+          !_expanded ||
+          _atMaxDepth ||
+          _children.isNotEmpty ||
+          widget.node.directReplyCount <= 0 ||
+          _isLoadingMore) {
+        return;
+      }
+      _loadChildren();
+    });
   }
 
   @override

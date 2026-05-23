@@ -3,6 +3,9 @@ import '../../../models/topic.dart';
 import '../../../widgets/topic/topic_progress.dart';
 import 'topic_bottom_bar.dart';
 
+const topicDetailBarAnimationDuration = Duration(milliseconds: 200);
+const topicDetailBarAnimationCurve = Curves.linear;
+
 /// 话题详情页浮层
 /// 包含进度栏、底部操作栏和悬浮回复按钮
 class TopicDetailOverlay extends StatelessWidget {
@@ -63,7 +66,8 @@ class TopicDetailOverlay extends StatelessWidget {
         // 固定的进度栏
         AnimatedPositioned(
           key: const ValueKey('progress_bar'),
-          duration: const Duration(milliseconds: 200),
+          duration: topicDetailBarAnimationDuration,
+          curve: topicDetailBarAnimationCurve,
           bottom: showBottomBar ? 96 : 24 + bottomPadding,
           left: 0,
           right: 0,
@@ -79,7 +83,8 @@ class TopicDetailOverlay extends StatelessWidget {
         // 底部操作栏
         AnimatedPositioned(
           key: const ValueKey('bottom_bar'),
-          duration: const Duration(milliseconds: 200),
+          duration: topicDetailBarAnimationDuration,
+          curve: topicDetailBarAnimationCurve,
           left: 0,
           right: 0,
           bottom: showBottomBar ? 0 : -80,
@@ -105,7 +110,8 @@ class TopicDetailOverlay extends StatelessWidget {
         if (isLoggedIn)
           AnimatedPositioned(
             key: const ValueKey('fab_reply'),
-            duration: const Duration(milliseconds: 200),
+            duration: topicDetailBarAnimationDuration,
+            curve: topicDetailBarAnimationCurve,
             right: 16,
             bottom: showBottomBar
                 ? bottomPadding + (80 - bottomPadding - 56) / 2

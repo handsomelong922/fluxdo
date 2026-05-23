@@ -44,10 +44,7 @@ class WebViewSettings {
     required InAppWebViewController? Function() getController,
   }) {
     if (!Platform.isWindows) return child;
-    return _JsonScrollListener(
-      getController: getController,
-      child: child,
-    );
+    return _JsonScrollListener(getController: getController, child: child);
   }
 
   /// Gateway 模式下 WebView 的 SSL 信任回调
@@ -140,10 +137,13 @@ class WebViewSettings {
   /// 用于 WebViewLoginPage、CF 手动验证页面等
   static InAppWebViewSettings get visible => InAppWebViewSettings(
     javaScriptEnabled: true,
+    javaScriptCanOpenWindowsAutomatically: true,
     sharedCookiesEnabled: true,
     domStorageEnabled: true,
+    databaseEnabled: true,
     userAgent: AppConstants.webViewUserAgentOverride,
     isInspectable: true,
+    incognito: false,
 
     // 保持完整功能
     blockNetworkImage: false,
@@ -152,6 +152,7 @@ class WebViewSettings {
 
     // 缓存
     cacheEnabled: true,
+    cacheMode: CacheMode.LOAD_DEFAULT,
 
     // 保持默认回调（可能需要）
     useShouldOverrideUrlLoading: false,
@@ -161,15 +162,24 @@ class WebViewSettings {
 
     // 安全相关
     thirdPartyCookiesEnabled: true,
+
+    // 依赖系统/WebView profile 保存第三方登录会话与凭证建议，不在应用内采集第三方密码。
+    generalAutofillEnabled: true,
+    passwordAutosaveEnabled: true,
   );
+
+  /// 登录 WebView 配置。
+  ///
+  /// 第三方登录常见的 `window.open`/弹窗跳转需要多窗口支持；
+  /// 只在登录页打开，避免影响普通内置浏览器和 CF 后台验证。
+  static InAppWebViewSettings get login => visible
+    ..supportMultipleWindows = true
+    ..useShouldOverrideUrlLoading = true;
 }
 
 /// Windows 滚轮/触摸板事件转发 widget
 class _JsonScrollListener extends StatelessWidget {
-  const _JsonScrollListener({
-    required this.getController,
-    required this.child,
-  });
+  const _JsonScrollListener({required this.getController, required this.child});
 
   final InAppWebViewController? Function() getController;
   final Widget child;
@@ -177,9 +187,7 @@ class _JsonScrollListener extends StatelessWidget {
   void _doScroll(double dx, double dy) {
     final controller = getController();
     if (controller != null && (dx != 0 || dy != 0)) {
-      controller.evaluateJavascript(
-        source: 'window.__fluxdoScroll?.($dx,$dy)',
-      );
+      controller.evaluateJavascript(source: 'window.__fluxdoScroll?.($dx,$dy)');
     }
   }
 
