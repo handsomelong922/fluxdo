@@ -54,6 +54,7 @@ class TopicPostList extends StatefulWidget {
   final void Function(int, bool) onVoteChanged;
   final void Function(TopicNotificationLevel)? onNotificationLevelChanged;
   final void Function(int postId, bool accepted)? onSolutionChanged;
+  final void Function(TopicSummary summary)? onContinueAiSummary;
   final void Function(String selectedText, Post post)? onQuoteSelection;
 
   /// 图片引用回调（长按图片 → 引用）
@@ -108,6 +109,7 @@ class TopicPostList extends StatefulWidget {
     required this.onVoteChanged,
     this.onNotificationLevelChanged,
     this.onSolutionChanged,
+    this.onContinueAiSummary,
     this.onQuoteSelection,
     this.onQuoteImage,
     required this.onScrollNotification,
@@ -175,6 +177,8 @@ class _TopicPostListState extends State<TopicPostList> {
       widget.onNotificationLevelChanged;
   void Function(int postId, bool accepted)? get onSolutionChanged =>
       widget.onSolutionChanged;
+  void Function(TopicSummary summary)? get onContinueAiSummary =>
+      widget.onContinueAiSummary;
   void Function(String selectedText, Post post)? get onQuoteSelection =>
       widget.onQuoteSelection;
   void Function(String quote, Post post)? get onQuoteImage =>
@@ -530,6 +534,7 @@ class _TopicPostListState extends State<TopicPostList> {
                         onVoteChanged: onVoteChanged,
                         onNotificationLevelChanged: onNotificationLevelChanged,
                         onJumpToPost: onJumpToPost,
+                        onContinueAiSummary: onContinueAiSummary,
                       ),
                     ),
                   ),
@@ -569,6 +574,7 @@ class _TopicPostListState extends State<TopicPostList> {
                             onNotificationLevelChanged:
                                 onNotificationLevelChanged,
                             onJumpToPost: onJumpToPost,
+                            onContinueAiSummary: onContinueAiSummary,
                           ),
                         ),
                       ),

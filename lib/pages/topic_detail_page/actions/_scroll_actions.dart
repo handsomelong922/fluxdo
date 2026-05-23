@@ -17,11 +17,17 @@ extension _ScrollActions on _TopicDetailPageState {
 
     final notifier = ref.read(topicDetailProvider(params).notifier);
 
-    if (_controller.shouldLoadPrevious(notifier.hasMoreBefore, notifier.isLoadingPrevious)) {
+    if (_controller.shouldLoadPrevious(
+      notifier.hasMoreBefore,
+      notifier.isLoadingPrevious,
+    )) {
       notifier.loadPrevious();
     }
 
-    if (_controller.shouldLoadMore(notifier.hasMoreAfter, notifier.isLoadingMore)) {
+    if (_controller.shouldLoadMore(
+      notifier.hasMoreAfter,
+      notifier.isLoadingMore,
+    )) {
       notifier.loadMore();
     }
   }
@@ -29,7 +35,8 @@ extension _ScrollActions on _TopicDetailPageState {
   void _updateStreamIndexForPostNumber(int postNumber) {
     // 记录当前浏览位置，用于布局切换时恢复
     _controller.updateCurrentPostNumber(postNumber);
-    ref.read(detailScrollPositionProvider(widget.topicId).notifier).state = postNumber;
+    ref.read(detailScrollPositionProvider(widget.topicId).notifier).state =
+        postNumber;
 
     final params = _params;
     final detail = ref.read(topicDetailProvider(params)).value;
@@ -64,7 +71,8 @@ extension _ScrollActions on _TopicDetailPageState {
     final params = _params;
     final detail = ref.read(topicDetailProvider(params)).value;
 
-    if (detail != null && detail.postStream.posts.isNotEmpty &&
+    if (detail != null &&
+        detail.postStream.posts.isNotEmpty &&
         detail.postStream.posts.first.postNumber == 1) {
       _controller.scrollToTop();
       return;
@@ -103,16 +111,37 @@ extension _ScrollActions on _TopicDetailPageState {
     final detail = ref.read(topicDetailProvider(params)).value;
     if (detail == null) return;
 
+    if (_isNestedView) {
+      final nestedScrollIndex = _nestedPostNumberToScrollIndex[postNumber];
+      if (nestedScrollIndex != null &&
+          _controller.scrollController.hasClients) {
+        await _controller.scrollController.scrollToIndex(
+          nestedScrollIndex,
+          preferPosition: AutoScrollPosition.begin,
+          duration: const Duration(milliseconds: 180),
+        );
+        _controller.updateCurrentPostNumber(postNumber);
+        _controller.triggerHighlight(postNumber);
+        return;
+      }
+
+      setState(() => _isNestedView = false);
+    }
+
     final posts = detail.postStream.posts;
     final postIndex = posts.indexWhere((p) => p.postNumber == postNumber);
     final notifier = ref.read(topicDetailProvider(params).notifier);
 
     if (postIndex == -1) {
-      debugPrint('[TopicDetail] Post $postNumber not in list, reloading with new postNumber');
+      debugPrint(
+        '[TopicDetail] Post $postNumber not in list, reloading with new postNumber',
+      );
       _controller.prepareJumpToPost(postNumber);
       _controller.skipNextJumpHighlight = false;
 
-      if (notifier.isSummaryMode || notifier.isAuthorOnlyMode || notifier.isTopLevelMode) {
+      if (notifier.isSummaryMode ||
+          notifier.isAuthorOnlyMode ||
+          notifier.isTopLevelMode) {
         await _reloadWithFilterFallback(postNumber: postNumber);
       } else {
         await notifier.reloadWithPostNumber(postNumber);
@@ -125,7 +154,10 @@ extension _ScrollActions on _TopicDetailPageState {
     final stream = detail.postStream.stream;
     final currentVisibleIndex = _controller.currentVisibleStreamIndex;
 
-    final targetPost = posts.firstWhere((p) => p.postNumber == postNumber, orElse: () => posts.first);
+    final targetPost = posts.firstWhere(
+      (p) => p.postNumber == postNumber,
+      orElse: () => posts.first,
+    );
     final targetStreamIndex = stream.indexOf(targetPost.id);
 
     if (currentVisibleIndex != -1 && targetStreamIndex != -1) {
@@ -142,7 +174,10 @@ extension _ScrollActions on _TopicDetailPageState {
         final safeIndex = (posts.length - 20).clamp(0, posts.length - 1);
         anchorPostNumber = posts[safeIndex].postNumber;
       }
-      _controller.jumpToPostLocally(postNumber, anchorPostNumber: anchorPostNumber);
+      _controller.jumpToPostLocally(
+        postNumber,
+        anchorPostNumber: anchorPostNumber,
+      );
       if (mounted) setState(() {});
     }
     _controller.triggerHighlight(postNumber);
@@ -182,14 +217,19 @@ extension _ScrollActions on _TopicDetailPageState {
           anchorPostNumber = posts[safeIndex].postNumber;
         }
 
-        _controller.jumpToPostLocally(post.postNumber, anchorPostNumber: anchorPostNumber);
+        _controller.jumpToPostLocally(
+          post.postNumber,
+          anchorPostNumber: anchorPostNumber,
+        );
         if (mounted) setState(() {});
       }
       _controller.triggerHighlight(post.postNumber);
       return;
     }
 
-    debugPrint('[TopicDetail] Post ID $postId not in loaded posts, fetching post info...');
+    debugPrint(
+      '[TopicDetail] Post ID $postId not in loaded posts, fetching post info...',
+    );
 
     try {
       final service = DiscourseService();
@@ -202,15 +242,22 @@ extension _ScrollActions on _TopicDetailPageState {
 
       final targetPost = postStream.posts.first;
       final realPostNumber = targetPost.postNumber;
-      debugPrint('[TopicDetail] Got real post_number: $realPostNumber for post ID $postId');
+      debugPrint(
+        '[TopicDetail] Got real post_number: $realPostNumber for post ID $postId',
+      );
 
       _controller.prepareJumpToPost(realPostNumber);
       _controller.skipNextJumpHighlight = false;
 
       final notifier = ref.read(topicDetailProvider(params).notifier);
 
-      if (notifier.isSummaryMode || notifier.isAuthorOnlyMode || notifier.isTopLevelMode) {
-        await _reloadWithFilterFallback(postNumber: realPostNumber, postId: postId);
+      if (notifier.isSummaryMode ||
+          notifier.isAuthorOnlyMode ||
+          notifier.isTopLevelMode) {
+        await _reloadWithFilterFallback(
+          postNumber: realPostNumber,
+          postId: postId,
+        );
       } else {
         await notifier.reloadWithPostNumber(realPostNumber);
       }
@@ -223,7 +270,11 @@ extension _ScrollActions on _TopicDetailPageState {
     _doInitialScroll(posts, dividerPostIndex, retryCount: 0);
   }
 
-  void _doInitialScroll(List<Post> posts, int? dividerPostIndex, {required int retryCount}) {
+  void _doInitialScroll(
+    List<Post> posts,
+    int? dividerPostIndex, {
+    required int retryCount,
+  }) {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
@@ -237,7 +288,11 @@ extension _ScrollActions on _TopicDetailPageState {
         if (retryCount < 5) {
           await Future.delayed(const Duration(milliseconds: 50));
           if (mounted) {
-            _doInitialScroll(posts, dividerPostIndex, retryCount: retryCount + 1);
+            _doInitialScroll(
+              posts,
+              dividerPostIndex,
+              retryCount: retryCount + 1,
+            );
           }
           return;
         } else {
@@ -263,7 +318,8 @@ extension _ScrollActions on _TopicDetailPageState {
               break;
             }
           }
-        } else if (dividerPostIndex != null && dividerPostIndex < posts.length) {
+        } else if (dividerPostIndex != null &&
+            dividerPostIndex < posts.length) {
           targetPostIndex = dividerPostIndex;
           shouldHighlight = true;
         } else if (currentPostNumber != null && currentPostNumber > 0) {
@@ -295,7 +351,8 @@ extension _ScrollActions on _TopicDetailPageState {
           _controller.skipNextJumpHighlight = false;
 
           if (shouldHighlight) {
-            _controller.pendingHighlightPostNumber = posts[targetPostIndex].postNumber;
+            _controller.pendingHighlightPostNumber =
+                posts[targetPostIndex].postNumber;
           }
         }
       } catch (e, stack) {

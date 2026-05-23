@@ -352,6 +352,44 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     _cachedContextPosts = posts;
   }
 
+  /// 将已生成的话题摘要作为当前会话上下文，方便用户继续追问。
+  Future<void> continueFromSummary(
+      String topicTitle, String summaryText) async {
+    final summary = summaryText.trim();
+    if (summary.isEmpty) return;
+
+    stopGeneration();
+    _cachedTitle = topicTitle;
+    _cachedContextPosts = [
+      TopicPostContext(
+        postNumber: 1,
+        username: 'AI Summary',
+        cooked: summary,
+      ),
+    ];
+
+    state = state.copyWith(
+      currentSessionId: _uuid.v4(),
+      messages: [
+        AiChatMessage(
+          id: _uuid.v4(),
+          role: ChatRole.user,
+          content: '请基于这份话题摘要继续对话：\n\n$summary',
+          createdAt: DateTime.now(),
+        ),
+        AiChatMessage(
+          id: _uuid.v4(),
+          role: ChatRole.assistant,
+          content: '我已读取这份摘要，可以继续围绕这个话题回答你的问题。',
+          createdAt: DateTime.now(),
+        ),
+      ],
+      isGenerating: false,
+    );
+
+    await _saveToStorage();
+  }
+
   /// 发送消息
   Future<void> sendMessage(
     String content,

@@ -52,6 +52,9 @@ class AppPreferences {
   /// AI 助手左滑入口（PageView 模式）
   final bool aiSwipeEntry;
 
+  /// 话题默认使用树形视图
+  final bool defaultNestedTopicView;
+
   /// 进入帖子后自动触发 AI 总结
   final bool autoSummarizeTopicOnEnter;
 
@@ -96,6 +99,7 @@ class AppPreferences {
     required this.cfClearanceRefresh,
     required this.expandRelatedLinks,
     required this.aiSwipeEntry,
+    required this.defaultNestedTopicView,
     required this.autoSummarizeTopicOnEnter,
     required this.autoSummarizeMinReplies,
     required this.dialogBlur,
@@ -124,6 +128,7 @@ class AppPreferences {
     bool? cfClearanceRefresh,
     bool? expandRelatedLinks,
     bool? aiSwipeEntry,
+    bool? defaultNestedTopicView,
     bool? autoSummarizeTopicOnEnter,
     int? autoSummarizeMinReplies,
     bool? dialogBlur,
@@ -152,6 +157,8 @@ class AppPreferences {
       cfClearanceRefresh: cfClearanceRefresh ?? this.cfClearanceRefresh,
       expandRelatedLinks: expandRelatedLinks ?? this.expandRelatedLinks,
       aiSwipeEntry: aiSwipeEntry ?? this.aiSwipeEntry,
+      defaultNestedTopicView:
+          defaultNestedTopicView ?? this.defaultNestedTopicView,
       autoSummarizeTopicOnEnter:
           autoSummarizeTopicOnEnter ?? this.autoSummarizeTopicOnEnter,
       autoSummarizeMinReplies:
@@ -188,6 +195,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
       CfClearanceRefreshService.prefKeyEnabled;
   static const String _expandRelatedLinksKey = 'pref_expand_related_links';
   static const String _aiSwipeEntryKey = 'pref_ai_swipe_entry';
+  static const String _defaultNestedTopicViewKey =
+      'pref_default_nested_topic_view';
   static const String _autoSummarizeTopicOnEnterKey =
       'pref_auto_summarize_topic_on_enter';
   static const String _autoSummarizeMinRepliesKey =
@@ -226,6 +235,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           cfClearanceRefresh: _prefs.getBool(_cfClearanceRefreshKey) ?? false,
           expandRelatedLinks: _prefs.getBool(_expandRelatedLinksKey) ?? false,
           aiSwipeEntry: _prefs.getBool(_aiSwipeEntryKey) ?? false,
+          defaultNestedTopicView:
+              _prefs.getBool(_defaultNestedTopicViewKey) ?? true,
           autoSummarizeTopicOnEnter:
               _prefs.getBool(_autoSummarizeTopicOnEnterKey) ?? false,
           autoSummarizeMinReplies:
@@ -347,6 +358,11 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setAiSwipeEntry(bool enabled) async {
     state = state.copyWith(aiSwipeEntry: enabled);
     await _prefs.setBool(_aiSwipeEntryKey, enabled);
+  }
+
+  Future<void> setDefaultNestedTopicView(bool enabled) async {
+    state = state.copyWith(defaultNestedTopicView: enabled);
+    await _prefs.setBool(_defaultNestedTopicViewKey, enabled);
   }
 
   Future<void> setAutoSummarizeTopicOnEnter(bool enabled) async {

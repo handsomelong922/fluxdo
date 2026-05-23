@@ -39,7 +39,7 @@ class CfChallengeService {
   int _consecutiveFailures = 0;
   static const _cooldownDuration = Duration(seconds: 30);
   static const _maxFailuresBeforeCooldown = 3;
-  static const _toastCooldown = Duration(seconds: 2);
+  static const _toastCooldown = Duration(seconds: 90);
   DateTime? _silentVerifyDeferredUntil;
   static const _silentVerifyDeferral = Duration(seconds: 20);
 

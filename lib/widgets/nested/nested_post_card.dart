@@ -56,6 +56,8 @@ class NestedPostCard extends ConsumerStatefulWidget {
   /// 展开/折叠状态存储（跨滚动回收保持状态）
   final Map<int, bool>? expansionState;
 
+  final Widget Function(int postNumber, Widget child)? buildScrollTag;
+
   const NestedPostCard({
     super.key,
     required this.node,
@@ -73,6 +75,7 @@ class NestedPostCard extends ConsumerStatefulWidget {
     this.onSolutionChanged,
     this.parentLineHighlighted = false,
     this.expansionState,
+    this.buildScrollTag,
   });
 
   @override
@@ -370,7 +373,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       );
     }
 
-    return card;
+    return widget.buildScrollTag?.call(post.postNumber, card) ?? card;
   }
 
   /// 帖子文章区
@@ -591,6 +594,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
             onSolutionChanged: widget.onSolutionChanged,
             parentLineHighlighted: _depthLineHovered,
             expansionState: widget.expansionState,
+            buildScrollTag: widget.buildScrollTag,
           ),
         if (_hasMore) _buildLoadMoreWithConnector(theme),
       ],
