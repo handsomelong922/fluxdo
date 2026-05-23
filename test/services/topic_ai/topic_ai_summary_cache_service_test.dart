@@ -21,9 +21,11 @@ void main() {
           newPostsSinceSummary: 3,
           updatedAt: updatedAt,
         ),
+        postsCount: 30,
       );
 
-      final cached = service.getSummary(42);
+      final cachedEntry = service.getCachedSummary(42);
+      final cached = cachedEntry?.summary;
 
       expect(cached, isNotNull);
       expect(cached!.summarizedText, 'cached summary');
@@ -32,6 +34,9 @@ void main() {
       expect(cached.canRegenerate, isTrue);
       expect(cached.newPostsSinceSummary, 3);
       expect(cached.updatedAt?.toUtc(), updatedAt);
+      expect(cachedEntry!.postsCount, 30);
+      expect(cachedEntry.isPossiblyOutdated(currentPostsCount: 34), isFalse);
+      expect(cachedEntry.isPossiblyOutdated(currentPostsCount: 35), isTrue);
     });
 
     test('ignores malformed cache entries', () async {

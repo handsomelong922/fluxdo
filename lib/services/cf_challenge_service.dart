@@ -43,6 +43,31 @@ class CfChallengeService {
   DateTime? _silentVerifyDeferredUntil;
   static const _silentVerifyDeferral = Duration(seconds: 20);
 
+  CfChallengeStatus get status {
+    final now = DateTime.now();
+    final cooldownRemaining =
+        _cooldownUntil != null && now.isBefore(_cooldownUntil!)
+        ? _cooldownUntil!.difference(now)
+        : null;
+    final silentDeferredRemaining =
+        _silentVerifyDeferredUntil != null &&
+            now.isBefore(_silentVerifyDeferredUntil!)
+        ? _silentVerifyDeferredUntil!.difference(now)
+        : null;
+    return CfChallengeStatus(
+      isVerifying: _isVerifying,
+      consecutiveFailures: _consecutiveFailures,
+      cooldownUntil: cooldownRemaining == null ? null : _cooldownUntil,
+      cooldownRemaining: cooldownRemaining,
+      silentVerifyDeferredUntil: silentDeferredRemaining == null
+          ? null
+          : _silentVerifyDeferredUntil,
+      silentVerifyDeferredRemaining: silentDeferredRemaining,
+      toastCooldown: _toastCooldown,
+      lastToastAt: _lastToastAt,
+    );
+  }
+
   /// 检查是否在冷却期
   bool get isInCooldown {
     if (_cooldownUntil == null) return false;
@@ -369,6 +394,31 @@ class CfChallengeService {
 
     return result;
   }
+}
+
+class CfChallengeStatus {
+  const CfChallengeStatus({
+    required this.isVerifying,
+    required this.consecutiveFailures,
+    required this.cooldownUntil,
+    required this.cooldownRemaining,
+    required this.silentVerifyDeferredUntil,
+    required this.silentVerifyDeferredRemaining,
+    required this.toastCooldown,
+    required this.lastToastAt,
+  });
+
+  final bool isVerifying;
+  final int consecutiveFailures;
+  final DateTime? cooldownUntil;
+  final Duration? cooldownRemaining;
+  final DateTime? silentVerifyDeferredUntil;
+  final Duration? silentVerifyDeferredRemaining;
+  final Duration toastCooldown;
+  final DateTime? lastToastAt;
+
+  bool get isInCooldown => cooldownRemaining != null;
+  bool get isSilentVerifyDeferred => silentVerifyDeferredRemaining != null;
 }
 
 /// CF 验证页面

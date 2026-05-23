@@ -9,6 +9,7 @@ import '../../../providers/nested_topic_provider.dart';
 import '../../../utils/responsive.dart';
 import '../../../widgets/nested/nested_post_card.dart';
 import '../../../widgets/post/post_item/post_item.dart';
+import 'nested_load_more_trigger.dart';
 import 'topic_detail_header.dart';
 
 /// 嵌套视图帖子列表 — 在现有 TopicDetailPage 内替换平铺帖子流
@@ -65,8 +66,7 @@ class NestedPostList extends ConsumerStatefulWidget {
 class _NestedPostListState extends ConsumerState<NestedPostList> {
   final Map<int, bool> _expansionState = {};
   final Map<int, int> _postNumberToScrollIndex = {};
-  bool _hasReachedLoadMoreRegion = false;
-  double? _lastScrollPixels;
+  final NestedLoadMoreTrigger _loadMoreTrigger = NestedLoadMoreTrigger();
   int _nextScrollIndex = 0;
 
   /// 当前正在渲染的根帖子号集合（SliverList.builder 渲染时收集）
@@ -92,30 +92,15 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
 
     if (!widget.scrollController.hasClients) return;
     final position = widget.scrollController.position;
-    final previousPixels = _lastScrollPixels;
-    final scrollingTowardBottom =
-        previousPixels != null && position.pixels > previousPixels + 4;
-    _lastScrollPixels = position.pixels;
 
     final ns = widget.nestedState;
-    if (!ns.hasMoreRoots || ns.isLoadingMore) {
-      _hasReachedLoadMoreRegion = false;
-      return;
-    }
-
-    final nearLoadMore = position.pixels >= position.maxScrollExtent - 360;
-    if (!nearLoadMore) {
-      _hasReachedLoadMoreRegion = false;
-      return;
-    }
-
-    if (!_hasReachedLoadMoreRegion) {
-      _hasReachedLoadMoreRegion = true;
-      return;
-    }
-
-    if (scrollingTowardBottom) {
-      _hasReachedLoadMoreRegion = false;
+    final shouldLoadMore = _loadMoreTrigger.update(
+      pixels: position.pixels,
+      maxScrollExtent: position.maxScrollExtent,
+      hasMoreRoots: ns.hasMoreRoots,
+      isLoadingMore: ns.isLoadingMore,
+    );
+    if (shouldLoadMore) {
       ref.read(nestedTopicProvider(widget.params).notifier).loadMoreRoots();
     }
   }

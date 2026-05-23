@@ -521,6 +521,18 @@ extension _UserActions on _TopicDetailPageState {
     if (!mounted) return;
     _nestedPostNumberToScrollIndex = const {};
     setState(() => _isNestedView = enabled);
+    final postNumber = _controller.currentPostNumber;
+    if (postNumber != null && postNumber > 0) {
+      unawaited(
+        ref
+            .read(topicReadingStateServiceProvider)
+            .saveState(
+              topicId: widget.topicId,
+              postNumber: postNumber,
+              nestedView: enabled,
+            ),
+      );
+    }
   }
 
   Future<void> _continueAiSummary(TopicSummary summary) async {

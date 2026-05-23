@@ -27,6 +27,7 @@ import '../../providers/message_bus_providers.dart';
 import '../../providers/pinned_categories_provider.dart';
 import '../../services/discourse/discourse_service.dart';
 import '../../services/screen_track.dart';
+import '../../services/topic_reading_state_service.dart';
 import '../../services/toast_service.dart';
 import '../../services/log/log_writer.dart';
 import '../../services/navigation/app_route_observer.dart';
@@ -162,13 +163,23 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   bool _isRouteVisible = true;
   bool _isParentActive = true;
   bool _isScreenTrackRunning = false;
+  TopicReadingState? _restoredReadingState;
+  int? _pendingNestedRestorePostNumber;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _isParentActive = widget.parentActive;
-    _isNestedView = ref.read(preferencesProvider).defaultNestedTopicView;
+    _restoredReadingState = _canRestoreReadingState
+        ? ref.read(topicReadingStateServiceProvider).getState(widget.topicId)
+        : null;
+    _isNestedView =
+        _restoredReadingState?.nestedView ??
+        ref.read(preferencesProvider).defaultNestedTopicView;
+    if (_restoredReadingState?.nestedView == true) {
+      _pendingNestedRestorePostNumber = _restoredReadingState!.postNumber;
+    }
 
     _expandController = AnimationController(
       vsync: this,
@@ -220,13 +231,20 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       scrollController: AutoScrollController(),
       screenTrack: _screenTrack,
       trackEnabled: trackEnabled,
-      initialPostNumber: widget.scrollToPostNumber,
+      initialPostNumber:
+          widget.scrollToPostNumber ??
+          (_restoredReadingState?.nestedView == true
+              ? null
+              : _restoredReadingState?.postNumber),
       onScrolled: () {
         if (_controller.trackEnabled) {
           _screenTrack.scrolled();
         }
       },
     );
+    if (_restoredReadingState != null && widget.scrollToPostNumber == null) {
+      _controller.skipNextJumpHighlight = true;
+    }
 
     _controller.scrollController.addListener(_onScroll);
     _pageController = PageController(initialPage: 0);
@@ -242,6 +260,15 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   }
 
   bool _isAiSheetOpen = false;
+
+  bool get _canRestoreReadingState {
+    return widget.scrollToPostNumber == null &&
+        !widget.autoOpenReply &&
+        widget.autoReplyToPostNumber == null &&
+        !widget.autoOpenAiChat &&
+        widget.initialSessionId == null &&
+        widget.highlightBoostUsername == null;
+  }
 
   void _onToggleAiPanel() {
     if (!mounted) return;
@@ -1372,6 +1399,30 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           onPointerScroll: _controller.handlePointerScroll,
           onPostNumberScrollIndexMappingChanged: (mapping) {
             _nestedPostNumberToScrollIndex = mapping;
+            final pendingPostNumber = _pendingNestedRestorePostNumber;
+            final scrollIndex = pendingPostNumber == null
+                ? null
+                : mapping[pendingPostNumber];
+            if (pendingPostNumber != null && scrollIndex != null) {
+              _pendingNestedRestorePostNumber = null;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                unawaited(
+                  _controller.scrollController.scrollToIndex(
+                    scrollIndex,
+                    preferPosition: AutoScrollPosition.begin,
+                    duration: const Duration(milliseconds: 1),
+                  ),
+                );
+                _controller.updateCurrentPostNumber(pendingPostNumber);
+                ref
+                        .read(
+                          detailScrollPositionProvider(widget.topicId).notifier,
+                        )
+                        .state =
+                    pendingPostNumber;
+              });
+            }
           },
           onContinueAiSummary: _continueAiSummary,
           onVisiblePostsChanged: _updateVisiblePosts,

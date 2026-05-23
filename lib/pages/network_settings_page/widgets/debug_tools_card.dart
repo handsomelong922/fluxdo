@@ -7,6 +7,7 @@ import '../../../l10n/s.dart';
 import '../../../utils/share_utils.dart';
 import '../../../services/network_logger.dart';
 import '../../../utils/dialog_utils.dart';
+import '../../../services/cf_challenge_service.dart';
 import '../../../services/cf_challenge_logger.dart';
 import '../../../services/toast_service.dart';
 
@@ -39,12 +40,11 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cfStatus = CfChallengeService().status;
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         children: [
           ListTile(
@@ -53,23 +53,57 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
             trailing: const Icon(Icons.chevron_right, size: 20),
             onTap: _showLogSheet,
           ),
-          Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2)),
+          Divider(
+            height: 1,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+          ),
           ListTile(
             leading: const Icon(Icons.share_outlined),
             title: Text(context.l10n.appLogs_shareLogs),
             trailing: const Icon(Icons.chevron_right, size: 20),
             onTap: _shareLogs,
           ),
-          Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2)),
+          Divider(
+            height: 1,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+          ),
           ListTile(
-            leading: Icon(Icons.delete_sweep_outlined, color: theme.colorScheme.error),
-            title: Text(context.l10n.appLogs_clearLogs, style: TextStyle(color: theme.colorScheme.error)),
-            trailing: Icon(Icons.chevron_right, size: 20, color: theme.colorScheme.error),
+            leading: Icon(
+              Icons.delete_sweep_outlined,
+              color: theme.colorScheme.error,
+            ),
+            title: Text(
+              context.l10n.appLogs_clearLogs,
+              style: TextStyle(color: theme.colorScheme.error),
+            ),
+            trailing: Icon(
+              Icons.chevron_right,
+              size: 20,
+              color: theme.colorScheme.error,
+            ),
             onTap: _clearLogs,
           ),
           // CF 验证日志（开发者模式）
           if (_isDeveloperMode) ...[
-            Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2)),
+            Divider(
+              height: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+            ),
+            ListTile(
+              leading: Icon(
+                cfStatus.isInCooldown
+                    ? Icons.pause_circle_outline
+                    : cfStatus.isVerifying
+                    ? Icons.verified_user_outlined
+                    : Icons.shield_outlined,
+              ),
+              title: const Text('CF 验证状态'),
+              subtitle: Text(_formatCfStatus(cfStatus)),
+            ),
+            Divider(
+              height: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+            ),
             ListTile(
               leading: const Icon(Icons.bug_report_outlined),
               title: const Text('CF 验证日志'),
@@ -77,24 +111,57 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
               trailing: const Icon(Icons.chevron_right, size: 20),
               onTap: _showCfChallengeLogSheet,
             ),
-            Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2)),
+            Divider(
+              height: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+            ),
             ListTile(
               leading: const Icon(Icons.share_outlined),
               title: const Text('导出 CF 日志'),
               trailing: const Icon(Icons.chevron_right, size: 20),
               onTap: _shareCfChallengeLogs,
             ),
-            Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2)),
+            Divider(
+              height: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+            ),
             ListTile(
-              leading: Icon(Icons.delete_outline, color: theme.colorScheme.error),
-              title: Text('清除 CF 日志', style: TextStyle(color: theme.colorScheme.error)),
-              trailing: Icon(Icons.chevron_right, size: 20, color: theme.colorScheme.error),
+              leading: Icon(
+                Icons.delete_outline,
+                color: theme.colorScheme.error,
+              ),
+              title: Text(
+                '清除 CF 日志',
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+              trailing: Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: theme.colorScheme.error,
+              ),
               onTap: _clearCfChallengeLogs,
             ),
           ],
         ],
       ),
     );
+  }
+
+  String _formatCfStatus(CfChallengeStatus status) {
+    final parts = <String>[
+      status.isVerifying ? '验证中' : '空闲',
+      '失败 ${status.consecutiveFailures} 次',
+    ];
+    if (status.cooldownRemaining != null) {
+      parts.add('冷却剩余 ${status.cooldownRemaining!.inSeconds}s');
+    }
+    if (status.silentVerifyDeferredRemaining != null) {
+      parts.add('后台验证延后 ${status.silentVerifyDeferredRemaining!.inSeconds}s');
+    }
+    if (status.lastToastAt != null) {
+      parts.add('通知间隔 ${status.toastCooldown.inSeconds}s');
+    }
+    return parts.join(' · ');
   }
 
   Future<void> _showLogSheet() async {
@@ -124,7 +191,9 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                    color: theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: 0.4,
+                    ),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -147,7 +216,9 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
                             ? null
                             : () {
                                 Clipboard.setData(ClipboardData(text: logs));
-                                ToastService.showSuccess(S.current.common_copiedToClipboard);
+                                ToastService.showSuccess(
+                                  S.current.common_copiedToClipboard,
+                                );
                               },
                       ),
                       IconButton(
@@ -231,7 +302,9 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
     if (path != null) {
       await ShareUtils.shareOrSaveFile(XFile(path), subject: 'DOH 调试日志');
     } else {
-      await SharePlus.instance.share(ShareParams(text: logs, subject: 'DOH 调试日志'));
+      await SharePlus.instance.share(
+        ShareParams(text: logs, subject: 'DOH 调试日志'),
+      );
     }
   }
 
@@ -292,7 +365,9 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                    color: theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: 0.4,
+                    ),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -315,7 +390,9 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
                             ? null
                             : () {
                                 Clipboard.setData(ClipboardData(text: logs));
-                                ToastService.showSuccess(S.current.common_copiedToClipboard);
+                                ToastService.showSuccess(
+                                  S.current.common_copiedToClipboard,
+                                );
                               },
                       ),
                       IconButton(
@@ -399,7 +476,9 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
     if (path != null) {
       await ShareUtils.shareOrSaveFile(XFile(path), subject: 'CF 验证日志');
     } else {
-      await SharePlus.instance.share(ShareParams(text: logs, subject: 'CF 验证日志'));
+      await SharePlus.instance.share(
+        ShareParams(text: logs, subject: 'CF 验证日志'),
+      );
     }
   }
 
