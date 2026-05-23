@@ -30,12 +30,14 @@ class BoundarySyncService {
     String? currentUrl,
     InAppWebViewController? controller,
     Set<String>? cookieNames,
+    Iterable<String>? additionalUrls,
     bool allowLowConfidenceSessionCookies = false,
     int? requestGeneration,
   }) async {
     final url = currentUrl ?? AppConstants.baseUrl;
     final uri = Uri.parse(url);
     final host = uri.host;
+    final readUrls = buildReadUrlsForSync(url, additionalUrls);
 
     try {
       if (requestGeneration != null &&
@@ -51,6 +53,7 @@ class BoundarySyncService {
         final synced = await _jar.syncCriticalCookiesFromController(
           controller,
           currentUrl: url,
+          readUrls: readUrls,
           cookieNames: cookieNames,
         );
         if (synced > 0) {
@@ -70,11 +73,15 @@ class BoundarySyncService {
         }
       }
 
-      // 通过 strategy 读取（Linux 用 getAllCookies 兜底）
-      final webViewCookies = await _strategy.readCookiesFromWebView(
-        _jar.webViewCookieManager,
-        url,
-      );
+      final webViewCookies = <Cookie>[];
+      for (final readUrl in readUrls) {
+        // 通过 strategy 读取（Linux 用 getAllCookies 兜底）
+        final cookies = await _strategy.readCookiesFromWebView(
+          _jar.webViewCookieManager,
+          readUrl,
+        );
+        webViewCookies.addAll(cookies);
+      }
       final cookiesToPersist = <Cookie>[];
       final sessionCookieGroups = <String, List<Cookie>>{};
 
@@ -83,10 +90,11 @@ class BoundarySyncService {
         if (value.isEmpty) continue;
         if (cookieNames != null && !cookieNames.contains(wc.name)) continue;
 
-        final isSessionCookie =
-            CookieJarService.sessionCookieNames.contains(wc.name);
+        final isSessionCookie = CookieJarService.sessionCookieNames.contains(
+          wc.name,
+        );
         if (isSessionCookie) {
-          sessionCookieGroups.putIfAbsent(wc.name, () => <Cookie>[]).add(wc);
+          sessionCookieGroups.putIfAbsent(wc.name, () => []).add(wc);
         } else {
           cookiesToPersist.add(wc);
         }
@@ -113,15 +121,14 @@ class BoundarySyncService {
 
       for (final wc in cookiesToPersist) {
         final value = wc.value?.toString() ?? '';
-        final isSessionCookie =
-            CookieJarService.sessionCookieNames.contains(wc.name);
+        final isSessionCookie = CookieJarService.sessionCookieNames.contains(
+          wc.name,
+        );
         final lowConfidenceSnapshot = _isLowConfidenceWebViewCookie(wc);
         if (isSessionCookie &&
             lowConfidenceSnapshot &&
             !allowLowConfidenceSessionCookies) {
-          debugPrint(
-            '[BoundarySync] ${wc.name}: 跳过低置信度会话 Cookie 快照',
-          );
+          debugPrint('[BoundarySync] ${wc.name}: 跳过低置信度会话 Cookie 快照');
           continue;
         }
 
@@ -174,9 +181,11 @@ class BoundarySyncService {
         }
         cookie
           ..path = wc.path ?? '/'
-          ..secure = wc.isSecure ?? (isSessionCookie ? uri.scheme == 'https' : false)
+          ..secure =
+              wc.isSecure ?? (isSessionCookie ? uri.scheme == 'https' : false)
           ..httpOnly =
-              wc.isHttpOnly ?? (isSessionCookie && allowLowConfidenceSessionCookies);
+              wc.isHttpOnly ??
+              (isSessionCookie && allowLowConfidenceSessionCookies);
         if (domain != null && domain.trim().isNotEmpty) {
           cookie.domain = domain;
         }
@@ -226,6 +235,30 @@ class BoundarySyncService {
     }
   }
 
+  @visibleForTesting
+  static List<String> buildReadUrlsForSync(
+    String primaryUrl, [
+    Iterable<String>? additionalUrls,
+  ]) {
+    final normalizedUrls = <String>{};
+
+    void addUrl(String? candidate) {
+      final value = candidate?.trim();
+      if (value == null || value.isEmpty) return;
+      final uri = Uri.tryParse(value);
+      if (uri == null || !uri.hasScheme || uri.host.isEmpty) return;
+      normalizedUrls.add(uri.toString());
+    }
+
+    addUrl(primaryUrl);
+    if (additionalUrls != null) {
+      for (final extra in additionalUrls) {
+        addUrl(extra);
+      }
+    }
+    return normalizedUrls.toList(growable: false);
+  }
+
   bool _isLowConfidenceWebViewCookie(Cookie cookie) {
     final hasDomain = cookie.domain != null && cookie.domain!.trim().isNotEmpty;
     final hasPath = cookie.path != null && cookie.path!.trim().isNotEmpty;
@@ -246,7 +279,8 @@ class BoundarySyncService {
     final candidates = [...cookies]
       ..sort((a, b) {
         final scoreDiff =
-            _scoreSessionCookie(b, requestHost) - _scoreSessionCookie(a, requestHost);
+            _scoreSessionCookie(b, requestHost) -
+            _scoreSessionCookie(a, requestHost);
         if (scoreDiff != 0) return scoreDiff;
 
         final pathDiff = (b.path?.length ?? 1).compareTo(a.path?.length ?? 1);
@@ -262,13 +296,16 @@ class BoundarySyncService {
     final value = cookie.value?.toString() ?? '';
     if (value.isNotEmpty) score += 100000;
 
-    final expires = CookieJarService.parseWebViewCookieExpires(cookie.expiresDate);
+    final expires = CookieJarService.parseWebViewCookieExpires(
+      cookie.expiresDate,
+    );
     if (expires == null || expires.isAfter(DateTime.now())) {
       score += 50000;
     }
 
-    final normalizedDomain =
-        CookieJarService.normalizeWebViewCookieDomain(cookie.domain);
+    final normalizedDomain = CookieJarService.normalizeWebViewCookieDomain(
+      cookie.domain,
+    );
     if (normalizedDomain == null || normalizedDomain.isEmpty) {
       score += 40000;
     } else if (normalizedDomain == requestHost) {
@@ -316,7 +353,8 @@ class BoundarySyncService {
             (cookie) => {
               'domain': cookie.domain,
               'path': cookie.path,
-              'hostOnly': cookie.domain == null || cookie.domain!.trim().isEmpty,
+              'hostOnly':
+                  cookie.domain == null || cookie.domain!.trim().isEmpty,
               'valueLength': cookie.value?.length ?? 0,
               'httpOnly': cookie.isHttpOnly,
               'secure': cookie.isSecure,

@@ -17,7 +17,8 @@ class ServerException implements Exception {
   ServerException(this.statusCode);
 
   @override
-  String toString() => '${S.current.error_serviceUnavailableRetry} ($statusCode)';
+  String toString() =>
+      '${S.current.error_serviceUnavailableRetry} ($statusCode)';
 }
 
 /// 帖子进入审核队列异常
@@ -33,14 +34,22 @@ class PostEnqueuedException implements Exception {
 class CfChallengeException implements Exception {
   final bool userCancelled;
   final bool inCooldown;
+  final bool requiresManualAction;
+
   /// 原始错误（用于调试，保留验证/重试失败的实际原因）
   final Object? cause;
-  CfChallengeException({this.userCancelled = false, this.inCooldown = false, this.cause});
+  CfChallengeException({
+    this.userCancelled = false,
+    this.inCooldown = false,
+    this.requiresManualAction = false,
+    this.cause,
+  });
 
   @override
   String toString() {
     if (inCooldown) return S.current.cf_cooldown;
     if (userCancelled) return S.current.cf_userCancelled;
+    if (requiresManualAction) return S.current.cf_verifyIncomplete;
     if (cause != null) return S.current.cf_failedWithCause('$cause');
     return S.current.cf_failedRetry;
   }

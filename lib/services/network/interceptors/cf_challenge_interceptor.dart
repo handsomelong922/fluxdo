@@ -18,6 +18,7 @@ class CfChallengeInterceptor extends Interceptor {
 
   final Dio dio;
   final CookieJarService cookieJarService;
+
   /// 共享的 cookie 同步 Future：验证成功后只执行一次 sync
   static Future<bool>? _activeSyncFuture;
 
@@ -134,14 +135,17 @@ class CfChallengeInterceptor extends Interceptor {
       );
 
       final cfService = CfChallengeService();
+      final isSilent = err.requestOptions.extra['isSilent'] == true;
 
       // 检查是否在冷却期
       if (cfService.isInCooldown) {
         debugPrint('[Dio] CF Challenge in cooldown, rejecting request');
         CfChallengeLogger.log('[INTERCEPTOR] Skipped: in cooldown');
-        CfChallengeService.showGlobalMessage(
-          S.current.cf_challengeFailedCooldown,
-        );
+        if (!isSilent) {
+          CfChallengeService.showGlobalMessage(
+            S.current.cf_challengeFailedCooldown,
+          );
+        }
         return handler.reject(
           DioException(
             requestOptions: err.requestOptions,
@@ -152,9 +156,29 @@ class CfChallengeInterceptor extends Interceptor {
       }
 
       // 检查请求是否标记为静默（后台验证）
-      final isSilent = err.requestOptions.extra['isSilent'] == true;
+      if (isSilent) {
+        final alreadyDeferred = cfService.isSilentVerifyDeferred;
+        cfService.deferSilentVerify();
+        CfChallengeLogger.log(
+          '[INTERCEPTOR] Silent challenge deferred until user action: $requestMethod $requestUrl',
+        );
+        if (!alreadyDeferred) {
+          CfChallengeService.showGlobalMessage(
+            S.current.error_securityChallenge,
+            isError: false,
+          );
+        }
+        return handler.reject(
+          DioException(
+            requestOptions: err.requestOptions,
+            error: CfChallengeException(requiresManualAction: true),
+            type: DioExceptionType.unknown,
+          ),
+        );
+      }
+
       // 默认为前台强制验证，除非明确标记为静默
-      final forceForeground = !isSilent;
+      const forceForeground = true;
 
       final result = await cfService.showManualVerify(null, forceForeground);
 
@@ -214,6 +238,20 @@ class CfChallengeInterceptor extends Interceptor {
             if (e.response?.statusCode == 403) {
               debugPrint(
                 '[Dio] Retry got 403 again — cf_clearance may not have been sent or already expired',
+              );
+              cfService.tripRetryFailureCircuitBreaker();
+              CfChallengeService.showGlobalMessage(
+                S.current.cf_challengeNotEffective,
+              );
+              return handler.reject(
+                DioException(
+                  requestOptions: err.requestOptions,
+                  response: e.response,
+                  error: CfChallengeException(
+                    cause: S.current.cf_challengeNotEffective,
+                  ),
+                  type: DioExceptionType.unknown,
+                ),
               );
             }
           } else {

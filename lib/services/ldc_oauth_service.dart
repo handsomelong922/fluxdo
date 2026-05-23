@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'network/discourse_dio.dart';
 import 'network/exceptions/oauth_exception.dart';
+import '../pages/oauth_webview_page.dart';
 import '../l10n/s.dart';
 import '../utils/dialog_utils.dart';
 import 'toast_service.dart';
@@ -100,11 +101,27 @@ class LdcOAuthService {
     }
 
     final document = html_parser.parse(response.data);
-    final approveLink = document.querySelector('a[href*="/oauth2/approve/"]')?.attributes['href'];
+    final approveLink = document
+        .querySelector('a[href*="/oauth2/approve/"]')
+        ?.attributes['href'];
 
     if (!context.mounted) return false;
     if (approveLink == null) {
-      throw Exception(S.current.oauth_approvePageParseFailed);
+      final callbackResult = await Navigator.of(context)
+          .push<OAuthWebViewResult>(
+            MaterialPageRoute(
+              builder: (_) => OAuthWebViewPage(
+                initialUrl: authUrl,
+                callbackBaseUrl: baseUrl,
+                title: context.l10n.auth_ldcConfirmTitle,
+              ),
+            ),
+          );
+      if (callbackResult == null) {
+        return false;
+      }
+      await callback(callbackResult.code, callbackResult.state);
+      return true;
     }
 
     final confirmed = await showAppDialog<bool>(

@@ -37,7 +37,6 @@ import '../../widgets/post/reply_sheet.dart';
 import '../../widgets/topic/topic_progress.dart';
 import '../../widgets/topic/topic_notification_button.dart';
 import '../../widgets/common/dismissible_popup_menu.dart';
-import '../../widgets/common/emoji_text.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../../widgets/content/discourse_html_content/discourse_html_content_widget.dart';
@@ -597,12 +596,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                   alpha: (1.0 - expandProgress).clamp(0.0, 1.0),
                 ),
                 backgroundColor: theme.colorScheme.surface,
-                title: _buildAppBarTitle(
-                  theme: theme,
-                  detail: detail,
-                  shouldShowTitle: shouldShowTitle,
-                  expandProgress: expandProgress,
-                ),
+                titleSpacing: 0,
+                title: const SizedBox.shrink(),
                 centerTitle: false,
                 actions: _buildAppBarActions(
                   detail: detail,
@@ -613,72 +608,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               );
             },
           ),
-        ),
-      ),
-    );
-  }
-
-  /// 构建 AppBar 标题
-  Widget _buildAppBarTitle({
-    required ThemeData theme,
-    required TopicDetail? detail,
-    required bool shouldShowTitle,
-    required double expandProgress,
-  }) {
-    return Opacity(
-      opacity: shouldShowTitle ? (1.0 - expandProgress).clamp(0.0, 1.0) : 0.0,
-      child: GestureDetector(
-        onTap: () {
-          if (shouldShowTitle && detail != null) {
-            _toggleExpandedHeader();
-          }
-        },
-        child: Text.rich(
-          TextSpan(
-            style: theme.textTheme.titleMedium,
-            children: [
-              if (detail?.isPrivateMessage ?? false)
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Icon(
-                      Icons.mail_outline,
-                      size: 18,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                ),
-              if (detail?.closed ?? false)
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Icon(
-                      Icons.lock_outline,
-                      size: 18,
-                      color:
-                          theme.textTheme.titleMedium?.color ??
-                          theme.colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-              if (detail?.hasAcceptedAnswer ?? false)
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Icon(Icons.check_box, size: 18, color: Colors.green),
-                  ),
-                ),
-              ...EmojiText.buildEmojiSpans(
-                context,
-                detail?.title ?? widget.initialTitle ?? '',
-                theme.textTheme.titleMedium,
-              ),
-            ],
-          ),
-          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
@@ -875,7 +804,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         );
       }
     });
-
 
     final params = _params;
     final detailAsync = ref.watch(topicDetailProvider(params));
@@ -1395,7 +1323,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           onRefreshPost: _handleRefreshPost,
           onJumpToPost: _scrollToPost,
           onVoteChanged: _handleVoteChanged,
-          onNotificationLevelChanged: (level) => _handleNotificationLevelChanged(notifier, level),
+          onNotificationLevelChanged: (level) =>
+              _handleNotificationLevelChanged(notifier, level),
           onSolutionChanged: _handleSolutionChanged,
           onScrollNotification: _controller.handleScrollNotification,
           onVisiblePostsChanged: _updateVisiblePosts,

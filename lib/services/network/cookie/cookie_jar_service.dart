@@ -32,10 +32,7 @@ class CookieJarService {
   late final PlatformCookieStrategy _strategy;
 
   /// 可配置的关键 cookie 名集合
-  static const Set<String> sessionCookieNames = {
-    '_t',
-    '_forum_session',
-  };
+  static const Set<String> sessionCookieNames = {'_t', '_forum_session'};
 
   static Set<String> criticalCookieNames = {
     ...sessionCookieNames,
@@ -519,6 +516,7 @@ class CookieJarService {
   Future<int> syncCriticalCookiesFromController(
     InAppWebViewController controller, {
     String? currentUrl,
+    Iterable<String>? readUrls,
     Set<String>? cookieNames,
   }) async {
     if (!io.Platform.isWindows) return 0;
@@ -531,6 +529,7 @@ class CookieJarService {
       final rawCookies = await _readWindowsCookiesFromController(
         controller,
         currentUrl: currentUrl,
+        readUrls: readUrls,
       );
       final filtered = rawCookies
           .where((raw) {
@@ -599,6 +598,7 @@ class CookieJarService {
   Future<List<Map<String, dynamic>>> _readWindowsCookiesFromController(
     InAppWebViewController controller, {
     String? currentUrl,
+    Iterable<String>? readUrls,
   }) async {
     final baseUri = Uri.parse(AppConstants.baseUrl);
     final hosts = await getKnownHostsForDomain(baseUri.host);
@@ -613,6 +613,7 @@ class CookieJarService {
       AppConstants.baseUrl,
       '${AppConstants.baseUrl}/',
       if (currentUrl != null && currentUrl.isNotEmpty) currentUrl,
+      if (readUrls != null) ...readUrls.where((url) => url.trim().isNotEmpty),
       for (final host in hosts) 'https://$host',
       for (final host in hosts) 'https://$host/',
     }.toList(growable: false);
