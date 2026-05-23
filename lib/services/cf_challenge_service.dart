@@ -40,6 +40,8 @@ class CfChallengeService {
   static const _cooldownDuration = Duration(seconds: 30);
   static const _maxFailuresBeforeCooldown = 3;
   static const _toastCooldown = Duration(seconds: 2);
+  DateTime? _silentVerifyDeferredUntil;
+  static const _silentVerifyDeferral = Duration(seconds: 20);
 
   /// 检查是否在冷却期
   bool get isInCooldown {
@@ -51,10 +53,20 @@ class CfChallengeService {
     return true;
   }
 
+  bool get isSilentVerifyDeferred {
+    if (_silentVerifyDeferredUntil == null) return false;
+    if (DateTime.now().isAfter(_silentVerifyDeferredUntil!)) {
+      _silentVerifyDeferredUntil = null;
+      return false;
+    }
+    return true;
+  }
+
   /// 重置冷却期和失败计数（验证成功后调用）
   void resetCooldown() {
     _cooldownUntil = null;
     _consecutiveFailures = 0;
+    _silentVerifyDeferredUntil = null;
     CfChallengeLogger.logCooldown(entering: false);
   }
 
@@ -72,6 +84,26 @@ class CfChallengeService {
         '[CfChallenge] 验证失败 $_consecutiveFailures/$_maxFailuresBeforeCooldown，允许重试',
       );
     }
+  }
+
+  /// 静默请求命中验证后，短时间内只提示一次，等待用户手动触发验证。
+  void deferSilentVerify([Duration duration = _silentVerifyDeferral]) {
+    final nextUntil = DateTime.now().add(duration);
+    if (_silentVerifyDeferredUntil == null ||
+        nextUntil.isAfter(_silentVerifyDeferredUntil!)) {
+      _silentVerifyDeferredUntil = nextUntil;
+    }
+  }
+
+  /// 验证成功但业务请求重试仍 403 时，直接进入退避/熔断。
+  void tripRetryFailureCircuitBreaker() {
+    _consecutiveFailures = _maxFailuresBeforeCooldown;
+    _cooldownUntil = DateTime.now().add(_cooldownDuration);
+    _silentVerifyDeferredUntil = null;
+    debugPrint(
+      '[CfChallenge] 验证成功但重试仍失败，进入 ${_cooldownDuration.inSeconds}s 熔断期',
+    );
+    CfChallengeLogger.logCooldown(entering: true, until: _cooldownUntil);
   }
 
   static void showGlobalMessage(String message, {bool isError = true}) {
