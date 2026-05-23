@@ -1,5 +1,7 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:scroll_to_index/scroll_to_index.dart';
 import '../../../l10n/s.dart';
 import '../../../models/nested_topic.dart';
 import '../../../models/topic.dart';
@@ -15,7 +17,7 @@ class NestedPostList extends ConsumerStatefulWidget {
   final NestedTopicParams params;
   final TopicDetail detail;
   final int topicId;
-  final ScrollController scrollController;
+  final AutoScrollController scrollController;
   final GlobalKey headerKey;
   final bool isLoggedIn;
   final void Function(Post? replyToPost) onReply;
@@ -26,6 +28,9 @@ class NestedPostList extends ConsumerStatefulWidget {
   final void Function(TopicNotificationLevel)? onNotificationLevelChanged;
   final void Function(int postId, bool accepted)? onSolutionChanged;
   final bool Function(ScrollNotification) onScrollNotification;
+  final ValueChanged<double>? onPointerScroll;
+  final void Function(Map<int, int>)? onPostNumberScrollIndexMappingChanged;
+  final void Function(TopicSummary summary)? onContinueAiSummary;
 
   /// 可见帖子上报（走 ScreenTrack 上报链路）
   final void Function(Set<int> visiblePostNumbers)? onVisiblePostsChanged;
@@ -47,6 +52,9 @@ class NestedPostList extends ConsumerStatefulWidget {
     this.onNotificationLevelChanged,
     this.onSolutionChanged,
     required this.onScrollNotification,
+    this.onPointerScroll,
+    this.onPostNumberScrollIndexMappingChanged,
+    this.onContinueAiSummary,
     this.onVisiblePostsChanged,
   });
 
@@ -56,6 +64,10 @@ class NestedPostList extends ConsumerStatefulWidget {
 
 class _NestedPostListState extends ConsumerState<NestedPostList> {
   final Map<int, bool> _expansionState = {};
+  final Map<int, int> _postNumberToScrollIndex = {};
+  bool _hasReachedLoadMoreRegion = false;
+  double? _lastScrollPixels;
+  int _nextScrollIndex = 0;
 
   /// 当前正在渲染的根帖子号集合（SliverList.builder 渲染时收集）
   final Set<int> _builtPostNumbers = {};
@@ -77,6 +89,44 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
     if (_builtPostNumbers.isNotEmpty) {
       widget.onVisiblePostsChanged?.call(Set.from(_builtPostNumbers));
     }
+
+    if (!widget.scrollController.hasClients) return;
+    final position = widget.scrollController.position;
+    final previousPixels = _lastScrollPixels;
+    final scrollingTowardBottom =
+        previousPixels != null && position.pixels > previousPixels + 4;
+    _lastScrollPixels = position.pixels;
+
+    final ns = widget.nestedState;
+    if (!ns.hasMoreRoots || ns.isLoadingMore) {
+      _hasReachedLoadMoreRegion = false;
+      return;
+    }
+
+    final nearLoadMore = position.pixels >= position.maxScrollExtent - 360;
+    if (!nearLoadMore) {
+      _hasReachedLoadMoreRegion = false;
+      return;
+    }
+
+    if (!_hasReachedLoadMoreRegion) {
+      _hasReachedLoadMoreRegion = true;
+      return;
+    }
+
+    if (scrollingTowardBottom) {
+      _hasReachedLoadMoreRegion = false;
+      ref.read(nestedTopicProvider(widget.params).notifier).loadMoreRoots();
+    }
+  }
+
+  int _nextIndexForPost(int postNumber) {
+    final index = _nextScrollIndex++;
+    _postNumberToScrollIndex[postNumber] = index;
+    widget.onPostNumberScrollIndexMappingChanged?.call(
+      Map<int, int>.from(_postNumberToScrollIndex),
+    );
+    return index;
   }
 
   /// 递归收集节点及其展开子节点中的所有 postNumber
@@ -103,6 +153,8 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
   @override
   Widget build(BuildContext context) {
     _builtPostNumbers.clear();
+    _postNumberToScrollIndex.clear();
+    _nextScrollIndex = 0;
     final maxDepth = _getMaxDepth(context);
 
     // OP 也算可见
@@ -112,111 +164,137 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
 
     return NotificationListener<ScrollNotification>(
       onNotification: widget.onScrollNotification,
-      child: CustomScrollView(
-        controller: widget.scrollController,
-        slivers: [
-          SliverToBoxAdapter(
-            child: SelectionContainer.disabled(
-              child: TopicDetailHeader(
-                detail: widget.detail,
-                headerKey: widget.headerKey,
-                onVoteChanged: widget.onVoteChanged,
-                onNotificationLevelChanged: widget.onNotificationLevelChanged,
-                onJumpToPost: widget.onJumpToPost,
-              ),
-            ),
-          ),
-
-          if (ns.opPost != null)
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerSignal: (event) {
+          if (event is PointerScrollEvent) {
+            widget.onPointerScroll?.call(event.scrollDelta.dy);
+          }
+        },
+        child: CustomScrollView(
+          controller: widget.scrollController,
+          slivers: [
             SliverToBoxAdapter(
-              child: PostItem(
-                post: ns.opPost!,
-                topicId: widget.topicId,
-                isTopicOwner: true,
-                topicHasAcceptedAnswer: widget.detail.hasAcceptedAnswer,
-                acceptedAnswerPostNumber:
-                    widget.detail.acceptedAnswerPostNumber,
-                onReply: widget.isLoggedIn ? () => widget.onReply(null) : null,
-                onEdit: widget.isLoggedIn && ns.opPost!.canEdit
-                    ? () => widget.onEdit(ns.opPost!)
-                    : null,
-                onRefreshPost: widget.onRefreshPost,
-                onJumpToPost: widget.onJumpToPost,
-                onSolutionChanged: widget.onSolutionChanged,
-                hideRepliesButton: true,
+              child: SelectionContainer.disabled(
+                child: TopicDetailHeader(
+                  detail: widget.detail,
+                  headerKey: widget.headerKey,
+                  onVoteChanged: widget.onVoteChanged,
+                  onNotificationLevelChanged: widget.onNotificationLevelChanged,
+                  onJumpToPost: widget.onJumpToPost,
+                  onContinueAiSummary: widget.onContinueAiSummary,
+                ),
               ),
             ),
 
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  _SortChip(
-                    label: context.l10n.nested_sortTop,
-                    value: 'top',
-                    current: ns.sort,
-                    onTap: () => ref
-                        .read(nestedTopicProvider(p).notifier)
-                        .changeSort('top'),
+            if (ns.opPost != null)
+              SliverToBoxAdapter(
+                child: AutoScrollTag(
+                  key: const ValueKey('nested-post-1-op'),
+                  controller: widget.scrollController,
+                  index: _nextIndexForPost(ns.opPost!.postNumber),
+                  child: PostItem(
+                    post: ns.opPost!,
+                    topicId: widget.topicId,
+                    isTopicOwner: true,
+                    topicHasAcceptedAnswer: widget.detail.hasAcceptedAnswer,
+                    acceptedAnswerPostNumber:
+                        widget.detail.acceptedAnswerPostNumber,
+                    onReply: widget.isLoggedIn
+                        ? () => widget.onReply(null)
+                        : null,
+                    onEdit: widget.isLoggedIn && ns.opPost!.canEdit
+                        ? () => widget.onEdit(ns.opPost!)
+                        : null,
+                    onRefreshPost: widget.onRefreshPost,
+                    onJumpToPost: widget.onJumpToPost,
+                    onSolutionChanged: widget.onSolutionChanged,
+                    hideRepliesButton: true,
                   ),
-                  const SizedBox(width: 6),
-                  _SortChip(
-                    label: context.l10n.nested_sortNew,
-                    value: 'new',
-                    current: ns.sort,
-                    onTap: () => ref
-                        .read(nestedTopicProvider(p).notifier)
-                        .changeSort('new'),
-                  ),
-                  const SizedBox(width: 6),
-                  _SortChip(
-                    label: context.l10n.nested_sortOld,
-                    value: 'old',
-                    current: ns.sort,
-                    onTap: () => ref
-                        .read(nestedTopicProvider(p).notifier)
-                        .changeSort('old'),
-                  ),
-                ],
+                ),
+              ),
+
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    _SortChip(
+                      label: context.l10n.nested_sortTop,
+                      value: 'top',
+                      current: ns.sort,
+                      onTap: () => ref
+                          .read(nestedTopicProvider(p).notifier)
+                          .changeSort('top'),
+                    ),
+                    const SizedBox(width: 6),
+                    _SortChip(
+                      label: context.l10n.nested_sortNew,
+                      value: 'new',
+                      current: ns.sort,
+                      onTap: () => ref
+                          .read(nestedTopicProvider(p).notifier)
+                          .changeSort('new'),
+                    ),
+                    const SizedBox(width: 6),
+                    _SortChip(
+                      label: context.l10n.nested_sortOld,
+                      value: 'old',
+                      current: ns.sort,
+                      onTap: () => ref
+                          .read(nestedTopicProvider(p).notifier)
+                          .changeSort('old'),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
 
-          SliverList.builder(
-            itemCount:
-                ns.roots.length + (ns.hasMoreRoots || ns.isLoadingMore ? 1 : 0),
-            itemBuilder: (context, index) {
-              if (index >= ns.roots.length) {
-                return _buildLoadMore(context);
-              }
-              // 收集可见帖子号（含子节点）
-              _collectVisiblePostNumbers(ns.roots[index]);
-              return NestedPostCard(
-                node: ns.roots[index],
-                topicId: widget.topicId,
-                detail: widget.detail,
-                params: p,
-                depth: 0,
-                maxDepth: maxDepth,
-                isLastChild: index == ns.roots.length - 1,
-                isLoggedIn: widget.isLoggedIn,
-                onReply: widget.onReply,
-                onEdit: widget.onEdit,
-                onRefreshPost: widget.onRefreshPost,
-                onJumpToPost: widget.onJumpToPost,
-                onSolutionChanged: widget.onSolutionChanged,
-                expansionState: _expansionState,
-              );
-            },
-          ),
-
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: MediaQuery.of(context).padding.bottom + 100,
+            SliverList.builder(
+              itemCount:
+                  ns.roots.length +
+                  (ns.hasMoreRoots || ns.isLoadingMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index >= ns.roots.length) {
+                  return _buildLoadMore(context);
+                }
+                // 收集可见帖子号（含子节点）
+                _collectVisiblePostNumbers(ns.roots[index]);
+                return NestedPostCard(
+                  node: ns.roots[index],
+                  topicId: widget.topicId,
+                  detail: widget.detail,
+                  params: p,
+                  depth: 0,
+                  maxDepth: maxDepth,
+                  isLastChild: index == ns.roots.length - 1,
+                  isLoggedIn: widget.isLoggedIn,
+                  onReply: widget.onReply,
+                  onEdit: widget.onEdit,
+                  onRefreshPost: widget.onRefreshPost,
+                  onJumpToPost: widget.onJumpToPost,
+                  onSolutionChanged: widget.onSolutionChanged,
+                  expansionState: _expansionState,
+                  buildScrollTag: (postNumber, child) => AutoScrollTag(
+                    key: ValueKey('nested-post-$postNumber'),
+                    controller: widget.scrollController,
+                    index: _nextIndexForPost(postNumber),
+                    child: child,
+                  ),
+                );
+              },
             ),
-          ),
-        ],
+
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: MediaQuery.of(context).padding.bottom + 100,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

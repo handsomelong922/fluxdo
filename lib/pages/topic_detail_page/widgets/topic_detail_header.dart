@@ -27,6 +27,9 @@ class TopicDetailHeader extends ConsumerWidget {
   /// 跳转到当前话题的指定帖子
   final void Function(int postNumber)? onJumpToPost;
 
+  /// 带着当前摘要继续进入 AI 助手
+  final void Function(TopicSummary summary)? onContinueAiSummary;
+
   const TopicDetailHeader({
     super.key,
     required this.detail,
@@ -34,15 +37,16 @@ class TopicDetailHeader extends ConsumerWidget {
     this.onVoteChanged,
     this.onNotificationLevelChanged,
     this.onJumpToPost,
+    this.onContinueAiSummary,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final preferences = ref.watch(preferencesProvider);
-    final hasConfiguredAiModel = ref.watch(
-      hasConfiguredTopicAiModelProvider(detail.id),
-    ).maybeWhen(data: (value) => value, orElse: () => false);
+    final hasConfiguredAiModel = ref
+        .watch(hasConfiguredTopicAiModelProvider(detail.id))
+        .maybeWhen(data: (value) => value, orElse: () => false);
     final autoExpandSummary =
         hasConfiguredAiModel &&
         preferences.autoSummarizeTopicOnEnter &&
@@ -246,6 +250,7 @@ class TopicDetailHeader extends ConsumerWidget {
             topicDetail: detail,
             initiallyExpanded: autoExpandSummary,
             onJumpToPost: onJumpToPost,
+            onContinueConversation: onContinueAiSummary,
             headerExtra: TopicNotificationButton(
               level: detail.notificationLevel,
               onChanged: onNotificationLevelChanged,

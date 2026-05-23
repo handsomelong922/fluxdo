@@ -62,11 +62,23 @@ List<SettingsGroup> buildReadingGroups(BuildContext context) {
               ref.read(preferencesProvider.notifier).setHideBarOnScroll(v),
         ),
         SwitchModel(
+          id: 'defaultNestedTopicView',
+          title: l10n.nested_title,
+          subtitle: '进入帖子时默认使用树形视图',
+          icon: Icons.forum_outlined,
+          getValue: (ref) =>
+              ref.watch(preferencesProvider).defaultNestedTopicView,
+          onChanged: (ref, v) => ref
+              .read(preferencesProvider.notifier)
+              .setDefaultNestedTopicView(v),
+        ),
+        SwitchModel(
           id: 'openExternalLinksInAppBrowser',
           title: l10n.preferences_openLinksInApp,
           subtitle: l10n.preferences_openLinksInAppDesc,
           icon: Icons.open_in_browser_rounded,
-          getValue: (ref) => ref.watch(preferencesProvider).openExternalLinksInAppBrowser,
+          getValue: (ref) =>
+              ref.watch(preferencesProvider).openExternalLinksInAppBrowser,
           onChanged: (ref, v) => ref
               .read(preferencesProvider.notifier)
               .setOpenExternalLinksInAppBrowser(v),

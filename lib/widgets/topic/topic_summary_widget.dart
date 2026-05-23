@@ -6,6 +6,7 @@ import '../../l10n/s.dart';
 import '../../models/topic.dart';
 import '../../pages/topic_detail_page/topic_detail_page.dart';
 import '../../services/topic_ai/topic_ai_context_service.dart';
+import '../../services/topic_ai/topic_ai_summary_cache_service.dart';
 import '../../services/topic_ai/topic_ai_summary_service.dart';
 import '../common/relative_time_text.dart';
 import '../markdown_editor/markdown_renderer.dart';
@@ -18,11 +19,15 @@ class TopicSummaryWidget extends ConsumerStatefulWidget {
   /// 跳转到当前话题的指定帖子
   final void Function(int postNumber)? onJumpToPost;
 
+  /// 带着当前摘要继续进入 AI 助手
+  final void Function(TopicSummary summary)? onContinueConversation;
+
   const TopicSummaryWidget({
     super.key,
     required this.topicId,
     required this.topicDetail,
     this.onJumpToPost,
+    this.onContinueConversation,
   });
 
   @override
@@ -36,7 +41,7 @@ class _TopicSummaryWidgetState extends ConsumerState<TopicSummaryWidget> {
   @override
   void initState() {
     super.initState();
-    _loadSummary();
+    _loadSummary(regenerate: false);
   }
 
   @override
@@ -44,16 +49,28 @@ class _TopicSummaryWidgetState extends ConsumerState<TopicSummaryWidget> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.topicId != widget.topicId) {
       _cachedPosts = const [];
-      _loadSummary();
+      _loadSummary(regenerate: false);
     }
   }
 
-  Future<void> _loadSummary() async {
+  Future<void> _loadSummary({bool regenerate = false}) async {
     setState(() {
       _summaryAsync = const AsyncValue.loading();
     });
 
     try {
+      final cacheService = ref.read(topicAiSummaryCacheServiceProvider);
+      if (!regenerate) {
+        final cached = cacheService.getSummary(widget.topicId);
+        if (cached != null && cached.summarizedText.trim().isNotEmpty) {
+          if (!mounted) return;
+          setState(() {
+            _summaryAsync = AsyncValue.data(cached);
+          });
+          return;
+        }
+      }
+
       final posts = await ref
           .read(topicAiContextServiceProvider)
           .loadContextPosts(
@@ -70,6 +87,7 @@ class _TopicSummaryWidgetState extends ConsumerState<TopicSummaryWidget> {
             detail: widget.topicDetail,
             cachedPosts: posts,
           );
+      await cacheService.saveSummary(widget.topicId, summary);
       if (!mounted) return;
       setState(() {
         _cachedPosts = posts;
@@ -179,7 +197,7 @@ class _TopicSummaryWidgetState extends ConsumerState<TopicSummaryWidget> {
             ),
           ),
           TextButton(
-            onPressed: _loadSummary,
+            onPressed: () => _loadSummary(regenerate: true),
             child: Text(S.current.common_retry),
           ),
         ],
@@ -282,9 +300,18 @@ class _TopicSummaryWidgetState extends ConsumerState<TopicSummaryWidget> {
                   ),
                 ),
               const Spacer(),
+              TextButton.icon(
+                onPressed: () => widget.onContinueConversation?.call(summary),
+                icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                label: Text(S.current.common_continue),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: const Size(0, 32),
+                ),
+              ),
               if (summary.canRegenerate)
                 TextButton.icon(
-                  onPressed: _loadSummary,
+                  onPressed: () => _loadSummary(regenerate: true),
                   icon: const Icon(Icons.refresh, size: 16),
                   label: Text(S.current.common_refresh),
                   style: TextButton.styleFrom(
@@ -310,6 +337,9 @@ class CollapsibleTopicSummary extends ConsumerStatefulWidget {
   /// 跳转到当前话题的指定帖子
   final void Function(int postNumber)? onJumpToPost;
 
+  /// 带着当前摘要继续进入 AI 助手
+  final void Function(TopicSummary summary)? onContinueConversation;
+
   const CollapsibleTopicSummary({
     super.key,
     required this.topicId,
@@ -317,6 +347,7 @@ class CollapsibleTopicSummary extends ConsumerStatefulWidget {
     this.headerExtra,
     this.initiallyExpanded = false,
     this.onJumpToPost,
+    this.onContinueConversation,
   });
 
   @override
@@ -440,6 +471,7 @@ class _CollapsibleTopicSummaryState
                     topicId: widget.topicId,
                     topicDetail: widget.topicDetail!,
                     onJumpToPost: widget.onJumpToPost,
+                    onContinueConversation: widget.onContinueConversation,
                   ),
                 )
               : const SizedBox(width: double.infinity),

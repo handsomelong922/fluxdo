@@ -140,6 +140,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   );
   bool _isSwitchingMode = false; // 切换热门回复模式
   late bool _isNestedView; // 嵌套视图模式
+  Map<int, int> _nestedPostNumberToScrollIndex = const {};
   // 搜索相关
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -167,9 +168,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _isParentActive = widget.parentActive;
-    // 默认进入树形视图，但保留“跳到指定楼层”入口的平铺定位能力。
-    _isNestedView =
-        widget.scrollToPostNumber == null || widget.scrollToPostNumber! <= 1;
+    _isNestedView = ref.read(preferencesProvider).defaultNestedTopicView;
 
     _expandController = AnimationController(
       vsync: this,
@@ -669,6 +668,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             _handleBookmark(notifier);
           } else if (value == 'read_later') {
             _handleReadLater();
+          } else if (value == 'toggle_nested_view') {
+            _setNestedView(!_isNestedView);
           } else if (value == 'reading_settings') {
             Navigator.push(
               context,
@@ -758,6 +759,25 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             ),
           ),
           const PopupMenuDivider(),
+          PopupMenuItem(
+            value: 'toggle_nested_view',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _isNestedView ? Icons.forum : Icons.forum_outlined,
+                  size: 20,
+                  color: _isNestedView
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurface,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '${context.l10n.nested_title} · ${_isNestedView ? context.l10n.common_close : context.l10n.common_enable}',
+                ),
+              ],
+            ),
+          ),
           PopupMenuItem(
             value: 'reading_settings',
             child: Row(
@@ -947,9 +967,27 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       });
     }
 
-    final topicScaffold = Scaffold(
-      appBar: _buildAppBar(theme: theme, detail: detail, notifier: notifier),
-      body: _buildBody(context, detailAsync, detail, notifier, isLoggedIn),
+    final hideBarOnScroll = ref.watch(
+      preferencesProvider.select((p) => p.hideBarOnScroll),
+    );
+    final topicBody = _buildBody(
+      context,
+      detailAsync,
+      detail,
+      notifier,
+      isLoggedIn,
+    );
+    final topicScaffold = ValueListenableBuilder<bool>(
+      valueListenable: _controller.showBottomBarNotifier,
+      builder: (context, showBars, _) {
+        final shouldShowAppBar = isSearchMode || !hideBarOnScroll || showBars;
+        return Scaffold(
+          appBar: shouldShowAppBar
+              ? _buildAppBar(theme: theme, detail: detail, notifier: notifier)
+              : null,
+          body: topicBody,
+        );
+      },
     );
 
     // 无 AI 模型或非滑动入口模式：普通布局
@@ -1153,11 +1191,16 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           ValueListenableBuilder<bool>(
             valueListenable: _controller.showBottomBarNotifier,
             builder: (context, showBottomBar, _) {
+              final effectiveShowBottomBar =
+                  !ref.watch(
+                    preferencesProvider.select((p) => p.hideBarOnScroll),
+                  ) ||
+                  showBottomBar;
               return ValueListenableBuilder<int>(
                 valueListenable: _controller.streamIndexNotifier,
                 builder: (context, currentStreamIndex, _) {
                   return TopicDetailOverlay(
-                    showBottomBar: showBottomBar,
+                    showBottomBar: effectiveShowBottomBar,
                     isLoggedIn: isLoggedIn,
                     currentStreamIndex: currentStreamIndex,
                     totalCount: detail.postStream.stream.length,
@@ -1172,13 +1215,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                     isSummaryMode: notifier.isSummaryMode,
                     isAuthorOnlyMode: notifier.isAuthorOnlyMode,
                     isTopLevelMode: notifier.isTopLevelMode,
-                    isNestedMode: _isNestedView,
                     isLoading: _isSwitchingMode,
                     onShowTopReplies: _handleShowTopReplies,
                     onShowAuthorOnly: _handleShowAuthorOnly,
                     onShowTopLevelReplies: _handleShowTopLevelReplies,
                     onCancelFilter: _handleCancelFilter,
-                    onShowNestedView: _toggleNestedView,
                   );
                 },
               );
@@ -1235,6 +1276,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                                       level,
                                     ),
                                 onJumpToPost: _scrollToPost,
+                                onContinueAiSummary: _continueAiSummary,
                               ),
                             ),
                           ),
@@ -1327,6 +1369,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               _handleNotificationLevelChanged(notifier, level),
           onSolutionChanged: _handleSolutionChanged,
           onScrollNotification: _controller.handleScrollNotification,
+          onPointerScroll: _controller.handlePointerScroll,
+          onPostNumberScrollIndexMappingChanged: (mapping) {
+            _nestedPostNumberToScrollIndex = mapping;
+          },
+          onContinueAiSummary: _continueAiSummary,
           onVisiblePostsChanged: _updateVisiblePosts,
         ),
       );
@@ -1374,6 +1421,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               onNotificationLevelChanged: (level) =>
                   _handleNotificationLevelChanged(notifier, level),
               onSolutionChanged: _handleSolutionChanged,
+              onContinueAiSummary: _continueAiSummary,
               onQuoteSelection: isLoggedIn ? _handleQuoteSelection : null,
               onQuoteImage: isLoggedIn ? _handleImageQuote : null,
               onScrollNotification: _controller.handleScrollNotification,

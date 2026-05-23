@@ -13,13 +13,11 @@ class TopicBottomBar extends StatelessWidget {
   final bool isSummaryMode;
   final bool isAuthorOnlyMode;
   final bool isTopLevelMode;
-  final bool isNestedMode;
   final bool isLoading;
   final VoidCallback? onShowTopReplies;
   final VoidCallback? onShowAuthorOnly;
   final VoidCallback? onShowTopLevelReplies;
   final VoidCallback? onCancelFilter;
-  final VoidCallback? onShowNestedView;
   final bool isPrivateMessage;
 
   const TopicBottomBar({
@@ -33,17 +31,16 @@ class TopicBottomBar extends StatelessWidget {
     this.isSummaryMode = false,
     this.isAuthorOnlyMode = false,
     this.isTopLevelMode = false,
-    this.isNestedMode = false,
     this.isLoading = false,
     this.isPrivateMessage = false,
     this.onShowTopReplies,
     this.onShowAuthorOnly,
     this.onShowTopLevelReplies,
     this.onCancelFilter,
-    this.onShowNestedView,
   });
 
-  bool get _hasActiveFilter => isSummaryMode || isAuthorOnlyMode || isTopLevelMode || isNestedMode;
+  bool get _hasActiveFilter =>
+      isSummaryMode || isAuthorOnlyMode || isTopLevelMode;
 
   @override
   Widget build(BuildContext context) {
@@ -53,9 +50,7 @@ class TopicBottomBar extends StatelessWidget {
     return Container(
       height: 80,
       padding: EdgeInsets.only(bottom: bottomPadding),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-      ),
+      decoration: BoxDecoration(color: theme.colorScheme.surface),
       child: Row(
         children: [
           const SizedBox(width: 8),
@@ -103,10 +98,15 @@ class TopicBottomBar extends StatelessWidget {
   }
 
   (IconData, String) _activeFilterInfo(BuildContext context) {
-    if (isSummaryMode) return (Icons.local_fire_department, context.l10n.topicDetail_hotOnly);
-    if (isAuthorOnlyMode) return (Icons.person, context.l10n.topicDetail_authorOnly);
-    if (isTopLevelMode) return (Icons.account_tree, context.l10n.topicDetail_topLevelOnly);
-    if (isNestedMode) return (Icons.forum, context.l10n.nested_title);
+    if (isSummaryMode) {
+      return (Icons.local_fire_department, context.l10n.topicDetail_hotOnly);
+    }
+    if (isAuthorOnlyMode) {
+      return (Icons.person, context.l10n.topicDetail_authorOnly);
+    }
+    if (isTopLevelMode) {
+      return (Icons.account_tree, context.l10n.topicDetail_topLevelOnly);
+    }
     return (Icons.filter_list, '');
   }
 
@@ -152,15 +152,6 @@ class TopicBottomBar extends StatelessWidget {
                   onShowTopLevelReplies?.call();
                 },
               ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.forum_outlined),
-                title: Text(context.l10n.nested_title),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  onShowNestedView?.call();
-                },
-              ),
             ],
           ),
         );
@@ -204,7 +195,11 @@ class TopicBottomBar extends StatelessWidget {
             value: 'image',
             child: Row(
               children: [
-                Icon(Icons.image_outlined, size: 20, color: theme.colorScheme.onSurface),
+                Icon(
+                  Icons.image_outlined,
+                  size: 20,
+                  color: theme.colorScheme.onSurface,
+                ),
                 const SizedBox(width: 12),
                 Text(context.l10n.topicDetail_generateShareImage),
               ],
@@ -214,7 +209,11 @@ class TopicBottomBar extends StatelessWidget {
           value: 'export',
           child: Row(
             children: [
-              Icon(Icons.download_outlined, size: 20, color: theme.colorScheme.onSurface),
+              Icon(
+                Icons.download_outlined,
+                size: 20,
+                color: theme.colorScheme.onSurface,
+              ),
               const SizedBox(width: 12),
               Text(context.l10n.topicDetail_exportArticle),
             ],

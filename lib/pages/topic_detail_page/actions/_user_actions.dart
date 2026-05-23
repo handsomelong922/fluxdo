@@ -12,7 +12,8 @@ extension _UserActions on _TopicDetailPageState {
     final detail = ref.read(topicDetailProvider(params)).value;
     final notifier = ref.read(topicDetailProvider(params).notifier);
     final anchorPostNumber = _controller.getRefreshAnchorPostNumber(
-      detail?.postStream.posts.firstOrNull?.postNumber ?? _controller.currentPostNumber,
+      detail?.postStream.posts.firstOrNull?.postNumber ??
+          _controller.currentPostNumber,
     );
 
     setState(() => _isRefreshing = true);
@@ -24,8 +25,13 @@ extension _UserActions on _TopicDetailPageState {
     final updatedDetail = ref.read(topicDetailProvider(params)).value;
     if (updatedDetail == null) return;
 
-    final isFiltered = notifier.isSummaryMode || notifier.isAuthorOnlyMode || notifier.isTopLevelMode;
-    final hasAnchor = updatedDetail.postStream.posts.any((p) => p.postNumber == anchorPostNumber);
+    final isFiltered =
+        notifier.isSummaryMode ||
+        notifier.isAuthorOnlyMode ||
+        notifier.isTopLevelMode;
+    final hasAnchor = updatedDetail.postStream.posts.any(
+      (p) => p.postNumber == anchorPostNumber,
+    );
     if (!isFiltered || hasAnchor) {
       _controller.prepareRefresh(anchorPostNumber, skipHighlight: true);
     } else {
@@ -54,7 +60,9 @@ extension _UserActions on _TopicDetailPageState {
     );
 
     if (newPost != null && mounted) {
-      final addedToView = ref.read(topicDetailProvider(params).notifier).addPost(newPost);
+      final addedToView = ref
+          .read(topicDetailProvider(params).notifier)
+          .addPost(newPost);
 
       if (addedToView) {
         // 回复面板关闭后键盘收起动画约 700ms，期间 viewport 高度持续增大、
@@ -109,8 +117,12 @@ extension _UserActions on _TopicDetailPageState {
     final detail = ref.read(topicDetailProvider(params)).value;
     if (detail == null) return;
 
-    final firstPost = detail.postStream.posts.where((p) => p.postNumber == 1).firstOrNull;
-    final firstPostId = detail.postStream.stream.isNotEmpty ? detail.postStream.stream.first : null;
+    final firstPost = detail.postStream.posts
+        .where((p) => p.postNumber == 1)
+        .firstOrNull;
+    final firstPostId = detail.postStream.stream.isNotEmpty
+        ? detail.postStream.stream.first
+        : null;
 
     final result = await Navigator.of(context).push<EditTopicResult>(
       MaterialPageRoute(
@@ -123,12 +135,14 @@ extension _UserActions on _TopicDetailPageState {
     );
 
     if (result != null && mounted) {
-      ref.read(topicDetailProvider(params).notifier).updateTopicInfo(
-        title: result.title,
-        categoryId: result.categoryId,
-        tags: result.tags,
-        firstPost: result.updatedFirstPost,
-      );
+      ref
+          .read(topicDetailProvider(params).notifier)
+          .updateTopicInfo(
+            title: result.title,
+            categoryId: result.categoryId,
+            tags: result.tags,
+            firstPost: result.updatedFirstPost,
+          );
     }
   }
 
@@ -196,7 +210,9 @@ extension _UserActions on _TopicDetailPageState {
     if (notifier.contains(widget.topicId)) {
       // 已在列表中 → 移除
       notifier.remove(widget.topicId);
-      ToastService.showSuccess(S.current.topicDetail_removeFromReadLaterSuccess);
+      ToastService.showSuccess(
+        S.current.topicDetail_removeFromReadLaterSuccess,
+      );
     } else {
       // 不在列表中 → 添加
       final item = ReadLaterItem(
@@ -209,19 +225,25 @@ extension _UserActions on _TopicDetailPageState {
       if (success) {
         ToastService.showSuccess(S.current.topicDetail_addToReadLaterSuccess);
       } else {
-        ToastService.showError(S.current.topicDetail_readLaterFull(maxReadLaterItems));
+        ToastService.showError(
+          S.current.topicDetail_readLaterFull(maxReadLaterItems),
+        );
       }
     }
   }
 
   void _handleVoteChanged(int newVoteCount, bool userVoted) {
     final params = _params;
-    ref.read(topicDetailProvider(params).notifier).updateTopicVote(newVoteCount, userVoted);
+    ref
+        .read(topicDetailProvider(params).notifier)
+        .updateTopicVote(newVoteCount, userVoted);
   }
 
   void _handleSolutionChanged(int postId, bool accepted) {
     final params = _params;
-    ref.read(topicDetailProvider(params).notifier).updatePostSolution(postId, accepted);
+    ref
+        .read(topicDetailProvider(params).notifier)
+        .updatePostSolution(postId, accepted);
   }
 
   void _handleRefreshPost(int postId) {
@@ -229,7 +251,10 @@ extension _UserActions on _TopicDetailPageState {
     ref.read(topicDetailProvider(params).notifier).refreshPost(postId);
   }
 
-  void _handleNotificationLevelChanged(TopicDetailNotifier notifier, TopicNotificationLevel level) async {
+  void _handleNotificationLevelChanged(
+    TopicDetailNotifier notifier,
+    TopicNotificationLevel level,
+  ) async {
     try {
       await notifier.updateNotificationLevel(level);
       if (mounted) {
@@ -277,7 +302,9 @@ extension _UserActions on _TopicDetailPageState {
     if (detail == null) return;
 
     // 尝试获取已加载的主帖，如果没有则传 null，ShareImagePreview 会自动获取
-    final firstPost = detail.postStream.posts.where((p) => p.postNumber == 1).firstOrNull;
+    final firstPost = detail.postStream.posts
+        .where((p) => p.postNumber == 1)
+        .firstOrNull;
     ShareImagePreview.show(context, detail, post: firstPost);
   }
 
@@ -301,12 +328,17 @@ extension _UserActions on _TopicDetailPageState {
   Future<void> _handleQuoteSelection(String selectedText, Post post) async {
     final params = _params;
     final detail = ref.read(topicDetailProvider(params)).value;
-    final codePayload = CodeSelectionContextTracker.instance.decodePayload(selectedText);
+    final codePayload = CodeSelectionContextTracker.instance.decodePayload(
+      selectedText,
+    );
     final plainSelectedText = codePayload?.text ?? selectedText;
 
     // 尝试从 HTML 提取对应片段并转为 Markdown
     String markdown;
-    final htmlFragment = HtmlTextMapper.extractHtml(post.cooked, plainSelectedText);
+    final htmlFragment = HtmlTextMapper.extractHtml(
+      post.cooked,
+      plainSelectedText,
+    );
     if (htmlFragment != null) {
       markdown = HtmlToMarkdown.convert(htmlFragment);
       // 转换失败时降级为纯文本
@@ -355,7 +387,9 @@ extension _UserActions on _TopicDetailPageState {
     );
 
     if (newPost != null && mounted) {
-      final addedToView = ref.read(topicDetailProvider(params).notifier).addPost(newPost);
+      final addedToView = ref
+          .read(topicDetailProvider(params).notifier)
+          .addPost(newPost);
 
       if (addedToView) {
         _scrollAfterKeyboardDismiss(newPost.postNumber);
@@ -396,7 +430,9 @@ extension _UserActions on _TopicDetailPageState {
     );
 
     if (newPost != null && mounted) {
-      final addedToView = ref.read(topicDetailProvider(params).notifier).addPost(newPost);
+      final addedToView = ref
+          .read(topicDetailProvider(params).notifier)
+          .addPost(newPost);
 
       if (addedToView) {
         _scrollAfterKeyboardDismiss(newPost.postNumber);
@@ -425,7 +461,11 @@ extension _UserActions on _TopicDetailPageState {
         break;
       case TopicMessageType.acted:
         // 对齐 Discourse 官方 triggerChangedPost：acted 也传 updatedAt 做去重
-        notifier.refreshPost(update.postId, preserveCooked: true, updatedAt: update.updatedAt);
+        notifier.refreshPost(
+          update.postId,
+          preserveCooked: true,
+          updatedAt: update.updatedAt,
+        );
         break;
       case TopicMessageType.deleted:
         notifier.markPostDeleted(update.postId);
@@ -462,7 +502,9 @@ extension _UserActions on _TopicDetailPageState {
 
   /// 处理 reload_topic 消息
   void _handleReloadTopic(TopicDetailNotifier notifier, bool refreshStream) {
-    final anchor = _controller.getRefreshAnchorPostNumber(widget.scrollToPostNumber);
+    final anchor = _controller.getRefreshAnchorPostNumber(
+      widget.scrollToPostNumber,
+    );
     if (refreshStream) {
       notifier.refreshWithPostNumber(anchor);
     } else {
@@ -470,8 +512,35 @@ extension _UserActions on _TopicDetailPageState {
     }
   }
 
-  /// 切换嵌套视图
-  void _toggleNestedView() {
-    setState(() => _isNestedView = !_isNestedView);
+  /// 切换树形视图，并同步为后续进入帖子的默认阅读布局。
+  Future<void> _setNestedView(bool enabled) async {
+    if (_isNestedView == enabled) return;
+    await ref
+        .read(preferencesProvider.notifier)
+        .setDefaultNestedTopicView(enabled);
+    if (!mounted) return;
+    _nestedPostNumberToScrollIndex = const {};
+    setState(() => _isNestedView = enabled);
+  }
+
+  Future<void> _continueAiSummary(TopicSummary summary) async {
+    final detail = ref.read(topicDetailProvider(_params)).value;
+    if (detail == null) return;
+
+    await ref
+        .read(topicAiChatProvider(widget.topicId).notifier)
+        .continueFromSummary(detail.title, summary.summarizedText);
+    if (!mounted) return;
+
+    final swipeMode = ref.read(preferencesProvider).aiSwipeEntry;
+    if (swipeMode) {
+      await _pageController.animateToPage(
+        1,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _showAiAssistantSheet(detail);
+    }
   }
 }
