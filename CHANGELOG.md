@@ -1,3 +1,8 @@
+## v0.3.7
+
+- fix: improve topic reading interactions and ai summary persistence
+
+
 ## v0.3.6
 
 - fix: align nested topic link navigation and compact detail app bar
