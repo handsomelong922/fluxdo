@@ -1,3 +1,10 @@
+## v0.3.6
+
+- fix: align nested topic link navigation and compact detail app bar
+
+- fix: reduce verification interruptions and stabilize oauth session sync
+
+
 ## v0.3.5
 
 
