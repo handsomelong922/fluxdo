@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/avatar_url_policy.dart';
 import '../navigation/nav_action_bus.dart';
 import '../services/network/request_scheduler_config.dart';
 import '../services/cf_clearance_refresh_service.dart';
@@ -39,6 +40,12 @@ class AppPreferences {
 
   /// 滚动时收起顶栏和底栏
   final bool hideBarOnScroll;
+
+  /// 优先使用静态头像
+  final bool preferStaticAvatars;
+
+  /// 在话题列表中隐藏头像
+  final bool hideTopicListAvatars;
 
   /// 退出时清除图片缓存
   final bool clearCacheOnExit;
@@ -98,6 +105,8 @@ class AppPreferences {
     required this.androidNativeCdp,
     required this.portraitLock,
     required this.hideBarOnScroll,
+    required this.preferStaticAvatars,
+    required this.hideTopicListAvatars,
     required this.clearCacheOnExit,
     required this.cfClearanceRefresh,
     required this.expandRelatedLinks,
@@ -128,6 +137,8 @@ class AppPreferences {
     bool? androidNativeCdp,
     bool? portraitLock,
     bool? hideBarOnScroll,
+    bool? preferStaticAvatars,
+    bool? hideTopicListAvatars,
     bool? clearCacheOnExit,
     bool? cfClearanceRefresh,
     bool? expandRelatedLinks,
@@ -158,6 +169,8 @@ class AppPreferences {
       androidNativeCdp: androidNativeCdp ?? this.androidNativeCdp,
       portraitLock: portraitLock ?? this.portraitLock,
       hideBarOnScroll: hideBarOnScroll ?? this.hideBarOnScroll,
+      preferStaticAvatars: preferStaticAvatars ?? this.preferStaticAvatars,
+      hideTopicListAvatars: hideTopicListAvatars ?? this.hideTopicListAvatars,
       clearCacheOnExit: clearCacheOnExit ?? this.clearCacheOnExit,
       cfClearanceRefresh: cfClearanceRefresh ?? this.cfClearanceRefresh,
       expandRelatedLinks: expandRelatedLinks ?? this.expandRelatedLinks,
@@ -196,6 +209,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _androidNativeCdpKey = AndroidCdpFeature.prefKey;
   static const String _portraitLockKey = 'pref_portrait_lock';
   static const String _hideBarOnScrollKey = 'pref_hide_bar_on_scroll';
+  static const String _preferStaticAvatarsKey = 'pref_prefer_static_avatars';
+  static const String _hideTopicListAvatarsKey = 'pref_hide_topic_list_avatars';
   static const String _clearCacheOnExitKey = 'pref_clear_cache_on_exit';
   static const String _cfClearanceRefreshKey =
       CfClearanceRefreshService.prefKeyEnabled;
@@ -238,6 +253,9 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           androidNativeCdp: _prefs.getBool(_androidNativeCdpKey) ?? false,
           portraitLock: _prefs.getBool(_portraitLockKey) ?? false,
           hideBarOnScroll: _prefs.getBool(_hideBarOnScrollKey) ?? true,
+          preferStaticAvatars: _prefs.getBool(_preferStaticAvatarsKey) ?? false,
+          hideTopicListAvatars:
+              _prefs.getBool(_hideTopicListAvatarsKey) ?? false,
           clearCacheOnExit: _prefs.getBool(_clearCacheOnExitKey) ?? false,
           cfClearanceRefresh: _prefs.getBool(_cfClearanceRefreshKey) ?? false,
           expandRelatedLinks: _prefs.getBool(_expandRelatedLinksKey) ?? false,
@@ -266,6 +284,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
               const [NavEntryIds.home, NavEntryIds.profile],
         ),
       ) {
+    AvatarUrlPolicy.setPreferStaticAvatars(state.preferStaticAvatars);
     isPortraitLocked = state.portraitLock;
     _syncSchedulerConfig();
   }
@@ -346,6 +365,17 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setHideBarOnScroll(bool enabled) async {
     state = state.copyWith(hideBarOnScroll: enabled);
     await _prefs.setBool(_hideBarOnScrollKey, enabled);
+  }
+
+  Future<void> setPreferStaticAvatars(bool enabled) async {
+    state = state.copyWith(preferStaticAvatars: enabled);
+    AvatarUrlPolicy.setPreferStaticAvatars(enabled);
+    await _prefs.setBool(_preferStaticAvatarsKey, enabled);
+  }
+
+  Future<void> setHideTopicListAvatars(bool enabled) async {
+    state = state.copyWith(hideTopicListAvatars: enabled);
+    await _prefs.setBool(_hideTopicListAvatarsKey, enabled);
   }
 
   Future<void> setClearCacheOnExit(bool enabled) async {

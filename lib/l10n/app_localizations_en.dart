@@ -4762,6 +4762,20 @@ class AppLocalizationsEn extends AppLocalizations {
       'Auto-hide top and bottom bars when scrolling';
 
   @override
+  String get preferences_preferStaticAvatars => 'Prefer static avatars';
+
+  @override
+  String get preferences_preferStaticAvatarsDesc =>
+      'Use non-animated avatars whenever both versions are available';
+
+  @override
+  String get preferences_hideTopicListAvatars => 'Hide topic list avatars';
+
+  @override
+  String get preferences_hideTopicListAvatarsDesc =>
+      'Only affects topic list cards and reclaims the avatar column width';
+
+  @override
   String get preferences_longPressPreview => 'Long press preview';
 
   @override

@@ -874,6 +874,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final theme = Theme.of(context);
     final isLoggedIn = ref.watch(currentUserProvider).value != null;
     final canShowDetailPane = MasterDetailLayout.canShowBothPanesFor(context);
+    // 依赖头像策略开关，确保当前帖子页在偏好切换后重建并刷新头像 URL。
+    ref.watch(preferencesProvider.select((p) => p.preferStaticAvatars));
 
     ref.listen<AsyncValue<void>>(authStateProvider, (_, _) {
       if (!mounted) return;
@@ -1037,13 +1039,14 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         final shouldShowAppBar = isSearchMode || !hideBarOnScroll || showBars;
         final appBarHeight =
             kToolbarHeight + MediaQuery.of(context).padding.top;
+        final contentTopInset = isSearchMode ? 0.0 : appBarHeight;
         final topicBody = _buildBody(
           context,
           detailAsync,
           detail,
           notifier,
           isLoggedIn,
-          contentTopInset: isSearchMode || !shouldShowAppBar ? 0 : appBarHeight,
+          contentTopInset: contentTopInset,
         );
         if (isSearchMode) {
           return Scaffold(
@@ -1255,9 +1258,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         // 使用 Offstage 保持帖子列表存在但在搜索模式下隐藏，保留滚动位置
         Offstage(
           offstage: isSearchMode,
-          child: AnimatedPadding(
-            duration: topicDetailBarAnimationDuration,
-            curve: topicDetailBarAnimationCurve,
+          child: Padding(
             padding: EdgeInsets.only(top: contentTopInset),
             child: content,
           ),

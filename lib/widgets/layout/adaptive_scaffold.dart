@@ -53,14 +53,6 @@ class AdaptiveScaffold extends ConsumerWidget {
         ? -1
         : selectedIndex;
 
-    // 始终 watch barVisibilityProvider，避免条件 watch 导致 Riverpod 行为不一致
-    final hideBarOnScroll = ref.watch(
-      preferencesProvider.select((p) => p.hideBarOnScroll),
-    );
-    final visibility = (selectedIndex == 0 && hideBarOnScroll)
-        ? ref.watch(barVisibilityProvider)
-        : 1.0;
-
     final hasAcrylic = Platform.isMacOS || Platform.isWindows;
     final useAcrylicRail = showRail && hasAcrylic;
     final railWidth = extendedRail ? 180.0 : 72.0;
@@ -92,7 +84,9 @@ class AdaptiveScaffold extends ConsumerWidget {
                           if (selectedIndex != 0) {
                             onDestinationSelected(0);
                           }
-                          ref.read(currentTabCategoryIdProvider.notifier).state =
+                          ref
+                                  .read(currentTabCategoryIdProvider.notifier)
+                                  .state =
                               categoryId;
                         },
                       ),
@@ -136,8 +130,7 @@ class AdaptiveScaffold extends ConsumerWidget {
           floatingActionButton: floatingActionButton,
           bottomNavigationBar: showRail
               ? null
-              : _AnimatedBottomNav(
-                  visibility: visibility,
+              : _BottomNavSlot(
                   selectedIndex: selectedIndex,
                   onDestinationSelected: onDestinationSelected,
                   destinations: destinations,
@@ -211,6 +204,35 @@ class _SidebarCategoryAddButton extends StatelessWidget {
   }
 }
 
+class _BottomNavSlot extends ConsumerWidget {
+  const _BottomNavSlot({
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+    required this.destinations,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final List<AdaptiveDestination> destinations;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hideBarOnScroll = ref.watch(
+      preferencesProvider.select((p) => p.hideBarOnScroll),
+    );
+    final visibility = (selectedIndex == 0 && hideBarOnScroll)
+        ? ref.watch(barVisibilityProvider)
+        : 1.0;
+
+    return _AnimatedBottomNav(
+      visibility: visibility,
+      selectedIndex: selectedIndex,
+      onDestinationSelected: onDestinationSelected,
+      destinations: destinations,
+    );
+  }
+}
+
 /// 带动画的底部导航栏
 class _AnimatedBottomNav extends StatelessWidget {
   const _AnimatedBottomNav({
@@ -227,16 +249,20 @@ class _AnimatedBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final clampedVisibility = visibility.clamp(0.0, 1.0).toDouble();
+
     return ClipRect(
-      child: Align(
-        alignment: Alignment.topCenter,
-        heightFactor: visibility,
-        child: Opacity(
-          opacity: visibility,
-          child: AdaptiveBottomNavigation(
-            selectedIndex: selectedIndex,
-            onDestinationSelected: onDestinationSelected,
-            destinations: destinations,
+      child: IgnorePointer(
+        ignoring: clampedVisibility < 0.01,
+        child: FractionalTranslation(
+          translation: Offset(0, 1 - clampedVisibility),
+          child: Opacity(
+            opacity: clampedVisibility,
+            child: AdaptiveBottomNavigation(
+              selectedIndex: selectedIndex,
+              onDestinationSelected: onDestinationSelected,
+              destinations: destinations,
+            ),
           ),
         ),
       ),
