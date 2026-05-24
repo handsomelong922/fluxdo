@@ -14,6 +14,7 @@ import '../../utils/link_launcher.dart';
 import '../../utils/quote_builder.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import '../../models/draft.dart';
 import '../../models/topic.dart';
 import '../../utils/responsive.dart';
@@ -27,17 +28,18 @@ import '../../providers/message_bus_providers.dart';
 import '../../providers/pinned_categories_provider.dart';
 import '../../services/discourse/discourse_service.dart';
 import '../../services/screen_track.dart';
-import '../../services/topic_reading_state_service.dart';
 import '../../services/toast_service.dart';
 import '../../services/log/log_writer.dart';
 import '../../services/navigation/app_route_observer.dart';
 import '../../widgets/content/lazy_load_scope.dart';
 import '../../widgets/post/post_item_skeleton.dart';
+import '../../widgets/post/post_item/widgets/post_flag_sheet.dart';
 import '../../widgets/post/post_replies_sheet.dart';
 import '../../widgets/post/reply_sheet.dart';
 import '../../widgets/topic/topic_progress.dart';
 import '../../widgets/topic/topic_notification_button.dart';
 import '../../widgets/common/dismissible_popup_menu.dart';
+import '../../widgets/common/emoji_text.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../../widgets/content/discourse_html_content/discourse_html_content_widget.dart';
@@ -108,11 +110,12 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   /// 唯一实例 ID，确保每次打开页面都创建新的 provider 实例
   /// 支持外部传入以在布局切换时复用同一个 provider
   late final String _instanceId = widget.instanceId ?? const Uuid().v4();
+  late final int? _providerPostNumber;
 
-  /// Provider 参数（简化重复创建）
+  /// Provider 参数只携带首次构建所需的定位信息，运行时浏览位置由 controller 单独维护。
   TopicDetailParams get _params => TopicDetailParams(
     widget.topicId,
-    postNumber: _controller.currentPostNumber,
+    postNumber: _providerPostNumber,
     instanceId: _instanceId,
   );
 
@@ -140,8 +143,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     false,
   );
   bool _isSwitchingMode = false; // 切换热门回复模式
-  late bool _isNestedView; // 嵌套视图模式
-  Map<int, int> _nestedPostNumberToScrollIndex = const {};
+  bool _isNestedView = false; // 嵌套视图模式
+  bool _defaultNestedViewApplied = false; // 默认嵌套视图配置是否已应用（依赖 detail 加载后判定）
   // 搜索相关
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -157,29 +160,27 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   late final PageController _pageController;
   final ValueNotifier<int> _currentPageNotifier = ValueNotifier<int>(0);
   bool _aiGuideChecked = false;
-  // 缓存清理快捷键的回调，避免在 dispose 中使用 ref.read
-  VoidCallback? _clearShortcuts;
+  late final ShortcutScopeBinding _shortcutScopeBinding = ShortcutScopeBinding(
+    ref: ref,
+    scope: widget.embeddedMode ? ShortcutScope.detail : ShortcutScope.context,
+  );
   ModalRoute<dynamic>? _route;
   bool _isRouteVisible = true;
   bool _isParentActive = true;
   bool _isScreenTrackRunning = false;
-  TopicReadingState? _restoredReadingState;
-  int? _pendingNestedRestorePostNumber;
+
+  int? get _resolvedViewportPostNumber =>
+      _controller.viewportPostNumber ?? widget.scrollToPostNumber;
+
+  int? get _resolvedShortcutPostNumber =>
+      _controller.effectivePostNumberForActions ?? _resolvedViewportPostNumber;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _isParentActive = widget.parentActive;
-    _restoredReadingState = _canRestoreReadingState
-        ? ref.read(topicReadingStateServiceProvider).getState(widget.topicId)
-        : null;
-    _isNestedView =
-        _restoredReadingState?.nestedView ??
-        ref.read(preferencesProvider).defaultNestedTopicView;
-    if (_restoredReadingState?.nestedView == true) {
-      _pendingNestedRestorePostNumber = _restoredReadingState!.postNumber;
-    }
+    _providerPostNumber = widget.scrollToPostNumber;
 
     _expandController = AnimationController(
       vsync: this,
@@ -231,20 +232,13 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       scrollController: AutoScrollController(),
       screenTrack: _screenTrack,
       trackEnabled: trackEnabled,
-      initialPostNumber:
-          widget.scrollToPostNumber ??
-          (_restoredReadingState?.nestedView == true
-              ? null
-              : _restoredReadingState?.postNumber),
+      initialPostNumber: widget.scrollToPostNumber,
       onScrolled: () {
         if (_controller.trackEnabled) {
           _screenTrack.scrolled();
         }
       },
     );
-    if (_restoredReadingState != null && widget.scrollToPostNumber == null) {
-      _controller.skipNextJumpHighlight = true;
-    }
 
     _controller.scrollController.addListener(_onScroll);
     _pageController = PageController(initialPage: 0);
@@ -252,23 +246,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     // 桌面端：注册 J/K 帖子导航 + AI 面板切换
     if (PlatformUtils.isDesktop) {
       toggleAiPanelNotifier.addListener(_onToggleAiPanel);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _registerPostShortcuts();
-      });
+      _schedulePostShortcutRegistration();
     }
   }
 
   bool _isAiSheetOpen = false;
-
-  bool get _canRestoreReadingState {
-    return widget.scrollToPostNumber == null &&
-        !widget.autoOpenReply &&
-        widget.autoReplyToPostNumber == null &&
-        !widget.autoOpenAiChat &&
-        widget.initialSessionId == null &&
-        widget.highlightBoostUsername == null;
-  }
 
   void _onToggleAiPanel() {
     if (!mounted) return;
@@ -304,21 +286,87 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       ShortcutAction.previousItem: () {
         if (mounted) _scrollToPreviousPost();
       },
+      ShortcutAction.jumpToPost: () {
+        if (mounted) _showJumpToPostDialog();
+      },
+      ShortcutAction.goToUnreadPost: () {
+        if (mounted) unawaited(_jumpToUnreadPost());
+      },
+      ShortcutAction.replyTopic: () {
+        if (mounted) unawaited(_handleReply(null));
+      },
+      ShortcutAction.shareTopic: () {
+        if (mounted) _shareTopic();
+      },
+      ShortcutAction.bookmarkTopic: () {
+        if (!mounted) return;
+        _handleBookmark(ref.read(topicDetailProvider(_params).notifier));
+      },
+      ShortcutAction.replyPost: () {
+        if (!mounted) return;
+        final replyTarget = _currentReplyTargetPost();
+        unawaited(_handleReply(replyTarget));
+      },
+      ShortcutAction.quotePost: () {
+        if (!mounted) return;
+        final post = _currentShortcutPost();
+        if (post == null) return;
+        unawaited(_handleQuotePost(post));
+      },
+      ShortcutAction.likePost: () {
+        if (!mounted) return;
+        final post = _currentShortcutPost();
+        if (post == null) return;
+        unawaited(_togglePostLike(post));
+      },
+      ShortcutAction.sharePost: () {
+        if (!mounted) return;
+        final post = _currentShortcutPost();
+        if (post == null) return;
+        _sharePost(post);
+      },
+      ShortcutAction.bookmarkPost: () {
+        if (!mounted) return;
+        final post = _currentShortcutPost();
+        if (post == null) return;
+        unawaited(_handlePostBookmark(post));
+      },
+      ShortcutAction.editPost: () {
+        if (!mounted) return;
+        final post = _currentShortcutPost();
+        if (post == null || !post.canEdit) return;
+        unawaited(_handleEdit(post));
+      },
+      ShortcutAction.flagPost: () {
+        if (!mounted) return;
+        final post = _currentShortcutPost();
+        if (post == null) return;
+        _showFlagPostSheet(post);
+      },
+      ShortcutAction.deletePost: () {
+        if (!mounted) return;
+        final post = _currentShortcutPost();
+        if (post == null || !post.canDelete || post.deletedAt != null) return;
+        unawaited(_handleDeletePost(post));
+      },
     };
-    final notifier = widget.embeddedMode
-        ? ref.read(detailShortcutsProvider.notifier)
-        : ref.read(contextShortcutsProvider.notifier);
-    _clearShortcuts = () => notifier.state = {};
-    if (widget.embeddedMode) {
-      notifier.state = shortcuts;
-    } else {
-      notifier.state = {
-        ...shortcuts,
-        ShortcutAction.closeOverlay: () {
-          if (mounted) Navigator.of(context).maybePop();
-        },
-      };
-    }
+    final registeredShortcuts = widget.embeddedMode
+        ? shortcuts
+        : {
+            ...shortcuts,
+            ShortcutAction.closeOverlay: () {
+              if (mounted) Navigator.of(context).maybePop();
+            },
+          };
+    _shortcutScopeBinding.register(context, registeredShortcuts);
+  }
+
+  void _schedulePostShortcutRegistration() {
+    if (!PlatformUtils.isDesktop) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _registerPostShortcuts();
+    });
   }
 
   @override
@@ -345,6 +393,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _route = route;
     appRouteObserver.subscribe(this, route);
     _isRouteVisible = route.isCurrent;
+    _schedulePostShortcutRegistration();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _syncScreenTrackState(reason: 'route_subscribed');
@@ -370,9 +419,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _controller.dispose();
     if (PlatformUtils.isDesktop) {
       toggleAiPanelNotifier.removeListener(_onToggleAiPanel);
-      // 延迟注销快捷键，避免在 widget tree finalizing 期间修改 provider
-      final clear = _clearShortcuts;
-      if (clear != null) Future(clear);
+      _shortcutScopeBinding.disposeDeferred();
     }
     // 延迟清理搜索状态，避免在 widget tree finalizing 期间修改 provider
     Future(_topicSearchNotifier.exitSearchMode);
@@ -388,11 +435,13 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   @override
   void didPush() {
     _setRouteVisible(true, 'did_push');
+    _schedulePostShortcutRegistration();
   }
 
   @override
   void didPopNext() {
     _setRouteVisible(true, 'did_pop_next');
+    _schedulePostShortcutRegistration();
   }
 
   @override
@@ -459,10 +508,21 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final ctx = _headerKey.currentContext;
 
     if (ctx == null) {
-      if (_hasFirstPost) {
-        _showTitleNotifier.value = true;
+      // header 不在视图中（未加载或滚动到了远处）
+      // 如果滚动位置在顶部附近（比如刚切换视图模式），header 很快就会出现，
+      // 先设为不可见状态，等 header 渲染后由滚动事件再次触发更新
+      final atTop =
+          _controller.scrollController.hasClients &&
+          _controller.scrollController.offset <= barHeight;
+      if (atTop) {
+        _showTitleNotifier.value = false;
+        _isScrolledUnderNotifier.value = false;
+      } else {
+        if (_hasFirstPost) {
+          _showTitleNotifier.value = true;
+        }
+        _isScrolledUnderNotifier.value = true;
       }
-      _isScrolledUnderNotifier.value = true;
     } else {
       final box = ctx.findRenderObject() as RenderBox?;
       if (box != null && box.hasSize) {
@@ -526,8 +586,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         return;
       }
 
-      final currentPostNumber =
-          _controller.currentPostNumber ?? widget.scrollToPostNumber;
+      final currentPostNumber = _resolvedViewportPostNumber;
       ref
           .read(selectedTopicProvider.notifier)
           .select(
@@ -622,8 +681,12 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                   alpha: (1.0 - expandProgress).clamp(0.0, 1.0),
                 ),
                 backgroundColor: theme.colorScheme.surface,
-                titleSpacing: 0,
-                title: const SizedBox.shrink(),
+                title: _buildAppBarTitle(
+                  theme: theme,
+                  detail: detail,
+                  shouldShowTitle: shouldShowTitle,
+                  expandProgress: expandProgress,
+                ),
                 centerTitle: false,
                 actions: _buildAppBarActions(
                   detail: detail,
@@ -639,35 +702,67 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     );
   }
 
-  Widget _buildCollapsibleAppBarOverlay({
+  /// 构建 AppBar 标题
+  Widget _buildAppBarTitle({
     required ThemeData theme,
     required TopicDetail? detail,
-    required TopicDetailNotifier notifier,
-    required bool visible,
+    required bool shouldShowTitle,
+    required double expandProgress,
   }) {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: IgnorePointer(
-        ignoring: !visible,
-        child: AnimatedSlide(
-          offset: visible ? Offset.zero : const Offset(0, -1),
-          duration: topicDetailBarAnimationDuration,
-          curve: topicDetailBarAnimationCurve,
-          child: AnimatedOpacity(
-            opacity: visible ? 1 : 0,
-            duration: topicDetailBarAnimationDuration,
-            curve: topicDetailBarAnimationCurve,
-            child: SizedBox(
-              height: kToolbarHeight + MediaQuery.of(context).padding.top,
-              child: _buildAppBar(
-                theme: theme,
-                detail: detail,
-                notifier: notifier,
+    return Opacity(
+      opacity: shouldShowTitle ? (1.0 - expandProgress).clamp(0.0, 1.0) : 0.0,
+      child: GestureDetector(
+        onTap: () {
+          if (shouldShowTitle && detail != null) {
+            _toggleExpandedHeader();
+          }
+        },
+        child: Text.rich(
+          TextSpan(
+            style: theme.textTheme.titleMedium,
+            children: [
+              if (detail?.isPrivateMessage ?? false)
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Icon(
+                      Icons.mail_outline,
+                      size: 18,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+              if (detail?.closed ?? false)
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Icon(
+                      Icons.lock_outline,
+                      size: 18,
+                      color:
+                          theme.textTheme.titleMedium?.color ??
+                          theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+              if (detail?.hasAcceptedAnswer ?? false)
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Icon(Icons.check_box, size: 18, color: Colors.green),
+                  ),
+                ),
+              ...EmojiText.buildEmojiSpans(
+                context,
+                detail?.title ?? widget.initialTitle ?? '',
+                theme.textTheme.titleMedium,
               ),
-            ),
+            ],
           ),
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
@@ -693,12 +788,20 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final useSwipeEntry = ref.watch(
       preferencesProvider.select((p) => p.aiSwipeEntry),
     );
+    final hasAiModel = ref.watch(hasAvailableAiModelProvider);
+    final isAiGenerating = hasAiModel
+        ? ref.watch(
+            topicAiChatProvider(
+              widget.topicId,
+            ).select((state) => state.isGenerating),
+          )
+        : false;
 
     return [
       // AI 助手按钮（滑动入口模式下隐藏）
-      if (!useSwipeEntry && ref.watch(hasAvailableAiModelProvider))
+      if (!useSwipeEntry && hasAiModel)
         IconButton(
-          icon: const Icon(Icons.auto_awesome),
+          icon: _AiAssistantActionIcon(isGenerating: isAiGenerating),
           tooltip: context.l10n.topicDetail_aiAssistant,
           onPressed: () => _showAiAssistantSheet(detail),
         ),
@@ -717,25 +820,34 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         icon: const Icon(Icons.more_vert),
         tooltip: context.l10n.topicDetail_moreOptions,
         onSelected: (value) {
-          if (value == 'subscribe') {
-            showNotificationLevelSheet(
-              context,
-              detail.notificationLevel,
-              (level) => _handleNotificationLevelChanged(notifier, level),
-            );
-          } else if (value == 'edit_topic') {
-            _handleEditTopic();
-          } else if (value == 'bookmark') {
-            _handleBookmark(notifier);
-          } else if (value == 'read_later') {
-            _handleReadLater();
-          } else if (value == 'toggle_nested_view') {
-            _setNestedView(!_isNestedView);
-          } else if (value == 'reading_settings') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ReadingSettingsPage()),
-            );
+          switch (value) {
+            case 'edit_topic':
+              _handleEditTopic();
+            case 'bookmark':
+              _handleBookmark(notifier);
+            case 'read_later':
+              _handleReadLater();
+            case 'subscribe':
+              showNotificationLevelSheet(
+                context,
+                detail.notificationLevel,
+                (level) => _handleNotificationLevelChanged(notifier, level),
+              );
+            case 'share_link':
+              _shareTopic();
+            case 'share_image':
+              _shareAsImage();
+            case 'export':
+              _showExportSheet();
+            case 'open_in_browser':
+              _openInBrowser();
+            case 'filter':
+              _showFilterSheet();
+            case 'reading_settings':
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ReadingSettingsPage()),
+              );
           }
         },
         itemBuilder: (context) => [
@@ -820,25 +932,103 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             ),
           ),
           const PopupMenuDivider(),
+          if (!detail.isPrivateMessage)
+            PopupMenuItem(
+              value: 'share_link',
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.link,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(context.l10n.topicDetail_shareLink),
+                ],
+              ),
+            ),
+          if (!detail.isPrivateMessage)
+            PopupMenuItem(
+              value: 'share_image',
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.image_outlined,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(context.l10n.topicDetail_generateShareImage),
+                ],
+              ),
+            ),
           PopupMenuItem(
-            value: 'toggle_nested_view',
+            value: 'export',
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  _isNestedView ? Icons.forum : Icons.forum_outlined,
+                  Icons.download_outlined,
                   size: 20,
-                  color: _isNestedView
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurface,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  '${context.l10n.nested_title} · ${_isNestedView ? context.l10n.common_close : context.l10n.common_enable}',
-                ),
+                Text(context.l10n.topicDetail_exportArticle),
               ],
             ),
           ),
+          PopupMenuItem(
+            value: 'open_in_browser',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.language,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+                const SizedBox(width: 12),
+                Text(context.l10n.topicDetail_openInBrowser),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(),
+          PopupMenuItem(
+            value: 'filter',
+            child: Builder(
+              builder: (context) {
+                final hasFilter =
+                    notifier.isSummaryMode ||
+                    notifier.isAuthorOnlyMode ||
+                    notifier.isTopLevelMode ||
+                    _isNestedView;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.filter_list,
+                      size: 20,
+                      color: hasFilter
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurface,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      context.l10n.topicDetail_filter,
+                      style: hasFilter
+                          ? TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                            )
+                          : null,
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          const PopupMenuDivider(),
           PopupMenuItem(
             value: 'reading_settings',
             child: Row(
@@ -874,8 +1064,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final theme = Theme.of(context);
     final isLoggedIn = ref.watch(currentUserProvider).value != null;
     final canShowDetailPane = MasterDetailLayout.canShowBothPanesFor(context);
-    // 依赖头像策略开关，确保当前帖子页在偏好切换后重建并刷新头像 URL。
-    ref.watch(preferencesProvider.select((p) => p.preferStaticAvatars));
 
     ref.listen<AsyncValue<void>>(authStateProvider, (_, _) {
       if (!mounted) return;
@@ -943,7 +1131,21 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     // 预解析帖子 HTML
     ref.listen(topicDetailProvider(params), (previous, next) {
       if (!mounted) return;
-      final posts = next.value?.postStream.posts;
+      final detail = next.value;
+      // 首次拿到 detail 后再决定是否应用默认嵌套视图：
+      // 私信场景下树形视图 API 拉不到数据，跳过该配置
+      if (!_defaultNestedViewApplied && detail != null) {
+        _defaultNestedViewApplied = true;
+        if (!detail.isPrivateMessage &&
+            ref.read(preferencesProvider).defaultNestedView) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() => _isNestedView = true);
+            }
+          });
+        }
+      }
+      final posts = detail?.postStream.posts;
       if (posts != null && posts.isNotEmpty) {
         final htmlList = posts.map((p) => p.cooked).toList();
         ChunkedHtmlContent.preloadAll(htmlList);
@@ -1014,9 +1216,12 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       preferencesProvider.select((p) => p.aiSwipeEntry),
     );
 
-    // 保持 AI 聊天 provider 存活，避免 BottomSheet 关闭后状态丢失
+    // 保持当前话题页内的 AI 状态存活，避免 BottomSheet 关闭后丢失
+    // 已选模型、文本/生图模式和消息列表。离开话题页后仍由 autoDispose 释放。
     if (hasAiModel) {
       ref.watch(topicAiChatProvider(widget.topicId));
+      ref.watch(topicSelectedAiModelProvider(widget.topicId));
+      ref.watch(topicChatModeProvider(widget.topicId));
     }
 
     // 首次引导检查（仅滑动入口模式）
@@ -1030,50 +1235,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       });
     }
 
-    final hideBarOnScroll = ref.watch(
-      preferencesProvider.select((p) => p.hideBarOnScroll),
-    );
-    final topicScaffold = ValueListenableBuilder<bool>(
-      valueListenable: _controller.showBottomBarNotifier,
-      builder: (context, showBars, _) {
-        final shouldShowAppBar = isSearchMode || !hideBarOnScroll || showBars;
-        final appBarHeight =
-            kToolbarHeight + MediaQuery.of(context).padding.top;
-        final contentTopInset = isSearchMode ? 0.0 : appBarHeight;
-        final topicBody = _buildBody(
-          context,
-          detailAsync,
-          detail,
-          notifier,
-          isLoggedIn,
-          topContentInset: contentTopInset,
-        );
-        if (isSearchMode) {
-          return Scaffold(
-            appBar: _buildAppBar(
-              theme: theme,
-              detail: detail,
-              notifier: notifier,
-            ),
-            body: topicBody,
-          );
-        }
-
-        return Scaffold(
-          extendBodyBehindAppBar: true,
-          body: Stack(
-            children: [
-              topicBody,
-              _buildCollapsibleAppBarOverlay(
-                theme: theme,
-                detail: detail,
-                notifier: notifier,
-                visible: shouldShowAppBar,
-              ),
-            ],
-          ),
-        );
-      },
+    final topicScaffold = Scaffold(
+      appBar: _buildAppBar(theme: theme, detail: detail, notifier: notifier),
+      body: _buildBody(context, detailAsync, detail, notifier, isLoggedIn),
     );
 
     // 无 AI 模型或非滑动入口模式：普通布局
@@ -1150,6 +1314,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                               topicId: widget.topicId,
                               categoryId: detail.categoryId,
                               initialContent: '$imageMarkdown\n',
+                              topicTitle: detail.title,
                               isPrivateMessageTopic: detail.isPrivateMessage,
                             );
                           },
@@ -1164,12 +1329,18 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   }
 
   void _showAiAssistantSheet(TopicDetail detail) {
+    _isAiSheetOpen = true;
     // 在 modal 外部获取状态栏高度，因为 showModalBottomSheet 会清零 padding.top
     final topPadding = MediaQuery.of(context).padding.top;
     showAppBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      shortcutSurface: const ShortcutSurfaceConfig(
+        id: ShortcutSurfaceIds.topicAiAssistant,
+        triggerAction: ShortcutAction.toggleAiPanel,
+        repeatBehavior: ShortcutSurfaceRepeatBehavior.toggle,
+      ),
       builder: (sheetContext) => AiChatPage(
         topicId: widget.topicId,
         detail: detail,
@@ -1183,6 +1354,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             topicId: widget.topicId,
             categoryId: detail.categoryId,
             initialContent: '$imageMarkdown\n',
+            topicTitle: detail.title,
             isPrivateMessageTopic: detail.isPrivateMessage,
           );
         },
@@ -1195,9 +1367,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     AsyncValue<TopicDetail> detailAsync,
     TopicDetail? detail,
     TopicDetailNotifier notifier,
-    bool isLoggedIn, {
-    double topContentInset = 0,
-  }) {
+    bool isLoggedIn,
+  ) {
     final params = _params;
     final searchState = ref.watch(topicSearchProvider(widget.topicId));
     final isSearchMode = searchState.isSearchMode;
@@ -1249,13 +1420,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       );
     } else if (detail != null) {
       // 正常内容构建 (保持原有逻辑，但简化提取)
-      content = _buildPostListContent(
-        context,
-        detail,
-        notifier,
-        isLoggedIn,
-        topContentInset: topContentInset,
-      );
+      content = _buildPostListContent(context, detail, notifier, isLoggedIn);
     }
 
     // Stack 组装
@@ -1284,16 +1449,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           ValueListenableBuilder<bool>(
             valueListenable: _controller.showBottomBarNotifier,
             builder: (context, showBottomBar, _) {
-              final effectiveShowBottomBar =
-                  !ref.watch(
-                    preferencesProvider.select((p) => p.hideBarOnScroll),
-                  ) ||
-                  showBottomBar;
               return ValueListenableBuilder<int>(
                 valueListenable: _controller.streamIndexNotifier,
                 builder: (context, currentStreamIndex, _) {
                   return TopicDetailOverlay(
-                    showBottomBar: effectiveShowBottomBar,
+                    showBottomBar: showBottomBar,
                     isLoggedIn: isLoggedIn,
                     currentStreamIndex: currentStreamIndex,
                     totalCount: detail.postStream.stream.length,
@@ -1308,11 +1468,13 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                     isSummaryMode: notifier.isSummaryMode,
                     isAuthorOnlyMode: notifier.isAuthorOnlyMode,
                     isTopLevelMode: notifier.isTopLevelMode,
+                    isNestedMode: _isNestedView,
                     isLoading: _isSwitchingMode,
                     onShowTopReplies: _handleShowTopReplies,
                     onShowAuthorOnly: _handleShowAuthorOnly,
                     onShowTopLevelReplies: _handleShowTopLevelReplies,
                     onCancelFilter: _handleCancelFilter,
+                    onShowNestedView: _toggleNestedView,
                   );
                 },
               );
@@ -1369,7 +1531,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                                       level,
                                     ),
                                 onJumpToPost: _scrollToPost,
-                                onContinueAiSummary: _continueAiSummary,
                               ),
                             ),
                           ),
@@ -1388,9 +1549,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     BuildContext context,
     TopicDetail detail,
     TopicDetailNotifier notifier,
-    bool isLoggedIn, {
-    double topContentInset = 0,
-  }) {
+    bool isLoggedIn,
+  ) {
     final posts = detail.postStream.posts;
     final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
     final sessionState = ref.watch(topicSessionProvider(widget.topicId));
@@ -1424,8 +1584,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     // 初始定位
     if (!_controller.hasInitialScrolled && posts.isNotEmpty) {
       _controller.markInitialScrolled(posts.first.postNumber);
-      if (_controller.currentPostNumber == null ||
-          _controller.currentPostNumber == 0) {
+      final initialTargetPostNumber =
+          _controller.jumpTargetPostNumber ?? _resolvedViewportPostNumber;
+      if (initialTargetPostNumber == null || initialTargetPostNumber == 0) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && !_controller.isPositioned) {
             _controller.markPositioned();
@@ -1453,7 +1614,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           topicId: widget.topicId,
           scrollController: _controller.scrollController,
           headerKey: _headerKey,
-          topContentInset: topContentInset,
           isLoggedIn: isLoggedIn,
           onReply: _handleReply,
           onEdit: _handleEdit,
@@ -1464,36 +1624,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               _handleNotificationLevelChanged(notifier, level),
           onSolutionChanged: _handleSolutionChanged,
           onScrollNotification: _controller.handleScrollNotification,
-          onPointerScroll: _controller.handlePointerScroll,
-          onPostNumberScrollIndexMappingChanged: (mapping) {
-            _nestedPostNumberToScrollIndex = mapping;
-            final pendingPostNumber = _pendingNestedRestorePostNumber;
-            final scrollIndex = pendingPostNumber == null
-                ? null
-                : mapping[pendingPostNumber];
-            if (pendingPostNumber != null && scrollIndex != null) {
-              _pendingNestedRestorePostNumber = null;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                unawaited(
-                  _controller.scrollController.scrollToIndex(
-                    scrollIndex,
-                    preferPosition: AutoScrollPosition.begin,
-                    duration: const Duration(milliseconds: 1),
-                  ),
-                );
-                _controller.updateCurrentPostNumber(pendingPostNumber);
-                ref
-                        .read(
-                          detailScrollPositionProvider(widget.topicId).notifier,
-                        )
-                        .state =
-                    pendingPostNumber;
-              });
-            }
-          },
-          onContinueAiSummary: _continueAiSummary,
-          onFirstVisiblePostChanged: _updateStreamIndexForPostNumber,
           onVisiblePostsChanged: _updateVisiblePosts,
         ),
       );
@@ -1508,55 +1638,67 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           topicChannelProvider(widget.topicId).select((s) => s.typingUsers),
         );
         return ValueListenableBuilder<int?>(
-          valueListenable: _controller.highlightNotifier,
-          builder: (context, highlightPostNumber, _) {
-            return TopicPostList(
-              detail: detail,
-              scrollController: _controller.scrollController,
-              centerKey: _centerKey,
-              headerKey: _headerKey,
-              topContentInset: topContentInset,
-              highlightPostNumber: highlightPostNumber,
-              highlightBoostUsername: widget.highlightBoostUsername,
-              typingUsers: typingUsers,
-              isLoggedIn: isLoggedIn,
-              hasMoreBefore: notifier.hasMoreBefore,
-              hasMoreAfter: notifier.hasMoreAfter,
-              isLoadingPrevious: notifier.isLoadingPrevious,
-              isLoadingMore: notifier.isLoadingMore,
-              isLoadMoreFailed: notifier.isLoadMoreFailed,
-              isLoadPreviousFailed: notifier.isLoadPreviousFailed,
-              onRetryLoadMore: () => notifier.retryLoadMore(),
-              onRetryLoadPrevious: () => notifier.retryLoadPrevious(),
-              centerPostIndex: centerPostIndex,
-              dividerPostIndex: dividerPostIndex,
-              onFirstVisiblePostChanged: _updateStreamIndexForPostNumber,
-              onVisiblePostsChanged: _updateVisiblePosts,
-              onScrollIndexMappingChanged: _controller.updateScrollIndexMapping,
-              onJumpToPost: _scrollToPost,
-              onReply: _handleReply,
-              onEdit: _handleEdit,
-              onShareAsImage: _sharePostAsImage,
-              onRefreshPost: _handleRefreshPost,
-              onVoteChanged: _handleVoteChanged,
-              onNotificationLevelChanged: (level) =>
-                  _handleNotificationLevelChanged(notifier, level),
-              onSolutionChanged: _handleSolutionChanged,
-              onContinueAiSummary: _continueAiSummary,
-              onQuoteSelection: isLoggedIn ? _handleQuoteSelection : null,
-              onQuoteImage: isLoggedIn ? _handleImageQuote : null,
-              onScrollNotification: _controller.handleScrollNotification,
-              onPointerScroll: _controller.handlePointerScroll,
-              onFillGapBefore: (postId) => notifier.fillGapBefore(postId),
-              onFillGapAfter: (postId) => notifier.fillGapAfter(postId),
-              onExpandHiddenPost: (postId) => notifier.expandHiddenPost(postId),
-              useReplyDialog: notifier.isTopLevelMode,
-              onShowPostDetail: (post) => showPostRepliesSheet(
-                context: context,
-                post: post,
-                topicId: widget.topicId,
-                onJumpToPost: _scrollToPost,
-              ),
+          valueListenable: _controller.selectedPostNumberNotifier,
+          builder: (context, selectedPostNumber, _) {
+            return ValueListenableBuilder<int?>(
+              valueListenable: _controller.highlightNotifier,
+              builder: (context, highlightPostNumber, _) {
+                return TopicPostList(
+                  detail: detail,
+                  scrollController: _controller.scrollController,
+                  centerKey: _centerKey,
+                  headerKey: _headerKey,
+                  selectedPostNumber: selectedPostNumber,
+                  highlightPostNumber: highlightPostNumber,
+                  highlightBoostUsername: widget.highlightBoostUsername,
+                  typingUsers: typingUsers,
+                  isLoggedIn: isLoggedIn,
+                  hasMoreBefore: notifier.hasMoreBefore,
+                  hasMoreAfter: notifier.hasMoreAfter,
+                  isLoadingPrevious: notifier.isLoadingPrevious,
+                  isLoadingMore: notifier.isLoadingMore,
+                  isLoadMoreFailed: notifier.isLoadMoreFailed,
+                  isLoadPreviousFailed: notifier.isLoadPreviousFailed,
+                  onRetryLoadMore: () => notifier.retryLoadMore(),
+                  onRetryLoadPrevious: () => notifier.retryLoadPrevious(),
+                  centerPostIndex: centerPostIndex,
+                  dividerPostIndex: dividerPostIndex,
+                  onFirstVisiblePostChanged: _updateStreamIndexForPostNumber,
+                  onVisiblePostsChanged: _updateVisiblePosts,
+                  onScrollIndexMappingChanged:
+                      _controller.updateScrollIndexMapping,
+                  onScrollIndexToPostNumberChanged:
+                      _controller.updateScrollIndexToPostNumber,
+                  onPostSegmentRangesChanged:
+                      _controller.updatePostSegmentRanges,
+                  onJumpToPost: _scrollToPost,
+                  onReply: _handleReply,
+                  onEdit: _handleEdit,
+                  onShareAsImage: _sharePostAsImage,
+                  onRefreshPost: _handleRefreshPost,
+                  onVoteChanged: _handleVoteChanged,
+                  onNotificationLevelChanged: (level) =>
+                      _handleNotificationLevelChanged(notifier, level),
+                  onSolutionChanged: _handleSolutionChanged,
+                  onQuoteSelection: isLoggedIn ? _handleQuoteSelection : null,
+                  onQuoteImage: isLoggedIn ? _handleImageQuote : null,
+                  onScrollNotification: _controller.handleScrollNotification,
+                  onPointerScroll: _controller.handlePointerScroll,
+                  onFillGapBefore: (postId) => notifier.fillGapBefore(postId),
+                  onFillGapAfter: (postId) => notifier.fillGapAfter(postId),
+                  onExpandHiddenPost: (postId) =>
+                      notifier.expandHiddenPost(postId),
+                  useReplyDialog: notifier.isTopLevelMode,
+                  onShowPostDetail: (post) => showPostRepliesSheet(
+                    context: context,
+                    post: post,
+                    topicId: widget.topicId,
+                    topicTitle: detail.title,
+                    isPrivateMessageTopic: detail.isPrivateMessage,
+                    onJumpToPost: _scrollToPost,
+                  ),
+                );
+              },
             );
           },
         );
@@ -1584,6 +1726,39 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         return Opacity(opacity: isPositioned ? 1.0 : 0.0, child: child);
       },
       child: scrollView,
+    );
+  }
+}
+
+class _AiAssistantActionIcon extends StatelessWidget {
+  const _AiAssistantActionIcon({required this.isGenerating});
+
+  final bool isGenerating;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isGenerating) {
+      return const Icon(Icons.auto_awesome);
+    }
+
+    final color = IconTheme.of(context).color;
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: color,
+            ),
+          ),
+          Icon(Icons.auto_awesome, size: 13, color: color),
+        ],
+      ),
     );
   }
 }

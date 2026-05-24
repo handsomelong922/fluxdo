@@ -42,7 +42,7 @@
   "reading_expandRelatedLinks": "Expand related links by default",
   "reading_expandRelatedLinksDesc": "Show related links expanded in posts",
   "reading_showSignatures": "Show user signatures",
-  "reading_showSignaturesDesc": "Show custom user signatures below posts",
+  "reading_showSignaturesDesc": "Display user signatures below post content",
   "reading_title": "Reading Settings",
   "schemeVariant_content": "Content",
   "schemeVariant_expressive": "Expressive",

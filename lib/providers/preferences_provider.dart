@@ -11,7 +11,23 @@ import '../services/cf_clearance_refresh_service.dart';
 import '../services/network/cookie/android_cdp_feature.dart';
 import 'theme_provider.dart';
 
+/// 嵌套视图连接线样式
+enum NestedLineStyle {
+  auto, // 自适应（移动端竖线，桌面端 L 线）
+  lLine, // 始终 L 形连接线
+  straight; // 始终简化竖线
+
+  static NestedLineStyle fromString(String? value) {
+    return NestedLineStyle.values.firstWhere(
+      (e) => e.name == value,
+      orElse: () => NestedLineStyle.auto,
+    );
+  }
+}
+
 class AppPreferences {
+  static const Object _unset = Object();
+
   final bool autoPanguSpacing;
 
   /// 阅读时自动优化中英文混排间距
@@ -28,6 +44,9 @@ class AppPreferences {
 
   /// 自动填充登录凭证
   final bool autoFillLogin;
+
+  /// 自动识别剪贴板中的 Linux.do 话题链接
+  final bool clipboardTopicLinkDetection;
 
   /// 崩溃日志上报（仅 Android）
   final bool crashlytics;
@@ -56,14 +75,11 @@ class AppPreferences {
   /// 相关链接默认展开
   final bool expandRelatedLinks;
 
-  /// 显示用户签名
-  final bool showSignatures;
-
   /// AI 助手左滑入口（PageView 模式）
   final bool aiSwipeEntry;
 
-  /// 话题默认使用树形视图
-  final bool defaultNestedTopicView;
+  /// 旧偏好名：话题默认使用树形视图。
+  bool get defaultNestedTopicView => defaultNestedView;
 
   /// 进入帖子后自动触发 AI 总结
   final bool autoSummarizeTopicOnEnter;
@@ -71,8 +87,23 @@ class AppPreferences {
   /// 自动总结需要达到的最小回复数
   final int autoSummarizeMinReplies;
 
+  /// 发帖前 AI 审核
+  final bool aiPostReviewEnabled;
+
+  /// 发帖前 AI 审核使用的模型 key（providerId:modelId）
+  final String? aiPostReviewModelKey;
+
   /// 对话框背景高斯模糊
   final bool dialogBlur;
+
+  /// 显示用户签名
+  final bool showSignatures;
+
+  /// 默认使用树形视图
+  final bool defaultNestedView;
+
+  /// 嵌套视图连接线样式
+  final NestedLineStyle nestedLineStyle;
 
   /// 最大并发请求数
   final int maxConcurrent;
@@ -101,6 +132,7 @@ class AppPreferences {
     required this.contentFontScale,
     required this.shareImageThemeIndex,
     required this.autoFillLogin,
+    required this.clipboardTopicLinkDetection,
     required this.crashlytics,
     required this.androidNativeCdp,
     required this.portraitLock,
@@ -110,12 +142,15 @@ class AppPreferences {
     required this.clearCacheOnExit,
     required this.cfClearanceRefresh,
     required this.expandRelatedLinks,
-    required this.showSignatures,
     required this.aiSwipeEntry,
-    required this.defaultNestedTopicView,
     required this.autoSummarizeTopicOnEnter,
     required this.autoSummarizeMinReplies,
+    this.aiPostReviewEnabled = false,
+    this.aiPostReviewModelKey,
     required this.dialogBlur,
+    this.showSignatures = true,
+    this.defaultNestedView = false,
+    this.nestedLineStyle = NestedLineStyle.auto,
     required this.maxConcurrent,
     required this.maxPerWindow,
     required this.windowSeconds,
@@ -133,6 +168,7 @@ class AppPreferences {
     double? contentFontScale,
     int? shareImageThemeIndex,
     bool? autoFillLogin,
+    bool? clipboardTopicLinkDetection,
     bool? crashlytics,
     bool? androidNativeCdp,
     bool? portraitLock,
@@ -142,12 +178,16 @@ class AppPreferences {
     bool? clearCacheOnExit,
     bool? cfClearanceRefresh,
     bool? expandRelatedLinks,
-    bool? showSignatures,
     bool? aiSwipeEntry,
     bool? defaultNestedTopicView,
     bool? autoSummarizeTopicOnEnter,
     int? autoSummarizeMinReplies,
+    bool? aiPostReviewEnabled,
+    Object? aiPostReviewModelKey = _unset,
     bool? dialogBlur,
+    bool? showSignatures,
+    bool? defaultNestedView,
+    NestedLineStyle? nestedLineStyle,
     int? maxConcurrent,
     int? maxPerWindow,
     int? windowSeconds,
@@ -165,6 +205,8 @@ class AppPreferences {
       contentFontScale: contentFontScale ?? this.contentFontScale,
       shareImageThemeIndex: shareImageThemeIndex ?? this.shareImageThemeIndex,
       autoFillLogin: autoFillLogin ?? this.autoFillLogin,
+      clipboardTopicLinkDetection:
+          clipboardTopicLinkDetection ?? this.clipboardTopicLinkDetection,
       crashlytics: crashlytics ?? this.crashlytics,
       androidNativeCdp: androidNativeCdp ?? this.androidNativeCdp,
       portraitLock: portraitLock ?? this.portraitLock,
@@ -174,15 +216,20 @@ class AppPreferences {
       clearCacheOnExit: clearCacheOnExit ?? this.clearCacheOnExit,
       cfClearanceRefresh: cfClearanceRefresh ?? this.cfClearanceRefresh,
       expandRelatedLinks: expandRelatedLinks ?? this.expandRelatedLinks,
-      showSignatures: showSignatures ?? this.showSignatures,
       aiSwipeEntry: aiSwipeEntry ?? this.aiSwipeEntry,
-      defaultNestedTopicView:
-          defaultNestedTopicView ?? this.defaultNestedTopicView,
       autoSummarizeTopicOnEnter:
           autoSummarizeTopicOnEnter ?? this.autoSummarizeTopicOnEnter,
       autoSummarizeMinReplies:
           autoSummarizeMinReplies ?? this.autoSummarizeMinReplies,
+      aiPostReviewEnabled: aiPostReviewEnabled ?? this.aiPostReviewEnabled,
+      aiPostReviewModelKey: identical(aiPostReviewModelKey, _unset)
+          ? this.aiPostReviewModelKey
+          : aiPostReviewModelKey as String?,
       dialogBlur: dialogBlur ?? this.dialogBlur,
+      showSignatures: showSignatures ?? this.showSignatures,
+      defaultNestedView:
+          defaultNestedTopicView ?? defaultNestedView ?? this.defaultNestedView,
+      nestedLineStyle: nestedLineStyle ?? this.nestedLineStyle,
       maxConcurrent: maxConcurrent ?? this.maxConcurrent,
       maxPerWindow: maxPerWindow ?? this.maxPerWindow,
       windowSeconds: windowSeconds ?? this.windowSeconds,
@@ -205,6 +252,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _contentFontScaleKey = 'pref_content_font_scale';
   static const String _shareImageThemeIndexKey = 'pref_share_image_theme_index';
   static const String _autoFillLoginKey = 'pref_auto_fill_login';
+  static const String _clipboardTopicLinkDetectionKey =
+      'pref_clipboard_topic_link_detection';
   static const String _crashlyticsKey = 'pref_crashlytics';
   static const String _androidNativeCdpKey = AndroidCdpFeature.prefKey;
   static const String _portraitLockKey = 'pref_portrait_lock';
@@ -215,7 +264,6 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _cfClearanceRefreshKey =
       CfClearanceRefreshService.prefKeyEnabled;
   static const String _expandRelatedLinksKey = 'pref_expand_related_links';
-  static const String _showSignaturesKey = 'pref_show_signatures';
   static const String _aiSwipeEntryKey = 'pref_ai_swipe_entry';
   static const String _defaultNestedTopicViewKey =
       'pref_default_nested_topic_view';
@@ -223,7 +271,12 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
       'pref_auto_summarize_topic_on_enter';
   static const String _autoSummarizeMinRepliesKey =
       'pref_auto_summarize_min_replies';
+  static const String _aiPostReviewEnabledKey = 'pref_ai_post_review_enabled';
+  static const String _aiPostReviewModelPrefKey = 'pref_ai_post_review_model';
   static const String _dialogBlurKey = 'pref_dialog_blur';
+  static const String _showSignaturesKey = 'pref_show_signatures';
+  static const String _defaultNestedViewKey = 'pref_default_nested_view';
+  static const String _nestedLineStyleKey = 'pref_nested_line_style';
   static const String _maxConcurrentKey = 'pref_max_concurrent';
   static const String _maxPerWindowKey = 'pref_max_per_window';
   static const String _windowSecondsKey = 'pref_window_seconds';
@@ -249,6 +302,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           contentFontScale: _prefs.getDouble(_contentFontScaleKey) ?? 1.0,
           shareImageThemeIndex: _prefs.getInt(_shareImageThemeIndexKey) ?? 0,
           autoFillLogin: _prefs.getBool(_autoFillLoginKey) ?? true,
+          clipboardTopicLinkDetection:
+              _prefs.getBool(_clipboardTopicLinkDetectionKey) ?? false,
           crashlytics: _prefs.getBool(_crashlyticsKey) ?? true,
           androidNativeCdp: _prefs.getBool(_androidNativeCdpKey) ?? false,
           portraitLock: _prefs.getBool(_portraitLockKey) ?? false,
@@ -259,15 +314,22 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           clearCacheOnExit: _prefs.getBool(_clearCacheOnExitKey) ?? false,
           cfClearanceRefresh: _prefs.getBool(_cfClearanceRefreshKey) ?? false,
           expandRelatedLinks: _prefs.getBool(_expandRelatedLinksKey) ?? false,
-          showSignatures: _prefs.getBool(_showSignaturesKey) ?? true,
           aiSwipeEntry: _prefs.getBool(_aiSwipeEntryKey) ?? false,
-          defaultNestedTopicView:
-              _prefs.getBool(_defaultNestedTopicViewKey) ?? true,
           autoSummarizeTopicOnEnter:
               _prefs.getBool(_autoSummarizeTopicOnEnterKey) ?? false,
           autoSummarizeMinReplies:
               _prefs.getInt(_autoSummarizeMinRepliesKey) ?? 20,
+          aiPostReviewEnabled: _prefs.getBool(_aiPostReviewEnabledKey) ?? false,
+          aiPostReviewModelKey: _prefs.getString(_aiPostReviewModelPrefKey),
           dialogBlur: _prefs.getBool(_dialogBlurKey) ?? true,
+          showSignatures: _prefs.getBool(_showSignaturesKey) ?? true,
+          defaultNestedView:
+              _prefs.getBool(_defaultNestedViewKey) ??
+              _prefs.getBool(_defaultNestedTopicViewKey) ??
+              true,
+          nestedLineStyle: NestedLineStyle.fromString(
+            _prefs.getString(_nestedLineStyleKey),
+          ),
           maxConcurrent: _prefs.getInt(_maxConcurrentKey) ?? 3,
           maxPerWindow: _prefs.getInt(_maxPerWindowKey) ?? 6,
           windowSeconds: _prefs.getInt(_windowSecondsKey) ?? 3,
@@ -333,6 +395,11 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     await _prefs.setBool(_autoFillLoginKey, enabled);
   }
 
+  Future<void> setClipboardTopicLinkDetection(bool enabled) async {
+    state = state.copyWith(clipboardTopicLinkDetection: enabled);
+    await _prefs.setBool(_clipboardTopicLinkDetectionKey, enabled);
+  }
+
   Future<void> setCrashlytics(bool enabled) async {
     state = state.copyWith(crashlytics: enabled);
     await _prefs.setBool(_crashlyticsKey, enabled);
@@ -393,11 +460,6 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     await _prefs.setBool(_expandRelatedLinksKey, enabled);
   }
 
-  Future<void> setShowSignatures(bool enabled) async {
-    state = state.copyWith(showSignatures: enabled);
-    await _prefs.setBool(_showSignaturesKey, enabled);
-  }
-
   Future<void> setAiSwipeEntry(bool enabled) async {
     state = state.copyWith(aiSwipeEntry: enabled);
     await _prefs.setBool(_aiSwipeEntryKey, enabled);
@@ -406,6 +468,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setDefaultNestedTopicView(bool enabled) async {
     state = state.copyWith(defaultNestedTopicView: enabled);
     await _prefs.setBool(_defaultNestedTopicViewKey, enabled);
+    await _prefs.setBool(_defaultNestedViewKey, enabled);
   }
 
   Future<void> setAutoSummarizeTopicOnEnter(bool enabled) async {
@@ -419,9 +482,39 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     await _prefs.setInt(_autoSummarizeMinRepliesKey, clamped);
   }
 
+  Future<void> setAiPostReviewEnabled(bool enabled) async {
+    state = state.copyWith(aiPostReviewEnabled: enabled);
+    await _prefs.setBool(_aiPostReviewEnabledKey, enabled);
+  }
+
+  Future<void> setAiPostReviewModelKey(String? key) async {
+    state = state.copyWith(aiPostReviewModelKey: key);
+    if (key == null || key.isEmpty) {
+      await _prefs.remove(_aiPostReviewModelPrefKey);
+    } else {
+      await _prefs.setString(_aiPostReviewModelPrefKey, key);
+    }
+  }
+
   Future<void> setDialogBlur(bool enabled) async {
     state = state.copyWith(dialogBlur: enabled);
     await _prefs.setBool(_dialogBlurKey, enabled);
+  }
+
+  Future<void> setShowSignatures(bool enabled) async {
+    state = state.copyWith(showSignatures: enabled);
+    await _prefs.setBool(_showSignaturesKey, enabled);
+  }
+
+  Future<void> setDefaultNestedView(bool enabled) async {
+    state = state.copyWith(defaultNestedView: enabled);
+    await _prefs.setBool(_defaultNestedViewKey, enabled);
+    await _prefs.setBool(_defaultNestedTopicViewKey, enabled);
+  }
+
+  Future<void> setNestedLineStyle(NestedLineStyle style) async {
+    state = state.copyWith(nestedLineStyle: style);
+    await _prefs.setString(_nestedLineStyleKey, style.name);
   }
 
   Future<void> setMaxConcurrent(int value) async {

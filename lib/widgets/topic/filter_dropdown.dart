@@ -6,7 +6,7 @@ import '../../providers/topic_list/tab_state_provider.dart';
 import '../../providers/message_bus/topic_tracking_providers.dart';
 import 'sort_and_tags_bar.dart';
 import '../common/dismissible_popup_menu.dart';
-import '../../../../../l10n/s.dart';
+import '../../l10n/s.dart';
 
 /// 下拉样式
 enum DropdownStyle {
@@ -92,7 +92,7 @@ class FilterDropdown extends ConsumerWidget {
   static int _countForFilter(TopicListFilter filter, int newCount, int unreadCount) {
     switch (filter) {
       case TopicListFilter.newTopics:
-        return newCount;
+        return newCount + unreadCount;
       case TopicListFilter.unread:
         return unreadCount;
       default:
@@ -271,6 +271,115 @@ class OrderDropdown extends StatelessWidget {
               color: colorScheme.primary,
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 「新话题」子过滤下拉组件
+class NewSubsetDropdown extends StatelessWidget {
+  final NewSubset currentSubset;
+  final ValueChanged<NewSubset> onSubsetChanged;
+  final bool compact;
+
+  const NewSubsetDropdown({
+    super.key,
+    required this.currentSubset,
+    required this.onSubsetChanged,
+    this.compact = false,
+  });
+
+  String _shortLabel(NewSubset subset) {
+    switch (subset) {
+      case NewSubset.all:
+        return S.current.topic_filterNewAllShort;
+      case NewSubset.topics:
+        return S.current.topic_filterNewTopicsShort;
+      case NewSubset.replies:
+        return S.current.topic_filterNewRepliesShort;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isActive = currentSubset != NewSubset.all;
+
+    return SwipeDismissiblePopupMenuButton<NewSubset>(
+      onSelected: onSubsetChanged,
+      offset: const Offset(0, 36),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      tooltip: _shortLabel(currentSubset),
+      itemBuilder: (context) {
+        return NewSubset.values.map((subset) {
+          final isSelected = subset == currentSubset;
+          return PopupMenuItem<NewSubset>(
+            value: subset,
+            child: Row(
+              children: [
+                if (isSelected)
+                  Icon(Icons.check, size: 16, color: colorScheme.primary)
+                else
+                  const SizedBox(width: 16),
+                const SizedBox(width: 8),
+                Text(_shortLabel(subset)),
+              ],
+            ),
+          );
+        }).toList();
+      },
+      child: compact
+          ? _buildCompactChild(colorScheme, isActive)
+          : _buildNormalChild(colorScheme, isActive),
+    );
+  }
+
+  Widget _buildNormalChild(ColorScheme colorScheme, bool isActive) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive
+            ? colorScheme.primaryContainer.withValues(alpha: 0.3)
+            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _shortLabel(currentSubset),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: isActive ? colorScheme.primary : colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(width: 2),
+          Icon(Icons.arrow_drop_down, size: 18, color: colorScheme.onSurfaceVariant),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactChild(ColorScheme colorScheme, bool isActive) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isActive ? Icons.filter_alt : Icons.filter_list,
+            size: 18,
+            color: isActive
+                ? colorScheme.primary
+                : colorScheme.onSurfaceVariant,
+          ),
+          if (isActive)
+            Text(
+              _shortLabel(currentSubset),
+              style: TextStyle(fontSize: 11, color: colorScheme.primary),
+            ),
         ],
       ),
     );

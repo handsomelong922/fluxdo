@@ -1,36 +1,65 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../l10n/app_localizations.dart';
 import '../l10n/s.dart';
+import '../models/shortcut_binding.dart';
+import '../providers/shortcut_provider.dart';
 import '../settings/search/settings_search_index.dart';
 import '../utils/platform_utils.dart';
 import 'about_page.dart';
-import 'ai_prompt_settings_page.dart'; // CUSTOM: AI Prompt Settings
 import 'appearance_page.dart';
 import 'bottom_nav_settings_page.dart';
 import 'data_management_page.dart';
-import 'keyword_filter_page.dart'; // CUSTOM: Keyword Filter
 import 'network_settings_page/network_settings_page.dart';
 import 'preferences_page.dart';
 import 'reading_settings_page.dart';
 import 'shortcut_settings_page.dart';
-import 'tag_filter_page.dart'; // CUSTOM: Tag Filter
-import 'user_filter_page.dart'; // CUSTOM: User Filter
 
-class SettingsPage extends StatefulWidget {
+class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _searchController = TextEditingController();
   final _focusNode = FocusNode();
+  late final ShortcutSurfaceBinding _shortcutSurfaceBinding =
+      ShortcutSurfaceBinding(
+        ref: ref,
+        id: ShortcutSurfaceIds.settings,
+        triggerAction: ShortcutAction.openSettings,
+        kind: ShortcutSurfaceKind.route,
+        repeatBehavior: ShortcutSurfaceRepeatBehavior.reveal,
+        passthroughActions: ShortcutSurfaceActionSets.globalRoutePassthrough,
+      );
+  ModalRoute<dynamic>? _route;
   String _query = '';
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route == null || identical(route, _route)) return;
+    _route = route;
+    _shortcutSurfaceBinding.registerDeferred(
+      context,
+      onClose: () => Navigator.of(context).maybePop(),
+      onFocus: _revealSelf,
+    );
+  }
+
+  void _revealSelf() {
+    final route = _route;
+    final navigator = route?.navigator;
+    if (route == null || navigator == null || route.isCurrent) return;
+    navigator.popUntil((candidate) => identical(candidate, route));
+  }
+
+  @override
   void dispose() {
+    _shortcutSurfaceBinding.disposeDeferred();
     _searchController.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -125,7 +154,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       itemCount: filtered.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 2),
+      separatorBuilder: (_, _) => const SizedBox(height: 2),
       itemBuilder: (context, index) {
         final result = filtered[index];
         return Card(
@@ -231,52 +260,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const PreferencesPage()),
-                ),
-              ),
-              _buildDivider(theme),
-              // CUSTOM: Keyword Filter
-              _buildOptionTile(
-                icon: Icons.block_rounded,
-                iconColor: Colors.redAccent,
-                title: '关键词屏蔽',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const KeywordFilterPage()),
-                ),
-              ),
-              _buildDivider(theme),
-              // CUSTOM: Tag Filter
-              _buildOptionTile(
-                icon: Icons.local_offer_outlined,
-                iconColor: Colors.orangeAccent,
-                title: '标签屏蔽',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const TagFilterPage()),
-                ),
-              ),
-              _buildDivider(theme),
-              // CUSTOM: User Filter
-              _buildOptionTile(
-                icon: Icons.person_off_rounded,
-                iconColor: Colors.red,
-                title: '用户屏蔽',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const UserFilterPage()),
-                ),
-              ),
-              _buildDivider(theme),
-              // CUSTOM: AI Prompt Settings
-              _buildOptionTile(
-                icon: Icons.smart_toy_rounded,
-                iconColor: Colors.cyan,
-                title: 'AI 提示词配置',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const AiPromptSettingsPage(),
-                  ),
                 ),
               ),
               _buildDivider(theme),

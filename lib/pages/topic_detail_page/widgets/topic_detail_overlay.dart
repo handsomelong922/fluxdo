@@ -24,10 +24,12 @@ class TopicDetailOverlay extends StatelessWidget {
   final bool isSummaryMode;
   final bool isAuthorOnlyMode;
   final bool isTopLevelMode;
+  final bool isNestedMode;
   final bool isLoading;
   final VoidCallback? onShowTopReplies;
   final VoidCallback? onShowAuthorOnly;
   final VoidCallback? onShowTopLevelReplies;
+  final VoidCallback? onShowNestedView;
   final VoidCallback? onCancelFilter;
 
   const TopicDetailOverlay({
@@ -47,10 +49,12 @@ class TopicDetailOverlay extends StatelessWidget {
     this.isSummaryMode = false,
     this.isAuthorOnlyMode = false,
     this.isTopLevelMode = false,
+    this.isNestedMode = false,
     this.isLoading = false,
     this.onShowTopReplies,
     this.onShowAuthorOnly,
     this.onShowTopLevelReplies,
+    this.onShowNestedView,
     this.onCancelFilter,
   });
 
@@ -98,11 +102,13 @@ class TopicDetailOverlay extends StatelessWidget {
             isSummaryMode: isSummaryMode,
             isAuthorOnlyMode: isAuthorOnlyMode,
             isTopLevelMode: isTopLevelMode,
+            isNestedMode: isNestedMode,
             isLoading: isLoading,
             isPrivateMessage: detail.isPrivateMessage,
             onShowTopReplies: onShowTopReplies,
             onShowAuthorOnly: onShowAuthorOnly,
             onShowTopLevelReplies: onShowTopLevelReplies,
+            onShowNestedView: onShowNestedView,
             onCancelFilter: onCancelFilter,
           ),
         ),

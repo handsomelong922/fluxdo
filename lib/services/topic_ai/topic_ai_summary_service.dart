@@ -46,15 +46,28 @@ class TopicAiSummaryService {
         ? promptSettings.summaryAllRepliesPrompt.trim()
         : defaultSummaryAllRepliesPrompt();
 
-    final messages = <Map<String, String>>[
-      {
-        'role': 'user',
-        'content': AiL10n.current.contextContentPrefix(
+    final now = DateTime.now();
+    final messages = <AiChatMessage>[
+      AiChatMessage(
+        id: 'topic-summary-context',
+        role: ChatRole.user,
+        content: AiL10n.current.contextContentPrefix(
           _buildContextText(contextPosts),
         ),
-      },
-      {'role': 'assistant', 'content': AiL10n.current.contextReadyResponse},
-      {'role': 'user', 'content': summaryPrompt},
+        createdAt: now,
+      ),
+      AiChatMessage(
+        id: 'topic-summary-context-ready',
+        role: ChatRole.assistant,
+        content: AiL10n.current.contextReadyResponse,
+        createdAt: now,
+      ),
+      AiChatMessage(
+        id: 'topic-summary-request',
+        role: ChatRole.user,
+        content: summaryPrompt,
+        createdAt: now,
+      ),
     ];
 
     final stream = _ref
@@ -68,8 +81,10 @@ class TopicAiSummaryService {
         );
 
     final buffer = StringBuffer();
-    await for (final token in stream) {
-      buffer.write(token);
+    await for (final chunk in stream) {
+      if (chunk is TextDelta) {
+        buffer.write(chunk.text);
+      }
     }
 
     final summarizedText = buffer.toString().trim();

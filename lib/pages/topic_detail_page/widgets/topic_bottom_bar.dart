@@ -13,10 +13,12 @@ class TopicBottomBar extends StatelessWidget {
   final bool isSummaryMode;
   final bool isAuthorOnlyMode;
   final bool isTopLevelMode;
+  final bool isNestedMode;
   final bool isLoading;
   final VoidCallback? onShowTopReplies;
   final VoidCallback? onShowAuthorOnly;
   final VoidCallback? onShowTopLevelReplies;
+  final VoidCallback? onShowNestedView;
   final VoidCallback? onCancelFilter;
   final bool isPrivateMessage;
 
@@ -31,16 +33,18 @@ class TopicBottomBar extends StatelessWidget {
     this.isSummaryMode = false,
     this.isAuthorOnlyMode = false,
     this.isTopLevelMode = false,
+    this.isNestedMode = false,
     this.isLoading = false,
     this.isPrivateMessage = false,
     this.onShowTopReplies,
     this.onShowAuthorOnly,
     this.onShowTopLevelReplies,
+    this.onShowNestedView,
     this.onCancelFilter,
   });
 
   bool get _hasActiveFilter =>
-      isSummaryMode || isAuthorOnlyMode || isTopLevelMode;
+      isSummaryMode || isAuthorOnlyMode || isTopLevelMode || isNestedMode;
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +111,9 @@ class TopicBottomBar extends StatelessWidget {
     if (isTopLevelMode) {
       return (Icons.account_tree, context.l10n.topicDetail_topLevelOnly);
     }
+    if (isNestedMode) {
+      return (Icons.forum, context.l10n.nested_title);
+    }
     return (Icons.filter_list, '');
   }
 
@@ -150,6 +157,15 @@ class TopicBottomBar extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(ctx);
                   onShowTopLevelReplies?.call();
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.forum_outlined),
+                title: Text(context.l10n.nested_title),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  onShowNestedView?.call();
                 },
               ),
             ],

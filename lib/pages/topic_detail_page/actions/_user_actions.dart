@@ -12,8 +12,8 @@ extension _UserActions on _TopicDetailPageState {
     final detail = ref.read(topicDetailProvider(params)).value;
     final notifier = ref.read(topicDetailProvider(params).notifier);
     final anchorPostNumber = _controller.getRefreshAnchorPostNumber(
-      detail?.postStream.posts.firstOrNull?.postNumber ??
-          _controller.currentPostNumber,
+      _resolvedViewportPostNumber ??
+          detail?.postStream.posts.firstOrNull?.postNumber,
     );
 
     setState(() => _isRefreshing = true);
@@ -39,9 +39,11 @@ extension _UserActions on _TopicDetailPageState {
     }
   }
 
-  Future<void> _handleReply(Post? replyToPost) async {
+  Future<void> _handleReply(Post? replyToPost, {String? initialContent}) async {
     final params = _params;
+    final notifier = ref.read(topicDetailProvider(params).notifier);
     final detail = ref.read(topicDetailProvider(params)).value;
+    final wasAtBottom = !notifier.hasMoreAfter;
 
     // 预加载草稿：在点击回复时就发起请求，利用 BottomSheet 动画时间并行加载
     final draftKey = Draft.replyKey(
@@ -55,8 +57,15 @@ extension _UserActions on _TopicDetailPageState {
       topicId: widget.topicId,
       categoryId: detail?.categoryId,
       replyToPost: replyToPost,
+      initialContent: initialContent,
+      topicTitle: detail?.title,
       preloadedDraftFuture: preloadedDraftFuture,
       isPrivateMessageTopic: detail?.isPrivateMessage ?? false,
+      shortcutSurface: const ShortcutSurfaceConfig(
+        id: ShortcutSurfaceIds.replyComposer,
+        triggerAction: ShortcutAction.replyTopic,
+        repeatActions: ShortcutSurfaceActionSets.replyComposerTriggers,
+      ),
     );
 
     if (newPost != null && mounted) {
@@ -64,7 +73,7 @@ extension _UserActions on _TopicDetailPageState {
 
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
-          .addPost(newPost);
+          .addPost(newPost, wasAtBottom: wasAtBottom);
 
       if (addedToView) {
         // 回复面板关闭后键盘收起动画约 700ms，期间 viewport 高度持续增大、
@@ -107,6 +116,10 @@ extension _UserActions on _TopicDetailPageState {
       topicId: widget.topicId,
       post: post,
       categoryId: detail?.categoryId,
+      shortcutSurface: const ShortcutSurfaceConfig(
+        id: ShortcutSurfaceIds.editComposer,
+        triggerAction: ShortcutAction.editPost,
+      ),
     );
 
     if (updatedPost != null && mounted) {
@@ -220,7 +233,7 @@ extension _UserActions on _TopicDetailPageState {
       final item = ReadLaterItem(
         topicId: widget.topicId,
         title: detail?.title ?? widget.initialTitle ?? '',
-        scrollToPostNumber: _controller.currentPostNumber,
+        scrollToPostNumber: _resolvedViewportPostNumber,
         addedAt: DateTime.now(),
       );
       final success = notifier.add(item);
@@ -318,6 +331,327 @@ extension _UserActions on _TopicDetailPageState {
     ShareImagePreview.show(context, detail, post: post);
   }
 
+  Post? _currentShortcutPost() {
+    final detail = ref.read(topicDetailProvider(_params)).value;
+    final posts = detail?.postStream.posts;
+    if (posts == null || posts.isEmpty) return null;
+
+    final currentPostNumber = _resolvedShortcutPostNumber;
+    if (currentPostNumber == null) return posts.first;
+
+    Post? nearestPost;
+    int? nearestDistance;
+    for (final post in posts) {
+      final distance = (post.postNumber - currentPostNumber).abs();
+      if (nearestDistance == null || distance < nearestDistance) {
+        nearestPost = post;
+        nearestDistance = distance;
+      }
+    }
+
+    return nearestPost ?? posts.first;
+  }
+
+  Post? _currentReplyTargetPost() {
+    final post = _currentShortcutPost();
+    if (post == null || post.postNumber == 1) return null;
+    return post;
+  }
+
+  Future<void> _handleQuotePost(Post post) async {
+    final params = _params;
+    final notifier = ref.read(topicDetailProvider(params).notifier);
+    final detail = ref.read(topicDetailProvider(params)).value;
+    final wasAtBottom = !notifier.hasMoreAfter;
+
+    String markdown = '';
+    final raw = await DiscourseService().getPostRaw(post.id);
+    if (raw != null && raw.trim().isNotEmpty) {
+      markdown = raw.trim();
+    } else {
+      markdown = HtmlToMarkdown.convert(post.cooked).trim();
+    }
+
+    if (markdown.isEmpty) return;
+    if (!mounted) return;
+
+    final quote = QuoteBuilder.build(
+      markdown: markdown,
+      username: post.username,
+      postNumber: post.postNumber,
+      topicId: widget.topicId,
+    );
+
+    final draftKey = Draft.replyKey(
+      widget.topicId,
+      replyToPostNumber: post.postNumber,
+    );
+    final preloadedDraftFuture = DiscourseService().getDraft(draftKey);
+
+    final newPost = await showReplySheet(
+      context: context,
+      topicId: widget.topicId,
+      categoryId: detail?.categoryId,
+      replyToPost: post,
+      initialContent: quote,
+      topicTitle: detail?.title,
+      preloadedDraftFuture: preloadedDraftFuture,
+      isPrivateMessageTopic: detail?.isPrivateMessage ?? false,
+      shortcutSurface: const ShortcutSurfaceConfig(
+        id: ShortcutSurfaceIds.replyComposer,
+        triggerAction: ShortcutAction.quotePost,
+        repeatActions: ShortcutSurfaceActionSets.replyComposerTriggers,
+      ),
+    );
+
+    if (newPost != null && mounted) {
+      _updateNestedViewAfterReply(newPost);
+
+      final addedToView = ref
+          .read(topicDetailProvider(params).notifier)
+          .addPost(newPost, wasAtBottom: wasAtBottom);
+
+      if (addedToView) {
+        _scrollAfterKeyboardDismiss(newPost.postNumber);
+      } else {
+        ToastService.show(
+          S.current.post_replySent,
+          type: ToastType.success,
+          actionLabel: S.current.post_replySentAction,
+          onAction: () => _scrollToPost(newPost.postNumber),
+        );
+      }
+    }
+  }
+
+  Future<void> _togglePostLike(Post post) async {
+    try {
+      final result = await DiscourseService().toggleReaction(
+        post.id,
+        post.currentUserReaction?.id ?? 'heart',
+      );
+      if (!mounted) return;
+
+      ref
+          .read(topicDetailProvider(_params).notifier)
+          .updatePostReaction(
+            post.id,
+            result['reactions'] as List<PostReaction>,
+            result['currentUserReaction'] as PostReaction?,
+          );
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
+    }
+  }
+
+  Future<void> _handlePostBookmark(Post post) async {
+    final notifier = ref.read(topicDetailProvider(_params).notifier);
+
+    if (post.bookmarked && post.bookmarkId != null) {
+      final result = await BookmarkEditSheet.show(
+        context,
+        bookmarkId: post.bookmarkId!,
+        initialName: post.bookmarkName,
+        initialReminderAt: post.bookmarkReminderAt,
+      );
+      if (result == null || !mounted) return;
+
+      if (result.deleted) {
+        notifier.refreshPost(post.id, preserveCooked: true);
+      } else {
+        notifier.updatePost(
+          post.copyWith(
+            bookmarked: true,
+            bookmarkId: post.bookmarkId,
+            bookmarkName: result.name,
+            bookmarkReminderAt: result.reminderAt,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final bookmarkId = await DiscourseService().bookmarkPost(post.id);
+      if (!mounted) return;
+
+      notifier.updatePost(
+        post.copyWith(
+          bookmarked: true,
+          bookmarkId: bookmarkId,
+          bookmarkName: null,
+          bookmarkReminderAt: null,
+        ),
+      );
+      ToastService.showSuccess(S.current.common_bookmarkAdded);
+
+      final result = await BookmarkEditSheet.show(
+        context,
+        bookmarkId: bookmarkId,
+      );
+      if (result == null || !mounted) return;
+
+      if (result.deleted) {
+        notifier.refreshPost(post.id, preserveCooked: true);
+      } else {
+        notifier.updatePost(
+          post.copyWith(
+            bookmarked: true,
+            bookmarkId: bookmarkId,
+            bookmarkName: result.name,
+            bookmarkReminderAt: result.reminderAt,
+          ),
+        );
+      }
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
+    }
+  }
+
+  void _sharePost(Post post) {
+    final user = ref.read(currentUserProvider).value;
+    final username = user?.username ?? '';
+    final prefs = ref.read(preferencesProvider);
+    final url = ShareUtils.buildShareUrl(
+      path: '/t/topic/${widget.topicId}/${post.postNumber}',
+      username: username,
+      anonymousShare: prefs.anonymousShare,
+    );
+    SharePlus.instance.share(ShareParams(text: url));
+  }
+
+  void _showFlagPostSheet(Post post) {
+    showAppBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      shortcutSurface: const ShortcutSurfaceConfig(
+        id: ShortcutSurfaceIds.postFlag,
+        triggerAction: ShortcutAction.flagPost,
+      ),
+      builder: (context) => PostFlagSheet(
+        postId: post.id,
+        postUsername: post.username,
+        service: DiscourseService(),
+        onSuccess: () => ToastService.showSuccess(S.current.post_flagSubmitted),
+      ),
+    );
+  }
+
+  Future<void> _handleDeletePost(Post post) async {
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      shortcutSurface: const ShortcutSurfaceConfig(
+        id: ShortcutSurfaceIds.postDeleteConfirm,
+        triggerAction: ShortcutAction.deletePost,
+      ),
+      builder: (ctx) => AlertDialog(
+        title: Text(context.l10n.post_deleteReplyTitle),
+        content: Text(context.l10n.post_deleteReplyConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(context.l10n.common_cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: Text(context.l10n.common_delete),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await DiscourseService().deletePost(post.id);
+      if (!mounted) return;
+
+      ref.read(topicDetailProvider(_params).notifier).markPostDeleted(post.id);
+      ToastService.showSuccess(context.l10n.common_deleted);
+    } on DioException catch (_) {
+      // 网络错误已由 ErrorInterceptor 处理
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
+    }
+  }
+
+  void _showJumpToPostDialog() {
+    final detail = ref.read(topicDetailProvider(_params)).value;
+    if (detail == null) return;
+
+    final controller = TextEditingController(
+      text: _resolvedShortcutPostNumber?.toString() ?? '',
+    );
+
+    showAppDialog(
+      context: context,
+      shortcutSurface: const ShortcutSurfaceConfig(
+        id: ShortcutSurfaceIds.topicJumpToPost,
+        triggerAction: ShortcutAction.jumpToPost,
+        repeatBehavior: ShortcutSurfaceRepeatBehavior.toggle,
+      ),
+      builder: (context) => AlertDialog(
+        title: Text(context.l10n.topic_jump),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: context.l10n.topic_currentFloor,
+            hintText: '1 - ${detail.postsCount}',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.l10n.common_cancel),
+          ),
+          FilledButton(
+            onPressed: () {
+              final postNumber = int.tryParse(controller.text.trim());
+              Navigator.pop(context);
+              if (postNumber != null && postNumber > 0) {
+                _scrollToPost(postNumber.clamp(1, detail.postsCount));
+              }
+            },
+            child: Text(context.l10n.topic_jump),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _jumpToUnreadPost() async {
+    final detail = ref.read(topicDetailProvider(_params)).value;
+    if (detail == null || detail.postsCount <= 0) return;
+
+    var maxReadPostNumber = detail.lastReadPostNumber ?? 0;
+    for (final postNumber in _lastReadPostNumbers) {
+      if (postNumber > maxReadPostNumber) {
+        maxReadPostNumber = postNumber;
+      }
+    }
+
+    final targetLoadedPost = detail.postStream.posts
+        .where((post) => post.postNumber > maxReadPostNumber)
+        .firstOrNull;
+    final targetPostNumber =
+        targetLoadedPost?.postNumber ??
+        (maxReadPostNumber < detail.postsCount ? maxReadPostNumber + 1 : null);
+
+    if (targetPostNumber != null) {
+      await _scrollToPost(targetPostNumber);
+    }
+  }
+
   void _showExportSheet() {
     final params = _params;
     final detail = ref.read(topicDetailProvider(params)).value;
@@ -329,7 +663,9 @@ extension _UserActions on _TopicDetailPageState {
   /// 处理划词引用
   Future<void> _handleQuoteSelection(String selectedText, Post post) async {
     final params = _params;
+    final notifier = ref.read(topicDetailProvider(params).notifier);
     final detail = ref.read(topicDetailProvider(params)).value;
+    final wasAtBottom = !notifier.hasMoreAfter;
     final codePayload = CodeSelectionContextTracker.instance.decodePayload(
       selectedText,
     );
@@ -384,8 +720,14 @@ extension _UserActions on _TopicDetailPageState {
       categoryId: detail?.categoryId,
       replyToPost: post,
       initialContent: quote,
+      topicTitle: detail?.title,
       preloadedDraftFuture: preloadedDraftFuture,
       isPrivateMessageTopic: detail?.isPrivateMessage ?? false,
+      shortcutSurface: const ShortcutSurfaceConfig(
+        id: ShortcutSurfaceIds.replyComposer,
+        triggerAction: ShortcutAction.quotePost,
+        repeatActions: ShortcutSurfaceActionSets.replyComposerTriggers,
+      ),
     );
 
     if (newPost != null && mounted) {
@@ -393,8 +735,7 @@ extension _UserActions on _TopicDetailPageState {
 
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
-          .addPost(newPost);
-
+          .addPost(newPost, wasAtBottom: wasAtBottom);
       if (addedToView) {
         _scrollAfterKeyboardDismiss(newPost.postNumber);
       } else {
@@ -413,7 +754,9 @@ extension _UserActions on _TopicDetailPageState {
   /// 处理图片引用（quote 已在 ImageContextMenu 中构建好）
   Future<void> _handleImageQuote(String quote, Post post) async {
     final params = _params;
+    final notifier = ref.read(topicDetailProvider(params).notifier);
     final detail = ref.read(topicDetailProvider(params)).value;
+    final wasAtBottom = !notifier.hasMoreAfter;
 
     // 预加载草稿
     final draftKey = Draft.replyKey(
@@ -429,8 +772,14 @@ extension _UserActions on _TopicDetailPageState {
       categoryId: detail?.categoryId,
       replyToPost: post,
       initialContent: quote,
+      topicTitle: detail?.title,
       preloadedDraftFuture: preloadedDraftFuture,
       isPrivateMessageTopic: detail?.isPrivateMessage ?? false,
+      shortcutSurface: const ShortcutSurfaceConfig(
+        id: ShortcutSurfaceIds.replyComposer,
+        triggerAction: ShortcutAction.quotePost,
+        repeatActions: ShortcutSurfaceActionSets.replyComposerTriggers,
+      ),
     );
 
     if (newPost != null && mounted) {
@@ -438,8 +787,7 @@ extension _UserActions on _TopicDetailPageState {
 
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
-          .addPost(newPost);
-
+          .addPost(newPost, wasAtBottom: wasAtBottom);
       if (addedToView) {
         _scrollAfterKeyboardDismiss(newPost.postNumber);
       } else {
@@ -455,25 +803,24 @@ extension _UserActions on _TopicDetailPageState {
     }
   }
 
-  /// 回复成功后同步更新树形视图。
+  /// 回复成功后更新嵌套视图
   void _updateNestedViewAfterReply(Post newPost) {
     if (!_isNestedView) return;
+    final nestedParams = NestedTopicParams(topicId: widget.topicId);
     ref
-        .read(
-          nestedTopicProvider(
-            NestedTopicParams(topicId: widget.topicId),
-          ).notifier,
-        )
+        .read(nestedTopicProvider(nestedParams).notifier)
         .addNewPost(newPost, isOwnPost: true);
   }
 
-  /// MessageBus created 事件只给 postId，这里后台拉完整帖子再交给树形视图去重。
+  /// MessageBus created 事件：获取完整帖子数据并更新嵌套视图
   Future<void> _handleNestedCreated(int postId, int? userId) async {
-    if (!_isNestedView) return;
-
     final nestedParams = NestedTopicParams(topicId: widget.topicId);
-    final nestedAsync = ref.read(nestedTopicProvider(nestedParams));
-    if (!nestedAsync.hasValue) return;
+    final nestedNotifier = ref.read(nestedTopicProvider(nestedParams).notifier);
+
+    // 去重：如果已存在（自己回复时 _updateNestedViewAfterReply 可能已处理）
+    final current = ref.read(nestedTopicProvider(nestedParams)).value;
+    if (current == null) return;
+    if (current.roots.any((n) => n.post.id == postId)) return;
 
     try {
       final post = await DiscourseService().getPost(postId);
@@ -481,11 +828,9 @@ extension _UserActions on _TopicDetailPageState {
 
       final currentUser = ref.read(currentUserProvider).value;
       final isOwnPost = userId != null && userId == currentUser?.id;
-      ref
-          .read(nestedTopicProvider(nestedParams).notifier)
-          .addNewPost(post, isOwnPost: isOwnPost);
+      nestedNotifier.addNewPost(post, isOwnPost: isOwnPost);
     } catch (e) {
-      debugPrint('[TopicDetail] 树形视图加载新回复失败: $e');
+      debugPrint('[TopicDetail] _handleNestedCreated 失败: $e');
     }
   }
 
@@ -495,7 +840,7 @@ extension _UserActions on _TopicDetailPageState {
       case TopicMessageType.created:
         notifier.onNewPostCreated(update.postId);
         if (_isNestedView) {
-          unawaited(_handleNestedCreated(update.postId, update.userId));
+          _handleNestedCreated(update.postId, update.userId);
         }
         break;
       case TopicMessageType.revised:
@@ -546,7 +891,7 @@ extension _UserActions on _TopicDetailPageState {
   /// 处理 reload_topic 消息
   void _handleReloadTopic(TopicDetailNotifier notifier, bool refreshStream) {
     final anchor = _controller.getRefreshAnchorPostNumber(
-      widget.scrollToPostNumber,
+      _resolvedViewportPostNumber,
     );
     if (refreshStream) {
       notifier.refreshWithPostNumber(anchor);
@@ -555,47 +900,9 @@ extension _UserActions on _TopicDetailPageState {
     }
   }
 
-  /// 切换树形视图，并同步为后续进入帖子的默认阅读布局。
-  Future<void> _setNestedView(bool enabled) async {
-    if (_isNestedView == enabled) return;
-    await ref
-        .read(preferencesProvider.notifier)
-        .setDefaultNestedTopicView(enabled);
-    if (!mounted) return;
-    _nestedPostNumberToScrollIndex = const {};
-    setState(() => _isNestedView = enabled);
-    final postNumber = _controller.currentPostNumber;
-    if (postNumber != null && postNumber > 0) {
-      unawaited(
-        ref
-            .read(topicReadingStateServiceProvider)
-            .saveState(
-              topicId: widget.topicId,
-              postNumber: postNumber,
-              nestedView: enabled,
-            ),
-      );
-    }
-  }
-
-  Future<void> _continueAiSummary(TopicSummary summary) async {
-    final detail = ref.read(topicDetailProvider(_params)).value;
-    if (detail == null) return;
-
-    await ref
-        .read(topicAiChatProvider(widget.topicId).notifier)
-        .continueFromSummary(detail.title, summary.summarizedText);
-    if (!mounted) return;
-
-    final swipeMode = ref.read(preferencesProvider).aiSwipeEntry;
-    if (swipeMode) {
-      await _pageController.animateToPage(
-        1,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
-    } else {
-      _showAiAssistantSheet(detail);
-    }
+  /// 切换嵌套视图
+  void _toggleNestedView() {
+    setState(() => _isNestedView = !_isNestedView);
+    _scheduleCheckTitleVisibility();
   }
 }

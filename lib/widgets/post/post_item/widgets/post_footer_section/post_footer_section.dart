@@ -37,7 +37,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
   final bool topicHasAcceptedAnswer;
   final int? acceptedAnswerPostNumber;
   final EdgeInsetsGeometry padding;
-  final VoidCallback? onReply;
+  final void Function({String? initialContent})? onReply;
   final VoidCallback? onEdit;
   final VoidCallback? onShareAsImage;
   final void Function(int postId)? onRefreshPost;
@@ -45,6 +45,8 @@ class PostFooterSection extends ConsumerStatefulWidget {
   final void Function(int postId, bool accepted)? onSolutionChanged;
   final ValueChanged<bool>? onAcceptedAnswerChanged;
   final bool useReplyDialog;
+  final String? topicTitle;
+  final bool isPrivateMessageTopic;
 
   /// 隐藏回复列表按钮（弹框内使用时不需要展示）
   final bool hideRepliesButton;
@@ -76,6 +78,8 @@ class PostFooterSection extends ConsumerStatefulWidget {
     required this.onSolutionChanged,
     this.onAcceptedAnswerChanged,
     this.useReplyDialog = false,
+    this.topicTitle,
+    this.isPrivateMessageTopic = false,
     this.hideRepliesButton = false,
     this.onShowPostDetail,
     this.postDetailLabel,
@@ -104,36 +108,24 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   final ValueNotifier<bool> _isLoadingRepliesNotifier = ValueNotifier<bool>(
     false,
   );
-  late final ValueNotifier<bool> _showRepliesNotifier;
+  final ValueNotifier<bool> _showRepliesNotifier = ValueNotifier<bool>(false);
   bool _isAcceptedAnswer = false;
   bool _isTogglingAnswer = false;
   bool _isDeleting = false;
-  bool _autoReplyLoadScheduled = false;
 
   bool get _canLoadMoreReplies => _replies.length < widget.post.replyCount;
-  bool get _shouldAutoExpandReplies =>
-      !widget.hideRepliesButton &&
-      !widget.useReplyDialog &&
-      widget.post.replyCount > 0;
 
   @override
   void initState() {
     super.initState();
-    _showRepliesNotifier = ValueNotifier<bool>(_shouldAutoExpandReplies);
     _syncState();
-    _scheduleAutoLoadReplies();
   }
 
   @override
   void didUpdateWidget(PostFooterSection oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.post != widget.post) {
-      if (oldWidget.post.id != widget.post.id) {
-        _replies.clear();
-        _autoReplyLoadScheduled = false;
-      }
       _syncState();
-      _syncReplyExpansionState();
     }
   }
 
@@ -154,37 +146,6 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
     _isAcceptedAnswer = widget.post.acceptedAnswer;
     _boosts = _dedupeBoostsById(widget.post.boosts ?? const []);
     _canBoost = widget.post.canBoost;
-  }
-
-  void _syncReplyExpansionState() {
-    if (_shouldAutoExpandReplies && !_showRepliesNotifier.value) {
-      _showRepliesNotifier.value = true;
-    } else if (!_shouldAutoExpandReplies && _showRepliesNotifier.value) {
-      _showRepliesNotifier.value = false;
-    }
-    _scheduleAutoLoadReplies();
-  }
-
-  void _scheduleAutoLoadReplies() {
-    if (!_shouldAutoExpandReplies ||
-        _replies.isNotEmpty ||
-        _isLoadingRepliesNotifier.value ||
-        _autoReplyLoadScheduled) {
-      return;
-    }
-
-    _autoReplyLoadScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _autoReplyLoadScheduled = false;
-      if (!mounted ||
-          !_shouldAutoExpandReplies ||
-          _replies.isNotEmpty ||
-          _isLoadingRepliesNotifier.value) {
-        return;
-      }
-      _showRepliesNotifier.value = true;
-      _loadReplies();
-    });
   }
 
   Future<void> _handleBoostCreated(Boost boost) async {
@@ -288,8 +249,18 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   }
 
   Future<void> _openBoostInput() async {
-    final raw = await showBoostInputSheet(context);
-    if (raw == null || raw.isEmpty || !mounted) return;
+    final result = await showBoostInputSheet(context);
+    if (result == null || !mounted) return;
+
+    final raw = result.raw;
+    if (raw.isEmpty) return;
+
+    if (result is BoostInputReplyResult) {
+      // 末尾追加空行，避免与已有草稿粘连
+      widget.onReply?.call(initialContent: '$raw\n\n');
+      return;
+    }
+
     await _createBoost(raw);
   }
 
@@ -349,7 +320,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
             onShowReactionPicker: () => _showReactionPicker(context, theme),
             onShowReactionUsers: (reactionId) =>
                 _showReactionUsers(context, reactionId: reactionId),
-            onReply: widget.onReply,
+            onReply: widget.onReply == null ? null : () => widget.onReply!(),
             onShowMoreMenu: () => _showMoreMenu(context, theme),
             onToggleReplies: _toggleReplies,
             onAddBoost: _openBoostInput,

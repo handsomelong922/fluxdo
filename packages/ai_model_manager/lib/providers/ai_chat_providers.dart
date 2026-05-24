@@ -1,30 +1,52 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 // ignore: depend_on_referenced_packages
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:uuid/uuid.dart';
 
 import '../l10n/ai_l10n.dart';
+import '../models/ai_chat_attachment.dart';
 import '../models/ai_provider.dart';
 import '../models/ai_chat_message.dart';
+import '../models/prompt_preset.dart';
 import '../services/ai_chat_service.dart';
 import '../services/ai_chat_storage_service.dart';
+import '../services/dio_http_bridge.dart';
 import 'ai_provider_providers.dart';
 
 const _lastUsedAiAssistantModelKey = 'ai_assistant_last_model';
+const _favoriteAiModelKeys = 'ai_favorite_model_keys';
+// 文本 / 图像两种模式各自的"上次使用模型"key。
+// 用户切换模式时聊天页会自动应用对应 mode 的模型，不再让两种模式互相覆盖。
+const _lastUsedTextAiModelKey = 'ai_assistant_last_text_model';
+const _lastUsedImageAiModelKey = 'ai_assistant_last_image_model';
+
+String buildAiModelKey(String providerId, String modelId) =>
+    '$providerId:$modelId';
+
+({String providerId, String modelId})? parseAiModelKey(String? key) {
+  if (key == null || key.isEmpty) return null;
+  final parts = key.split(':');
+  if (parts.length < 2) return null;
+  return (
+    providerId: parts.first,
+    modelId: parts.sublist(1).join(':'),
+  );
+}
 
 ({AiProvider provider, AiModel model})? _findAiModelByKey(
   List<({AiProvider provider, AiModel model})> all,
   String? key,
 ) {
-  if (key == null || key.isEmpty) return null;
-
-  final parts = key.split(':');
-  if (parts.length != 2) return null;
+  final parsed = parseAiModelKey(key);
+  if (parsed == null) return null;
 
   for (final item in all) {
-    if (item.provider.id == parts[0] && item.model.id == parts[1]) {
+    if (item.provider.id == parsed.providerId &&
+        item.model.id == parsed.modelId) {
       return item;
     }
   }
@@ -48,7 +70,9 @@ final allAvailableAiModelsProvider =
   },
 );
 
-/// 默认/首选的 AI 模型
+/// 默认/首选的 AI 模型（通用）
+///
+/// 取通用 default key；找不到时退到 allModels.first。
 final defaultAiModelProvider =
     Provider<({AiProvider provider, AiModel model})?>(
   (ref) {
@@ -60,11 +84,149 @@ final defaultAiModelProvider =
   },
 );
 
+/// 文本模式默认模型
+///
+/// 优先级：用户设的文本默认 → 通用默认（如果其 modality 是 text）→
+/// allModels 中第一个含 text output 的模型
+final defaultTextAiModelProvider =
+    Provider<({AiProvider provider, AiModel model})?>(
+  (ref) {
+    final all = ref.watch(allAvailableAiModelsProvider);
+    if (all.isEmpty) return null;
+    final key = ref.watch(defaultTextAiModelKeyProvider);
+    final explicit = _findAiModelByKey(all, key);
+    if (explicit != null) return explicit;
+    final generic = ref.watch(defaultAiModelProvider);
+    if (generic != null && generic.model.output.contains(Modality.text)) {
+      return generic;
+    }
+    for (final m in all) {
+      if (m.model.output.contains(Modality.text)) return m;
+    }
+    return null;
+  },
+);
+
+/// 图像模式默认模型
+final defaultImageAiModelProvider =
+    Provider<({AiProvider provider, AiModel model})?>(
+  (ref) {
+    final all = ref.watch(allAvailableAiModelsProvider);
+    if (all.isEmpty) return null;
+    final key = ref.watch(defaultImageAiModelKeyProvider);
+    final explicit = _findAiModelByKey(all, key);
+    if (explicit != null) return explicit;
+    final generic = ref.watch(defaultAiModelProvider);
+    if (generic != null && generic.model.output.contains(Modality.image)) {
+      return generic;
+    }
+    for (final m in all) {
+      if (m.model.output.contains(Modality.image)) return m;
+    }
+    return null;
+  },
+);
+
 /// AI 助手上次使用的模型 key（providerId:modelId）
 final lastUsedAiAssistantModelKeyProvider = StateProvider<String?>((ref) {
   final prefs = ref.watch(aiSharedPreferencesProvider);
   return prefs.getString(_lastUsedAiAssistantModelKey);
 });
+
+/// 收藏模型 key 列表，按最近收藏在前排序。
+final favoriteAiModelKeysProvider = StateProvider<List<String>>((ref) {
+  final prefs = ref.watch(aiSharedPreferencesProvider);
+  return prefs.getStringList(_favoriteAiModelKeys) ?? const [];
+});
+
+/// 全量收藏模型列表，保持持久化顺序，不按模式过滤。
+final allFavoriteAiModelsProvider =
+    Provider<List<({AiProvider provider, AiModel model})>>((ref) {
+  final all = ref.watch(allAvailableAiModelsProvider);
+  final keys = ref.watch(favoriteAiModelKeysProvider);
+
+  return [
+    for (final key in keys)
+      if (_findAiModelByKey(all, key) case final item?) item,
+  ];
+});
+
+/// 当前模式下可见的收藏模型列表。
+final favoriteAiModelsProvider =
+    Provider.family<List<({AiProvider provider, AiModel model})>, PromptType>(
+        (ref, mode) {
+  final favorites = ref.watch(allFavoriteAiModelsProvider);
+  bool matchesMode(AiModel model) => mode == PromptType.image
+      ? model.output.contains(Modality.image)
+      : model.output.contains(Modality.text);
+
+  return [
+    for (final item in favorites)
+      if (matchesMode(item.model)) item,
+  ];
+});
+
+List<String> nextFavoriteAiModelKeys(List<String> current, String key) {
+  final next = [...current];
+  if (next.contains(key)) {
+    next.removeWhere((value) => value == key);
+  } else {
+    next
+      ..removeWhere((value) => value == key)
+      ..insert(0, key);
+  }
+  return next;
+}
+
+List<String> reorderFavoriteAiModelKeyOrder(
+  List<String> current,
+  List<String> orderedKeys,
+) {
+  final currentSet = current.toSet();
+  final nextOrdered = <String>[];
+  final seen = <String>{};
+
+  for (final key in orderedKeys) {
+    if (currentSet.contains(key) && seen.add(key)) {
+      nextOrdered.add(key);
+    }
+  }
+
+  final reorderedSet = nextOrdered.toSet();
+  return [
+    ...nextOrdered,
+    for (final key in current)
+      if (!reorderedSet.contains(key)) key,
+  ];
+}
+
+Future<void> toggleFavoriteAiModel(
+  WidgetRef ref,
+  String providerId,
+  String modelId,
+) async {
+  final prefs = ref.read(aiSharedPreferencesProvider);
+  final key = buildAiModelKey(providerId, modelId);
+  final next = nextFavoriteAiModelKeys(
+    ref.read(favoriteAiModelKeysProvider),
+    key,
+  );
+  await prefs.setStringList(_favoriteAiModelKeys, next);
+  ref.read(favoriteAiModelKeysProvider.notifier).state = next;
+}
+
+Future<void> reorderFavoriteAiModelKeys(
+  WidgetRef ref,
+  List<String> orderedKeys,
+) async {
+  final prefs = ref.read(aiSharedPreferencesProvider);
+  final next = reorderFavoriteAiModelKeyOrder(
+    ref.read(favoriteAiModelKeysProvider),
+    orderedKeys,
+  );
+  await prefs.setStringList(_favoriteAiModelKeys, next);
+  ref.read(favoriteAiModelKeysProvider.notifier).state = next;
+}
 
 /// AI 助手上次使用的模型
 final lastUsedAiAssistantModelProvider =
@@ -79,16 +241,65 @@ final lastUsedAiAssistantModelProvider =
 );
 
 /// 设置 AI 助手上次使用的模型
+///
+/// 同时把模型写到对应模式（text/image）的"上次使用"key，
+/// 让用户切换模式时能自动恢复上次该模式的模型。
 Future<void> setLastUsedAiAssistantModel(
   WidgetRef ref,
   String providerId,
-  String modelId,
-) async {
+  String modelId, {
+  /// 模型属于的模式。null = 不区分模式（仅写通用 key，向后兼容）；
+  /// 非 null = 同时写通用 key 和模式专属 key。
+  ///
+  /// 调用方一般用 `model.output.contains(Modality.image)` 判断后传入。
+  bool? isImageMode,
+}) async {
   final prefs = ref.read(aiSharedPreferencesProvider);
-  final key = '$providerId:$modelId';
+  final key = buildAiModelKey(providerId, modelId);
   await prefs.setString(_lastUsedAiAssistantModelKey, key);
   ref.read(lastUsedAiAssistantModelKeyProvider.notifier).state = key;
+  if (isImageMode == true) {
+    await prefs.setString(_lastUsedImageAiModelKey, key);
+    ref.read(lastUsedImageAiModelKeyProvider.notifier).state = key;
+  } else if (isImageMode == false) {
+    await prefs.setString(_lastUsedTextAiModelKey, key);
+    ref.read(lastUsedTextAiModelKeyProvider.notifier).state = key;
+  }
 }
+
+/// 文本模式上次使用的模型 key
+final lastUsedTextAiModelKeyProvider = StateProvider<String?>((ref) {
+  final prefs = ref.watch(aiSharedPreferencesProvider);
+  return prefs.getString(_lastUsedTextAiModelKey);
+});
+
+/// 文本模式上次使用的模型
+final lastUsedTextAiModelProvider =
+    Provider<({AiProvider provider, AiModel model})?>(
+  (ref) {
+    final all = ref.watch(allAvailableAiModelsProvider);
+    if (all.isEmpty) return null;
+    final key = ref.watch(lastUsedTextAiModelKeyProvider);
+    return _findAiModelByKey(all, key);
+  },
+);
+
+/// 图像模式上次使用的模型 key
+final lastUsedImageAiModelKeyProvider = StateProvider<String?>((ref) {
+  final prefs = ref.watch(aiSharedPreferencesProvider);
+  return prefs.getString(_lastUsedImageAiModelKey);
+});
+
+/// 图像模式上次使用的模型
+final lastUsedImageAiModelProvider =
+    Provider<({AiProvider provider, AiModel model})?>(
+  (ref) {
+    final all = ref.watch(allAvailableAiModelsProvider);
+    if (all.isEmpty) return null;
+    final key = ref.watch(lastUsedImageAiModelKeyProvider);
+    return _findAiModelByKey(all, key);
+  },
+);
 
 /// 第一个可用的 AI 模型（向后兼容）
 final firstAvailableAiModelProvider =
@@ -111,14 +322,15 @@ final topicSelectedAiModelProvider = StateProvider.autoDispose
 final aiChatServiceProvider = Provider((ref) {
   final useAppNetwork = ref.watch(aiUseAppNetworkProvider);
   final adapterFactory = ref.watch(aiDioAdapterFactoryProvider);
-  return AiChatService(
-    adapterFactory: useAppNetwork ? adapterFactory : null,
-  );
+  final enablePartialImages = ref.watch(aiPartialImagesProvider);
+  if (useAppNetwork && adapterFactory != null) {
+    return AiChatService(
+      bridgedClient: DioBackedHttpClient(adapterFactory()),
+      enablePartialImages: enablePartialImages,
+    );
+  }
+  return AiChatService(enablePartialImages: enablePartialImages);
 });
-
-/// 可由宿主应用覆写的标题生成 prompt
-final aiTitleGenerationPromptProvider =
-    Provider<String>((ref) => AiL10n.current.titleGenerationPrompt);
 
 /// 标题生成模型 key（providerId:modelId）
 final aiTitleModelKeyProvider = StateProvider<String?>((ref) {
@@ -151,9 +363,42 @@ Future<void> setAiTitleModel(
   }
 }
 
+/// 图像 prompt 优化模型 key（providerId:modelId）
+/// 调 image gen 模型前先用这个聊天模型把话题上下文+用户简短指令
+/// 翻译成精炼的 image prompt。未配置则降级直接拼接上下文。
+final aiImagePromptOptimizerModelKeyProvider = StateProvider<String?>((ref) {
+  final storageService = ref.watch(aiChatStorageServiceProvider);
+  return storageService.getImagePromptOptimizerModelKey();
+});
+
+/// 图像 prompt 优化模型
+final aiImagePromptOptimizerModelProvider =
+    Provider<({AiProvider provider, AiModel model})?>(
+  (ref) {
+    final all = ref.watch(allAvailableAiModelsProvider);
+    if (all.isEmpty) return null;
+    final key = ref.watch(aiImagePromptOptimizerModelKeyProvider);
+    return _findAiModelByKey(all, key);
+  },
+);
+
+/// 设置图像 prompt 优化模型
+Future<void> setAiImagePromptOptimizerModel(
+    WidgetRef ref, String? providerId, String? modelId) async {
+  final storageService = ref.read(aiChatStorageServiceProvider);
+  if (providerId == null || modelId == null) {
+    await storageService.setImagePromptOptimizerModelKey(null);
+    ref.read(aiImagePromptOptimizerModelKeyProvider.notifier).state = null;
+  } else {
+    final key = '$providerId:$modelId';
+    await storageService.setImagePromptOptimizerModelKey(key);
+    ref.read(aiImagePromptOptimizerModelKeyProvider.notifier).state = key;
+  }
+}
+
 /// 话题 AI 上下文范围（独立管理，避免切换时影响消息列表滚动）
 final topicAiContextScopeProvider = StateProvider.autoDispose
-    .family<ContextScope, int>((ref, topicId) => ContextScope.all);
+    .family<ContextScope, int>((ref, topicId) => ContextScope.first5);
 
 /// 话题 AI 聊天状态
 class TopicAiChatState {
@@ -211,8 +456,6 @@ typedef ContextPostsFetcher = Future<List<TopicPostContext>> Function(
   ContextScope scope,
 );
 
-typedef TitleGenerationPromptReader = String Function();
-
 /// 话题 AI 聊天状态管理（per-topic，autoDispose）
 final topicAiChatProvider = StateNotifierProvider.autoDispose
     .family<TopicAiChatNotifier, TopicAiChatState, int>(
@@ -220,13 +463,14 @@ final topicAiChatProvider = StateNotifierProvider.autoDispose
     final chatService = ref.watch(aiChatServiceProvider);
     final storageService = ref.watch(aiChatStorageServiceProvider);
     final titleModel = ref.read(aiTitleModelProvider);
+    final imagePromptOptimizerModel =
+        ref.read(aiImagePromptOptimizerModelProvider);
     final notifier = TopicAiChatNotifier(
       chatService: chatService,
       storageService: storageService,
       topicId: topicId,
       titleModel: titleModel,
-      readTitleGenerationPrompt: () =>
-          ref.read(aiTitleGenerationPromptProvider),
+      imagePromptOptimizerModel: imagePromptOptimizerModel,
     );
     ref.onDispose(() {
       notifier.saveBeforeDispose();
@@ -242,9 +486,10 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   final AiChatStorageService storageService;
   final int topicId;
   final ({AiProvider provider, AiModel model})? titleModel;
-  final TitleGenerationPromptReader readTitleGenerationPrompt;
+  final ({AiProvider provider, AiModel model})? imagePromptOptimizerModel;
 
-  StreamSubscription<String>? _streamSubscription;
+  StreamSubscription<AiChatChunk>? _streamSubscription;
+  http.Client? _requestClient;
   bool _cancelled = false;
   bool _isGeneratingTitle = false;
 
@@ -257,7 +502,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     required this.storageService,
     required this.topicId,
     this.titleModel,
-    required this.readTitleGenerationPrompt,
+    this.imagePromptOptimizerModel,
   }) : super(const TopicAiChatState()) {
     _loadFromStorage();
   }
@@ -352,51 +597,22 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     _cachedContextPosts = posts;
   }
 
-  /// 将已生成的话题摘要作为当前会话上下文，方便用户继续追问。
-  Future<void> continueFromSummary(
-      String topicTitle, String summaryText) async {
-    final summary = summaryText.trim();
-    if (summary.isEmpty) return;
-
-    stopGeneration();
-    _cachedTitle = topicTitle;
-    _cachedContextPosts = [
-      TopicPostContext(
-        postNumber: 1,
-        username: 'AI Summary',
-        cooked: summary,
-      ),
-    ];
-
-    state = state.copyWith(
-      currentSessionId: _uuid.v4(),
-      messages: [
-        AiChatMessage(
-          id: _uuid.v4(),
-          role: ChatRole.user,
-          content: '请基于这份话题摘要继续对话：\n\n$summary',
-          createdAt: DateTime.now(),
-        ),
-        AiChatMessage(
-          id: _uuid.v4(),
-          role: ChatRole.assistant,
-          content: '我已读取这份摘要，可以继续围绕这个话题回答你的问题。',
-          createdAt: DateTime.now(),
-        ),
-      ],
-      isGenerating: false,
-    );
-
-    await _saveToStorage();
-  }
-
   /// 发送消息
+  ///
+  /// [imageAspect] 仅图像生成路径有效：'1:1' / '16:9' / '9:16' / '4:3' / '3:4'，
+  /// 由调用方（PromptPreset 维度面板或编辑页 aspectRatio 字段）传入。
   Future<void> sendMessage(
     String content,
     ContextScope contextScope, {
     required ({AiProvider provider, AiModel model}) selectedModel,
+    List<AiChatAttachment>? attachments,
+    ThinkingConfig thinkingConfig = const ThinkingConfig(),
+    String? imageAspect,
   }) async {
-    if (content.trim().isEmpty) return;
+    if (content.trim().isEmpty &&
+        (attachments == null || attachments.isEmpty)) {
+      return;
+    }
 
     _cancelled = false;
 
@@ -411,15 +627,20 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       role: ChatRole.user,
       content: content.trim(),
       createdAt: DateTime.now(),
+      attachments: attachments,
     );
 
     // 添加 AI 占位消息
+    // 图像生成模型（output 含 image）会预先标记，UI 在第一帧到达前就能显示
+    // 「正在生成图片」占位（带 shimmer + 计时）
+    final isImageGen = selectedModel.model.output.contains(Modality.image);
     final assistantMessage = AiChatMessage(
       id: _uuid.v4(),
       role: ChatRole.assistant,
       content: '',
       createdAt: DateTime.now(),
       status: MessageStatus.streaming,
+      isImageGeneration: isImageGen,
     );
 
     state = state.copyWith(
@@ -435,8 +656,8 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       if (apiKey == null) {
         _updateAssistantMessage(
           assistantMessage.id,
-          '',
-          MessageStatus.error,
+          content: '',
+          status: MessageStatus.error,
           errorMessage: AiL10n.current.apiKeyNotFoundError,
         );
         state = state.copyWith(isGenerating: false);
@@ -451,41 +672,196 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       // 构建消息列表
       final chatMessages = _buildChatMessages(topicContext, contextScope);
 
-      // 发起流式请求
+      // 图像生成路径
+      final isImageGeneration =
+          selectedModel.model.output.contains(Modality.image);
+      final rawImageContext = isImageGeneration && topicContext != null
+          ? _buildImageContextSummary(topicContext, contextScope)
+          : null;
+
+      // 两步生成：如果配了 imagePromptOptimizerModel，先调聊天模型把
+      // (话题上下文 + 用户简短指令) 翻译成精炼的 image prompt。
+      // 失败 / 未配置则降级使用 rawImageContext 直接拼接。
+      List<AiChatMessage> messagesForGen = chatMessages;
+      String? imagePromptContext = rawImageContext;
+      if (isImageGeneration &&
+          imagePromptOptimizerModel != null &&
+          rawImageContext != null) {
+        _updateAssistantMessage(
+          assistantMessage.id,
+          content: '',
+          status: MessageStatus.streaming,
+          loadingStage: 'optimizing_prompt',
+        );
+        try {
+          final refined = await _refineImagePrompt(
+            contextSummary: rawImageContext,
+            userPrompt: content.trim(),
+            optimizer: imagePromptOptimizerModel!,
+          );
+          if (_cancelled || !mounted) return;
+          if (refined.isNotEmpty) {
+            // 用 refined prompt 替换最后一条 user content，
+            // 同时把 imagePromptContext 设为 null（避免双重拼接）
+            messagesForGen = _replaceLastUserContent(chatMessages, refined);
+            imagePromptContext = null;
+            // 把 refined prompt 写到 message，UI 用折叠块展示让用户验证
+            _updateAssistantMessage(
+              assistantMessage.id,
+              content: '',
+              status: MessageStatus.streaming,
+              loadingStage: 'generating_image',
+              optimizedPrompt: refined,
+              optimizerModelName: imagePromptOptimizerModel!.model.name ??
+                  imagePromptOptimizerModel!.model.id,
+            );
+          } else {
+            _updateAssistantMessage(
+              assistantMessage.id,
+              content: '',
+              status: MessageStatus.streaming,
+              loadingStage: 'generating_image',
+            );
+          }
+        } catch (_) {
+          // fallback：optimizer 失败不影响生图，沿用 rawImageContext 拼接
+          _updateAssistantMessage(
+            assistantMessage.id,
+            content: '',
+            status: MessageStatus.streaming,
+            loadingStage: 'generating_image',
+          );
+        }
+      }
+
+      // 为本次请求创建独立 HTTP client，stop 时 close 可立即断开连接
+      _requestClient = http.Client();
       final stream = chatService.sendChatStream(
         provider: selectedModel.provider,
         model: selectedModel.model.id,
         apiKey: apiKey,
-        messages: chatMessages,
+        messages: messagesForGen,
         systemPrompt: _buildSystemPrompt(topicContext),
+        thinkingConfig: thinkingConfig,
+        imagePromptContext: imagePromptContext,
+        imageAspect: imageAspect,
+        requestClient: _requestClient,
       );
 
-      final buffer = StringBuffer();
+      final textBuffer = StringBuffer();
+      final thinkingBuffer = StringBuffer();
+      final generatedImages = <AiChatAttachment>[];
+      int? promptTokens;
+      int? responseTokens;
+      int? cachedTokens;
 
       _streamSubscription = stream.listen(
-        (token) {
+        (chunk) {
           if (_cancelled || !mounted) return;
-          buffer.write(token);
-          _updateAssistantMessage(
-            assistantMessage.id,
-            buffer.toString(),
-            MessageStatus.streaming,
-          );
+          switch (chunk) {
+            case final TextDelta d:
+              textBuffer.write(d.text);
+              _updateAssistantMessage(
+                assistantMessage.id,
+                content: textBuffer.toString(),
+                status: MessageStatus.streaming,
+                thinkingContent:
+                    thinkingBuffer.isEmpty ? null : thinkingBuffer.toString(),
+                attachments: generatedImages.isEmpty
+                    ? null
+                    : List.unmodifiable(generatedImages),
+              );
+            case final ThinkingDelta d:
+              thinkingBuffer.write(d.text);
+              _updateAssistantMessage(
+                assistantMessage.id,
+                content: textBuffer.toString(),
+                status: MessageStatus.streaming,
+                thinkingContent: thinkingBuffer.toString(),
+                attachments: generatedImages.isEmpty
+                    ? null
+                    : List.unmodifiable(generatedImages),
+              );
+            case final ImageGenerated img:
+              if (img.isPartial) {
+                // 渐进帧：按 partialImageIndex 替换，没有就 append
+                final newAtt = AiChatAttachment(
+                  mimeType: img.mimeType,
+                  localPath: img.localPath,
+                  partialImageIndex: img.partialImageIndex,
+                );
+                final existingIdx = generatedImages.indexWhere(
+                  (a) => a.partialImageIndex == img.partialImageIndex,
+                );
+                if (existingIdx >= 0) {
+                  // 同一个 partial slot 的更高保真版本，覆盖旧的
+                  _deletePartialFile(generatedImages[existingIdx]);
+                  generatedImages[existingIdx] = newAtt;
+                } else {
+                  generatedImages.add(newAtt);
+                }
+              } else {
+                // 终态图：清掉所有 partial 帧（包括其本地文件），加入终态
+                for (final a in generatedImages.where((a) => a.isPartial)) {
+                  _deletePartialFile(a);
+                }
+                generatedImages.removeWhere((a) => a.isPartial);
+                generatedImages.add(AiChatAttachment(
+                  mimeType: img.mimeType,
+                  localPath: img.localPath,
+                ));
+              }
+              _updateAssistantMessage(
+                assistantMessage.id,
+                content: textBuffer.toString(),
+                status: MessageStatus.streaming,
+                thinkingContent:
+                    thinkingBuffer.isEmpty ? null : thinkingBuffer.toString(),
+                attachments: List.unmodifiable(generatedImages),
+              );
+            case final UsageReport u:
+              promptTokens = u.promptTokens;
+              responseTokens = u.responseTokens;
+              cachedTokens = u.cachedTokens;
+          }
         },
         onDone: () {
+          _requestClient = null;
           if (!mounted) return;
-          if (buffer.isEmpty) {
+          // onDone 时清理残留 partial（如果流提前结束没收到 final，
+          // 把最后一张草图升级为终态，避免持久化 partial）
+          final finalized = <AiChatAttachment>[];
+          for (final a in generatedImages) {
+            if (a.isPartial) {
+              // 升级为终态（去掉 partialImageIndex），以便持久化与 UI 不再显示草图角标
+              finalized.add(a.copyWith().withoutPartialIndex());
+            } else {
+              finalized.add(a);
+            }
+          }
+          // 图像模型可能正文为空但 attachments 有内容，也算成功
+          final hasOutput = textBuffer.isNotEmpty ||
+              thinkingBuffer.isNotEmpty ||
+              finalized.isNotEmpty;
+          if (!hasOutput) {
             _updateAssistantMessage(
               assistantMessage.id,
-              '',
-              MessageStatus.error,
+              content: '',
+              status: MessageStatus.error,
               errorMessage: AiL10n.current.emptyResponseError,
             );
           } else {
             _updateAssistantMessage(
               assistantMessage.id,
-              buffer.toString(),
-              MessageStatus.completed,
+              content: textBuffer.toString(),
+              status: MessageStatus.completed,
+              thinkingContent:
+                  thinkingBuffer.isEmpty ? null : thinkingBuffer.toString(),
+              attachments:
+                  finalized.isEmpty ? null : List.unmodifiable(finalized),
+              promptTokens: promptTokens,
+              responseTokens: responseTokens,
+              cachedTokens: cachedTokens,
             );
             _saveToStorage();
             _tryGenerateTitle();
@@ -496,9 +872,12 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
           if (!mounted) return;
           _updateAssistantMessage(
             assistantMessage.id,
-            buffer.toString(),
-            MessageStatus.error,
+            content: textBuffer.toString(),
+            status: MessageStatus.error,
             errorMessage: error.toString(),
+            attachments: generatedImages.isEmpty
+                ? null
+                : List.unmodifiable(generatedImages),
           );
           state = state.copyWith(isGenerating: false);
         },
@@ -508,8 +887,8 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       if (!mounted) return;
       _updateAssistantMessage(
         assistantMessage.id,
-        '',
-        MessageStatus.error,
+        content: '',
+        status: MessageStatus.error,
         errorMessage: e.toString(),
       );
       state = state.copyWith(isGenerating: false);
@@ -521,6 +900,8 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     _cancelled = true;
     _streamSubscription?.cancel();
     _streamSubscription = null;
+    _requestClient?.close();
+    _requestClient = null;
 
     if (!mounted) return;
 
@@ -572,10 +953,18 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   }
 
   void _updateAssistantMessage(
-    String messageId,
-    String content,
-    MessageStatus status, {
+    String messageId, {
+    required String content,
+    required MessageStatus status,
     String? errorMessage,
+    String? thinkingContent,
+    List<AiChatAttachment>? attachments,
+    int? promptTokens,
+    int? responseTokens,
+    int? cachedTokens,
+    String? loadingStage,
+    String? optimizedPrompt,
+    String? optimizerModelName,
   }) {
     if (!mounted) return;
     final messages = state.messages.map((m) {
@@ -584,6 +973,14 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
           content: content,
           status: status,
           errorMessage: errorMessage,
+          thinkingContent: thinkingContent,
+          attachments: attachments,
+          promptTokens: promptTokens,
+          responseTokens: responseTokens,
+          cachedTokens: cachedTokens,
+          loadingStage: loadingStage,
+          optimizedPrompt: optimizedPrompt,
+          optimizerModelName: optimizerModelName,
         );
       }
       return m;
@@ -605,38 +1002,111 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   }
 
   /// 构建聊天消息列表（包含上下文）
-  List<Map<String, String>> _buildChatMessages(
+  List<AiChatMessage> _buildChatMessages(
     TopicContext? topicContext,
     ContextScope contextScope,
   ) {
-    final result = <Map<String, String>>[];
+    final result = <AiChatMessage>[];
+    final now = DateTime.now();
 
-    // 注入上下文
+    // 注入上下文：用一对 user/assistant 消息把帖子上下文塞进对话历史
+    // 这种 hack 对所有 provider 都有效，避免 systemPrompt 过长被截断
     if (topicContext != null) {
       final contextText = _buildContextText(topicContext, contextScope);
       if (contextText.isNotEmpty) {
-        result.add({
-          'role': 'user',
-          'content': AiL10n.current.contextContentPrefix(contextText)
-        });
-        result.add({
-          'role': 'assistant',
-          'content': AiL10n.current.contextReadyResponse,
-        });
+        result.add(AiChatMessage(
+          id: 'context-user',
+          role: ChatRole.user,
+          content: AiL10n.current.contextContentPrefix(contextText),
+          createdAt: now,
+        ));
+        result.add(AiChatMessage(
+          id: 'context-assistant',
+          role: ChatRole.assistant,
+          content: AiL10n.current.contextReadyResponse,
+          createdAt: now,
+        ));
       }
     }
 
-    // 添加历史消息（排除 system 和 streaming/error 状态的空消息）
+    // 添加历史消息（排除 system 和空 assistant 消息）
     for (final msg in state.messages) {
       if (msg.role == ChatRole.system) continue;
-      if (msg.content.isEmpty && msg.role == ChatRole.assistant) continue;
-      result.add({
-        'role': msg.role == ChatRole.user ? 'user' : 'assistant',
-        'content': msg.content,
-      });
+      if (msg.content.isEmpty &&
+          msg.role == ChatRole.assistant &&
+          (msg.attachments == null || msg.attachments!.isEmpty)) {
+        continue;
+      }
+      result.add(msg);
     }
 
     return result;
+  }
+
+  /// 用聊天模型把 (话题上下文 + 用户简短指令) 翻译成精炼的 image prompt。
+  /// 限制 ≤ 200 词，视觉化 + 风格关键词，避免在图中嵌入文字。
+  /// 10s timeout；失败抛错由调用方 catch 后 fallback。
+  Future<String> _refineImagePrompt({
+    required String contextSummary,
+    required String userPrompt,
+    required ({AiProvider provider, AiModel model}) optimizer,
+  }) async {
+    final apiKey =
+        await AiProviderListNotifier.getApiKey(optimizer.provider.id);
+    if (apiKey == null) throw Exception('Optimizer API key not found');
+
+    final systemPrompt = '你是图像生成 prompt 工程师。根据下面的话题内容和用户的画图需求，'
+        '输出一段精炼的英文 image prompt（≤200 词），描述具体的视觉元素、风格、'
+        '构图、光线、色调、媒介。不要在 prompt 中要求嵌入文字。'
+        '直接输出 prompt 文本，不要任何解释或前缀。';
+
+    final userMsg = AiChatMessage(
+      id: 'optimizer-input',
+      role: ChatRole.user,
+      content: '话题上下文：\n$contextSummary\n\n用户画图需求：$userPrompt',
+      createdAt: DateTime.now(),
+    );
+
+    final buf = StringBuffer();
+    await chatService
+        .sendChatStream(
+          provider: optimizer.provider,
+          model: optimizer.model.id,
+          apiKey: apiKey,
+          messages: [userMsg],
+          systemPrompt: systemPrompt,
+        )
+        .timeout(const Duration(seconds: 15))
+        .forEach((chunk) {
+      if (chunk is TextDelta) buf.write(chunk.text);
+    });
+    return buf.toString().trim();
+  }
+
+  /// 把 messages 列表里**最后一条** user 消息的 content 替换成新值
+  List<AiChatMessage> _replaceLastUserContent(
+    List<AiChatMessage> messages,
+    String newContent,
+  ) {
+    final result = [...messages];
+    for (var i = result.length - 1; i >= 0; i--) {
+      if (result[i].role == ChatRole.user) {
+        result[i] = result[i].copyWith(content: newContent);
+        break;
+      }
+    }
+    return result;
+  }
+
+  /// 给图像生成路径用的上下文摘要：含标题 + 楼层正文，
+  /// 由 AiChatService 拼到 image prompt 之前，让图像反映话题内容。
+  String _buildImageContextSummary(
+    TopicContext topicContext,
+    ContextScope contextScope,
+  ) {
+    final body = _buildContextText(topicContext, contextScope);
+    if (body.isEmpty) return '【话题】${topicContext.title}';
+    return '【话题】${topicContext.title}\n\n$body';
   }
 
   /// 根据 ContextScope 构建上下文文本
@@ -715,23 +1185,28 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
 
       final userMsg =
           completedMessages.firstWhere((m) => m.role == ChatRole.user).content;
-      final titleGenerationPrompt = readTitleGenerationPrompt().trim();
 
       final titleStream = chatService.sendChatStream(
         provider: model.provider,
         model: model.model.id,
         apiKey: apiKey,
         messages: [
-          {'role': 'user', 'content': userMsg},
+          AiChatMessage(
+            id: 'title-prompt',
+            role: ChatRole.user,
+            content: userMsg,
+            createdAt: DateTime.now(),
+          ),
         ],
-        systemPrompt: titleGenerationPrompt.isNotEmpty
-            ? titleGenerationPrompt
-            : AiL10n.current.titleGenerationPrompt,
+        systemPrompt: AiL10n.current.titleGenerationPrompt,
       );
 
       final buffer = StringBuffer();
-      await for (final token in titleStream) {
-        buffer.write(token);
+      await for (final chunk in titleStream) {
+        if (chunk is TextDelta) {
+          buffer.write(chunk.text);
+        }
+        // 标题生成忽略 thinking / usage
       }
 
       final title = buffer.toString().trim();
@@ -747,9 +1222,36 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     }
   }
 
+  /// 删除 partial 帧对应的本地文件（被新版 partial 覆盖时调用，节省磁盘）
+  void _deletePartialFile(AiChatAttachment att) {
+    final path = att.localPath;
+    if (path == null || path.isEmpty) return;
+    try {
+      final file = File(path);
+      if (file.existsSync()) file.deleteSync();
+    } catch (_) {
+      // 删失败无所谓，最多占点磁盘
+    }
+  }
+
   @override
   void dispose() {
     _streamSubscription?.cancel();
+    _requestClient?.close();
     super.dispose();
+  }
+}
+
+/// 工具：去除 partialImageIndex 字段（onDone 时把残留 partial 升级为终态）
+extension _AttachmentPartialUpgrade on AiChatAttachment {
+  AiChatAttachment withoutPartialIndex() {
+    if (partialImageIndex == null) return this;
+    return AiChatAttachment(
+      mimeType: mimeType,
+      base64Data: base64Data,
+      localPath: localPath,
+      remoteUrl: remoteUrl,
+      // partialImageIndex omitted → 升级为终态
+    );
   }
 }

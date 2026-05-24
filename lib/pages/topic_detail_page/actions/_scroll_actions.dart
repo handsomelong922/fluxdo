@@ -34,18 +34,9 @@ extension _ScrollActions on _TopicDetailPageState {
 
   void _updateStreamIndexForPostNumber(int postNumber) {
     // 记录当前浏览位置，用于布局切换时恢复
-    _controller.updateCurrentPostNumber(postNumber);
+    _controller.updateViewportPostNumber(postNumber);
     ref.read(detailScrollPositionProvider(widget.topicId).notifier).state =
         postNumber;
-    unawaited(
-      ref
-          .read(topicReadingStateServiceProvider)
-          .saveState(
-            topicId: widget.topicId,
-            postNumber: postNumber,
-            nestedView: _isNestedView,
-          ),
-    );
 
     final params = _params;
     final detail = ref.read(topicDetailProvider(params)).value;
@@ -95,47 +86,221 @@ extension _ScrollActions on _TopicDetailPageState {
     await notifier.reloadWithPostNumber(1);
   }
 
-  /// J 键：向下滚动一个帖子的距离
-  void _scrollToNextPost() => _navigatePostByPixels(1);
+  /// J 键：跳到下一帖
+  void _scrollToNextPost() {
+    unawaited(_navigateByPostOrViewport(1));
+  }
 
-  /// K 键：向上滚动一个帖子的距离
-  void _scrollToPreviousPost() => _navigatePostByPixels(-1);
+  /// K 键：跳到上一帖
+  void _scrollToPreviousPost() {
+    unawaited(_navigateByPostOrViewport(-1));
+  }
 
-  /// 帖子导航：直接用像素滚动，简单可靠
-  void _navigatePostByPixels(int delta) {
-    if (!mounted) return;
-    final sc = _controller.scrollController;
-    if (!sc.hasClients) return;
+  /// 参考 Discourse 网页端：长帖内先翻一屏，翻完后再切到相邻帖子
+  Future<void> _navigateByPostOrViewport(int delta) async {
+    if (!mounted || delta == 0) return;
 
-    final target = sc.offset + delta * 400;
-    sc.animateTo(
-      target.clamp(0.0, sc.position.maxScrollExtent),
+    final detail = ref.read(topicDetailProvider(_params)).value;
+    if (detail == null) return;
+
+    final posts = detail.postStream.posts;
+    if (posts.isEmpty) return;
+
+    final anchorPostNumber = _resolveNavigationAnchorPostNumber(posts, delta);
+
+    if (_tryScrollWithinCurrentPost(delta, anchorPostNumber)) {
+      _controller.updateSelectedPostIndicator(anchorPostNumber);
+      return;
+    }
+
+    int? targetPostNumber;
+    if (delta > 0) {
+      targetPostNumber = posts
+          .where((post) => post.postNumber > anchorPostNumber)
+          .map((post) => post.postNumber)
+          .firstOrNull;
+      if (targetPostNumber == null && anchorPostNumber < detail.postsCount) {
+        targetPostNumber = anchorPostNumber + 1;
+      }
+    } else {
+      targetPostNumber = posts
+          .where((post) => post.postNumber < anchorPostNumber)
+          .map((post) => post.postNumber)
+          .lastOrNull;
+      if (targetPostNumber == null && anchorPostNumber > 1) {
+        targetPostNumber = anchorPostNumber - 1;
+      }
+    }
+
+    if (targetPostNumber == null || targetPostNumber == anchorPostNumber) {
+      return;
+    }
+    _controller.updateSelectedPostIndicator(targetPostNumber);
+    _selectShortcutPostNumber(detail, targetPostNumber);
+    await _scrollToPost(targetPostNumber);
+  }
+
+  int _resolveNavigationAnchorPostNumber(List<Post> posts, int delta) {
+    final scrollController = _controller.scrollController;
+    final keyboardSelectedPostNumber = _controller.keyboardSelectedPostNumber;
+    final viewportPostNumber = _resolvedViewportPostNumber;
+    final topVisiblePostNumber = _controller.topVisiblePostNumber;
+    final bottomVisiblePostNumber = _controller.bottomVisiblePostNumber;
+
+    if (keyboardSelectedPostNumber != null && keyboardSelectedPostNumber > 0) {
+      return keyboardSelectedPostNumber;
+    }
+
+    if (viewportPostNumber != null && viewportPostNumber > 0) {
+      return viewportPostNumber;
+    }
+
+    if (scrollController.hasClients) {
+      final position = scrollController.position;
+      final isAtTop = (position.pixels - position.minScrollExtent).abs() <= 1.0;
+      final isAtBottom =
+          (position.maxScrollExtent - position.pixels).abs() <= 1.0;
+
+      if (isAtBottom) {
+        return bottomVisiblePostNumber ??
+            topVisiblePostNumber ??
+            viewportPostNumber ??
+            posts.last.postNumber;
+      }
+
+      if (isAtTop) {
+        return topVisiblePostNumber ??
+            bottomVisiblePostNumber ??
+            viewportPostNumber ??
+            posts.first.postNumber;
+      }
+    }
+
+    if (delta > 0) {
+      return topVisiblePostNumber ??
+          bottomVisiblePostNumber ??
+          viewportPostNumber ??
+          posts.first.postNumber;
+    }
+
+    return bottomVisiblePostNumber ??
+        topVisiblePostNumber ??
+        viewportPostNumber ??
+        posts.first.postNumber;
+  }
+
+  void _selectShortcutPostNumber(TopicDetail detail, int postNumber) {
+    _controller.selectKeyboardPostNumber(postNumber);
+    final post = detail.postStream.posts.firstWhere(
+      (item) => item.postNumber == postNumber,
+      orElse: () => detail.postStream.posts.first,
+    );
+    final streamIndex = detail.postStream.stream.indexOf(post.id);
+    if (streamIndex != -1) {
+      _controller.updateStreamIndex(streamIndex + 1);
+    }
+  }
+
+  bool _tryScrollWithinCurrentPost(int delta, int postNumber) {
+    if (!mounted || delta == 0) return false;
+
+    final scrollController = _controller.scrollController;
+    if (!scrollController.hasClients) return false;
+
+    final segmentRange = _controller.segmentRangeForPost(postNumber);
+    if (segmentRange == null) return false;
+
+    final tagMap = scrollController.tagMap;
+    double? renderedTop;
+    double? renderedBottom;
+    int? minRenderedScrollIndex;
+    int? maxRenderedScrollIndex;
+
+    for (final entry in tagMap.entries) {
+      if (_controller.postNumberForScrollIndex(entry.key) != postNumber) {
+        continue;
+      }
+
+      final ctx = entry.value.context;
+      if (!ctx.mounted) continue;
+
+      final renderBox = ctx.findRenderObject() as RenderBox?;
+      if (renderBox == null || !renderBox.hasSize) continue;
+
+      final top = renderBox.localToGlobal(Offset.zero).dy;
+      final bottom = top + renderBox.size.height;
+
+      renderedTop = renderedTop == null ? top : math.min(renderedTop, top);
+      renderedBottom = renderedBottom == null
+          ? bottom
+          : math.max(renderedBottom, bottom);
+      minRenderedScrollIndex = minRenderedScrollIndex == null
+          ? entry.key
+          : math.min(minRenderedScrollIndex, entry.key);
+      maxRenderedScrollIndex = maxRenderedScrollIndex == null
+          ? entry.key
+          : math.max(maxRenderedScrollIndex, entry.key);
+    }
+
+    if (renderedTop == null ||
+        renderedBottom == null ||
+        minRenderedScrollIndex == null ||
+        maxRenderedScrollIndex == null) {
+      return false;
+    }
+
+    final topBoundary = kToolbarHeight + MediaQuery.of(context).padding.top;
+    final viewportHeight = MediaQuery.of(context).size.height;
+    final pageDelta = viewportHeight - 3 * topBoundary;
+    if (pageDelta <= 0) return false;
+
+    final hasMoreAboveInPost =
+        minRenderedScrollIndex > segmentRange.firstScrollIndex ||
+        renderedTop < topBoundary - 1;
+    final hasMoreBelowInPost =
+        maxRenderedScrollIndex < segmentRange.lastScrollIndex ||
+        renderedBottom > viewportHeight + 1;
+
+    double? offsetDelta;
+
+    if (delta < 0 && hasMoreAboveInPost) {
+      offsetDelta = minRenderedScrollIndex > segmentRange.firstScrollIndex
+          ? -pageDelta
+          : math.max(-pageDelta, renderedTop - topBoundary);
+
+      if (postNumber == 1 &&
+          minRenderedScrollIndex == segmentRange.firstScrollIndex) {
+        offsetDelta = math.max(offsetDelta, -scrollController.offset);
+      }
+    } else if (delta > 0 && hasMoreBelowInPost) {
+      offsetDelta = maxRenderedScrollIndex < segmentRange.lastScrollIndex
+          ? pageDelta
+          : math.min(pageDelta, renderedBottom - viewportHeight);
+    }
+
+    if (offsetDelta == null) return false;
+
+    final targetOffset = (scrollController.offset + offsetDelta).clamp(
+      0.0,
+      scrollController.position.maxScrollExtent,
+    );
+    if ((targetOffset - scrollController.offset).abs() < 1) {
+      return false;
+    }
+
+    scrollController.animateTo(
+      targetOffset,
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOut,
     );
+    return true;
   }
 
   Future<void> _scrollToPost(int postNumber) async {
     final params = _params;
     final detail = ref.read(topicDetailProvider(params)).value;
     if (detail == null) return;
-
-    if (_isNestedView) {
-      final nestedScrollIndex = _nestedPostNumberToScrollIndex[postNumber];
-      if (nestedScrollIndex != null &&
-          _controller.scrollController.hasClients) {
-        await _controller.scrollController.scrollToIndex(
-          nestedScrollIndex,
-          preferPosition: AutoScrollPosition.begin,
-          duration: const Duration(milliseconds: 180),
-        );
-        _controller.updateCurrentPostNumber(postNumber);
-        _controller.triggerHighlight(postNumber);
-        return;
-      }
-
-      setState(() => _isNestedView = false);
-    }
+    _controller.selectKeyboardPostNumber(postNumber);
 
     final posts = detail.postStream.posts;
     final postIndex = posts.indexWhere((p) => p.postNumber == postNumber);
@@ -202,6 +367,7 @@ extension _ScrollActions on _TopicDetailPageState {
 
     if (postIndex != -1) {
       final post = posts[postIndex];
+      _controller.selectKeyboardPostNumber(post.postNumber);
 
       bool forceLocalJump = false;
       final currentVisibleIndex = _controller.currentVisibleStreamIndex;
@@ -317,7 +483,7 @@ extension _ScrollActions on _TopicDetailPageState {
         bool shouldHighlight = false;
         final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
         final jumpTarget = _controller.jumpTargetPostNumber;
-        final currentPostNumber = _controller.currentPostNumber;
+        final initialPostNumber = _resolvedViewportPostNumber;
 
         if (jumpTarget != null) {
           for (int i = 0; i < posts.length; i++) {
@@ -331,9 +497,9 @@ extension _ScrollActions on _TopicDetailPageState {
             dividerPostIndex < posts.length) {
           targetPostIndex = dividerPostIndex;
           shouldHighlight = true;
-        } else if (currentPostNumber != null && currentPostNumber > 0) {
+        } else if (initialPostNumber != null && initialPostNumber > 0) {
           for (int i = 0; i < posts.length; i++) {
-            if (posts[i].postNumber >= currentPostNumber) {
+            if (posts[i].postNumber >= initialPostNumber) {
               targetPostIndex = i;
               shouldHighlight = true;
               break;

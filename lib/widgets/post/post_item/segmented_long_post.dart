@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/topic.dart';
 import '../../../pages/topic_detail_page/topic_detail_page.dart';
 import '../../../providers/preferences_provider.dart';
+import '../../content/collapsed_html_content.dart';
 import '../../content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../../content/discourse_html_content/chunked/html_chunk.dart';
 import '../../content/discourse_html_content/image_utils.dart';
-import '../post_signature.dart';
 import '../small_action_item.dart';
 import 'widgets/post_footer_section/post_footer_section.dart';
 import 'widgets/post_header_section.dart';
@@ -47,6 +47,7 @@ class LongPostRenderData {
 class LongPostHeaderSegment extends StatelessWidget {
   final Post post;
   final int topicId;
+  final bool selected;
   final bool highlight;
   final bool isTopicOwner;
   final String? dateSeparatorLabel;
@@ -57,6 +58,7 @@ class LongPostHeaderSegment extends StatelessWidget {
     super.key,
     required this.post,
     required this.topicId,
+    required this.selected,
     required this.highlight,
     required this.isTopicOwner,
     required this.dateSeparatorLabel,
@@ -68,6 +70,7 @@ class LongPostHeaderSegment extends StatelessWidget {
   Widget build(BuildContext context) {
     return PostSegmentFrame(
       post: post,
+      selected: selected,
       highlight: highlight,
       showTopDateSeparator: dateSeparatorLabel != null,
       topDateSeparatorLabel: dateSeparatorLabel,
@@ -90,6 +93,7 @@ class LongPostHeaderSegment extends StatelessWidget {
 class LongPostChunkSegment extends ConsumerWidget {
   final Post post;
   final int topicId;
+  final bool selected;
   final bool highlight;
   final HtmlChunk chunk;
   final LongPostRenderData renderData;
@@ -99,6 +103,7 @@ class LongPostChunkSegment extends ConsumerWidget {
     super.key,
     required this.post,
     required this.topicId,
+    required this.selected,
     required this.highlight,
     required this.chunk,
     required this.renderData,
@@ -118,6 +123,7 @@ class LongPostChunkSegment extends ConsumerWidget {
 
     return PostSegmentFrame(
       post: post,
+      selected: selected,
       highlight: highlight,
       showBottomBorder: false,
       child: Padding(
@@ -165,20 +171,23 @@ class LongPostChunkSegment extends ConsumerWidget {
   }
 }
 
-class LongPostFooterSegment extends StatelessWidget {
+class LongPostFooterSegment extends ConsumerWidget {
   final Post post;
   final int topicId;
+  final bool selected;
   final bool highlight;
   final bool topicHasAcceptedAnswer;
   final int? acceptedAnswerPostNumber;
   final String? bottomDateSeparatorLabel;
-  final VoidCallback? onReply;
+  final void Function({String? initialContent})? onReply;
   final VoidCallback? onEdit;
   final VoidCallback? onShareAsImage;
   final void Function(int postId)? onRefreshPost;
   final void Function(int postNumber)? onJumpToPost;
   final void Function(int postId, bool accepted)? onSolutionChanged;
   final bool useReplyDialog;
+  final String? topicTitle;
+  final bool isPrivateMessageTopic;
   final VoidCallback? onShowPostDetail;
   final String? highlightBoostUsername;
 
@@ -186,6 +195,7 @@ class LongPostFooterSegment extends StatelessWidget {
     super.key,
     required this.post,
     required this.topicId,
+    required this.selected,
     required this.highlight,
     this.highlightBoostUsername,
     required this.topicHasAcceptedAnswer,
@@ -198,23 +208,54 @@ class LongPostFooterSegment extends StatelessWidget {
     required this.onJumpToPost,
     required this.onSolutionChanged,
     this.useReplyDialog = false,
+    this.topicTitle,
+    this.isPrivateMessageTopic = false,
     this.onShowPostDetail,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final showSignatures = ref.watch(preferencesProvider).showSignatures;
     return PostSegmentFrame(
       post: post,
+      selected: selected,
       highlight: highlight,
       showBottomDateSeparator: bottomDateSeparatorLabel != null,
       bottomDateSeparatorLabel: bottomDateSeparatorLabel,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          PostSignature(
-            post: post,
-            margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          ),
+          if (showSignatures &&
+              post.signatureCooked != null &&
+              post.signatureCooked!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.only(top: 8),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.3,
+                      ),
+                      width: 0.5,
+                    ),
+                  ),
+                ),
+                child: CollapsedHtmlContent(
+                  html: post.signatureCooked!,
+                  textStyle: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: 0.6,
+                    ),
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                  maxLines: 2,
+                ),
+              ),
+            ),
           SelectionContainer.disabled(
             child: PostFooterSection(
               post: post,
@@ -230,6 +271,8 @@ class LongPostFooterSegment extends StatelessWidget {
               onJumpToPost: onJumpToPost,
               onSolutionChanged: onSolutionChanged,
               useReplyDialog: useReplyDialog,
+              topicTitle: topicTitle,
+              isPrivateMessageTopic: isPrivateMessageTopic,
               onShowPostDetail: onShowPostDetail,
             ),
           ),

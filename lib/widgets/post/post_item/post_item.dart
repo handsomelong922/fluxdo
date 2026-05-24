@@ -6,8 +6,8 @@ import '../../../pages/topic_detail_page/topic_detail_page.dart';
 import '../../../l10n/s.dart';
 import '../../../providers/preferences_provider.dart';
 import '../../../utils/code_selection_context.dart';
+import '../../content/collapsed_html_content.dart';
 import '../../content/discourse_html_content/chunked/chunked_html_content.dart';
-import '../post_signature.dart';
 import '../small_action_item.dart';
 import 'quote_selection_helper.dart';
 import 'widgets/post_footer_section/post_footer_section.dart';
@@ -18,13 +18,14 @@ import 'widgets/post_segment_frame.dart';
 class PostItem extends ConsumerStatefulWidget {
   final Post post;
   final int topicId;
-  final VoidCallback? onReply;
+  final void Function({String? initialContent})? onReply;
   final VoidCallback? onLike;
   final VoidCallback? onEdit;
   final VoidCallback? onShareAsImage;
   final void Function(int postId)? onRefreshPost;
   final void Function(int postNumber)? onJumpToPost;
   final void Function(int postId, bool accepted)? onSolutionChanged;
+  final bool selected;
   final bool highlight;
   final bool isTopicOwner;
   final bool topicHasAcceptedAnswer;
@@ -35,6 +36,8 @@ class PostItem extends ConsumerStatefulWidget {
   final void Function(String quote, Post post)? onQuoteImage;
   final void Function(int postId)? onExpandHiddenPost;
   final bool useReplyDialog;
+  final String? topicTitle;
+  final bool isPrivateMessageTopic;
   final VoidCallback? onShowPostDetail;
   final bool hideRepliesButton;
   final String? highlightBoostUsername;
@@ -50,6 +53,7 @@ class PostItem extends ConsumerStatefulWidget {
     this.onRefreshPost,
     this.onJumpToPost,
     this.onSolutionChanged,
+    this.selected = false,
     this.highlight = false,
     this.highlightBoostUsername,
     this.isTopicOwner = false,
@@ -61,6 +65,8 @@ class PostItem extends ConsumerStatefulWidget {
     this.onQuoteImage,
     this.onExpandHiddenPost,
     this.useReplyDialog = false,
+    this.topicTitle,
+    this.isPrivateMessageTopic = false,
     this.onShowPostDetail,
     this.hideRepliesButton = false,
   });
@@ -94,12 +100,13 @@ class _PostItemState extends ConsumerState<PostItem> {
     final theme = Theme.of(context);
 
     if (post.postType == PostTypes.smallAction) {
-      return SmallActionItem(post: post);
+      return SmallActionItem(post: post, selected: widget.selected);
     }
 
     final isModeratorAction = post.postType == PostTypes.moderatorAction;
     return PostSegmentFrame(
       post: post,
+      selected: widget.selected,
       highlight: widget.highlight,
       constraints: const BoxConstraints(minHeight: 80),
       showTopDateSeparator: widget.dateSeparatorLabel != null,
@@ -201,7 +208,39 @@ class _PostItemState extends ConsumerState<PostItem> {
                 ),
               ),
             ),
-            PostSignature(post: post),
+            // 用户签名
+            if (ref.watch(preferencesProvider).showSignatures &&
+                post.signatureCooked != null &&
+                post.signatureCooked!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: SelectionContainer.disabled(
+                  child: Container(
+                    padding: const EdgeInsets.only(top: 8),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(
+                          color: theme.colorScheme.outlineVariant.withValues(
+                            alpha: 0.3,
+                          ),
+                          width: 0.5,
+                        ),
+                      ),
+                    ),
+                    child: CollapsedHtmlContent(
+                      html: post.signatureCooked!,
+                      textStyle: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.6,
+                        ),
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                      maxLines: 2,
+                    ),
+                  ),
+                ),
+              ),
             // 举报隐藏帖子：显示展开按钮
             if (post.cookedHidden &&
                 post.canSeeHiddenPost &&
@@ -253,6 +292,8 @@ class _PostItemState extends ConsumerState<PostItem> {
                 onJumpToPost: widget.onJumpToPost,
                 onSolutionChanged: widget.onSolutionChanged,
                 useReplyDialog: widget.useReplyDialog,
+                topicTitle: widget.topicTitle,
+                isPrivateMessageTopic: widget.isPrivateMessageTopic,
                 onShowPostDetail: widget.onShowPostDetail,
                 hideRepliesButton: widget.hideRepliesButton,
                 onAcceptedAnswerChanged: (accepted) {

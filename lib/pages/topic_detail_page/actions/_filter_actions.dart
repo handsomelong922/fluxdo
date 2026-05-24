@@ -38,7 +38,10 @@ extension _FilterActions on _TopicDetailPageState {
         await notifier.cancelFilterAndReloadWithPostNumber(postNumber);
       }
     } finally {
-      if (mounted) setState(() => _isSwitchingMode = false);
+      if (mounted) {
+        setState(() => _isSwitchingMode = false);
+        _scheduleCheckTitleVisibility();
+      }
     }
   }
 
@@ -77,6 +80,7 @@ extension _FilterActions on _TopicDetailPageState {
 
     if (mounted) {
       setState(() => _isSwitchingMode = false);
+      _scheduleCheckTitleVisibility();
     }
   }
 
@@ -84,6 +88,7 @@ extension _FilterActions on _TopicDetailPageState {
     // 嵌套模式：直接退出，不需要重新加载
     if (_isNestedView) {
       setState(() => _isNestedView = false);
+      _scheduleCheckTitleVisibility();
       return;
     }
 
@@ -100,6 +105,7 @@ extension _FilterActions on _TopicDetailPageState {
 
     if (mounted) {
       setState(() => _isSwitchingMode = false);
+      _scheduleCheckTitleVisibility();
     }
   }
 
@@ -118,6 +124,7 @@ extension _FilterActions on _TopicDetailPageState {
     } finally {
       if (mounted) {
         setState(() => _isSwitchingMode = false);
+        _scheduleCheckTitleVisibility();
       }
     }
   }
@@ -140,6 +147,110 @@ extension _FilterActions on _TopicDetailPageState {
 
     if (mounted) {
       setState(() => _isSwitchingMode = false);
+      _scheduleCheckTitleVisibility();
     }
+  }
+
+  /// 从菜单打开筛选面板
+  void _showFilterSheet() {
+    final params = _params;
+    final notifier = ref.read(topicDetailProvider(params).notifier);
+    final detail = ref.read(topicDetailProvider(params)).value;
+    final hasActiveFilter =
+        notifier.isSummaryMode || notifier.isAuthorOnlyMode || notifier.isTopLevelMode || _isNestedView;
+
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (detail?.hasSummary ?? false)
+                ListTile(
+                  leading: Icon(
+                    notifier.isSummaryMode ? Icons.local_fire_department : Icons.local_fire_department_outlined,
+                  ),
+                  title: Text(context.l10n.topicDetail_hotOnly),
+                  trailing: notifier.isSummaryMode
+                      ? Icon(Icons.check, color: theme.colorScheme.primary)
+                      : null,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    if (notifier.isSummaryMode) {
+                      _handleCancelFilter();
+                    } else {
+                      _handleShowTopReplies();
+                    }
+                  },
+                ),
+              ListTile(
+                leading: Icon(
+                  notifier.isAuthorOnlyMode ? Icons.person : Icons.person_outline,
+                ),
+                title: Text(context.l10n.topicDetail_authorOnly),
+                trailing: notifier.isAuthorOnlyMode
+                    ? Icon(Icons.check, color: theme.colorScheme.primary)
+                    : null,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  if (notifier.isAuthorOnlyMode) {
+                    _handleCancelFilter();
+                  } else {
+                    _handleShowAuthorOnly();
+                  }
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  notifier.isTopLevelMode ? Icons.account_tree : Icons.account_tree_outlined,
+                ),
+                title: Text(context.l10n.topicDetail_topLevelOnly),
+                trailing: notifier.isTopLevelMode
+                    ? Icon(Icons.check, color: theme.colorScheme.primary)
+                    : null,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  if (notifier.isTopLevelMode) {
+                    _handleCancelFilter();
+                  } else {
+                    _handleShowTopLevelReplies();
+                  }
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(
+                  _isNestedView ? Icons.forum : Icons.forum_outlined,
+                ),
+                title: Text(context.l10n.nested_title),
+                trailing: _isNestedView
+                    ? Icon(Icons.check, color: theme.colorScheme.primary)
+                    : null,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _toggleNestedView();
+                },
+              ),
+              if (hasActiveFilter) ...[
+                const Divider(height: 1),
+                ListTile(
+                  leading: Icon(Icons.filter_list_off, color: theme.colorScheme.error),
+                  title: Text(
+                    context.l10n.common_cancel,
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _handleCancelFilter();
+                  },
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
   }
 }

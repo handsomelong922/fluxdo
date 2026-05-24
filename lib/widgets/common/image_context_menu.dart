@@ -79,7 +79,8 @@ class ImageContextMenu {
     required Offset position,
     VoidCallback? onClose,
   }) {
-    final overlayRenderObject = Overlay.of(context).context.findRenderObject();
+    final overlayRenderObject =
+        Overlay.of(context).context.findRenderObject();
     if (overlayRenderObject is! RenderBox || !overlayRenderObject.hasSize) {
       // Overlay 未就绪，回退到移动端菜单
       _showMobileMenu(
@@ -90,7 +91,6 @@ class ImageContextMenu {
         post: post,
         topicId: topicId,
         onQuoteImage: onQuoteImage,
-        onClose: onClose,
       );
       return;
     }
@@ -110,11 +110,17 @@ class ImageContextMenu {
         ),
       PopupMenuItem(
         value: 'copyImage',
-        child: _MenuItemRow(icon: Icons.copy, label: S.current.image_copyImage),
+        child: _MenuItemRow(
+          icon: Icons.copy,
+          label: S.current.image_copyImage,
+        ),
       ),
       PopupMenuItem(
         value: 'copyLink',
-        child: _MenuItemRow(icon: Icons.link, label: S.current.image_copyLink),
+        child: _MenuItemRow(
+          icon: Icons.link,
+          label: S.current.image_copyLink,
+        ),
       ),
       PopupMenuItem(
         value: 'share',
@@ -143,7 +149,10 @@ class ImageContextMenu {
         const PopupMenuDivider(),
         PopupMenuItem(
           value: 'close',
-          child: _MenuItemRow(icon: Icons.close, label: S.current.common_close),
+          child: _MenuItemRow(
+            icon: Icons.close,
+            label: S.current.common_close,
+          ),
         ),
       ],
     ];
@@ -153,7 +162,7 @@ class ImageContextMenu {
       position: relativeRect,
       items: items,
     ).then((value) {
-      if (value == null || !context.mounted) return;
+      if (value == null) return;
       _handleMenuAction(
         context: context,
         action: value,
@@ -376,7 +385,11 @@ class _MenuItemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: [Icon(icon, size: 20), const SizedBox(width: 12), Text(label)],
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(width: 12),
+        Text(label),
+      ],
     );
   }
 }

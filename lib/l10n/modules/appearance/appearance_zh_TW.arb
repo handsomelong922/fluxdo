@@ -42,7 +42,7 @@
   "reading_expandRelatedLinks": "預設展開相關連結",
   "reading_expandRelatedLinksDesc": "帖子中的相關連結區域預設展開顯示",
   "reading_showSignatures": "顯示使用者簽名",
-  "reading_showSignaturesDesc": "在帖子底部顯示使用者自訂簽名",
+  "reading_showSignaturesDesc": "在帖子內容下方顯示使用者簽名",
   "reading_title": "閱讀設定",
   "schemeVariant_content": "內容",
   "schemeVariant_expressive": "表現力",

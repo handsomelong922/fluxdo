@@ -5,12 +5,9 @@ on:
     tags:
       - 'v*'
 
-# CUSTOM: Keyword Filter 顶层写权限，供 Release 创建/附件上传使用
-permissions:
-  contents: write
-
 env:
   IS_STABLE: ${{ !contains(github.ref, '-') }}
+  FLUTTER_LINUX_VERSION: '3.41.5'
 
 jobs:
   build:
@@ -19,12 +16,29 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # CUSTOM: Keyword Filter 精简构建矩阵 - 仅保留 Android arm64-v8a 与 Windows x86_64
           - platform: android
             os: ubuntu-latest
             arch: arm64-v8a
             rust-target: aarch64-linux-android
             flutter-target: android-arm64
+          - platform: android
+            os: ubuntu-latest
+            arch: armeabi-v7a
+            rust-target: armv7-linux-androideabi
+            flutter-target: android-arm
+          - platform: android
+            os: ubuntu-latest
+            arch: x86_64
+            rust-target: x86_64-linux-android
+            flutter-target: android-x64
+          - platform: ios
+            os: macos-latest
+          - platform: macos
+            os: macos-latest
+            arch: arm64
+          - platform: macos
+            os: macos-15-intel
+            arch: x86_64
           - platform: windows
             os: windows-2022
             arch: x86_64
@@ -49,8 +63,16 @@ jobs:
           cache: true
 
       - name: Setup Rust
-        if: startsWith(matrix.platform, 'android') || matrix.platform == 'windows'
+        if: startsWith(matrix.platform, 'android') || matrix.platform == 'macos' || matrix.platform == 'ios' || matrix.platform == 'windows'
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup iOS Rust targets
+        if: matrix.platform == 'ios'
+        run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+
+      - name: Setup macOS Rust targets
+        if: matrix.platform == 'macos'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Setup Android build environment
         if: startsWith(matrix.platform, 'android')
@@ -65,57 +87,69 @@ jobs:
         with:
           packages: 'ndk;25.2.9519653'
 
-      - name: Configure Keystore
-        if: startsWith(matrix.platform, 'android')
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-        run: |
-          echo $KEYSTORE_BASE64 | base64 --decode > android/app/key.jks
-          echo "storePassword=$STORE_PASSWORD" > android/key.properties
-          echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
-          echo "keyAlias=$KEY_ALIAS" >> android/key.properties
-          echo "storeFile=../app/key.jks" >> android/key.properties
-
-      - name: Inject dummy google-services.json
+      - name: Setup Android Signing
         if: startsWith(matrix.platform, 'android')
         run: |
-          echo '{"project_info":{"project_number":"123","project_id":"dummy"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:abc","android_client_info":{"package_name":"com.github.lingyan000.fluxdo"}},"api_key":[{"current_key":"dummy"}]}],"configuration_version":"1"}' > android/app/google-services.json
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/upload-keystore.jks
+          echo "${{ secrets.ANDROID_KEY_PROPERTIES }}" > android/key.properties
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
 
-      - name: Generate CA certificates
-        if: startsWith(matrix.platform, 'android') || matrix.platform == 'windows'
-        working-directory: core/doh_proxy
-        run: cargo run --bin gen_ca
-
-      - name: Build DOH Proxy
-        if: startsWith(matrix.platform, 'android')
-        working-directory: core/doh_proxy
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/25.2.9519653
-        run: cargo ndk -t ${{ matrix.arch }} --platform 28 build --release --features ech
-
-      - name: Copy native libraries
-        if: startsWith(matrix.platform, 'android')
-        run: |
-          mkdir -p android/app/src/main/jniLibs/${{ matrix.arch }}
-          cp core/doh_proxy/target/${{ matrix.rust-target }}/release/libdoh_proxy.so android/app/src/main/jniLibs/${{ matrix.arch }}/
-          mkdir -p android/app/src/main/res/raw
-          cp core/doh_proxy/certs/ca.der android/app/src/main/res/raw/proxy_ca.der
-
-      - name: Generate l10n
-        run: bash scripts/gen_l10n.sh --merge
-
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Configure Git for CocoaPods
+        if: matrix.platform == 'ios' || matrix.platform == 'macos'
+        run: git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
 
       - name: Build Android
         if: startsWith(matrix.platform, 'android')
         run: |
-          flutter build apk --release --target-platform android-arm64 --dart-define=cronetHttpNoPlay=true
+          dart tool/flutterw.dart build apk --release --target-platform ${{ matrix.flutter-target }} --dart-define=cronetHttpNoPlay=true
+          unzip -l build/app/outputs/flutter-apk/app-release.apk | grep "lib/${{ matrix.arch }}/libdoh_proxy.so"
+          cmp -s core/doh_proxy/certs/ca.der android/app/src/main/res/raw/proxy_ca.der
+          cmp -s core/doh_proxy/certs/ca.crt assets/certs/proxy_ca.pem
           mkdir -p dist
           mv build/app/outputs/flutter-apk/app-release.apk dist/fluxdo-${{ matrix.arch }}.apk
+
+      - name: Build iOS
+        if: matrix.platform == 'ios'
+        run: |
+          dart tool/flutterw.dart build ios --release --no-codesign
+          nm -gU build/ios/iphoneos/Runner.app/Runner | grep "_doh_proxy_start_with_config_json"
+          mkdir -p dist
+          cd build/ios/iphoneos
+          mkdir Payload
+          cp -r Runner.app Payload/
+          zip -r fluxdo-unsigned.ipa Payload
+          mv fluxdo-unsigned.ipa ../../../dist/
+
+      - name: Install macOS dependencies
+        if: matrix.platform == 'macos'
+        run: npm install -g appdmg
+
+      - name: Build macOS
+        if: matrix.platform == 'macos'
+        run: |
+          dart tool/flutterw.dart build macos --release
+          mkdir -p dist
+          APP_PATH="build/macos/Build/Products/Release/fluxdo.app"
+          test -f "$APP_PATH/Contents/Frameworks/libdoh_proxy.dylib"
+          test -f "$APP_PATH/Contents/Resources/native/doh_proxy_bin"
+          test -x "$APP_PATH/Contents/Resources/native/doh_proxy_bin"
+
+      - name: Package macOS DMG
+        if: matrix.platform == 'macos'
+        run: |
+          cat > dmg-config.json << 'DMGEOF'
+          {
+            "title": "Fluxdo",
+            "contents": [
+              { "x": 448, "y": 344, "type": "link", "path": "/Applications" },
+              { "x": 192, "y": 344, "type": "file", "path": "build/macos/Build/Products/Release/fluxdo.app" }
+            ],
+            "window": {
+              "size": { "width": 660, "height": 500 }
+            }
+          }
+          DMGEOF
+          appdmg dmg-config.json "dist/fluxdo-macos-${{ matrix.arch }}.dmg"
 
       - name: Setup NuGet
         if: matrix.platform == 'windows'
@@ -128,10 +162,11 @@ jobs:
       - name: Build Windows
         if: matrix.platform == 'windows'
         run: |
-          flutter build windows --release
+          dart tool/flutterw.dart build windows --release
+          $releaseDir = "build\\windows\\x64\\runner\\Release"
+          if (-not (Test-Path "$releaseDir\\native\\doh_proxy.dll")) { throw "Missing doh_proxy.dll" }
+          if (-not (Test-Path "$releaseDir\\native\\doh_proxy_bin.exe")) { throw "Missing doh_proxy_bin.exe" }
           mkdir dist
-          $releaseDir = "build\windows\x64\runner\Release"
-          Copy-Item "core\doh_proxy\certs\ca.der" "$releaseDir\proxy_ca.der"
 
       - name: Package Windows ZIP
         if: matrix.platform == 'windows'
@@ -152,9 +187,172 @@ jobs:
           path: ./dist
           overwrite: true
 
+  flatpak_prepare_sources:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_LINUX_VERSION }}
+          cache: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Prepare Flatpak source tree
+        env:
+          PUB_CACHE: ${{ github.workspace }}/.pub-cache
+        run: bash scripts/ci/flatpak/prepare_source_tree.sh
+
+      - name: Upload Flatpak source tree artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-source-tree-internal
+          path: .artifacts/flatpak/fluxdo-flatpak-source-tree.tar.gz
+          if-no-files-found: error
+          overwrite: true
+
+  ensure_flatpak_wpe_layer:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
+      options: --privileged
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read WPE layer version
+        id: layer
+        run: |
+          version="$(tr -d '\r\n' < flatpak/wpe-layer.version)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Try downloading prebuilt WPE layer
+        id: fetch
+        run: |
+          mkdir -p dist
+          asset="fluxdo-flatpak-wpe-layer-gnome48-x86_64.tar.zst"
+          base_url="https://github.com/${{ github.repository }}/releases/download/flatpak-wpe-layer-${{ steps.layer.outputs.version }}"
+          if curl -fsIL "${base_url}/${asset}" > /dev/null; then
+            curl -fL "${base_url}/${asset}" -o "dist/${asset}"
+            curl -fL "${base_url}/${asset}.sha256" -o "dist/${asset}.sha256"
+            (
+              cd dist
+              sha256sum -c "${asset}.sha256"
+            )
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build WPE layer on cache miss
+        if: steps.fetch.outputs.hit != 'true'
+        run: |
+          flatpak --system remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          xvfb-run --auto-servernum flatpak-builder \
+            --repo=repo \
+            --disable-rofiles-fuse \
+            --install-deps-from=flathub \
+            --force-clean \
+            --default-branch=stable \
+            --arch=x86_64 \
+            --ccache \
+            --verbose \
+            flatpak_wpe_layer \
+            flatpak/com.github.lingyan000.fluxdo.wpe-layer.yml
+          bash scripts/ci/flatpak/package_wpe_layer.sh \
+            flatpak_wpe_layer \
+            dist/fluxdo-flatpak-wpe-layer-gnome48-x86_64.tar.zst
+
+      - name: Publish WPE layer release on cache miss
+        if: steps.fetch.outputs.hit != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: flatpak-wpe-layer-${{ steps.layer.outputs.version }}
+          name: Flatpak WPE Layer ${{ steps.layer.outputs.version }}
+          body: |
+            Prebuilt Flatpak WPE dependency layer for Fluxdo.
+          prerelease: true
+          make_latest: false
+          files: |
+            dist/fluxdo-flatpak-wpe-layer-gnome48-x86_64.tar.zst
+            dist/fluxdo-flatpak-wpe-layer-gnome48-x86_64.tar.zst.sha256
+          fail_on_unmatched_files: true
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload WPE layer workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-wpe-layer-current
+          path: |
+            dist/fluxdo-flatpak-wpe-layer-gnome48-x86_64.tar.zst
+            dist/fluxdo-flatpak-wpe-layer-gnome48-x86_64.tar.zst.sha256
+          if-no-files-found: error
+          overwrite: true
+
+  flatpak_package:
+    needs:
+      - flatpak_prepare_sources
+      - ensure_flatpak_wpe_layer
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
+      options: --privileged
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Flatpak source tree artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: flatpak-source-tree-internal
+          path: .artifacts/flatpak
+
+      - name: Download WPE layer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: flatpak-wpe-layer-current
+          path: flatpak/stage/wpe-layer
+
+      - name: Extract Flatpak source tree
+        run: |
+          rm -rf flatpak/stage/source-tree
+          mkdir -p flatpak/stage/source-tree
+          tar -xzf .artifacts/flatpak/fluxdo-flatpak-source-tree.tar.gz -C flatpak/stage/source-tree
+          ls -la flatpak/stage/source-tree
+
+      - name: Build Flatpak bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: flatpak/com.github.lingyan000.fluxdo.yml
+          bundle: fluxdo-linux-x86_64.flatpak
+          branch: stable
+          repository-name: flathub
+          arch: x86_64
+          verbose: true
+          upload-artifact: false
+
+      - name: Upload Flatpak artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-linux-flatpak-x86_64
+          path: fluxdo-linux-x86_64.flatpak
+          if-no-files-found: error
+          overwrite: true
+
   changelog:
     needs:
       - build
+      - flatpak_package
     runs-on: ubuntu-latest
     if: ${{ !contains(github.ref, '-') }}
     permissions:
@@ -165,7 +363,6 @@ jobs:
         with:
           fetch-depth: 0
           ref: refs/heads/main
-          submodules: recursive
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate Changelog
@@ -185,7 +382,7 @@ jobs:
               range="${prev:+$prev..}$curr"
 
               echo -e "## $curr\n" >> "$temp"
-              git log --no-merges --pretty=format:"- %s%n" "$range" | \
+              git log --no-merges --pretty=format:"- %s" "$range" | \
                 grep -v 'Update changelog' | \
                 grep -v 'Co-Authored-By: Release Script' | \
                 grep -v '^- chore: bump version to ' >> "$temp" || true
@@ -208,6 +405,7 @@ jobs:
   upload:
     needs:
       - build
+      - flatpak_package
     runs-on: ubuntu-latest
     permissions: write-all
     services:
@@ -224,7 +422,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: recursive
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -256,7 +453,7 @@ jobs:
             prev="${tags[i+1]}"
             range="${prev:+$prev..}$curr"
 
-            git log --no-merges --pretty=format:"- %s%n" "$range" | \
+            git log --no-merges --pretty=format:"- %s" "$range" | \
               grep -v 'Update changelog' | \
               grep -v 'Co-Authored-By: Release Script' | \
               grep -v '^- chore: bump version to ' >> "$out" || true
@@ -308,17 +505,74 @@ jobs:
         if: env.IS_STABLE == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          # CUSTOM: Keyword Filter 显式列出产物路径，确保 Release 必附带 APK / ZIP / 安装包
-          files: |
-            ./dist/fluxdo-arm64-v8a.apk
-            ./dist/fluxdo-arm64-v8a.apk.sha256
-            ./dist/fluxdo-windows-x86_64.zip
-            ./dist/fluxdo-windows-x86_64.zip.sha256
-            ./dist/fluxdo-windows-x86_64-setup.exe
-            ./dist/fluxdo-windows-x86_64-setup.exe.sha256
-          fail_on_unmatched_files: true
+          files: ./dist/*
           body_path: release_notes.md
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update AltStore Source
+        if: env.IS_STABLE == 'true'
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          VERSION_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          DOWNLOAD_URL="https://github.com/lingyan000/fluxdo/releases/download/v${VERSION}/fluxdo-unsigned.ipa"
+          IPA_SIZE=$(stat -c%s "./dist/fluxdo-unsigned.ipa" 2>/dev/null || stat -f%z "./dist/fluxdo-unsigned.ipa")
+          VERSION_DESC=$(cat release_notes.md | head -50)
+
+          # 尝试从 gh-pages 获取已有的 source.json（保留历史版本）
+          EXISTING_SOURCE=""
+          if git fetch origin gh-pages 2>/dev/null; then
+            EXISTING_SOURCE=$(git show origin/gh-pages:source.json 2>/dev/null || echo "")
+          fi
+
+          if [ -n "$EXISTING_SOURCE" ]; then
+            # 基于已有的 source.json，追加新版本
+            echo "$EXISTING_SOURCE" | jq \
+              --arg ver "$VERSION" \
+              --arg date "$VERSION_DATE" \
+              --arg url "$DOWNLOAD_URL" \
+              --argjson size "$IPA_SIZE" \
+              --arg desc "$VERSION_DESC" \
+              '.apps[0].versions = [{
+                "version": $ver,
+                "date": $date,
+                "downloadURL": $url,
+                "size": $size,
+                "localizedDescription": $desc
+              }] + [.apps[0].versions[] | select(.version != $ver)]' \
+              > altstore/source.json
+          else
+            # 首次生成，基于模板
+            jq \
+              --arg ver "$VERSION" \
+              --arg date "$VERSION_DATE" \
+              --arg url "$DOWNLOAD_URL" \
+              --argjson size "$IPA_SIZE" \
+              --arg desc "$VERSION_DESC" \
+              '.apps[0].versions = [{
+                "version": $ver,
+                "date": $date,
+                "downloadURL": $url,
+                "size": $size,
+                "localizedDescription": $desc
+              }]' \
+              altstore/source.json > altstore/source_tmp.json
+            mv altstore/source_tmp.json altstore/source.json
+          fi
+
+      - name: Prepare GitHub Pages
+        if: env.IS_STABLE == 'true'
+        run: |
+          mkdir -p gh-pages-deploy
+          cp altstore/source.json gh-pages-deploy/
+          cp ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png gh-pages-deploy/icon.png
+
+      - name: Deploy to GitHub Pages
+        if: env.IS_STABLE == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages-deploy
+          keep_files: false
