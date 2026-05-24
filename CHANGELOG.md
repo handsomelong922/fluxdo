@@ -1,3 +1,31 @@
+## v0.4.1
+
+- fix: allow home scrolling during topic pop
+
+- fix: remove nav overlay blockers
+
+- fix: stabilize reading scroll and avatar performance
+
+- feat: sync safe upstream reading enhancements
+
+- fix: polish reading interactions and login persistence
+
+- feat: add p1 assistant context diagnostics
+
+- fix: improve reading continuity guardrails
+
+- fix: improve topic reading interactions and ai summary persistence
+
+- fix: align nested topic link navigation and compact detail app bar
+
+- fix: reduce verification interruptions and stabilize oauth session sync
+
+## v0.3.5
+
+
+- feat: improve topic ai summary and login flow
+
+
 ## v0.3.4
 
 - feat: route third-party login to browser
