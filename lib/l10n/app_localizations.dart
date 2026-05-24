@@ -8674,6 +8674,30 @@ abstract class AppLocalizations {
   /// **'首页滚动时自动收起顶栏和底栏'**
   String get preferences_hideBarOnScrollDesc;
 
+  /// No description provided for @preferences_preferStaticAvatars.
+  ///
+  /// In zh, this message translates to:
+  /// **'优先使用静态头像'**
+  String get preferences_preferStaticAvatars;
+
+  /// No description provided for @preferences_preferStaticAvatarsDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'当同时存在动态图和静态图时，统一优先显示静态头像'**
+  String get preferences_preferStaticAvatarsDesc;
+
+  /// No description provided for @preferences_hideTopicListAvatars.
+  ///
+  /// In zh, this message translates to:
+  /// **'隐藏话题列表头像'**
+  String get preferences_hideTopicListAvatars;
+
+  /// No description provided for @preferences_hideTopicListAvatarsDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅影响首页和话题列表卡片，并回收原头像列宽度'**
+  String get preferences_hideTopicListAvatarsDesc;
+
   /// No description provided for @preferences_longPressPreview.
   ///
   /// In zh, this message translates to:

@@ -62,6 +62,25 @@ List<SettingsGroup> buildReadingGroups(BuildContext context) {
               ref.read(preferencesProvider.notifier).setHideBarOnScroll(v),
         ),
         SwitchModel(
+          id: 'preferStaticAvatars',
+          title: l10n.preferences_preferStaticAvatars,
+          subtitle: l10n.preferences_preferStaticAvatarsDesc,
+          icon: Icons.image_not_supported_outlined,
+          getValue: (ref) => ref.watch(preferencesProvider).preferStaticAvatars,
+          onChanged: (ref, v) =>
+              ref.read(preferencesProvider.notifier).setPreferStaticAvatars(v),
+        ),
+        SwitchModel(
+          id: 'hideTopicListAvatars',
+          title: l10n.preferences_hideTopicListAvatars,
+          subtitle: l10n.preferences_hideTopicListAvatarsDesc,
+          icon: Icons.person_off_outlined,
+          getValue: (ref) =>
+              ref.watch(preferencesProvider).hideTopicListAvatars,
+          onChanged: (ref, v) =>
+              ref.read(preferencesProvider.notifier).setHideTopicListAvatars(v),
+        ),
+        SwitchModel(
           id: 'defaultNestedTopicView',
           title: l10n.nested_title,
           subtitle: '进入帖子时默认使用树形视图',

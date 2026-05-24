@@ -4634,6 +4634,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get preferences_hideBarOnScrollDesc => '首页滚动时自动收起顶栏和底栏';
 
   @override
+  String get preferences_preferStaticAvatars => '优先使用静态头像';
+
+  @override
+  String get preferences_preferStaticAvatarsDesc => '当同时存在动态图和静态图时，统一优先显示静态头像';
+
+  @override
+  String get preferences_hideTopicListAvatars => '隐藏话题列表头像';
+
+  @override
+  String get preferences_hideTopicListAvatarsDesc => '仅影响首页和话题列表卡片，并回收原头像列宽度';
+
+  @override
   String get preferences_longPressPreview => '长按预览';
 
   @override
@@ -10604,6 +10616,18 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get preferences_hideBarOnScrollDesc => '首頁滾動時自動收起頂欄和底欄';
 
   @override
+  String get preferences_preferStaticAvatars => '優先使用靜態頭像';
+
+  @override
+  String get preferences_preferStaticAvatarsDesc => '當同時存在動態圖和靜態圖時，統一優先顯示靜態頭像';
+
+  @override
+  String get preferences_hideTopicListAvatars => '隱藏話題列表頭像';
+
+  @override
+  String get preferences_hideTopicListAvatarsDesc => '僅影響首頁和話題列表卡片，並回收原頭像欄寬度';
+
+  @override
   String get preferences_longPressPreview => '長按預覽';
 
   @override
@@ -16448,6 +16472,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get preferences_hideBarOnScrollDesc => '首頁滾動時自動收起頂欄和底欄';
+
+  @override
+  String get preferences_preferStaticAvatars => '優先使用靜態頭像';
+
+  @override
+  String get preferences_preferStaticAvatarsDesc => '當同時存在動態圖和靜態圖時，統一優先顯示靜態頭像';
+
+  @override
+  String get preferences_hideTopicListAvatars => '隱藏話題列表頭像';
+
+  @override
+  String get preferences_hideTopicListAvatarsDesc => '僅影響首頁和話題列表卡片，並回收原頭像欄寬度';
 
   @override
   String get preferences_longPressPreview => '長按預覽';

@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../models/topic.dart';
 import '../../models/category.dart';
 import '../../providers/discourse_providers.dart';
+import '../../providers/preferences_provider.dart';
 import '../../utils/font_awesome_helper.dart';
 import '../../utils/platform_utils.dart';
 import '../../utils/url_helper.dart';
@@ -39,8 +40,14 @@ class TopicCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isUnread = topic.unseen || topic.unread > 0;
+    // 依赖头像策略开关，确保切换“优先静态头像”后卡片立即重建。
+    ref.watch(preferencesProvider.select((p) => p.preferStaticAvatars));
+    final hideTopicListAvatars = ref.watch(
+      preferencesProvider.select((p) => p.hideTopicListAvatars),
+    );
     // 全部读完：进入过话题且没有未读帖子
-    final isFullyRead = !topic.unseen && topic.unread == 0 && topic.lastReadPostNumber != null;
+    final isFullyRead =
+        !topic.unseen && topic.unread == 0 && topic.lastReadPostNumber != null;
 
     // 获取分类信息
     final categoryMap = ref.watch(categoryMapProvider).value;
@@ -55,7 +62,9 @@ class TopicCard extends ConsumerWidget {
     IconData? faIcon = FontAwesomeHelper.getIcon(category?.icon);
     String? logoUrl = category?.uploadedLogo;
 
-    if (faIcon == null && (logoUrl == null || logoUrl.isEmpty) && category?.parentCategoryId != null) {
+    if (faIcon == null &&
+        (logoUrl == null || logoUrl.isEmpty) &&
+        category?.parentCategoryId != null) {
       final parent = categoryMap?[category!.parentCategoryId];
       faIcon = FontAwesomeHelper.getIcon(parent?.icon);
       logoUrl = parent?.uploadedLogo;
@@ -70,7 +79,9 @@ class TopicCard extends ConsumerWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: isSelected
-            ? BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.5))
+            ? BorderSide(
+                color: theme.colorScheme.primary.withValues(alpha: 0.5),
+              )
             : BorderSide.none,
       ),
       child: InkWell(
@@ -81,7 +92,10 @@ class TopicCard extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // 顶部附属区域（如书签元信息色带）
-            if (topWidget != null) topWidget!,
+            ...switch (topWidget) {
+              final topWidget? => [topWidget],
+              null => const <Widget>[],
+            },
             Opacity(
               opacity: isFullyRead ? 0.5 : 1.0,
               child: Padding(
@@ -89,12 +103,14 @@ class TopicCard extends ConsumerWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 左侧：楼主头像
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: _buildOriginalPosterAvatar(context),
-                    ),
-                    const SizedBox(width: 10),
+                    if (!hideTopicListAvatars) ...[
+                      // 左侧：楼主头像
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: _buildOriginalPosterAvatar(context),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
                     // 右侧：两行内容
                     Expanded(
                       child: Column(
@@ -107,33 +123,44 @@ class TopicCard extends ConsumerWidget {
                               Expanded(
                                 child: Text.rich(
                                   TextSpan(
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                      height: 1.3,
-                                      color: isUnread
-                                          ? theme.colorScheme.onSurface
-                                          : theme.colorScheme.onSurfaceVariant,
-                                    ),
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                          height: 1.3,
+                                          color: isUnread
+                                              ? theme.colorScheme.onSurface
+                                              : theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                        ),
                                     children: [
                                       if (topic.closed)
                                         WidgetSpan(
-                                          alignment: PlaceholderAlignment.middle,
+                                          alignment:
+                                              PlaceholderAlignment.middle,
                                           child: Padding(
-                                            padding: const EdgeInsets.only(right: 4),
+                                            padding: const EdgeInsets.only(
+                                              right: 4,
+                                            ),
                                             child: Icon(
                                               Icons.lock_outline,
                                               size: 16,
                                               color: isUnread
                                                   ? theme.colorScheme.onSurface
-                                                  : theme.colorScheme.onSurfaceVariant,
+                                                  : theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
                                             ),
                                           ),
                                         ),
                                       if (topic.hasAcceptedAnswer)
                                         WidgetSpan(
-                                          alignment: PlaceholderAlignment.middle,
+                                          alignment:
+                                              PlaceholderAlignment.middle,
                                           child: Padding(
-                                            padding: const EdgeInsets.only(right: 4),
+                                            padding: const EdgeInsets.only(
+                                              right: 4,
+                                            ),
                                             child: Icon(
                                               Icons.check_box,
                                               size: 16,
@@ -143,9 +170,12 @@ class TopicCard extends ConsumerWidget {
                                         )
                                       else if (topic.canHaveAnswer)
                                         WidgetSpan(
-                                          alignment: PlaceholderAlignment.middle,
+                                          alignment:
+                                              PlaceholderAlignment.middle,
                                           child: Padding(
-                                            padding: const EdgeInsets.only(right: 4),
+                                            padding: const EdgeInsets.only(
+                                              right: 4,
+                                            ),
                                             child: Icon(
                                               Icons.check_box_outline_blank,
                                               size: 16,
@@ -153,19 +183,28 @@ class TopicCard extends ConsumerWidget {
                                             ),
                                           ),
                                         ),
-                                      ...EmojiText.buildEmojiSpans(context, topic.title, theme.textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                        height: 1.3,
-                                        color: isUnread
-                                            ? theme.colorScheme.onSurface
-                                            : theme.colorScheme.onSurfaceVariant,
-                                      )),
+                                      ...EmojiText.buildEmojiSpans(
+                                        context,
+                                        topic.title,
+                                        theme.textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                          height: 1.3,
+                                          color: isUnread
+                                              ? theme.colorScheme.onSurface
+                                              : theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                        ),
+                                      ),
                                       // 未读蓝点追加在标题末尾
                                       if (topic.unseen)
                                         WidgetSpan(
-                                          alignment: PlaceholderAlignment.middle,
+                                          alignment:
+                                              PlaceholderAlignment.middle,
                                           child: Container(
-                                            margin: const EdgeInsets.only(left: 6),
+                                            margin: const EdgeInsets.only(
+                                              left: 6,
+                                            ),
                                             width: 8,
                                             height: 8,
                                             decoration: BoxDecoration(
@@ -218,20 +257,29 @@ class TopicCard extends ConsumerWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   if (topic.likeCount > 0) ...[
-                                    _buildStat(context, Icons.favorite_border_rounded, topic.likeCount),
+                                    _buildStat(
+                                      context,
+                                      Icons.favorite_border_rounded,
+                                      topic.likeCount,
+                                    ),
                                     const SizedBox(width: 6),
                                     Text(
                                       '·',
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-                                      ),
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant
+                                                .withValues(alpha: 0.5),
+                                          ),
                                     ),
                                     const SizedBox(width: 6),
                                   ],
                                   RelativeTimeText(
                                     dateTime: topic.lastPostedAt,
                                     style: theme.textTheme.labelSmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                                      color: theme.colorScheme.onSurfaceVariant
+                                          .withValues(alpha: 0.7),
                                     ),
                                   ),
                                 ],
@@ -246,10 +294,15 @@ class TopicCard extends ConsumerWidget {
               ),
             ),
             // 底部附属区域
-            if (bottomWidget != null)
+            if (bottomWidget case final bottomWidget?)
               Padding(
-                padding: const EdgeInsets.fromLTRB(56, 2, 14, 8),
-                child: bottomWidget!,
+                padding: EdgeInsets.fromLTRB(
+                  hideTopicListAvatars ? 12 : 56,
+                  2,
+                  14,
+                  8,
+                ),
+                child: bottomWidget,
               ),
           ],
         ),
@@ -339,7 +392,13 @@ class TopicCard extends ConsumerWidget {
     return null; // 默认颜色
   }
 
-  Widget _buildStat(BuildContext context, IconData icon, int count, {Color? color, bool bold = false}) {
+  Widget _buildStat(
+    BuildContext context,
+    IconData icon,
+    int count, {
+    Color? color,
+    bool bold = false,
+  }) {
     final theme = Theme.of(context);
     final effectiveColor = color ?? theme.colorScheme.onSurfaceVariant;
     return Row(
@@ -390,7 +449,9 @@ class CompactTopicCard extends ConsumerWidget {
     IconData? faIcon = FontAwesomeHelper.getIcon(category?.icon);
     String? logoUrl = category?.uploadedLogo;
 
-    if (faIcon == null && (logoUrl == null || logoUrl.isEmpty) && category?.parentCategoryId != null) {
+    if (faIcon == null &&
+        (logoUrl == null || logoUrl.isEmpty) &&
+        category?.parentCategoryId != null) {
       final parent = categoryMap?[category!.parentCategoryId];
       faIcon = FontAwesomeHelper.getIcon(parent?.icon);
       logoUrl = parent?.uploadedLogo;
@@ -401,11 +462,14 @@ class CompactTopicCard extends ConsumerWidget {
       clipBehavior: Clip.antiAlias,
       color: isSelected
           ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
-          : highlightColor ?? theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
+          : highlightColor ??
+                theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: isSelected
-            ? BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.5))
+            ? BorderSide(
+                color: theme.colorScheme.primary.withValues(alpha: 0.5),
+              )
             : BorderSide.none,
       ),
       child: InkWell(
@@ -427,11 +491,7 @@ class CompactTopicCard extends ConsumerWidget {
               // 2. 分类图标/Dot
               if (category != null) ...[
                 if (faIcon != null)
-                  FaIcon(
-                    faIcon,
-                    size: 12,
-                    color: _parseColor(category.color),
-                  )
+                  FaIcon(faIcon, size: 12, color: _parseColor(category.color))
                 else if (logoUrl != null && logoUrl.isNotEmpty)
                   Image(
                     image: discourseImageProvider(
@@ -455,7 +515,9 @@ class CompactTopicCard extends ConsumerWidget {
                   TextSpan(
                     style: theme.textTheme.labelMedium?.copyWith(
                       fontWeight: isUnread ? FontWeight.w600 : FontWeight.w400,
-                      color: isUnread ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant,
+                      color: isUnread
+                          ? theme.colorScheme.onSurface
+                          : theme.colorScheme.onSurfaceVariant,
                     ),
                     children: [
                       if (topic.closed)
@@ -466,7 +528,9 @@ class CompactTopicCard extends ConsumerWidget {
                             child: Icon(
                               Icons.lock_outline,
                               size: 12,
-                              color: isUnread ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant,
+                              color: isUnread
+                                  ? theme.colorScheme.onSurface
+                                  : theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -494,10 +558,18 @@ class CompactTopicCard extends ConsumerWidget {
                             ),
                           ),
                         ),
-                      ...EmojiText.buildEmojiSpans(context, topic.title, theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: isUnread ? FontWeight.w600 : FontWeight.w400,
-                        color: isUnread ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant,
-                      )),
+                      ...EmojiText.buildEmojiSpans(
+                        context,
+                        topic.title,
+                        theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: isUnread
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: isUnread
+                              ? theme.colorScheme.onSurface
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ),
                   maxLines: 1,
@@ -510,9 +582,14 @@ class CompactTopicCard extends ConsumerWidget {
               // 4. 未读数或简单状态
               if (topic.unread > 0)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withValues(alpha: 0.7),
+                    color: theme.colorScheme.primaryContainer.withValues(
+                      alpha: 0.7,
+                    ),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -525,19 +602,23 @@ class CompactTopicCard extends ConsumerWidget {
                   ),
                 )
               else if (topic.postsCount > 1)
-                 Row(
-                   children: [
-                     Icon(Icons.chat_bubble_outline_rounded, size: 12, color: theme.colorScheme.outline.withValues(alpha: 0.7)),
-                     const SizedBox(width: 2),
-                     Text(
-                        '${topic.postsCount - 1}',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.outline.withValues(alpha: 0.7),
-                          fontSize: 10,
-                        ),
-                     ),
-                   ],
-                 ),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      size: 12,
+                      color: theme.colorScheme.outline.withValues(alpha: 0.7),
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      '${topic.postsCount - 1}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.outline.withValues(alpha: 0.7),
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),

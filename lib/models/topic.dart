@@ -2,7 +2,7 @@
 import 'package:flutter/foundation.dart' show listEquals;
 import '../l10n/s.dart';
 import '../utils/time_utils.dart';
-import '../utils/url_helper.dart';
+import 'avatar_url_policy.dart';
 import 'user.dart';
 
 /// 标签模型
@@ -147,11 +147,13 @@ class TopicUser {
   final int id;
   final String username;
   final String avatarTemplate;
+  final String? animatedAvatar;
 
   TopicUser({
     required this.id,
     required this.username,
     required this.avatarTemplate,
+    this.animatedAvatar,
   });
 
   factory TopicUser.fromJson(Map<String, dynamic> json) {
@@ -159,12 +161,16 @@ class TopicUser {
       id: json['id'] as int,
       username: json['username'] as String? ?? '',
       avatarTemplate: json['avatar_template'] as String? ?? '',
+      animatedAvatar: json['animated_avatar'] as String?,
     );
   }
 
   String getAvatarUrl({int size = 40}) {
-    final template = avatarTemplate.replaceAll('{size}', '$size');
-    return UrlHelper.resolveUrlWithCdn(template);
+    return AvatarUrlPolicy.resolve(
+      avatarTemplate: avatarTemplate,
+      animatedAvatar: animatedAvatar,
+      size: size,
+    );
   }
 }
 
@@ -484,8 +490,7 @@ class ReactionUser {
   }
 
   String getAvatarUrl({int size = 96}) {
-    final template = avatarTemplate.replaceAll('{size}', '$size');
-    return UrlHelper.resolveUrlWithCdn(template);
+    return AvatarUrlPolicy.resolveTemplate(avatarTemplate, size: size);
   }
 }
 
@@ -823,11 +828,11 @@ class Post {
 
   /// 获取头像 URL，优先使用动画头像（GIF）
   String getAvatarUrl({int size = 120}) {
-    if (animatedAvatar != null && animatedAvatar!.isNotEmpty) {
-      return UrlHelper.resolveUrlWithCdn(animatedAvatar!);
-    }
-    final template = avatarTemplate.replaceAll('{size}', '$size');
-    return UrlHelper.resolveUrlWithCdn(template);
+    return AvatarUrlPolicy.resolve(
+      avatarTemplate: avatarTemplate,
+      animatedAvatar: animatedAvatar,
+      size: size,
+    );
   }
 
   /// 帖子是否已被删除
@@ -1047,8 +1052,7 @@ class PolicyUser {
   }
 
   String getAvatarUrl({int size = 40}) {
-    final template = avatarTemplate.replaceAll('{size}', '$size');
-    return UrlHelper.resolveUrlWithCdn(template);
+    return AvatarUrlPolicy.resolveTemplate(avatarTemplate, size: size);
   }
 
   @override
@@ -1146,8 +1150,7 @@ class BoostUser {
 
   /// 获取头像 URL
   String getAvatarUrl({int size = 48}) {
-    final template = avatarTemplate.replaceAll('{size}', '$size');
-    return UrlHelper.resolveUrlWithCdn(template);
+    return AvatarUrlPolicy.resolveTemplate(avatarTemplate, size: size);
   }
 }
 
