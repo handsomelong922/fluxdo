@@ -42,6 +42,7 @@ import '../providers/shortcut_provider.dart';
 import '../widgets/desktop_refresh_indicator.dart';
 import '../services/toast_service.dart';
 import '../services/navigation/app_route_observer.dart';
+import '../services/navigation/pop_passthrough_material_page_route.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/platform_utils.dart';
 
@@ -335,7 +336,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
               if (id != null) {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
+                  PopPassthroughMaterialPageRoute(
                     builder: (_) => TopicDetailPage(
                       topicId: id,
                       autoSwitchToMasterDetail: true,
@@ -1293,7 +1294,7 @@ class _TopicListState extends ConsumerState<_TopicList>
     final topic = topics[_keyboardFocusIndex];
     // 强制用 Navigator push 打开（而非 Master-Detail 内选中）
     Navigator.of(context).push(
-      MaterialPageRoute(
+      PopPassthroughMaterialPageRoute(
         builder: (_) => TopicDetailPage(
           topicId: topic.id,
           initialTitle: topic.title,
@@ -1318,7 +1319,7 @@ class _TopicListState extends ConsumerState<_TopicList>
     }
 
     Navigator.of(context).push(
-      MaterialPageRoute(
+      PopPassthroughMaterialPageRoute(
         builder: (_) => TopicDetailPage(
           topicId: topic.id,
           initialTitle: topic.title,
