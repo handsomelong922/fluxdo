@@ -1,3 +1,8 @@
+## v0.3.9
+
+- fix: stabilize reading scroll and avatar performance
+
+
 ## v0.3.8
 
 - feat: sync safe upstream reading enhancements
