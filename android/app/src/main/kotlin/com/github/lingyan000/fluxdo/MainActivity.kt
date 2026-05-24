@@ -116,14 +116,35 @@ class MainActivity : FlutterActivity() {
                     val url = call.argument<String>("url")
                     val rawSetCookie = call.argument<String>("rawSetCookie")
                     if (url != null && rawSetCookie != null) {
+                        var didReply = false
+                        fun replyOnce(success: Boolean) {
+                            if (didReply) {
+                                Log.w("RawCookie", "setRawCookie result already replied")
+                                return
+                            }
+                            didReply = true
+                            try {
+                                result.success(success)
+                            } catch (e: Exception) {
+                                Log.e("RawCookie", "reply failed: ${e.message}", e)
+                            }
+                        }
+
                         try {
                             val cookieManager = WebCookieManager.getInstance()
-                            cookieManager.setCookie(url, rawSetCookie)
-                            cookieManager.flush()
-                            result.success(true)
+                            cookieManager.setCookie(url, rawSetCookie) { success ->
+                                try {
+                                    cookieManager.flush()
+                                } catch (e: Exception) {
+                                    Log.e("RawCookie", "flush failed: ${e.message}", e)
+                                    replyOnce(false)
+                                    return@setCookie
+                                }
+                                replyOnce(success)
+                            }
                         } catch (e: Exception) {
                             Log.e("RawCookie", "setCookie failed: ${e.message}", e)
-                            result.success(false)
+                            replyOnce(false)
                         }
                     } else {
                         result.error("INVALID_ARGS", "url and rawSetCookie required", null)

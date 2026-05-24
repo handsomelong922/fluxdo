@@ -49,6 +49,7 @@ class AppDelegate: FlutterAppDelegate {
           result(false)
           return
         }
+        HTTPCookieStorage.shared.setCookie(cookie)
         let store = WKWebsiteDataStore.default().httpCookieStore
         store.setCookie(cookie) {
           result(true)
