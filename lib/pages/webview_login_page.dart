@@ -176,32 +176,6 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
               ],
             ),
           ),
-          if (!_isInitialEmailLoginFlow)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              color: Theme.of(context).colorScheme.secondaryContainer,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.open_in_browser_outlined,
-                    size: 18,
-                    color: Theme.of(context).colorScheme.onSecondaryContainer,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _thirdPartyLoginHintText(context),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSecondaryContainer,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           Expanded(
             child: Stack(
               children: [
@@ -863,10 +837,6 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       ),
     );
     return result == true;
-  }
-
-  String _thirdPartyLoginHintText(BuildContext context) {
-    return context.l10n.webviewLogin_thirdPartyLoginHint;
   }
 
   String _thirdPartyLoginDialogText(BuildContext context) {

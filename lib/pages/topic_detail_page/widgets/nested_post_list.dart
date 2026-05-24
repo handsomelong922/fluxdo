@@ -19,6 +19,7 @@ class NestedPostList extends ConsumerStatefulWidget {
   final int topicId;
   final AutoScrollController scrollController;
   final GlobalKey headerKey;
+  final double topContentInset;
   final bool isLoggedIn;
   final void Function(Post? replyToPost) onReply;
   final void Function(Post post) onEdit;
@@ -44,6 +45,7 @@ class NestedPostList extends ConsumerStatefulWidget {
     required this.topicId,
     required this.scrollController,
     required this.headerKey,
+    this.topContentInset = 0,
     required this.isLoggedIn,
     required this.onReply,
     required this.onEdit,
@@ -214,6 +216,10 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
         child: CustomScrollView(
           controller: widget.scrollController,
           slivers: [
+            if (widget.topContentInset > 0)
+              SliverToBoxAdapter(
+                child: SizedBox(height: widget.topContentInset),
+              ),
             SliverToBoxAdapter(
               child: SelectionContainer.disabled(
                 child: TopicDetailHeader(

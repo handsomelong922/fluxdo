@@ -30,6 +30,7 @@ class TopicPostList extends StatefulWidget {
   final AutoScrollController scrollController;
   final GlobalKey centerKey;
   final GlobalKey headerKey;
+  final double topContentInset;
   final int? highlightPostNumber;
   final List<TypingUser> typingUsers;
   final bool isLoggedIn;
@@ -84,6 +85,7 @@ class TopicPostList extends StatefulWidget {
     required this.scrollController,
     required this.centerKey,
     required this.headerKey,
+    this.topContentInset = 0,
     required this.highlightPostNumber,
     this.highlightBoostUsername,
     required this.typingUsers,
@@ -523,6 +525,12 @@ class _TopicPostListState extends State<TopicPostList> {
                 ),
 
               // 话题 Header（centerPostIndex > 0 时放在 before-center 区域）
+              if (hasFirstPost &&
+                  centerPostIndex > 0 &&
+                  widget.topContentInset > 0)
+                SliverToBoxAdapter(
+                  child: SizedBox(height: widget.topContentInset),
+                ),
               if (hasFirstPost && centerPostIndex > 0)
                 SliverToBoxAdapter(
                   child: _wrapContent(
@@ -563,6 +571,10 @@ class _TopicPostListState extends State<TopicPostList> {
                 SliverMainAxisGroup(
                   key: centerKey,
                   slivers: [
+                    if (widget.topContentInset > 0)
+                      SliverToBoxAdapter(
+                        child: SizedBox(height: widget.topContentInset),
+                      ),
                     SliverToBoxAdapter(
                       child: _wrapContent(
                         context,
