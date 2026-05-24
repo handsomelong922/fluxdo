@@ -1,3 +1,14 @@
+## v0.3.8
+
+- feat: sync safe upstream reading enhancements
+
+- fix: polish reading interactions and login persistence
+
+- feat: add p1 assistant context diagnostics
+
+
+- fix: improve reading continuity guardrails
+
 ## v0.3.7
 
 - fix: improve topic reading interactions and ai summary persistence
