@@ -1046,7 +1046,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           detail,
           notifier,
           isLoggedIn,
-          contentTopInset: contentTopInset,
+          topContentInset: contentTopInset,
         );
         if (isSearchMode) {
           return Scaffold(
@@ -1196,7 +1196,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     TopicDetail? detail,
     TopicDetailNotifier notifier,
     bool isLoggedIn, {
-    double contentTopInset = 0,
+    double topContentInset = 0,
   }) {
     final params = _params;
     final searchState = ref.watch(topicSearchProvider(widget.topicId));
@@ -1249,20 +1249,20 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       );
     } else if (detail != null) {
       // 正常内容构建 (保持原有逻辑，但简化提取)
-      content = _buildPostListContent(context, detail, notifier, isLoggedIn);
+      content = _buildPostListContent(
+        context,
+        detail,
+        notifier,
+        isLoggedIn,
+        topContentInset: topContentInset,
+      );
     }
 
     // Stack 组装
     return Stack(
       children: [
         // 使用 Offstage 保持帖子列表存在但在搜索模式下隐藏，保留滚动位置
-        Offstage(
-          offstage: isSearchMode,
-          child: Padding(
-            padding: EdgeInsets.only(top: contentTopInset),
-            child: content,
-          ),
-        ),
+        Offstage(offstage: isSearchMode, child: content),
 
         // 搜索视图
         if (isSearchMode)
@@ -1388,8 +1388,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     BuildContext context,
     TopicDetail detail,
     TopicDetailNotifier notifier,
-    bool isLoggedIn,
-  ) {
+    bool isLoggedIn, {
+    double topContentInset = 0,
+  }) {
     final posts = detail.postStream.posts;
     final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
     final sessionState = ref.watch(topicSessionProvider(widget.topicId));
@@ -1452,6 +1453,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           topicId: widget.topicId,
           scrollController: _controller.scrollController,
           headerKey: _headerKey,
+          topContentInset: topContentInset,
           isLoggedIn: isLoggedIn,
           onReply: _handleReply,
           onEdit: _handleEdit,
@@ -1513,6 +1515,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               scrollController: _controller.scrollController,
               centerKey: _centerKey,
               headerKey: _headerKey,
+              topContentInset: topContentInset,
               highlightPostNumber: highlightPostNumber,
               highlightBoostUsername: widget.highlightBoostUsername,
               typingUsers: typingUsers,

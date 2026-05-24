@@ -41,6 +41,7 @@ import '../models/shortcut_binding.dart';
 import '../providers/shortcut_provider.dart';
 import '../widgets/desktop_refresh_indicator.dart';
 import '../services/toast_service.dart';
+import '../services/navigation/app_route_observer.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/platform_utils.dart';
 
@@ -120,7 +121,7 @@ class TopicsPage extends ConsumerStatefulWidget {
 }
 
 class _TopicsPageState extends ConsumerState<TopicsPage>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, RouteAware {
   late TabController _tabController;
   int _tabLength = 1; // 初始只有"全部"
   int _currentTabIndex = 0;
@@ -131,6 +132,8 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   AnimationController? _snapAnim;
   bool _isSnapping = false;
   bool _invalidateScheduled = false;
+  bool _isRouteVisible = true;
+  ModalRoute<dynamic>? _route;
   Timer? _pointerScrollIdleTimer;
   bool _pointerScrolling = false;
 
@@ -141,6 +144,20 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
     _tabLength = 1 + _visiblePinnedIds.length;
     _tabController = TabController(length: _tabLength, vsync: this);
     _tabController.addListener(_handleTabChange);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route == null || route == _route) return;
+
+    if (_route != null) {
+      appRouteObserver.unsubscribe(this);
+    }
+    _route = route;
+    appRouteObserver.subscribe(this, route);
+    _isRouteVisible = route.isCurrent;
   }
 
   void _registerTabShortcuts() {
@@ -166,12 +183,47 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
 
   @override
   void dispose() {
+    if (_route != null) {
+      appRouteObserver.unsubscribe(this);
+    }
     _snapAnim?.dispose();
     _pointerScrollIdleTimer?.cancel();
     _outerScrollController.dispose();
     _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didPush() {
+    _resumeHomeScrollAfterRouteChange();
+  }
+
+  @override
+  void didPopNext() {
+    _resumeHomeScrollAfterRouteChange();
+  }
+
+  @override
+  void didPushNext() {
+    _isRouteVisible = false;
+    _cancelSnap(cancelPointerScrollSession: true);
+  }
+
+  @override
+  void didPop() {
+    _isRouteVisible = false;
+    _cancelSnap(cancelPointerScrollSession: true);
+  }
+
+  void _resumeHomeScrollAfterRouteChange() {
+    _isRouteVisible = true;
+    _cancelSnap(cancelPointerScrollSession: true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _cancelSnap(cancelPointerScrollSession: true);
+      }
+    });
   }
 
   /// 全局筛选/排序变化时：刷新当前 tab，非活跃 tab 标记 stale
@@ -509,7 +561,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
     // 监听全局筛选/排序变化：刷新当前 tab，清除非活跃 tab 数据
     // 所有全局参数统一聚合在 topicListGlobalParamsSignal 中，
     // 未来新增参数只需在信号 provider 中添加 ref.watch
-    ref.listen(topicListGlobalParamsSignal, (_, __) {
+    ref.listen(topicListGlobalParamsSignal, (_, _) {
       _invalidateTopicTabs(pinnedIds);
     });
 
@@ -670,10 +722,11 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   }
 
   bool _handleOuterScrollNotification(ScrollNotification notification) {
+    if (!_isRouteVisible) return false;
+
     // 追踪内层列表滚动，发布"距顶进度"到 NavActionBus 的 progress provider，
     // 底栏根据进度做动态图标切换（见 _ActiveDestinationIcon）。
-    if (notification.depth > 0 &&
-        notification.metrics.axis == Axis.vertical) {
+    if (notification.depth > 0 && notification.metrics.axis == Axis.vertical) {
       _publishHomeScrollProgress(notification.metrics.pixels);
     }
 
@@ -729,6 +782,8 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   }
 
   void _onPointerScroll(PointerScrollEvent event) {
+    if (!_isRouteVisible) return;
+
     _cancelSnap();
     _pointerScrolling = true;
     _pointerScrollIdleTimer?.cancel();
@@ -755,6 +810,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   }
 
   void _snapOuterScrollTo(double target) {
+    if (!_isRouteVisible) return;
     if (!_outerScrollController.hasClients) return;
     if (_outerScrollController.positions.length != 1) return;
 
@@ -789,7 +845,8 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
     final current = ref.read(navScrollProgressProvider(NavEntryIds.home));
     // 节流：变化 >= 4 像素 才更新；或跨越"回顶"阈值 / 过 0 时立即同步
     final atZero = progress == 0 && current != 0;
-    final crossed = (progress >= navScrollIconThreshold) !=
+    final crossed =
+        (progress >= navScrollIconThreshold) !=
         (current >= navScrollIconThreshold);
     if (!atZero && !crossed && (progress - current).abs() < 4.0) return;
     ref.read(navScrollProgressProvider(NavEntryIds.home).notifier).state =
@@ -797,6 +854,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   }
 
   void _snapOuterScroll() {
+    if (!_isRouteVisible) return;
     if (!_outerScrollController.hasClients) return;
     if (_outerScrollController.positions.length != 1) return;
     final offset = _outerScrollController.offset;
@@ -816,6 +874,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   }
 
   void _snapOuterScrollAfterPointerScroll() {
+    if (!_isRouteVisible) return;
     if (!_outerScrollController.hasClients) return;
     if (_outerScrollController.positions.length != 1) return;
     final offset = _outerScrollController.offset;
@@ -1286,7 +1345,7 @@ class _TopicListState extends ConsumerState<_TopicList>
       _cachedTopicsAsync = topicsAsync;
 
       // 以下 listener 仅当前 tab 需要
-      ref.listen(fabRefreshSignalProvider, (_, __) {
+      ref.listen(fabRefreshSignalProvider, (_, _) {
         _refreshIndicatorKey.currentState?.show();
       });
       ref.listen(tabTagsProvider(widget.categoryId), (prev, next) {
@@ -1295,7 +1354,7 @@ class _TopicListState extends ConsumerState<_TopicList>
           _clearIncomingState();
         }
       });
-      ref.listen(topicListGlobalParamsSignal, (_, __) {
+      ref.listen(topicListGlobalParamsSignal, (_, _) {
         _clearIncomingState();
       });
     } else {

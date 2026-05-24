@@ -63,6 +63,7 @@ class AdaptiveScaffold extends ConsumerWidget {
     return Stack(
       children: [
         Scaffold(
+          extendBody: !showRail,
           backgroundColor: useAcrylicRail ? Colors.transparent : null,
           body: Row(
             children: [
