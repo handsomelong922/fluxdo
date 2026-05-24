@@ -923,6 +923,10 @@ class _MainPageState extends ConsumerState<MainPage>
         ),
     ];
 
+    final hasNotificationEntry = entries.any(
+      (e) => e.id == NavEntryIds.notifications,
+    );
+
     // 首页的 FAB 由 TopicsScreen 内部处理，避免切换时闪烁
     Widget page = PopScope(
       canPop: false,
@@ -945,7 +949,9 @@ class _MainPageState extends ConsumerState<MainPage>
         selectedIndex: selectedBottomIndex,
         onDestinationSelected: _onDestinationSelected,
         destinations: destinations,
-        railBottomLeading: user != null ? const NotificationIconButton() : null,
+        railBottomLeading: (user != null && !hasNotificationEntry)
+            ? const NotificationIconButton()
+            : null,
         body: IndexedStack(
           index: safePageIndex,
           children: [
