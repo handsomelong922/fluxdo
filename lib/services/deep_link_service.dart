@@ -48,6 +48,14 @@ class DeepLinkService {
     _navigatorContext = context;
   }
 
+  /// 处理外部或应用内链接，入口内会先校验可处理的 scheme 和 host
+  void handleUri(Uri uri) {
+    _handleLink(uri);
+  }
+
+  @visibleForTesting
+  bool canHandleUri(Uri uri) => _canHandleUri(uri);
+
   /// 处理初始链接（冷启动）
   Future<void> _handleInitialLink() async {
     try {
@@ -69,6 +77,14 @@ class DeepLinkService {
       return;
     }
 
+    final context = _navigatorContext!;
+    final url = uri.toString();
+
+    if (!_canHandleUri(uri)) {
+      debugPrint('DeepLinkService: 未知链接类型 $url');
+      return;
+    }
+
     // 防重复：1秒内相同链接不重复处理
     final now = DateTime.now();
     if (_lastHandledUri == uri &&
@@ -80,10 +96,13 @@ class DeepLinkService {
     _lastHandledUri = uri;
     _lastHandledTime = now;
 
-    final context = _navigatorContext!;
-    final url = uri.toString();
-
     debugPrint('DeepLinkService: 收到链接 $url');
+
+    // 自定义 scheme (fluxdo://...)
+    if (uri.scheme.toLowerCase() == 'fluxdo') {
+      _handleCustomScheme(context, uri);
+      return;
+    }
 
     // 尝试匹配用户链接 /u/username
     final userInfo = DiscourseUrlParser.parseUser(uri.path);
@@ -118,20 +137,15 @@ class DeepLinkService {
     }
 
     // 邮箱链接登录：/session/email-login/{token}
-    if (uri.host == 'linux.do' && uri.path.startsWith('/session/email-login/')) {
+    if (uri.host.toLowerCase() == 'linux.do' &&
+        uri.path.startsWith('/session/email-login/')) {
       _handleEmailLogin(context, url);
       return;
     }
 
     // 其他 linux.do 链接：使用内置浏览器
-    if (uri.host == 'linux.do' || uri.host.endsWith('.linux.do')) {
+    if (_isLinuxDoHost(uri.host)) {
       WebViewPage.open(context, url);
-      return;
-    }
-
-    // 自定义 scheme (fluxdo://...)
-    if (uri.scheme == 'fluxdo') {
-      _handleCustomScheme(context, uri);
       return;
     }
 
@@ -144,11 +158,14 @@ class DeepLinkService {
   /// - fluxdo://topic/123/5 (指定楼层)
   /// - fluxdo://user/username
   void _handleCustomScheme(BuildContext context, Uri uri) {
-    final pathSegments = uri.pathSegments;
+    final pathSegments = [
+      if (uri.host.isNotEmpty) uri.host,
+      ...uri.pathSegments,
+    ];
 
     if (pathSegments.isEmpty) return;
 
-    switch (pathSegments[0]) {
+    switch (pathSegments[0].toLowerCase()) {
       case 'topic':
         if (pathSegments.length >= 2) {
           final topicId = int.tryParse(pathSegments[1]);
@@ -192,9 +209,7 @@ class DeepLinkService {
   Future<void> _handleEmailLogin(BuildContext context, String url) async {
     debugPrint('DeepLinkService: 处理邮箱链接登录: $url');
     final result = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => WebViewLoginPage(initialUrl: url),
-      ),
+      MaterialPageRoute(builder: (_) => WebViewLoginPage(initialUrl: url)),
     );
     if (result == true) {
       onEmailLoginSuccess?.call();
@@ -211,10 +226,8 @@ class DeepLinkService {
       if (context.mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => TopicDetailPage(
-              topicId: detail.id,
-              initialTitle: detail.title,
-            ),
+            builder: (_) =>
+                TopicDetailPage(topicId: detail.id, initialTitle: detail.title),
           ),
         );
       }
@@ -235,5 +248,19 @@ class DeepLinkService {
     _initialized = false;
     _lastHandledUri = null;
     _lastHandledTime = null;
+  }
+
+  static bool _canHandleUri(Uri uri) {
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme == 'fluxdo') return true;
+    if (scheme != 'http' && scheme != 'https') return false;
+    return _isLinuxDoHost(uri.host);
+  }
+
+  static bool _isLinuxDoHost(String host) {
+    final normalizedHost = host.toLowerCase();
+    return normalizedHost == 'linux.do' ||
+        normalizedHost == 'www.linux.do' ||
+        normalizedHost.endsWith('.linux.do');
   }
 }

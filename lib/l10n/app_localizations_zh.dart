@@ -4590,6 +4590,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get preferences_basic => '基础';
 
   @override
+  String get preferences_clipboardTopicLinkDetection => '自动识别剪贴板话题链接';
+
+  @override
+  String get preferences_clipboardTopicLinkDetectionDesc =>
+      '回到应用时检测剪贴板中的 Linux.do 话题链接，并在底部询问是否打开';
+
+  @override
+  String get preferences_clipboardTopicLink_detected => '检测到剪贴板中的话题链接';
+
+  @override
+  String get preferences_clipboardTopicLink_open => '打开';
+
+  @override
   String get preferences_autoSummarizeTopicOnEnter => '进入帖子自动总结';
 
   @override
@@ -10572,6 +10585,19 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get preferences_basic => '基礎';
 
   @override
+  String get preferences_clipboardTopicLinkDetection => '自動識別剪貼板話題鏈接';
+
+  @override
+  String get preferences_clipboardTopicLinkDetectionDesc =>
+      '回到應用時檢測剪貼板中的 Linux.do 話題鏈接，並在底部詢問是否打開';
+
+  @override
+  String get preferences_clipboardTopicLink_detected => '檢測到剪貼板中的話題鏈接';
+
+  @override
+  String get preferences_clipboardTopicLink_open => '打開';
+
+  @override
   String get preferences_autoSummarizeTopicOnEnter => '進入話題自動總結';
 
   @override
@@ -16428,6 +16454,19 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get preferences_basic => '基礎';
+
+  @override
+  String get preferences_clipboardTopicLinkDetection => '自動偵測剪貼簿話題連結';
+
+  @override
+  String get preferences_clipboardTopicLinkDetectionDesc =>
+      '回到應用時偵測剪貼簿中的 Linux.do 話題連結，並在底部詢問是否開啟';
+
+  @override
+  String get preferences_clipboardTopicLink_detected => '偵測到剪貼簿中的話題連結';
+
+  @override
+  String get preferences_clipboardTopicLink_open => '開啟';
 
   @override
   String get preferences_autoSummarizeTopicOnEnter => '進入話題自動總結';

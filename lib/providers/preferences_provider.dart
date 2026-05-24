@@ -29,6 +29,9 @@ class AppPreferences {
   /// 自动填充登录凭证
   final bool autoFillLogin;
 
+  /// 剪贴板话题链接识别
+  final bool clipboardTopicLinkDetection;
+
   /// 崩溃日志上报（仅 Android）
   final bool crashlytics;
 
@@ -101,6 +104,7 @@ class AppPreferences {
     required this.contentFontScale,
     required this.shareImageThemeIndex,
     required this.autoFillLogin,
+    required this.clipboardTopicLinkDetection,
     required this.crashlytics,
     required this.androidNativeCdp,
     required this.portraitLock,
@@ -133,6 +137,7 @@ class AppPreferences {
     double? contentFontScale,
     int? shareImageThemeIndex,
     bool? autoFillLogin,
+    bool? clipboardTopicLinkDetection,
     bool? crashlytics,
     bool? androidNativeCdp,
     bool? portraitLock,
@@ -165,6 +170,8 @@ class AppPreferences {
       contentFontScale: contentFontScale ?? this.contentFontScale,
       shareImageThemeIndex: shareImageThemeIndex ?? this.shareImageThemeIndex,
       autoFillLogin: autoFillLogin ?? this.autoFillLogin,
+      clipboardTopicLinkDetection:
+          clipboardTopicLinkDetection ?? this.clipboardTopicLinkDetection,
       crashlytics: crashlytics ?? this.crashlytics,
       androidNativeCdp: androidNativeCdp ?? this.androidNativeCdp,
       portraitLock: portraitLock ?? this.portraitLock,
@@ -205,6 +212,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _contentFontScaleKey = 'pref_content_font_scale';
   static const String _shareImageThemeIndexKey = 'pref_share_image_theme_index';
   static const String _autoFillLoginKey = 'pref_auto_fill_login';
+  static const String _clipboardTopicLinkDetectionKey =
+      'pref_clipboard_topic_link_detection';
   static const String _crashlyticsKey = 'pref_crashlytics';
   static const String _androidNativeCdpKey = AndroidCdpFeature.prefKey;
   static const String _portraitLockKey = 'pref_portrait_lock';
@@ -249,6 +258,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           contentFontScale: _prefs.getDouble(_contentFontScaleKey) ?? 1.0,
           shareImageThemeIndex: _prefs.getInt(_shareImageThemeIndexKey) ?? 0,
           autoFillLogin: _prefs.getBool(_autoFillLoginKey) ?? true,
+          clipboardTopicLinkDetection:
+              _prefs.getBool(_clipboardTopicLinkDetectionKey) ?? false,
           crashlytics: _prefs.getBool(_crashlyticsKey) ?? true,
           androidNativeCdp: _prefs.getBool(_androidNativeCdpKey) ?? false,
           portraitLock: _prefs.getBool(_portraitLockKey) ?? false,
@@ -331,6 +342,11 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setAutoFillLogin(bool enabled) async {
     state = state.copyWith(autoFillLogin: enabled);
     await _prefs.setBool(_autoFillLoginKey, enabled);
+  }
+
+  Future<void> setClipboardTopicLinkDetection(bool enabled) async {
+    state = state.copyWith(clipboardTopicLinkDetection: enabled);
+    await _prefs.setBool(_clipboardTopicLinkDetectionKey, enabled);
   }
 
   Future<void> setCrashlytics(bool enabled) async {

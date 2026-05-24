@@ -35,6 +35,7 @@ void main() {
       expect(notifier.state.showSignatures, isTrue);
       expect(notifier.state.preferStaticAvatars, isFalse);
       expect(notifier.state.hideTopicListAvatars, isFalse);
+      expect(notifier.state.clipboardTopicLinkDetection, isFalse);
       expect(AvatarUrlPolicy.preferStaticAvatars, isFalse);
     });
 
@@ -66,6 +67,22 @@ void main() {
 
       expect(notifier.state.defaultNestedTopicView, isTrue);
       expect(prefs.getBool('pref_default_nested_topic_view'), isTrue);
+    });
+
+    test('persists clipboard topic link detection preference', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final notifier = PreferencesNotifier(prefs);
+
+      await notifier.setClipboardTopicLinkDetection(true);
+
+      expect(notifier.state.clipboardTopicLinkDetection, isTrue);
+      expect(prefs.getBool('pref_clipboard_topic_link_detection'), isTrue);
+
+      await notifier.setClipboardTopicLinkDetection(false);
+
+      expect(notifier.state.clipboardTopicLinkDetection, isFalse);
+      expect(prefs.getBool('pref_clipboard_topic_link_detection'), isFalse);
     });
 
     test('persists user signature display preference', () async {
