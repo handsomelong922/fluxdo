@@ -215,10 +215,10 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                           widget.initialUrl ?? '${AppConstants.baseUrl}/login',
                         ),
                       ),
-                      initialSettings: WebViewSettings.visible
-                        ..useShouldOverrideUrlLoading = true,
+                      initialSettings: WebViewSettings.login,
                       initialUserScripts: WebViewSettings.ios15PolyfillScripts,
                       shouldOverrideUrlLoading: _shouldOverrideUrlLoading,
+                      onCreateWindow: _handleCreateWindow,
                       onReceivedServerTrustAuthRequest: (_, challenge) =>
                           WebViewSettings.handleServerTrustAuthRequest(
                             challenge,
@@ -392,6 +392,24 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     }
 
     return NavigationActionPolicy.ALLOW;
+  }
+
+  Future<bool?> _handleCreateWindow(
+    InAppWebViewController controller,
+    CreateWindowAction action,
+  ) async {
+    final url = action.request.url;
+    if (url == null) {
+      return false;
+    }
+
+    final scheme = url.scheme.toLowerCase();
+    if (!_allowedSchemes.contains(scheme)) {
+      return false;
+    }
+
+    await controller.loadUrl(urlRequest: URLRequest(url: url));
+    return true;
   }
 
   /// 从剪贴板粘贴邮箱登录链接

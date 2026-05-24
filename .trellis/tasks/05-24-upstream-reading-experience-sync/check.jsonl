@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared quality checklist context."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify data survives API parsing, preference storage, and UI display layers."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Verify common signature rendering is reused consistently."}
+{"file": ".trellis/tasks/05-24-upstream-reading-experience-sync/research/upstream-reading-candidates.md", "reason": "Verify implementation matches accepted upstream scope and avoids deferred risky changes."}

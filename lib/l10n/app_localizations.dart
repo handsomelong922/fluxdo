@@ -712,6 +712,18 @@ abstract class AppLocalizations {
   /// **'帖子中的相关链接区域默认展开显示'**
   String get reading_expandRelatedLinksDesc;
 
+  /// No description provided for @reading_showSignatures.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示用户签名'**
+  String get reading_showSignatures;
+
+  /// No description provided for @reading_showSignaturesDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'在帖子底部显示用户自定义签名'**
+  String get reading_showSignaturesDesc;
+
   /// No description provided for @reading_title.
   ///
   /// In zh, this message translates to:
@@ -6477,6 +6489,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'加载更多回复'**
   String get nested_loadMoreReplies;
+
+  /// No description provided for @nested_newReplies.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 条新回复'**
+  String nested_newReplies(int count);
 
   /// No description provided for @nested_repliesCount.
   ///

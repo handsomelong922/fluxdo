@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared Trellis thinking guide entry point for cross-layer and reuse checks."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Task changes model parsing, preferences, settings, and UI rendering contracts."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Signature UI should be shared instead of duplicated across normal, long-post, and nested views."}
+{"file": ".trellis/tasks/05-24-upstream-reading-experience-sync/research/upstream-reading-candidates.md", "reason": "Documents upstream candidates, accepted scope, and deferred high-risk changes."}

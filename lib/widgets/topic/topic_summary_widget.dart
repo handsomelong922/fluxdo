@@ -37,6 +37,7 @@ class TopicSummaryWidget extends ConsumerStatefulWidget {
 class _TopicSummaryWidgetState extends ConsumerState<TopicSummaryWidget> {
   AsyncValue<TopicSummary?> _summaryAsync = const AsyncValue.loading();
   List<TopicAiContextPost> _cachedPosts = const [];
+  bool _summaryPossiblyOutdated = false;
 
   @override
   void initState() {
@@ -61,11 +62,15 @@ class _TopicSummaryWidgetState extends ConsumerState<TopicSummaryWidget> {
     try {
       final cacheService = ref.read(topicAiSummaryCacheServiceProvider);
       if (!regenerate) {
-        final cached = cacheService.getSummary(widget.topicId);
-        if (cached != null && cached.summarizedText.trim().isNotEmpty) {
+        final cached = cacheService.getCachedSummary(widget.topicId);
+        final summary = cached?.summary;
+        if (summary != null && summary.summarizedText.trim().isNotEmpty) {
           if (!mounted) return;
           setState(() {
-            _summaryAsync = AsyncValue.data(cached);
+            _summaryPossiblyOutdated = cached!.isPossiblyOutdated(
+              currentPostsCount: widget.topicDetail.postsCount,
+            );
+            _summaryAsync = AsyncValue.data(summary);
           });
           return;
         }
@@ -87,10 +92,15 @@ class _TopicSummaryWidgetState extends ConsumerState<TopicSummaryWidget> {
             detail: widget.topicDetail,
             cachedPosts: posts,
           );
-      await cacheService.saveSummary(widget.topicId, summary);
+      await cacheService.saveSummary(
+        widget.topicId,
+        summary,
+        postsCount: widget.topicDetail.postsCount,
+      );
       if (!mounted) return;
       setState(() {
         _cachedPosts = posts;
+        _summaryPossiblyOutdated = false;
         _summaryAsync = AsyncValue.data(summary);
       });
     } catch (error, stackTrace) {
@@ -267,6 +277,10 @@ class _TopicSummaryWidgetState extends ConsumerState<TopicSummaryWidget> {
             ],
           ),
           const SizedBox(height: 12),
+          if (_summaryPossiblyOutdated) ...[
+            _buildPossiblyOutdatedHint(theme),
+            const SizedBox(height: 12),
+          ],
           MarkdownBody(
             data: summary.summarizedText,
             onInternalLinkTap: (linkTopicId, topicSlug, postNumber) {
@@ -320,6 +334,34 @@ class _TopicSummaryWidgetState extends ConsumerState<TopicSummaryWidget> {
                   ),
                 ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPossiblyOutdatedHint(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 16,
+            color: theme.colorScheme.onTertiaryContainer,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '此摘要可能未包含最新回复，可手动刷新更新',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onTertiaryContainer,
+              ),
+            ),
           ),
         ],
       ),

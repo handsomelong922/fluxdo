@@ -10,6 +10,7 @@ import '../../pages/topic_detail_page/topic_detail_page.dart';
 import '../../pages/user_profile_page.dart';
 import '../../utils/time_utils.dart';
 import '../content/discourse_html_content/chunked/chunked_html_content.dart';
+import '../post/post_signature.dart';
 import '../post/post_item/widgets/post_footer_section/post_footer_section.dart';
 import 'nested_collapsed_bar.dart';
 import 'nested_post_gutter.dart';
@@ -86,26 +87,93 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   late bool _expanded;
   late bool _collapsed;
   late List<NestedNode> _children;
+  ProviderSubscription<NestedChildCreatedEvent?>? _childCreatedSubscription;
   bool _isLoadingMore = false;
   bool _hasMore = false;
   int _page = 0;
   bool _depthLineHovered = false;
+  bool _autoLoadScheduled = false;
 
   @override
   void initState() {
     super.initState();
+    _resetNodeState();
+    _listenChildCreated();
+    _scheduleAutoLoadChildren();
+  }
+
+  @override
+  void didUpdateWidget(NestedPostCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.node.post.id != widget.node.post.id ||
+        oldWidget.params != widget.params) {
+      _childCreatedSubscription?.close();
+      _resetNodeState();
+      _listenChildCreated();
+      _scheduleAutoLoadChildren();
+    }
+  }
+
+  @override
+  void dispose() {
+    _childCreatedSubscription?.close();
+    super.dispose();
+  }
+
+  void _resetNodeState() {
     _children = List.from(widget.node.children);
     _hasMore = widget.node.hasMoreChildren;
+    _isLoadingMore = false;
+    _page = 0;
+    _depthLineHovered = false;
+    _autoLoadScheduled = false;
 
-    // 从状态存储恢复，否则有预加载子节点就展开
+    // 从状态存储恢复，否则有回复就默认展开。
     final cached = widget.expansionState?[widget.node.post.postNumber];
     if (cached != null) {
       _expanded = cached;
       _collapsed = !cached && _hasReplies;
     } else {
-      _expanded = _children.isNotEmpty;
+      _expanded = _hasReplies && !_atMaxDepth;
       _collapsed = false;
+      if (_expanded) {
+        widget.expansionState?[widget.node.post.postNumber] = true;
+      }
     }
+  }
+
+  void _listenChildCreated() {
+    _childCreatedSubscription = ref.listenManual<NestedChildCreatedEvent?>(
+      nestedTopicProvider(
+        widget.params,
+      ).select((state) => state.value?.lastChildCreated),
+      (previous, next) {
+        if (!mounted || next == null || next == previous) return;
+        if (next.parentPostNumber != widget.node.post.postNumber) return;
+
+        final notifier = ref.read(nestedTopicProvider(widget.params).notifier);
+        if (_containsPostId(_children, next.post.id)) {
+          notifier.clearLastChildCreated();
+          return;
+        }
+
+        setState(() {
+          _children.insert(0, NestedNode(post: next.post));
+          _expanded = true;
+          _collapsed = false;
+          widget.expansionState?[widget.node.post.postNumber] = true;
+        });
+        notifier.clearLastChildCreated();
+      },
+    );
+  }
+
+  bool _containsPostId(List<NestedNode> nodes, int postId) {
+    for (final node in nodes) {
+      if (node.post.id == postId) return true;
+      if (_containsPostId(node.children, postId)) return true;
+    }
+    return false;
   }
 
   bool get _hasReplies =>
@@ -150,7 +218,12 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       );
       if (!mounted) return;
       setState(() {
-        _children.addAll(response.children);
+        final existingIds = _children.map((node) => node.post.id).toSet();
+        _children.addAll(
+          response.children.where(
+            (node) => !existingIds.contains(node.post.id),
+          ),
+        );
         _hasMore = response.hasMore;
         _page = response.page + 1;
         _isLoadingMore = false;
@@ -159,6 +232,31 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       if (!mounted) return;
       setState(() => _isLoadingMore = false);
     }
+  }
+
+  void _scheduleAutoLoadChildren() {
+    if (!_expanded ||
+        _atMaxDepth ||
+        _children.isNotEmpty ||
+        widget.node.directReplyCount <= 0 ||
+        _isLoadingMore ||
+        _autoLoadScheduled) {
+      return;
+    }
+
+    _autoLoadScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _autoLoadScheduled = false;
+      if (!mounted ||
+          !_expanded ||
+          _atMaxDepth ||
+          _children.isNotEmpty ||
+          widget.node.directReplyCount <= 0 ||
+          _isLoadingMore) {
+        return;
+      }
+      _loadChildren();
+    });
   }
 
   @override
@@ -410,6 +508,12 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
             );
           },
         ),
+        PostSignature(
+          post: post,
+          margin: const EdgeInsets.only(top: 6),
+          contentPadding: const EdgeInsets.only(top: 6),
+          fontSize: 11,
+        ),
         // 完整操作栏（复用 PostFooterSection，隐藏回复展开按钮）
         PostFooterSection(
           post: post,
@@ -579,6 +683,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       children: [
         for (int i = 0; i < _children.length; i++)
           NestedPostCard(
+            key: ValueKey('nested-child-${_children[i].post.id}'),
             node: _children[i],
             topicId: widget.topicId,
             detail: widget.detail,

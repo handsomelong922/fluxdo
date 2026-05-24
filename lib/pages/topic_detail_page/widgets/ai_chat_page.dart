@@ -10,6 +10,7 @@ import '../../../models/topic.dart';
 import '../../../utils/dialog_utils.dart';
 import '../../../services/settings/ai_prompt_settings_service.dart'; // CUSTOM: AI Prompt Settings
 import '../../../services/topic_ai/topic_ai_context_service.dart';
+import '../../../services/topic_ai/topic_ai_context_status.dart';
 import '../../../services/topic_ai/topic_ai_model_selection.dart';
 import '../../../services/toast_service.dart';
 import '../../../widgets/share/ai_share_image_preview.dart';
@@ -48,6 +49,8 @@ class AiChatPage extends ConsumerStatefulWidget {
 class _AiChatPageState extends ConsumerState<AiChatPage> {
   // CUSTOM: Stable AI Scroll
   final ScrollController _messageScrollController = ScrollController();
+  final TopicAiContextStatusBuilder _contextStatusBuilder =
+      const TopicAiContextStatusBuilder();
 
   /// 已获取到的上下文帖子（按 postNumber 升序）
   final List<TopicAiContextPost> _contextPosts = [];
@@ -482,6 +485,15 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
     TopicAiChatState chatState,
     TopicAiChatNotifier chatNotifier,
   ) {
+    final scope = ref.watch(topicAiContextScopeProvider(widget.topicId));
+    final contextStatus = _contextStatusBuilder.build(
+      scope: scope,
+      loadedPosts: _contextPosts.length,
+      totalPosts: widget.detail?.postStream.stream.length ?? 0,
+      isLoading: _isLoadingContext,
+      hasTopicDetail: widget.detail != null,
+    );
+
     return Column(
       children: [
         // 上下文加载提示
@@ -490,6 +502,8 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
             minHeight: 2,
             color: theme.colorScheme.primary,
           ),
+
+        _buildContextStatusBar(context, theme, contextStatus),
 
         // 聊天主要内容区
         Expanded(
@@ -535,6 +549,62 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
         ),
       ],
     );
+  }
+
+  Widget _buildContextStatusBar(
+    BuildContext context,
+    ThemeData theme,
+    TopicAiContextStatus status,
+  ) {
+    final color = switch (status.semanticState) {
+      'complete' => theme.colorScheme.primary,
+      'partial' => theme.colorScheme.tertiary,
+      'loading' => theme.colorScheme.primary,
+      'unavailable' => theme.colorScheme.error,
+      _ => theme.colorScheme.onSurfaceVariant,
+    };
+    final message = _formatContextStatus(status);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.labelSmall?.copyWith(color: color),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatContextStatus(TopicAiContextStatus status) {
+    if (!status.hasTopicDetail) {
+      return '上下文：${status.scope.label} · 话题详情暂不可用';
+    }
+    if (status.isLoading) {
+      return '上下文：${status.scope.label} · 正在加载 ${status.loadedPosts}/${status.expectedPosts} 楼';
+    }
+    if (status.isComplete) {
+      return '上下文：${status.scope.label} · 已载入 ${status.loadedPosts}/${status.expectedPosts} 楼';
+    }
+    if (status.isPartial) {
+      return '上下文：${status.scope.label} · 已载入 ${status.loadedPosts}/${status.expectedPosts} 楼，发送前会继续补齐';
+    }
+    return '上下文：${status.scope.label} · 暂无可用帖子';
   }
 
   Future<void> _sendQuickPrompt(

@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify display-only contracts do not mutate AI, auth, or Cookie flows"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Check that new status helpers reuse existing source-of-truth services"}

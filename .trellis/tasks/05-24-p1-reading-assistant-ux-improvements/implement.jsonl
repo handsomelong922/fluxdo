@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "AI context visibility and Cookie diagnostics cross service/provider/UI boundaries"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse existing AI context, Cookie diagnostics, and settings patterns instead of duplicating behavior"}

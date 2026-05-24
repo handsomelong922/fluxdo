@@ -9,6 +9,7 @@ import '../../pages/network_settings_page/widgets/debug_tools_card.dart';
 import '../../pages/network_settings_page/widgets/doh_settings_card.dart';
 import '../../pages/network_settings_page/widgets/hcaptcha_accessibility_card.dart';
 import '../../pages/network_settings_page/widgets/http_proxy_card.dart';
+import '../../pages/network_settings_page/widgets/login_cookie_diagnostics_card.dart';
 import '../../pages/network_settings_page/widgets/rate_limit_card.dart';
 import '../../pages/network_settings_page/widgets/rhttp_engine_card.dart';
 import '../../pages/network_settings_page/widgets/vpn_auto_toggle_card.dart';
@@ -78,6 +79,12 @@ List<SettingsGroup> buildNetworkGroups(BuildContext context) {
           title: l10n.cf_securityVerifyTitle,
           subtitle: l10n.networkSettings_auxiliary,
           builder: (context, ref) => const CfVerifyCard(),
+        ),
+        CustomModel(
+          id: 'loginCookieDiagnostics',
+          title: '登录状态诊断',
+          subtitle: l10n.networkSettings_auxiliary,
+          builder: (context, ref) => const LoginCookieDiagnosticsCard(),
         ),
         PlatformConditionalModel(
           inner: CustomModel(

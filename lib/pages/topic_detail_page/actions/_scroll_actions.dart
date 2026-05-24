@@ -37,6 +37,15 @@ extension _ScrollActions on _TopicDetailPageState {
     _controller.updateCurrentPostNumber(postNumber);
     ref.read(detailScrollPositionProvider(widget.topicId).notifier).state =
         postNumber;
+    unawaited(
+      ref
+          .read(topicReadingStateServiceProvider)
+          .saveState(
+            topicId: widget.topicId,
+            postNumber: postNumber,
+            nestedView: _isNestedView,
+          ),
+    );
 
     final params = _params;
     final detail = ref.read(topicDetailProvider(params)).value;

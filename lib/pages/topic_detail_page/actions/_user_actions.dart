@@ -60,6 +60,8 @@ extension _UserActions on _TopicDetailPageState {
     );
 
     if (newPost != null && mounted) {
+      _updateNestedViewAfterReply(newPost);
+
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
           .addPost(newPost);
@@ -387,6 +389,8 @@ extension _UserActions on _TopicDetailPageState {
     );
 
     if (newPost != null && mounted) {
+      _updateNestedViewAfterReply(newPost);
+
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
           .addPost(newPost);
@@ -430,6 +434,8 @@ extension _UserActions on _TopicDetailPageState {
     );
 
     if (newPost != null && mounted) {
+      _updateNestedViewAfterReply(newPost);
+
       final addedToView = ref
           .read(topicDetailProvider(params).notifier)
           .addPost(newPost);
@@ -449,11 +455,48 @@ extension _UserActions on _TopicDetailPageState {
     }
   }
 
+  /// 回复成功后同步更新树形视图。
+  void _updateNestedViewAfterReply(Post newPost) {
+    if (!_isNestedView) return;
+    ref
+        .read(
+          nestedTopicProvider(
+            NestedTopicParams(topicId: widget.topicId),
+          ).notifier,
+        )
+        .addNewPost(newPost, isOwnPost: true);
+  }
+
+  /// MessageBus created 事件只给 postId，这里后台拉完整帖子再交给树形视图去重。
+  Future<void> _handleNestedCreated(int postId, int? userId) async {
+    if (!_isNestedView) return;
+
+    final nestedParams = NestedTopicParams(topicId: widget.topicId);
+    final nestedAsync = ref.read(nestedTopicProvider(nestedParams));
+    if (!nestedAsync.hasValue) return;
+
+    try {
+      final post = await DiscourseService().getPost(postId);
+      if (!mounted) return;
+
+      final currentUser = ref.read(currentUserProvider).value;
+      final isOwnPost = userId != null && userId == currentUser?.id;
+      ref
+          .read(nestedTopicProvider(nestedParams).notifier)
+          .addNewPost(post, isOwnPost: isOwnPost);
+    } catch (e) {
+      debugPrint('[TopicDetail] 树形视图加载新回复失败: $e');
+    }
+  }
+
   /// 处理帖子级别的 MessageBus 更新
   void _handlePostUpdate(TopicDetailNotifier notifier, PostUpdate update) {
     switch (update.type) {
       case TopicMessageType.created:
         notifier.onNewPostCreated(update.postId);
+        if (_isNestedView) {
+          unawaited(_handleNestedCreated(update.postId, update.userId));
+        }
         break;
       case TopicMessageType.revised:
       case TopicMessageType.rebaked:
@@ -521,6 +564,18 @@ extension _UserActions on _TopicDetailPageState {
     if (!mounted) return;
     _nestedPostNumberToScrollIndex = const {};
     setState(() => _isNestedView = enabled);
+    final postNumber = _controller.currentPostNumber;
+    if (postNumber != null && postNumber > 0) {
+      unawaited(
+        ref
+            .read(topicReadingStateServiceProvider)
+            .saveState(
+              topicId: widget.topicId,
+              postNumber: postNumber,
+              nestedView: enabled,
+            ),
+      );
+    }
   }
 
   Future<void> _continueAiSummary(TopicSummary summary) async {

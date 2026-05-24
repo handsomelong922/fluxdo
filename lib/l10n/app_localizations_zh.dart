@@ -325,6 +325,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reading_expandRelatedLinksDesc => '帖子中的相关链接区域默认展开显示';
 
   @override
+  String get reading_showSignatures => '显示用户签名';
+
+  @override
+  String get reading_showSignaturesDesc => '在帖子底部显示用户自定义签名';
+
+  @override
   String get reading_title => '阅读设置';
 
   @override
@@ -3426,6 +3432,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get nested_loadMoreReplies => '加载更多回复';
 
   @override
+  String nested_newReplies(int count) {
+    return '$count 条新回复';
+  }
+
+  @override
   String nested_repliesCount(int count) {
     return '$count 条回复';
   }
@@ -6329,6 +6340,12 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
 
   @override
   String get reading_expandRelatedLinksDesc => '帖子中的相關鏈接區域預設展開顯示';
+
+  @override
+  String get reading_showSignatures => '顯示用戶簽名';
+
+  @override
+  String get reading_showSignaturesDesc => '在帖子底部顯示用戶自訂簽名';
 
   @override
   String get reading_title => '閱讀設定';
@@ -9376,6 +9393,40 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get notifications_title => '通知';
 
   @override
+  String get nested_flatView => '切換平鋪視圖';
+
+  @override
+  String get nested_loadMore => '加載更多';
+
+  @override
+  String get nested_loadMoreReplies => '加載更多回覆';
+
+  @override
+  String nested_newReplies(int count) {
+    return '$count 條新回覆';
+  }
+
+  @override
+  String nested_repliesCount(int count) {
+    return '$count 條回覆';
+  }
+
+  @override
+  String get nested_sortNew => '最新';
+
+  @override
+  String get nested_sortOld => '最舊';
+
+  @override
+  String get nested_sortTop => '熱門';
+
+  @override
+  String get nested_title => '樹形視圖';
+
+  @override
+  String get nested_continueThread => '繼續此主題';
+
+  @override
   String get poll_closed => '已關閉';
 
   @override
@@ -12135,6 +12186,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get reading_expandRelatedLinksDesc => '帖子中的相關連結區域預設展開顯示';
+
+  @override
+  String get reading_showSignatures => '顯示使用者簽名';
+
+  @override
+  String get reading_showSignaturesDesc => '在帖子底部顯示使用者自訂簽名';
 
   @override
   String get reading_title => '閱讀設定';
@@ -15180,6 +15237,40 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get notifications_title => '通知';
+
+  @override
+  String get nested_flatView => '切換平鋪檢視';
+
+  @override
+  String get nested_loadMore => '載入更多';
+
+  @override
+  String get nested_loadMoreReplies => '載入更多回覆';
+
+  @override
+  String nested_newReplies(int count) {
+    return '$count 條新回覆';
+  }
+
+  @override
+  String nested_repliesCount(int count) {
+    return '$count 條回覆';
+  }
+
+  @override
+  String get nested_sortNew => '最新';
+
+  @override
+  String get nested_sortOld => '最舊';
+
+  @override
+  String get nested_sortTop => '熱門';
+
+  @override
+  String get nested_title => '樹形檢視';
+
+  @override
+  String get nested_continueThread => '繼續此主題';
 
   @override
   String get poll_closed => '已關閉';

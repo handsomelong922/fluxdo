@@ -21,6 +21,14 @@
   "nested_flatView": "切换平铺视图",
   "nested_loadMore": "加载更多",
   "nested_loadMoreReplies": "加载更多回复",
+  "nested_newReplies": "{count} 条新回复",
+  "@nested_newReplies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nested_repliesCount": "{count} 条回复",
   "@nested_repliesCount": {
     "placeholders": {

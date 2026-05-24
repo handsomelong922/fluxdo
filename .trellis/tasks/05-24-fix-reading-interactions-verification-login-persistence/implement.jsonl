@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared Trellis thinking guide index for modification discipline."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Task spans UI, service, storage/session, and provider boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Prefer existing animation, WebView, and preference patterns over duplicate helpers."}
