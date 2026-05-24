@@ -557,10 +557,12 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         currentUrl: currentUrl,
         webViewToken: tToken,
       );
+      final pageHtml = await _readRawPreloadedHtml(controller);
 
       await _finalizeLoginBootstrap(
         currentUrl: currentUrl,
         token: finalToken,
+        pageHtml: pageHtml,
       );
 
       if (mounted) {
@@ -628,6 +630,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   Future<void> _finalizeLoginBootstrap({
     required String? currentUrl,
     required String token,
+    String? pageHtml,
   }) async {
     const finalizeTimeout = Duration(seconds: 8);
     var loginReadyNotified = false;
@@ -646,7 +649,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
           await PreloadedDataService().refresh();
         },
         notifyLoginReady: notifyLoginReadyOnce,
-      ).finalize(token: token).timeout(finalizeTimeout);
+      ).finalize(token: token, pageHtml: pageHtml).timeout(finalizeTimeout);
 
       final jarToken = await _cookieJar.getTToken();
       final tokenMatch = jarToken == token;
@@ -667,7 +670,6 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         'reusedPreloaded': reusedPreloaded,
         'jarSessionCookies': jarSessionCookies,
       });
-
     } on TimeoutException {
       debugPrint('[Login] 登录态收尾超时（${finalizeTimeout.inSeconds}s），走兜底广播');
       LogWriter.instance.write({
@@ -686,6 +688,22 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       // 上报浏览器指纹（防止因缺少指纹触发风控）
       unawaited(FingerprintService.instance.collectAndReport());
     }
+  }
+
+  Future<String?> _readRawPreloadedHtml(
+    InAppWebViewController controller,
+  ) async {
+    try {
+      final result = await controller.evaluateJavascript(
+        source: 'window.__rawPreloaded || null',
+      );
+      if (result is String && result.isNotEmpty) {
+        return result;
+      }
+    } catch (e) {
+      debugPrint('[Login] 读取登录页预加载数据失败: $e');
+    }
+    return null;
   }
 
   Future<String?> _readCurrentUsername(
