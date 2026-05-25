@@ -1,3 +1,14 @@
+## v0.4.2
+
+- fix: reuse login page preloaded html
+
+- fix: sync raw cookies to webview stores
+
+- feat: add clipboard topic link detection
+
+- feat: selectively port safe upstream fixes
+
+
 ## v0.4.1
 
 - fix: allow home scrolling during topic pop
