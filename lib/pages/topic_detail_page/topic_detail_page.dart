@@ -1456,6 +1456,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           topContentInset: topContentInset,
           isLoggedIn: isLoggedIn,
           onReply: _handleReply,
+          onReplyWithInitialContent: (replyToPost, initialContent) =>
+              _handleReply(replyToPost, initialContent: initialContent),
           onEdit: _handleEdit,
           onRefreshPost: _handleRefreshPost,
           onJumpToPost: _scrollToPost,
@@ -1535,6 +1537,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               onScrollIndexMappingChanged: _controller.updateScrollIndexMapping,
               onJumpToPost: _scrollToPost,
               onReply: _handleReply,
+              onReplyWithInitialContent: (replyToPost, initialContent) =>
+                  _handleReply(replyToPost, initialContent: initialContent),
               onEdit: _handleEdit,
               onShareAsImage: _sharePostAsImage,
               onRefreshPost: _handleRefreshPost,

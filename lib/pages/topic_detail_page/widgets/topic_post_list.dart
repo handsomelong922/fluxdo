@@ -49,6 +49,8 @@ class TopicPostList extends StatefulWidget {
   final void Function(Map<int, int>)? onScrollIndexMappingChanged;
   final void Function(int postNumber) onJumpToPost;
   final void Function(Post? replyToPost) onReply;
+  final void Function(Post? replyToPost, String initialContent)?
+  onReplyWithInitialContent;
   final void Function(Post post) onEdit;
   final void Function(Post post)? onShareAsImage;
   final void Function(int postId) onRefreshPost;
@@ -105,6 +107,7 @@ class TopicPostList extends StatefulWidget {
     this.onScrollIndexMappingChanged,
     required this.onJumpToPost,
     required this.onReply,
+    this.onReplyWithInitialContent,
     required this.onEdit,
     this.onShareAsImage,
     required this.onRefreshPost,
@@ -711,6 +714,13 @@ class _TopicPostListState extends State<TopicPostList> {
           onReply: isLoggedIn
               ? () => onReply(post.postNumber == 1 ? null : post)
               : null,
+          onReplyWithInitialContent:
+              isLoggedIn && widget.onReplyWithInitialContent != null
+              ? (initialContent) => widget.onReplyWithInitialContent!(
+                  post.postNumber == 1 ? null : post,
+                  initialContent,
+                )
+              : null,
           onEdit: isLoggedIn && post.canEdit ? () => onEdit(post) : null,
           onShareAsImage: onShareAsImage != null
               ? () => onShareAsImage!(post)
@@ -759,6 +769,13 @@ class _TopicPostListState extends State<TopicPostList> {
           bottomDateSeparatorLabel: bottomDateSeparatorLabel,
           onReply: isLoggedIn
               ? () => onReply(post.postNumber == 1 ? null : post)
+              : null,
+          onReplyWithInitialContent:
+              isLoggedIn && widget.onReplyWithInitialContent != null
+              ? (initialContent) => widget.onReplyWithInitialContent!(
+                  post.postNumber == 1 ? null : post,
+                  initialContent,
+                )
               : null,
           onEdit: isLoggedIn && post.canEdit ? () => onEdit(post) : null,
           onShareAsImage: onShareAsImage != null

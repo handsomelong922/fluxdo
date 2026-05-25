@@ -46,6 +46,8 @@ class NestedPostCard extends ConsumerStatefulWidget {
   final bool isLastChild;
   final bool isLoggedIn;
   final void Function(Post? replyToPost) onReply;
+  final void Function(Post? replyToPost, String initialContent)?
+  onReplyWithInitialContent;
   final void Function(Post post) onEdit;
   final void Function(int postId) onRefreshPost;
   final void Function(int postNumber) onJumpToPost;
@@ -70,6 +72,7 @@ class NestedPostCard extends ConsumerStatefulWidget {
     this.isLastChild = false,
     required this.isLoggedIn,
     required this.onReply,
+    this.onReplyWithInitialContent,
     required this.onEdit,
     required this.onRefreshPost,
     required this.onJumpToPost,
@@ -522,6 +525,11 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           acceptedAnswerPostNumber: widget.detail.acceptedAnswerPostNumber,
           padding: const EdgeInsets.only(top: 4),
           onReply: widget.isLoggedIn ? () => widget.onReply(post) : null,
+          onReplyWithInitialContent:
+              widget.isLoggedIn && widget.onReplyWithInitialContent != null
+              ? (initialContent) =>
+                    widget.onReplyWithInitialContent!(post, initialContent)
+              : null,
           onEdit: widget.isLoggedIn && post.canEdit
               ? () => widget.onEdit(post)
               : null,
@@ -693,6 +701,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
             isLastChild: i == _children.length - 1 && !_hasMore,
             isLoggedIn: widget.isLoggedIn,
             onReply: widget.onReply,
+            onReplyWithInitialContent: widget.onReplyWithInitialContent,
             onEdit: widget.onEdit,
             onRefreshPost: widget.onRefreshPost,
             onJumpToPost: widget.onJumpToPost,
@@ -776,6 +785,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         maxDepth: widget.maxDepth,
         isLoggedIn: widget.isLoggedIn,
         onReply: widget.onReply,
+        onReplyWithInitialContent: widget.onReplyWithInitialContent,
         onEdit: widget.onEdit,
         onRefreshPost: widget.onRefreshPost,
         onJumpToPost: widget.onJumpToPost,

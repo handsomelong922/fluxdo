@@ -193,11 +193,12 @@ class _PostRepliesSheetContentState extends ConsumerState<_PostRepliesSheetConte
     });
   }
 
-  void _handleReply(Post post) {
+  void _handleReply(Post post, {String? initialContent}) {
     showReplySheet(
       context: context,
       topicId: widget.topicId,
       replyToPost: post,
+      initialContent: initialContent,
     );
   }
 
@@ -496,6 +497,10 @@ class _PostRepliesSheetContentState extends ConsumerState<_PostRepliesSheetConte
             acceptedAnswerPostNumber: null,
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
             onReply: _isLoggedIn ? () => _handleReply(post) : null,
+            onReplyWithInitialContent: _isLoggedIn
+                ? (initialContent) =>
+                      _handleReply(post, initialContent: initialContent)
+                : null,
             onEdit: null,
             onShareAsImage: null,
             onRefreshPost: null,

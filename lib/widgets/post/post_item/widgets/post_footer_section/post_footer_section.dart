@@ -38,6 +38,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
   final int? acceptedAnswerPostNumber;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onReply;
+  final void Function(String initialContent)? onReplyWithInitialContent;
   final VoidCallback? onEdit;
   final VoidCallback? onShareAsImage;
   final void Function(int postId)? onRefreshPost;
@@ -69,6 +70,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
     required this.acceptedAnswerPostNumber,
     required this.padding,
     required this.onReply,
+    this.onReplyWithInitialContent,
     required this.onEdit,
     required this.onShareAsImage,
     required this.onRefreshPost,
@@ -288,8 +290,22 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   }
 
   Future<void> _openBoostInput() async {
-    final raw = await showBoostInputSheet(context);
-    if (raw == null || raw.isEmpty || !mounted) return;
+    final result = await showBoostInputSheet(context);
+    if (result == null || !mounted) return;
+
+    final raw = result.raw;
+    if (raw.isEmpty) return;
+
+    if (result is BoostInputReplyResult) {
+      if (widget.onReplyWithInitialContent != null) {
+        widget.onReplyWithInitialContent!('$raw\n\n');
+      } else if (widget.onReply != null) {
+        ToastService.showInfo(S.current.boost_tooLong(16));
+        widget.onReply!();
+      }
+      return;
+    }
+
     await _createBoost(raw);
   }
 
