@@ -1,3 +1,18 @@
+## v0.4.5
+
+- fix: stabilize auto-expanded replies while scrolling
+
+- fix: keep filtered topic view after jump
+
+- feat: add AI post review assistant
+
+- fix: preserve nested view when timeline jumping
+
+- feat: add AI thinking and prompt cache support
+
+
+- feat: convert long boosts into replies
+
 ## v0.4.3
 
 - fix: stabilize topic detail navigation and filters
