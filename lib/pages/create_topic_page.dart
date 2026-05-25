@@ -13,6 +13,8 @@ import 'package:fluxdo/services/network/exceptions/api_exception.dart';
 import 'package:fluxdo/widgets/markdown_editor/markdown_renderer.dart';
 import 'package:fluxdo/services/draft_controller.dart';
 import 'package:fluxdo/services/preloaded_data_service.dart';
+import 'package:fluxdo/services/ai_post_review_service.dart';
+import 'package:fluxdo/widgets/ai/ai_post_review_button.dart';
 import 'package:fluxdo/widgets/topic/topic_editor_helpers.dart';
 import '../l10n/s.dart';
 import '../utils/dialog_utils.dart';
@@ -563,17 +565,28 @@ class _CreateTopicPageState extends ConsumerState<CreateTopicPage> {
                             ),
                           ),
 
-                          // 字符计数
+                          // AI 审核 + 字符计数
                           Padding(
-                            padding: const EdgeInsets.only(right: 20, top: 8),
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: Text(
-                                context.l10n.createTopic_charCount(_contentLength),
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
+                            padding: const EdgeInsets.fromLTRB(12, 8, 20, 0),
+                            child: Row(
+                              children: [
+                                AiPostReviewButton(
+                                  enabled: !_isSubmitting && !_isLoadingDraft,
+                                  target: AiPostReviewTarget.topic,
+                                  titleBuilder: () => _titleController.text,
+                                  contentBuilder: () => _contentController.text,
+                                  categoryNameBuilder: () => _selectedCategory?.name,
+                                  categoryDescriptionBuilder: () => _selectedCategory?.description,
+                                  tagsBuilder: () => _selectedTags,
                                 ),
-                              ),
+                                const Spacer(),
+                                Text(
+                                  context.l10n.createTopic_charCount(_contentLength),
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
 

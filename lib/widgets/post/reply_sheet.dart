@@ -13,6 +13,8 @@ import '../../services/app_error_handler.dart';
 import '../../services/network/exceptions/api_exception.dart';
 import '../../services/toast_service.dart';
 import '../../services/preloaded_data_service.dart';
+import '../../services/ai_post_review_service.dart';
+import '../ai/ai_post_review_button.dart';
 import '../common/smart_avatar.dart';
 import '../../l10n/s.dart';
 import '../../utils/dialog_utils.dart';
@@ -614,6 +616,26 @@ class _ReplySheetState extends ConsumerState<ReplySheet> {
                         height: 1,
                         color: theme.colorScheme.outlineVariant.withValues(alpha:0.5),
                       ),
+                      if (!_isEditMode && !_isPrivateMessage) ...[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 4, 16, 4),
+                          child: Row(
+                            children: [
+                              AiPostReviewButton(
+                                enabled: !_isSubmitting && !_isLoadingDraft,
+                                target: AiPostReviewTarget.reply,
+                                titleBuilder: () => null,
+                                contentBuilder: () => _contentController.text,
+                              ),
+                              const Spacer(),
+                            ],
+                          ),
+                        ),
+                        Divider(
+                          height: 1,
+                          color: theme.colorScheme.outlineVariant.withValues(alpha:0.2),
+                        ),
+                      ],
                     ],
                   ),
 
