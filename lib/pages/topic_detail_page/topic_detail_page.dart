@@ -864,7 +864,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       context: context,
       currentIndex: _controller.currentVisibleStreamIndex,
       stream: detail.postStream.stream,
-      onJumpToPostId: _scrollToPostById,
+      onJumpToStreamIndex: _scrollToStreamIndex,
       title: detail.title,
     );
   }

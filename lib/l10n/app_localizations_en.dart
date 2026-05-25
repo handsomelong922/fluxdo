@@ -5314,6 +5314,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get topic_filterNew => 'New';
 
   @override
+  String get topic_filterNewAllShort => 'All';
+
+  @override
+  String get topic_filterNewReplies => 'New · Replies';
+
+  @override
+  String get topic_filterNewRepliesShort => 'Replies';
+
+  @override
+  String get topic_filterNewTopics => 'New · Topics';
+
+  @override
+  String get topic_filterNewTopicsShort => 'Topics';
+
+  @override
   String topic_filterTooltip(String label) {
     return 'Filter: $label';
   }

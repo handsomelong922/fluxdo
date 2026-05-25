@@ -192,48 +192,30 @@ extension _ScrollActions on _TopicDetailPageState {
     _controller.triggerHighlight(postNumber);
   }
 
-  Future<void> _scrollToPostById(int postId) async {
+  Future<void> _scrollToStreamIndex(int streamIndex, int postId) async {
+    final realPostNumber = await _resolvePostNumberForJump(
+      postId,
+      fallbackPostNumber: streamIndex,
+    );
+    if (realPostNumber == null) return;
+
+    _controller.updateStreamIndex(streamIndex);
+    await _scrollToPost(realPostNumber);
+  }
+
+  Future<int?> _resolvePostNumberForJump(
+    int postId, {
+    required int fallbackPostNumber,
+  }) async {
     final params = _params;
     final detail = ref.read(topicDetailProvider(params)).value;
-    if (detail == null) return;
+    if (detail == null) return null;
 
     final posts = detail.postStream.posts;
     final postIndex = posts.indexWhere((p) => p.id == postId);
 
     if (postIndex != -1) {
-      final post = posts[postIndex];
-
-      bool forceLocalJump = false;
-      final currentVisibleIndex = _controller.currentVisibleStreamIndex;
-      final targetStreamIndex = detail.postStream.stream.indexOf(postId);
-
-      if (currentVisibleIndex != -1 && targetStreamIndex != -1) {
-        if ((targetStreamIndex - currentVisibleIndex).abs() > 15) {
-          forceLocalJump = true;
-        }
-      }
-
-      if (!forceLocalJump && _controller.isPostRendered(postIndex)) {
-        await _controller.scrollController.scrollToIndex(
-          _controller.scrollIndexForPostIndex(postIndex),
-          preferPosition: AutoScrollPosition.begin,
-          duration: const Duration(milliseconds: 1),
-        );
-      } else {
-        int? anchorPostNumber;
-        if (posts.length - 1 - postIndex < 20) {
-          final safeIndex = (posts.length - 20).clamp(0, posts.length - 1);
-          anchorPostNumber = posts[safeIndex].postNumber;
-        }
-
-        _controller.jumpToPostLocally(
-          post.postNumber,
-          anchorPostNumber: anchorPostNumber,
-        );
-        if (mounted) setState(() {});
-      }
-      _controller.triggerHighlight(post.postNumber);
-      return;
+      return posts[postIndex].postNumber;
     }
 
     debugPrint(
@@ -246,7 +228,7 @@ extension _ScrollActions on _TopicDetailPageState {
 
       if (postStream.posts.isEmpty) {
         debugPrint('[TopicDetail] Failed to fetch post $postId');
-        return;
+        return fallbackPostNumber;
       }
 
       final targetPost = postStream.posts.first;
@@ -254,24 +236,10 @@ extension _ScrollActions on _TopicDetailPageState {
       debugPrint(
         '[TopicDetail] Got real post_number: $realPostNumber for post ID $postId',
       );
-
-      _controller.prepareJumpToPost(realPostNumber);
-      _controller.skipNextJumpHighlight = false;
-
-      final notifier = ref.read(topicDetailProvider(params).notifier);
-
-      if (notifier.isSummaryMode ||
-          notifier.isAuthorOnlyMode ||
-          notifier.isTopLevelMode) {
-        await _reloadWithFilterFallback(
-          postNumber: realPostNumber,
-          postId: postId,
-        );
-      } else {
-        await notifier.reloadWithPostNumber(realPostNumber);
-      }
+      return realPostNumber;
     } catch (e) {
       debugPrint('[TopicDetail] Error fetching post $postId: $e');
+      return fallbackPostNumber;
     }
   }
 

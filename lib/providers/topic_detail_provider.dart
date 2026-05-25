@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/s.dart';
@@ -12,6 +13,42 @@ part 'topic_detail/_loading_methods.dart';
 part 'topic_detail/_filter_methods.dart';
 part 'topic_detail/_post_updates.dart';
 part 'topic_detail/_gap_methods.dart';
+
+const int _topicInitialLoadMaxAttempts = 3;
+const List<Duration> _topicInitialLoadRetryDelays = [
+  Duration(milliseconds: 350),
+  Duration(milliseconds: 900),
+];
+
+@visibleForTesting
+bool isRetryableTopicInitialLoadError(Object error) {
+  if (error is TimeoutException) return true;
+  if (error is! DioException) return false;
+
+  switch (error.type) {
+    case DioExceptionType.connectionTimeout:
+    case DioExceptionType.sendTimeout:
+    case DioExceptionType.receiveTimeout:
+    case DioExceptionType.connectionError:
+    case DioExceptionType.cancel:
+    case DioExceptionType.unknown:
+      return true;
+    case DioExceptionType.badCertificate:
+      return false;
+    case DioExceptionType.badResponse:
+      final statusCode = error.response?.statusCode;
+      if (statusCode == null) return false;
+      return statusCode == 429 ||
+          statusCode == 502 ||
+          statusCode == 503 ||
+          statusCode == 504;
+  }
+}
+
+Duration _topicInitialLoadRetryDelay(int attempt) {
+  final index = attempt.clamp(0, _topicInitialLoadRetryDelays.length - 1);
+  return _topicInitialLoadRetryDelays[index];
+}
 
 /// 话题详情参数
 /// 使用 instanceId 确保每次打开页面都是独立的 provider 实例
@@ -161,12 +198,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     _hasMoreBefore = true;
     _isLoadMoreFailed = false;
     _isLoadPreviousFailed = false;
-    final service = ref.read(discourseServiceProvider);
-    final detail = await service.getTopicDetail(
-      arg.topicId,
-      postNumber: arg.postNumber,
-      trackVisit: true,
-    );
+    final detail = await _loadInitialTopicDetailWithRetry();
 
     final filteredDetail = _applyUserFilter(detail);
     _updateBoundaryState(
@@ -175,6 +207,46 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     );
 
     return filteredDetail;
+  }
+
+  Future<TopicDetail> _loadInitialTopicDetailWithRetry() async {
+    final service = ref.read(discourseServiceProvider);
+    Object? lastError;
+    StackTrace? lastStackTrace;
+
+    for (var attempt = 0; attempt < _topicInitialLoadMaxAttempts; attempt++) {
+      if (attempt > 0) {
+        final delay = _topicInitialLoadRetryDelay(attempt - 1);
+        debugPrint(
+          '[TopicDetailNotifier] retry initial load '
+          'topicId=${arg.topicId}, attempt=${attempt + 1}',
+        );
+        await Future.delayed(delay);
+        if (!ref.mounted) {
+          throw StateError('Topic detail provider disposed during retry');
+        }
+      }
+
+      try {
+        return await service.getTopicDetail(
+          arg.topicId,
+          postNumber: arg.postNumber,
+          trackVisit: true,
+        );
+      } catch (error, stackTrace) {
+        lastError = error;
+        lastStackTrace = stackTrace;
+        if (!isRetryableTopicInitialLoadError(error) ||
+            attempt == _topicInitialLoadMaxAttempts - 1) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+      }
+    }
+
+    Error.throwWithStackTrace(
+      lastError ?? StateError('Topic detail initial load failed'),
+      lastStackTrace ?? StackTrace.current,
+    );
   }
 }
 

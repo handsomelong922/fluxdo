@@ -5176,6 +5176,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get topic_filterNew => '新话题';
 
   @override
+  String get topic_filterNewAllShort => '所有';
+
+  @override
+  String get topic_filterNewReplies => '新 · 回复';
+
+  @override
+  String get topic_filterNewRepliesShort => '回复';
+
+  @override
+  String get topic_filterNewTopics => '新 · 话题';
+
+  @override
+  String get topic_filterNewTopicsShort => '话题';
+
+  @override
   String topic_filterTooltip(String label) {
     return '筛选: $label';
   }
@@ -11168,6 +11183,21 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get topic_filterNew => '新話題';
 
   @override
+  String get topic_filterNewAllShort => '所有';
+
+  @override
+  String get topic_filterNewReplies => '新 · 回覆';
+
+  @override
+  String get topic_filterNewRepliesShort => '回覆';
+
+  @override
+  String get topic_filterNewTopics => '新 · 話題';
+
+  @override
+  String get topic_filterNewTopicsShort => '話題';
+
+  @override
   String topic_filterTooltip(String label) {
     return '篩選: $label';
   }
@@ -17037,6 +17067,21 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get topic_filterNew => '新話題';
+
+  @override
+  String get topic_filterNewAllShort => '所有';
+
+  @override
+  String get topic_filterNewReplies => '新 · 回覆';
+
+  @override
+  String get topic_filterNewRepliesShort => '回覆';
+
+  @override
+  String get topic_filterNewTopics => '新 · 話題';
+
+  @override
+  String get topic_filterNewTopicsShort => '話題';
 
   @override
   String topic_filterTooltip(String label) {

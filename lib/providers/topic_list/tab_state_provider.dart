@@ -6,7 +6,9 @@ import 'sort_provider.dart';
 
 /// 每个 tab 独立的标签筛选（categoryId -> tags）
 /// null 表示"全部"tab
-final tabTagsProvider = StateProvider.family<List<String>, int?>((ref, categoryId) => []);
+final tabTagsProvider = StateProvider.family<List<String>, int?>(
+  (ref, categoryId) => [],
+);
 
 /// 当前选中 tab 对应的分类 ID（null 表示"全部"tab）
 final currentTabCategoryIdProvider = StateProvider<int?>((ref) => null);
@@ -22,6 +24,7 @@ final staleTabsProvider = StateProvider<Set<int?>>((ref) => {});
 /// 未来新增全局筛选条件时，只需在此添加 ref.watch
 final topicListGlobalParamsSignal = Provider<Object>((ref) {
   ref.watch(topicFilterProvider);
+  ref.watch(topicNewSubsetProvider);
   ref.watch(topicSortOrderProvider);
   ref.watch(topicSortAscendingProvider);
   return Object();
