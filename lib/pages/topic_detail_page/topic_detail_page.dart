@@ -860,11 +860,16 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   }
 
   void _showTimelineSheet(TopicDetail detail) {
+    final preserveNestedView = _isNestedView;
     showTopicTimelineSheet(
       context: context,
       currentIndex: _controller.currentVisibleStreamIndex,
       stream: detail.postStream.stream,
-      onJumpToStreamIndex: _scrollToStreamIndex,
+      onJumpToStreamIndex: (streamIndex, postId) => _scrollToStreamIndex(
+        streamIndex,
+        postId,
+        preserveNestedView: preserveNestedView,
+      ),
       title: detail.title,
     );
   }
