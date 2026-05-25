@@ -520,7 +520,12 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
             final model = _currentModel();
             if (model == null) return;
             _rememberModel(model);
-            chatNotifier.sendMessage(content, scope, selectedModel: model);
+            chatNotifier.sendMessage(
+              content,
+              scope,
+              selectedModel: model,
+              thinkingConfig: ref.read(aiThinkingConfigProvider),
+            );
             // CUSTOM: Stable AI Scroll 用户主动发送时允许滚动到底部一次
             _maybeAutoScrollMessages(
               ref.read(topicAiChatProvider(widget.topicId)),
@@ -545,6 +550,9 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
                 onChanged: _rememberModel,
               );
             },
+          ),
+          bottomLeadingExtra: Consumer(
+            builder: (context, ref, _) => _ThinkingSelector(ref: ref),
           ),
         ),
       ],
@@ -623,7 +631,12 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
     _rememberModel(model);
     ref
         .read(topicAiChatProvider(widget.topicId).notifier)
-        .sendMessage(prompt, scope, selectedModel: model);
+        .sendMessage(
+          prompt,
+          scope,
+          selectedModel: model,
+          thinkingConfig: ref.read(aiThinkingConfigProvider),
+        );
     // CUSTOM: Stable AI Scroll 快捷动作属于用户主动触发，允许滚动一次
     _maybeAutoScrollMessages(ref.read(topicAiChatProvider(widget.topicId)));
   }
@@ -753,7 +766,11 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
                   _rememberModel(model);
                   ref
                       .read(topicAiChatProvider(widget.topicId).notifier)
-                      .retryLastMessage(scope, selectedModel: model);
+                      .retryLastMessage(
+                        scope,
+                        selectedModel: model,
+                        thinkingConfig: ref.read(aiThinkingConfigProvider),
+                      );
                 }
               : null,
           onShareAsImage:
@@ -855,6 +872,91 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
         ],
       ),
     );
+  }
+}
+
+class _ThinkingSelector extends StatelessWidget {
+  final WidgetRef ref;
+
+  const _ThinkingSelector({required this.ref});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final config = ref.watch(aiThinkingConfigProvider);
+    final enabled = config.isEnabled;
+    final color = enabled
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
+
+    return SwipeDismissiblePopupMenuButton<ThinkingLevel>(
+      tooltip: _thinkingLabel(config.level),
+      onSelected: (level) => _setLevel(level),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              enabled ? Icons.psychology_alt : Icons.psychology_alt_outlined,
+              size: 16,
+              color: color,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              _shortLabel(config.level),
+              style: theme.textTheme.bodySmall?.copyWith(color: color),
+            ),
+          ],
+        ),
+      ),
+      itemBuilder: (context) {
+        return ThinkingLevel.values.map((level) {
+          final selected = level == config.level;
+          return PopupMenuItem<ThinkingLevel>(
+            value: level,
+            child: Row(
+              children: [
+                if (selected)
+                  Icon(Icons.check, size: 18, color: theme.colorScheme.primary)
+                else
+                  const SizedBox(width: 18),
+                const SizedBox(width: 8),
+                Text(_thinkingLabel(level)),
+              ],
+            ),
+          );
+        }).toList();
+      },
+    );
+  }
+
+  void _setLevel(ThinkingLevel level) {
+    final next = ref.read(aiThinkingConfigProvider).copyWith(level: level);
+    ref.read(aiThinkingConfigProvider.notifier).state = next;
+    ref.read(aiChatStorageServiceProvider).setThinkingConfig(next);
+  }
+
+  static String _shortLabel(ThinkingLevel level) {
+    return switch (level) {
+      ThinkingLevel.off => '思考关',
+      ThinkingLevel.auto => '思考自动',
+      ThinkingLevel.low => '思考低',
+      ThinkingLevel.medium => '思考中',
+      ThinkingLevel.high => '思考高',
+      ThinkingLevel.custom => '思考自定',
+    };
+  }
+
+  static String _thinkingLabel(ThinkingLevel level) {
+    return switch (level) {
+      ThinkingLevel.off => '关闭思考深度',
+      ThinkingLevel.auto => '自动思考深度',
+      ThinkingLevel.low => '低思考深度',
+      ThinkingLevel.medium => '中思考深度',
+      ThinkingLevel.high => '高思考深度',
+      ThinkingLevel.custom => '自定义思考深度',
+    };
   }
 }
 

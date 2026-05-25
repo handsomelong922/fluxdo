@@ -1492,6 +1492,23 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                         .state =
                     pendingPostNumber;
               });
+            } else if (pendingPostNumber != null && nestedState.hasMoreRoots) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                final latest = ref
+                    .read(nestedTopicProvider(nestedParams))
+                    .value;
+                if (latest == null ||
+                    !latest.hasMoreRoots ||
+                    latest.isLoadingMore) {
+                  return;
+                }
+                unawaited(
+                  ref
+                      .read(nestedTopicProvider(nestedParams).notifier)
+                      .loadMoreRoots(),
+                );
+              });
             }
           },
           onContinueAiSummary: _continueAiSummary,

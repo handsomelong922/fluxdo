@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:uuid/uuid.dart';
 
 import '../l10n/ai_l10n.dart';
+import '../models/ai_chat_chunk.dart';
 import '../models/ai_provider.dart';
 import '../models/ai_chat_message.dart';
 import '../services/ai_chat_service.dart';
@@ -114,6 +115,12 @@ final aiChatServiceProvider = Provider((ref) {
   return AiChatService(
     adapterFactory: useAppNetwork ? adapterFactory : null,
   );
+});
+
+/// AI 助手思考深度配置。
+final aiThinkingConfigProvider = StateProvider<ThinkingConfig>((ref) {
+  final storageService = ref.watch(aiChatStorageServiceProvider);
+  return storageService.getThinkingConfig();
 });
 
 /// 可由宿主应用覆写的标题生成 prompt
@@ -244,7 +251,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   final ({AiProvider provider, AiModel model})? titleModel;
   final TitleGenerationPromptReader readTitleGenerationPrompt;
 
-  StreamSubscription<String>? _streamSubscription;
+  StreamSubscription<AiChatChunk>? _streamSubscription;
   bool _cancelled = false;
   bool _isGeneratingTitle = false;
 
@@ -395,6 +402,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     String content,
     ContextScope contextScope, {
     required ({AiProvider provider, AiModel model}) selectedModel,
+    ThinkingConfig thinkingConfig = const ThinkingConfig(),
   }) async {
     if (content.trim().isEmpty) return;
 
@@ -452,25 +460,42 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       final chatMessages = _buildChatMessages(topicContext, contextScope);
 
       // 发起流式请求
-      final stream = chatService.sendChatStream(
+      final stream = chatService.sendChatChunks(
         provider: selectedModel.provider,
         model: selectedModel.model.id,
         apiKey: apiKey,
         messages: chatMessages,
         systemPrompt: _buildSystemPrompt(topicContext),
+        thinkingConfig: thinkingConfig,
       );
 
       final buffer = StringBuffer();
+      int? promptTokens;
+      int? responseTokens;
+      int? cachedTokens;
 
       _streamSubscription = stream.listen(
-        (token) {
+        (chunk) {
           if (_cancelled || !mounted) return;
-          buffer.write(token);
-          _updateAssistantMessage(
-            assistantMessage.id,
-            buffer.toString(),
-            MessageStatus.streaming,
-          );
+          switch (chunk) {
+            case TextDelta(:final text):
+              buffer.write(text);
+              _updateAssistantMessage(
+                assistantMessage.id,
+                buffer.toString(),
+                MessageStatus.streaming,
+              );
+            case ThinkingDelta():
+              break;
+            case UsageReport(
+                promptTokens: final newPromptTokens,
+                responseTokens: final newResponseTokens,
+                cachedTokens: final newCachedTokens,
+              ):
+              promptTokens = newPromptTokens ?? promptTokens;
+              responseTokens = newResponseTokens ?? responseTokens;
+              cachedTokens = newCachedTokens ?? cachedTokens;
+          }
         },
         onDone: () {
           if (!mounted) return;
@@ -486,6 +511,9 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
               assistantMessage.id,
               buffer.toString(),
               MessageStatus.completed,
+              promptTokens: promptTokens,
+              responseTokens: responseTokens,
+              cachedTokens: cachedTokens,
             );
             _saveToStorage();
             _tryGenerateTitle();
@@ -554,6 +582,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   void retryLastMessage(
     ContextScope contextScope, {
     required ({AiProvider provider, AiModel model}) selectedModel,
+    ThinkingConfig thinkingConfig = const ThinkingConfig(),
   }) {
     final messages = [...state.messages];
     if (messages.length < 2) return;
@@ -568,7 +597,12 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     state = state.copyWith(messages: messages);
 
     // 重新发送
-    sendMessage(userContent, contextScope, selectedModel: selectedModel);
+    sendMessage(
+      userContent,
+      contextScope,
+      selectedModel: selectedModel,
+      thinkingConfig: thinkingConfig,
+    );
   }
 
   void _updateAssistantMessage(
@@ -576,6 +610,9 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     String content,
     MessageStatus status, {
     String? errorMessage,
+    int? promptTokens,
+    int? responseTokens,
+    int? cachedTokens,
   }) {
     if (!mounted) return;
     final messages = state.messages.map((m) {
@@ -584,6 +621,9 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
           content: content,
           status: status,
           errorMessage: errorMessage,
+          promptTokens: promptTokens,
+          responseTokens: responseTokens,
+          cachedTokens: cachedTokens,
         );
       }
       return m;
@@ -617,11 +657,13 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       if (contextText.isNotEmpty) {
         result.add({
           'role': 'user',
-          'content': AiL10n.current.contextContentPrefix(contextText)
+          'content': AiL10n.current.contextContentPrefix(contextText),
+          'cache': 'true',
         });
         result.add({
           'role': 'assistant',
           'content': AiL10n.current.contextReadyResponse,
+          'cache': 'true',
         });
       }
     }

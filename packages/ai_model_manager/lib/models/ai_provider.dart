@@ -19,6 +19,48 @@ enum AiProviderType {
   }
 }
 
+/// 思考深度等级，统一映射到各供应商 API 参数。
+enum ThinkingLevel { off, auto, low, medium, high, custom }
+
+/// 思考配置：等级 + 自定义预算。
+class ThinkingConfig {
+  final ThinkingLevel level;
+  final int customBudget;
+
+  const ThinkingConfig({
+    this.level = ThinkingLevel.off,
+    this.customBudget = 8192,
+  });
+
+  bool get isEnabled => level != ThinkingLevel.off;
+
+  ThinkingConfig copyWith({
+    ThinkingLevel? level,
+    int? customBudget,
+  }) {
+    return ThinkingConfig(
+      level: level ?? this.level,
+      customBudget: customBudget ?? this.customBudget,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'level': level.name,
+      'customBudget': customBudget,
+    };
+  }
+
+  factory ThinkingConfig.fromJson(Map<String, dynamic> json) {
+    return ThinkingConfig(
+      level: ThinkingLevel.values.byName(
+        json['level'] as String? ?? ThinkingLevel.off.name,
+      ),
+      customBudget: json['customBudget'] as int? ?? 8192,
+    );
+  }
+}
+
 /// AI 模型
 class AiModel {
   final String id;

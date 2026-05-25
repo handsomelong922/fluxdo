@@ -134,7 +134,18 @@ extension _ScrollActions on _TopicDetailPageState {
         return;
       }
 
-      setState(() => _isNestedView = false);
+      _pendingNestedRestorePostNumber = postNumber;
+      _controller.updateCurrentPostNumber(postNumber);
+      final nestedParams = NestedTopicParams(topicId: widget.topicId);
+      final nestedState = ref.read(nestedTopicProvider(nestedParams)).value;
+      if (nestedState != null &&
+          nestedState.hasMoreRoots &&
+          !nestedState.isLoadingMore) {
+        unawaited(
+          ref.read(nestedTopicProvider(nestedParams).notifier).loadMoreRoots(),
+        );
+      }
+      return;
     }
 
     final posts = detail.postStream.posts;

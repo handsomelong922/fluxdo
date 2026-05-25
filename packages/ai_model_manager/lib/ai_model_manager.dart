@@ -3,6 +3,7 @@ library;
 
 export 'models/ai_provider.dart';
 export 'models/ai_chat_message.dart';
+export 'models/ai_chat_chunk.dart';
 export 'services/ai_provider_service.dart';
 export 'services/ai_chat_service.dart';
 export 'services/ai_chat_storage_service.dart';

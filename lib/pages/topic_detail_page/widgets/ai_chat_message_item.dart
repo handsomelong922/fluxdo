@@ -35,7 +35,9 @@ class AiChatMessageItem extends StatelessWidget {
       return _buildSelectableMessage(context, isUser);
     }
 
-    return isUser ? _buildUserMessage(context) : _buildAssistantMessage(context);
+    return isUser
+        ? _buildUserMessage(context)
+        : _buildAssistantMessage(context);
   }
 
   /// 多选模式下的消息
@@ -70,7 +72,10 @@ class AiChatMessageItem extends StatelessWidget {
     );
   }
 
-  Widget _buildUserMessage(BuildContext context, {bool inSelectionMode = false}) {
+  Widget _buildUserMessage(
+    BuildContext context, {
+    bool inSelectionMode = false,
+  }) {
     final theme = Theme.of(context);
 
     return Align(
@@ -104,7 +109,10 @@ class AiChatMessageItem extends StatelessWidget {
     );
   }
 
-  Widget _buildAssistantMessage(BuildContext context, {bool inSelectionMode = false}) {
+  Widget _buildAssistantMessage(
+    BuildContext context, {
+    bool inSelectionMode = false,
+  }) {
     final theme = Theme.of(context);
     final isStreaming = message.status == MessageStatus.streaming;
     final isError = message.status == MessageStatus.error;
@@ -141,7 +149,9 @@ class AiChatMessageItem extends StatelessWidget {
               _buildErrorWidget(context),
             ] else ...[
               if (message.content.isNotEmpty)
-                MarkdownBody(data: '${message.content}${isStreaming ? ' ▊' : ''}'),
+                MarkdownBody(
+                  data: '${message.content}${isStreaming ? ' ▊' : ''}',
+                ),
               if (message.content.isEmpty && isStreaming)
                 _buildStreamingIndicator(context),
               if (isError && message.content.isNotEmpty) ...[
@@ -152,6 +162,10 @@ class AiChatMessageItem extends StatelessWidget {
             // 操作按钮行
             if (showActions) ...[
               const SizedBox(height: 8),
+              if (_hasTokenUsage) ...[
+                _buildTokenUsage(context),
+                const SizedBox(height: 6),
+              ],
               _buildActionBar(context),
             ],
           ],
@@ -164,9 +178,28 @@ class AiChatMessageItem extends StatelessWidget {
     final theme = Theme.of(context);
     return Text(
       '▊',
-      style: TextStyle(
-        color: theme.colorScheme.primary,
-        fontSize: 16,
+      style: TextStyle(color: theme.colorScheme.primary, fontSize: 16),
+    );
+  }
+
+  bool get _hasTokenUsage =>
+      message.promptTokens != null ||
+      message.responseTokens != null ||
+      message.cachedTokens != null;
+
+  Widget _buildTokenUsage(BuildContext context) {
+    final theme = Theme.of(context);
+    final prompt = message.promptTokens ?? 0;
+    final response = message.responseTokens ?? 0;
+    final cached = message.cachedTokens ?? 0;
+    final text = cached > 0
+        ? 'tokens $prompt/$response · cached $cached'
+        : 'tokens $prompt/$response';
+    return Text(
+      text,
+      style: theme.textTheme.bodySmall?.copyWith(
+        fontSize: 11,
+        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
       ),
     );
   }
@@ -200,10 +233,17 @@ class AiChatMessageItem extends StatelessWidget {
             height: 28,
             child: TextButton.icon(
               onPressed: onRetry,
-              icon: Icon(Icons.refresh, size: 14, color: theme.colorScheme.primary),
+              icon: Icon(
+                Icons.refresh,
+                size: 14,
+                color: theme.colorScheme.primary,
+              ),
               label: Text(
                 context.l10n.ai_retryLabel,
-                style: TextStyle(fontSize: 12, color: theme.colorScheme.primary),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.colorScheme.primary,
+                ),
               ),
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -269,10 +309,7 @@ class _ActionButton extends StatelessWidget {
           children: [
             Icon(icon, size: 14, color: color),
             const SizedBox(width: 3),
-            Text(
-              label,
-              style: TextStyle(fontSize: 11, color: color),
-            ),
+            Text(label, style: TextStyle(fontSize: 11, color: color)),
           ],
         ),
       ),

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/ai_chat_message.dart';
+import '../models/ai_provider.dart';
 
 /// AI 聊天记录持久化存储服务
 ///
@@ -12,10 +13,12 @@ import '../models/ai_chat_message.dart';
 /// - `ai_chat_all_sessions_index` — 全局会话索引（用于上限清理）
 /// - `ai_chat_max_sessions` — 最大会话总数
 /// - `ai_chat_title_model` — 标题生成模型 key
+/// - `ai_chat_thinking_config` — AI 助手思考深度配置
 class AiChatStorageService {
   static const _allSessionsIndexKey = 'ai_chat_all_sessions_index';
   static const _maxSessionsKey = 'ai_chat_max_sessions';
   static const _titleModelKey = 'ai_chat_title_model';
+  static const _thinkingConfigKey = 'ai_chat_thinking_config';
   static const _topicSessionsKeyPrefix = 'ai_chat_topic_sessions_';
   static const _sessionMessagesKeyPrefix = 'ai_chat_session_messages_';
   static const _defaultMaxSessions = 50;
@@ -51,6 +54,22 @@ class AiChatStorageService {
     } else {
       await _prefs.setString(_titleModelKey, key);
     }
+  }
+
+  // ===== 思考深度配置 =====
+
+  ThinkingConfig getThinkingConfig() {
+    final raw = _prefs.getString(_thinkingConfigKey);
+    if (raw == null || raw.isEmpty) return const ThinkingConfig();
+    try {
+      return ThinkingConfig.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return const ThinkingConfig();
+    }
+  }
+
+  Future<void> setThinkingConfig(ThinkingConfig config) async {
+    await _prefs.setString(_thinkingConfigKey, jsonEncode(config.toJson()));
   }
 
   // ===== 话题会话列表操作 =====
