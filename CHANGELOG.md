@@ -1,3 +1,8 @@
+## v0.4.3
+
+- fix: stabilize topic detail navigation and filters
+
+
 ## v0.4.2
 
 - fix: reuse login page preloaded html
