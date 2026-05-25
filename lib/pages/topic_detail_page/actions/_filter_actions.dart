@@ -4,18 +4,31 @@ part of '../topic_detail_page.dart';
 
 /// 过滤模式相关方法
 extension _FilterActions on _TopicDetailPageState {
-  bool _detailHasTargetPost(TopicDetail detail, {int? postNumber, int? postId}) {
+  bool _detailHasTargetPost(
+    TopicDetail detail, {
+    int? postNumber,
+    int? postId,
+  }) {
     if (postId != null) {
-      if (detail.postStream.stream.contains(postId)) return true;
-      if (detail.postStream.posts.any((p) => p.id == postId)) return true;
+      if (detail.postStream.stream.contains(postId)) {
+        return true;
+      }
+      if (detail.postStream.posts.any((p) => p.id == postId)) {
+        return true;
+      }
     }
     if (postNumber != null) {
-      if (detail.postStream.posts.any((p) => p.postNumber == postNumber)) return true;
+      if (detail.postStream.posts.any((p) => p.postNumber == postNumber)) {
+        return true;
+      }
     }
     return false;
   }
 
-  Future<void> _reloadWithFilterFallback({required int postNumber, int? postId}) async {
+  Future<void> _reloadWithFilterFallback({
+    required int postNumber,
+    int? postId,
+  }) async {
     final params = _params;
     final notifier = ref.read(topicDetailProvider(params).notifier);
     final wasSummaryMode = notifier.isSummaryMode;
@@ -30,8 +43,17 @@ extension _FilterActions on _TopicDetailPageState {
       if (!mounted) return;
 
       final detail = ref.read(topicDetailProvider(params)).value;
-      final hasTarget = detail != null && _detailHasTargetPost(detail, postNumber: postNumber, postId: postId);
-      final shouldFallback = detail != null && _shouldFallbackFilter(detail, wasSummaryMode, wasAuthorOnlyMode, wasTopLevelMode);
+      final hasTarget =
+          detail != null &&
+          _detailHasTargetPost(detail, postNumber: postNumber, postId: postId);
+      final shouldFallback =
+          detail != null &&
+          shouldFallbackFilterAfterTargetLoaded(
+            detail,
+            wasSummaryMode: wasSummaryMode,
+            wasAuthorOnlyMode: wasAuthorOnlyMode,
+            wasTopLevelMode: wasTopLevelMode,
+          );
       if (!hasTarget || shouldFallback) {
         _controller.resetVisibility();
         _controller.prepareJumpToPost(postNumber);
@@ -40,27 +62,6 @@ extension _FilterActions on _TopicDetailPageState {
     } finally {
       if (mounted) setState(() => _isSwitchingMode = false);
     }
-  }
-
-  bool _shouldFallbackFilter(TopicDetail detail, bool wasSummaryMode, bool wasAuthorOnlyMode, bool wasTopLevelMode) {
-    if (wasSummaryMode) {
-      if (!detail.hasSummary) return true;
-      if (detail.postsCount > 0 && detail.postStream.stream.length >= detail.postsCount) {
-        return true;
-      }
-    }
-
-    if (wasAuthorOnlyMode) {
-      final author = detail.createdBy?.username;
-      if (author == null || author.isEmpty) return true;
-      final hasOtherUsers = detail.postStream.posts.any((p) => p.username != author);
-      if (hasOtherUsers) return true;
-    }
-
-    // 只看顶层模式下跳转到楼中楼帖子时需要取消过滤
-    if (wasTopLevelMode) return true;
-
-    return false;
   }
 
   Future<void> _handleShowTopReplies() async {
@@ -142,4 +143,35 @@ extension _FilterActions on _TopicDetailPageState {
       setState(() => _isSwitchingMode = false);
     }
   }
+}
+
+@visibleForTesting
+bool shouldFallbackFilterAfterTargetLoaded(
+  TopicDetail detail, {
+  required bool wasSummaryMode,
+  required bool wasAuthorOnlyMode,
+  required bool wasTopLevelMode,
+}) {
+  if (wasSummaryMode) {
+    if (!detail.hasSummary) return true;
+    if (detail.postsCount > 0 &&
+        detail.postStream.stream.length >= detail.postsCount) {
+      return true;
+    }
+  }
+
+  if (wasAuthorOnlyMode) {
+    final author = detail.createdBy?.username;
+    if (author == null || author.isEmpty) return true;
+    final hasOtherUsers = detail.postStream.posts.any(
+      (p) => p.username != author,
+    );
+    if (hasOtherUsers) return true;
+  }
+
+  // 目标楼层已在当前过滤/树状视图中加载出来时，不再主动取消当前视图。
+  // 目标不在当前结果中时，调用方仍会回退到普通视图以保证可定位。
+  if (wasTopLevelMode) return false;
+
+  return false;
 }
