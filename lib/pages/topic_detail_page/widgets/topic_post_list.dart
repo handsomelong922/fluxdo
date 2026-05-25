@@ -13,6 +13,7 @@ import '../../../widgets/content/discourse_html_content/chunked/html_chunk.dart'
 import '../../../widgets/post/post_item/post_item.dart';
 import '../../../widgets/post/post_item/quote_selection_helper.dart';
 import '../../../widgets/post/post_item/segmented_long_post.dart';
+import '../../../widgets/post/post_item/widgets/post_footer_section/post_footer_section.dart';
 import '../../../widgets/post/post_item_skeleton.dart';
 import 'topic_detail_header.dart';
 import 'typing_indicator.dart';
@@ -49,6 +50,8 @@ class TopicPostList extends StatefulWidget {
   final void Function(Map<int, int>)? onScrollIndexMappingChanged;
   final void Function(int postNumber) onJumpToPost;
   final void Function(Post? replyToPost) onReply;
+  final void Function(Post? replyToPost, String initialContent)?
+  onReplyWithInitialContent;
   final void Function(Post post) onEdit;
   final void Function(Post post)? onShareAsImage;
   final void Function(int postId) onRefreshPost;
@@ -105,6 +108,7 @@ class TopicPostList extends StatefulWidget {
     this.onScrollIndexMappingChanged,
     required this.onJumpToPost,
     required this.onReply,
+    this.onReplyWithInitialContent,
     required this.onEdit,
     this.onShareAsImage,
     required this.onRefreshPost,
@@ -139,6 +143,7 @@ class _TopicPostListState extends State<TopicPostList> {
   SelectedContent? _lastLongPostSelectedContent;
   Post? _activeLongSelectionPost;
   CodeSelectionContext? _lastLongCodeSelectionContext;
+  final Map<int, InlineRepliesState> _inlineRepliesStateByPostId = {};
 
   @override
   void initState() {
@@ -149,6 +154,14 @@ class _TopicPostListState extends State<TopicPostList> {
         _updateFirstVisiblePost();
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant TopicPostList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.detail.id != widget.detail.id) {
+      _inlineRepliesStateByPostId.clear();
+    }
   }
 
   // 便捷 getter，简化 widget.xxx 访问
@@ -711,6 +724,13 @@ class _TopicPostListState extends State<TopicPostList> {
           onReply: isLoggedIn
               ? () => onReply(post.postNumber == 1 ? null : post)
               : null,
+          onReplyWithInitialContent:
+              isLoggedIn && widget.onReplyWithInitialContent != null
+              ? (initialContent) => widget.onReplyWithInitialContent!(
+                  post.postNumber == 1 ? null : post,
+                  initialContent,
+                )
+              : null,
           onEdit: isLoggedIn && post.canEdit ? () => onEdit(post) : null,
           onShareAsImage: onShareAsImage != null
               ? () => onShareAsImage!(post)
@@ -725,6 +745,10 @@ class _TopicPostListState extends State<TopicPostList> {
           onShowPostDetail: widget.onShowPostDetail != null
               ? () => widget.onShowPostDetail!(post)
               : null,
+          inlineRepliesState: _inlineRepliesStateByPostId[post.id],
+          onInlineRepliesStateChanged: (state) {
+            _inlineRepliesStateByPostId[post.id] = state;
+          },
         );
         break;
       case _PostRenderSegmentType.longHeader:
@@ -760,6 +784,13 @@ class _TopicPostListState extends State<TopicPostList> {
           onReply: isLoggedIn
               ? () => onReply(post.postNumber == 1 ? null : post)
               : null,
+          onReplyWithInitialContent:
+              isLoggedIn && widget.onReplyWithInitialContent != null
+              ? (initialContent) => widget.onReplyWithInitialContent!(
+                  post.postNumber == 1 ? null : post,
+                  initialContent,
+                )
+              : null,
           onEdit: isLoggedIn && post.canEdit ? () => onEdit(post) : null,
           onShareAsImage: onShareAsImage != null
               ? () => onShareAsImage!(post)
@@ -771,6 +802,10 @@ class _TopicPostListState extends State<TopicPostList> {
           onShowPostDetail: widget.onShowPostDetail != null
               ? () => widget.onShowPostDetail!(post)
               : null,
+          inlineRepliesState: _inlineRepliesStateByPostId[post.id],
+          onInlineRepliesStateChanged: (state) {
+            _inlineRepliesStateByPostId[post.id] = state;
+          },
         );
         break;
       case _PostRenderSegmentType.gapBefore:

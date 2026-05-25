@@ -39,7 +39,7 @@ extension _UserActions on _TopicDetailPageState {
     }
   }
 
-  Future<void> _handleReply(Post? replyToPost) async {
+  Future<void> _handleReply(Post? replyToPost, {String? initialContent}) async {
     final params = _params;
     final detail = ref.read(topicDetailProvider(params)).value;
 
@@ -55,6 +55,7 @@ extension _UserActions on _TopicDetailPageState {
       topicId: widget.topicId,
       categoryId: detail?.categoryId,
       replyToPost: replyToPost,
+      initialContent: initialContent,
       preloadedDraftFuture: preloadedDraftFuture,
       isPrivateMessageTopic: detail?.isPrivateMessage ?? false,
     );

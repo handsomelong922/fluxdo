@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+import '../models/ai_chat_chunk.dart';
 import '../models/ai_provider.dart';
 import 'sse_transformer.dart';
 
@@ -31,6 +32,30 @@ class AiChatService {
     required String apiKey,
     required List<Map<String, String>> messages,
     String? systemPrompt,
+    ThinkingConfig thinkingConfig = const ThinkingConfig(),
+  }) async* {
+    await for (final chunk in sendChatChunks(
+      provider: provider,
+      model: model,
+      apiKey: apiKey,
+      messages: messages,
+      systemPrompt: systemPrompt,
+      thinkingConfig: thinkingConfig,
+    )) {
+      if (chunk is TextDelta) {
+        yield chunk.text;
+      }
+    }
+  }
+
+  /// 发送聊天消息并返回结构化流式响应。
+  Stream<AiChatChunk> sendChatChunks({
+    required AiProvider provider,
+    required String model,
+    required String apiKey,
+    required List<Map<String, String>> messages,
+    String? systemPrompt,
+    ThinkingConfig thinkingConfig = const ThinkingConfig(),
   }) async* {
     final dio = _createDio();
     try {
@@ -41,27 +66,51 @@ class AiChatService {
       switch (provider.type) {
         case AiProviderType.openai:
           response = await _sendOpenAi(
-            dio, baseUrl, apiKey, model, messages, systemPrompt,
+            dio,
+            baseUrl,
+            apiKey,
+            model,
+            messages,
+            systemPrompt,
+            thinkingConfig,
           );
 
         case AiProviderType.openaiResponse:
           response = await _sendOpenAiResponse(
-            dio, baseUrl, apiKey, model, messages, systemPrompt,
+            dio,
+            baseUrl,
+            apiKey,
+            model,
+            messages,
+            systemPrompt,
+            thinkingConfig,
           );
 
         case AiProviderType.gemini:
           response = await _sendGemini(
-            dio, baseUrl, apiKey, model, messages, systemPrompt,
+            dio,
+            baseUrl,
+            apiKey,
+            model,
+            messages,
+            systemPrompt,
+            thinkingConfig,
           );
 
         case AiProviderType.anthropic:
           response = await _sendAnthropic(
-            dio, baseUrl, apiKey, model, messages, systemPrompt,
+            dio,
+            baseUrl,
+            apiKey,
+            model,
+            messages,
+            systemPrompt,
+            thinkingConfig,
           );
       }
 
       final byteStream = response.data!.stream.cast<Uint8List>();
-      yield* SseTransformer.transform(byteStream, provider.type);
+      yield* SseTransformer.transformChunks(byteStream, provider.type);
     } finally {
       dio.close();
     }
@@ -74,10 +123,11 @@ class AiChatService {
     String model,
     List<Map<String, String>> messages,
     String? systemPrompt,
+    ThinkingConfig thinkingConfig,
   ) {
     final allMessages = <Map<String, String>>[
       if (systemPrompt != null) {'role': 'system', 'content': systemPrompt},
-      ...messages,
+      ...messages.map(_plainMessage),
     ];
 
     return dio.post<ResponseBody>(
@@ -86,6 +136,9 @@ class AiChatService {
         'model': model,
         'messages': allMessages,
         'stream': true,
+        'stream_options': {'include_usage': true},
+        if (_toOpenAiReasoningEffort(thinkingConfig) case final effort?)
+          'reasoning_effort': effort,
       },
       options: Options(
         headers: {
@@ -104,11 +157,12 @@ class AiChatService {
     String model,
     List<Map<String, String>> messages,
     String? systemPrompt,
+    ThinkingConfig thinkingConfig,
   ) {
     // OpenAI Response API 使用 input 数组
     final input = <Map<String, String>>[
       if (systemPrompt != null) {'role': 'system', 'content': systemPrompt},
-      ...messages,
+      ...messages.map(_plainMessage),
     ];
 
     return dio.post<ResponseBody>(
@@ -117,6 +171,8 @@ class AiChatService {
         'model': model,
         'input': input,
         'stream': true,
+        if (_toOpenAiReasoningEffort(thinkingConfig) case final effort?)
+          'reasoning': {'effort': effort},
       },
       options: Options(
         headers: {
@@ -135,6 +191,7 @@ class AiChatService {
     String model,
     List<Map<String, String>> messages,
     String? systemPrompt,
+    ThinkingConfig thinkingConfig,
   ) {
     // Gemini 使用 contents 格式
     final contents = messages.map((m) {
@@ -150,6 +207,12 @@ class AiChatService {
     final data = <String, dynamic>{
       'contents': contents,
     };
+
+    if (_toGeminiThinkingConfig(thinkingConfig) case final geminiThinking?) {
+      data['generationConfig'] = {
+        'thinkingConfig': geminiThinking,
+      };
+    }
 
     if (systemPrompt != null) {
       data['systemInstruction'] = {
@@ -180,16 +243,30 @@ class AiChatService {
     String model,
     List<Map<String, String>> messages,
     String? systemPrompt,
+    ThinkingConfig thinkingConfig,
   ) {
     final data = <String, dynamic>{
       'model': model,
-      'messages': messages,
-      'max_tokens': 8192,
+      'messages': messages.map(_anthropicMessage).toList(),
+      'max_tokens': thinkingConfig.isEnabled ? 16384 : 8192,
       'stream': true,
     };
 
     if (systemPrompt != null) {
-      data['system'] = systemPrompt;
+      data['system'] = [
+        {
+          'type': 'text',
+          'text': systemPrompt,
+          'cache_control': {'type': 'ephemeral'},
+        }
+      ];
+    }
+
+    if (_toAnthropicBudget(thinkingConfig) case final budget?) {
+      data['thinking'] = {
+        'type': 'enabled',
+        'budget_tokens': budget,
+      };
     }
 
     return dio.post<ResponseBody>(
@@ -208,5 +285,80 @@ class AiChatService {
 
   String _trimTrailingSlash(String url) {
     return url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+  }
+
+  Map<String, String> _plainMessage(Map<String, String> message) {
+    return {
+      'role': message['role'] ?? 'user',
+      'content': message['content'] ?? '',
+    };
+  }
+
+  Map<String, dynamic> _anthropicMessage(Map<String, String> message) {
+    final role = message['role'] ?? 'user';
+    final content = message['content'] ?? '';
+    if (message['cache'] == 'true') {
+      return {
+        'role': role,
+        'content': [
+          {
+            'type': 'text',
+            'text': content,
+            'cache_control': {'type': 'ephemeral'},
+          }
+        ],
+      };
+    }
+    return {
+      'role': role,
+      'content': content,
+    };
+  }
+
+  String? _toOpenAiReasoningEffort(ThinkingConfig config) {
+    return switch (config.level) {
+      ThinkingLevel.off => null,
+      ThinkingLevel.auto => 'medium',
+      ThinkingLevel.low => 'low',
+      ThinkingLevel.medium => 'medium',
+      ThinkingLevel.high => 'high',
+      ThinkingLevel.custom => 'high',
+    };
+  }
+
+  Map<String, dynamic>? _toGeminiThinkingConfig(ThinkingConfig config) {
+    return switch (config.level) {
+      ThinkingLevel.off => null,
+      ThinkingLevel.auto => {
+          'includeThoughts': true,
+        },
+      ThinkingLevel.low => {
+          'includeThoughts': true,
+          'thinkingBudget': 1024,
+        },
+      ThinkingLevel.medium => {
+          'includeThoughts': true,
+          'thinkingBudget': 8192,
+        },
+      ThinkingLevel.high => {
+          'includeThoughts': true,
+          'thinkingBudget': 24576,
+        },
+      ThinkingLevel.custom => {
+          'includeThoughts': true,
+          'thinkingBudget': config.customBudget,
+        },
+    };
+  }
+
+  int? _toAnthropicBudget(ThinkingConfig config) {
+    return switch (config.level) {
+      ThinkingLevel.off => null,
+      ThinkingLevel.auto => 8192,
+      ThinkingLevel.low => 1024,
+      ThinkingLevel.medium => 8192,
+      ThinkingLevel.high => 32000,
+      ThinkingLevel.custom => config.customBudget,
+    };
   }
 }

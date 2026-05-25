@@ -19,6 +19,7 @@ class PostItem extends ConsumerStatefulWidget {
   final Post post;
   final int topicId;
   final VoidCallback? onReply;
+  final void Function(String initialContent)? onReplyWithInitialContent;
   final VoidCallback? onLike;
   final VoidCallback? onEdit;
   final VoidCallback? onShareAsImage;
@@ -38,12 +39,15 @@ class PostItem extends ConsumerStatefulWidget {
   final VoidCallback? onShowPostDetail;
   final bool hideRepliesButton;
   final String? highlightBoostUsername;
+  final InlineRepliesState? inlineRepliesState;
+  final ValueChanged<InlineRepliesState>? onInlineRepliesStateChanged;
 
   const PostItem({
     super.key,
     required this.post,
     required this.topicId,
     this.onReply,
+    this.onReplyWithInitialContent,
     this.onLike,
     this.onEdit,
     this.onShareAsImage,
@@ -63,6 +67,8 @@ class PostItem extends ConsumerStatefulWidget {
     this.useReplyDialog = false,
     this.onShowPostDetail,
     this.hideRepliesButton = false,
+    this.inlineRepliesState,
+    this.onInlineRepliesStateChanged,
   });
 
   @override
@@ -247,6 +253,7 @@ class _PostItemState extends ConsumerState<PostItem> {
                 padding: const EdgeInsets.only(top: 12),
                 highlightBoostUsername: widget.highlightBoostUsername,
                 onReply: widget.onReply,
+                onReplyWithInitialContent: widget.onReplyWithInitialContent,
                 onEdit: widget.onEdit,
                 onShareAsImage: widget.onShareAsImage,
                 onRefreshPost: widget.onRefreshPost,
@@ -255,6 +262,8 @@ class _PostItemState extends ConsumerState<PostItem> {
                 useReplyDialog: widget.useReplyDialog,
                 onShowPostDetail: widget.onShowPostDetail,
                 hideRepliesButton: widget.hideRepliesButton,
+                inlineRepliesState: widget.inlineRepliesState,
+                onInlineRepliesStateChanged: widget.onInlineRepliesStateChanged,
                 onAcceptedAnswerChanged: (accepted) {
                   if (!mounted) return;
                   setState(() {

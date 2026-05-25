@@ -10,12 +10,16 @@ class AiChatInput extends StatefulWidget {
   /// 底部栏左侧额外控件（如模型选择器）
   final Widget? bottomLeading;
 
+  /// 底部栏左侧第二个额外控件（如思考深度选择器）
+  final Widget? bottomLeadingExtra;
+
   const AiChatInput({
     super.key,
     required this.isGenerating,
     required this.onSend,
     required this.onStop,
     this.bottomLeading,
+    this.bottomLeadingExtra,
   });
 
   @override
@@ -71,8 +75,9 @@ class _AiChatInputState extends State<AiChatInput> {
             decoration: InputDecoration(
               hintText: context.l10n.ai_inputHint,
               hintStyle: TextStyle(
-                color: theme.colorScheme.onSurfaceVariant
-                    .withValues(alpha: 0.5),
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.5,
+                ),
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(20),
@@ -102,6 +107,10 @@ class _AiChatInputState extends State<AiChatInput> {
           Row(
             children: [
               if (widget.bottomLeading != null) widget.bottomLeading!,
+              if (widget.bottomLeadingExtra != null) ...[
+                const SizedBox(width: 4),
+                widget.bottomLeadingExtra!,
+              ],
               const Spacer(),
               widget.isGenerating
                   ? IconButton.filled(
@@ -121,12 +130,14 @@ class _AiChatInputState extends State<AiChatInput> {
                       style: IconButton.styleFrom(
                         backgroundColor: _canSend
                             ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurface
-                                .withValues(alpha: 0.1),
+                            : theme.colorScheme.onSurface.withValues(
+                                alpha: 0.1,
+                              ),
                         foregroundColor: _canSend
                             ? theme.colorScheme.onPrimary
-                            : theme.colorScheme.onSurfaceVariant
-                                .withValues(alpha: 0.4),
+                            : theme.colorScheme.onSurfaceVariant.withValues(
+                                alpha: 0.4,
+                              ),
                         minimumSize: const Size(36, 36),
                         padding: EdgeInsets.zero,
                       ),

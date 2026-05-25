@@ -173,6 +173,7 @@ class LongPostFooterSegment extends StatelessWidget {
   final int? acceptedAnswerPostNumber;
   final String? bottomDateSeparatorLabel;
   final VoidCallback? onReply;
+  final void Function(String initialContent)? onReplyWithInitialContent;
   final VoidCallback? onEdit;
   final VoidCallback? onShareAsImage;
   final void Function(int postId)? onRefreshPost;
@@ -181,6 +182,8 @@ class LongPostFooterSegment extends StatelessWidget {
   final bool useReplyDialog;
   final VoidCallback? onShowPostDetail;
   final String? highlightBoostUsername;
+  final InlineRepliesState? inlineRepliesState;
+  final ValueChanged<InlineRepliesState>? onInlineRepliesStateChanged;
 
   const LongPostFooterSegment({
     super.key,
@@ -192,6 +195,7 @@ class LongPostFooterSegment extends StatelessWidget {
     required this.acceptedAnswerPostNumber,
     required this.bottomDateSeparatorLabel,
     required this.onReply,
+    this.onReplyWithInitialContent,
     required this.onEdit,
     required this.onShareAsImage,
     required this.onRefreshPost,
@@ -199,6 +203,8 @@ class LongPostFooterSegment extends StatelessWidget {
     required this.onSolutionChanged,
     this.useReplyDialog = false,
     this.onShowPostDetail,
+    this.inlineRepliesState,
+    this.onInlineRepliesStateChanged,
   });
 
   @override
@@ -224,6 +230,7 @@ class LongPostFooterSegment extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               highlightBoostUsername: highlightBoostUsername,
               onReply: onReply,
+              onReplyWithInitialContent: onReplyWithInitialContent,
               onEdit: onEdit,
               onShareAsImage: onShareAsImage,
               onRefreshPost: onRefreshPost,
@@ -231,6 +238,8 @@ class LongPostFooterSegment extends StatelessWidget {
               onSolutionChanged: onSolutionChanged,
               useReplyDialog: useReplyDialog,
               onShowPostDetail: onShowPostDetail,
+              inlineRepliesState: inlineRepliesState,
+              onInlineRepliesStateChanged: onInlineRepliesStateChanged,
             ),
           ),
         ],

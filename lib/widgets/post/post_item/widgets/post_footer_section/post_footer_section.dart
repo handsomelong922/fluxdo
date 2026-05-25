@@ -17,6 +17,7 @@ import '../post_action_bar.dart';
 import '../../../../bookmark/bookmark_edit_sheet.dart';
 import '../../../../post/post_boost/boost_list.dart';
 import '../../../../post/post_boost/boost_input.dart';
+import '../../../../post/reply_auto_expand_policy.dart';
 import '../post_flag_sheet.dart';
 import '../post_reaction_picker.dart';
 import '../post_reaction_users_sheet.dart';
@@ -31,6 +32,13 @@ part 'actions/menu_actions.dart';
 part 'actions/reaction_actions.dart';
 part 'actions/reply_actions.dart';
 
+class InlineRepliesState {
+  const InlineRepliesState({required this.replies, required this.showReplies});
+
+  final List<Post> replies;
+  final bool showReplies;
+}
+
 class PostFooterSection extends ConsumerStatefulWidget {
   final Post post;
   final int topicId;
@@ -38,6 +46,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
   final int? acceptedAnswerPostNumber;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onReply;
+  final void Function(String initialContent)? onReplyWithInitialContent;
   final VoidCallback? onEdit;
   final VoidCallback? onShareAsImage;
   final void Function(int postId)? onRefreshPost;
@@ -61,6 +70,10 @@ class PostFooterSection extends ConsumerStatefulWidget {
   /// 高亮指定用户的 boost（从 boost 通知跳转时使用）
   final String? highlightBoostUsername;
 
+  /// 内联回复展开状态缓存（由虚拟列表的父级持有，避免滚动回收后抖动）。
+  final InlineRepliesState? inlineRepliesState;
+  final ValueChanged<InlineRepliesState>? onInlineRepliesStateChanged;
+
   const PostFooterSection({
     super.key,
     required this.post,
@@ -69,6 +82,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
     required this.acceptedAnswerPostNumber,
     required this.padding,
     required this.onReply,
+    this.onReplyWithInitialContent,
     required this.onEdit,
     required this.onShareAsImage,
     required this.onRefreshPost,
@@ -81,6 +95,8 @@ class PostFooterSection extends ConsumerStatefulWidget {
     this.postDetailLabel,
     this.onBoostUpdated,
     this.highlightBoostUsername,
+    this.inlineRepliesState,
+    this.onInlineRepliesStateChanged,
   });
 
   @override
@@ -114,12 +130,18 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   bool get _shouldAutoExpandReplies =>
       !widget.hideRepliesButton &&
       !widget.useReplyDialog &&
-      widget.post.replyCount > 0;
+      shouldAutoExpandReplyCount(widget.post.replyCount);
+  InlineRepliesState? get _restorableInlineRepliesState =>
+      widget.useReplyDialog ? null : widget.inlineRepliesState;
 
   @override
   void initState() {
     super.initState();
-    _showRepliesNotifier = ValueNotifier<bool>(_shouldAutoExpandReplies);
+    final inlineState = _restorableInlineRepliesState;
+    _replies.addAll(inlineState?.replies ?? const []);
+    _showRepliesNotifier = ValueNotifier<bool>(
+      inlineState?.showReplies ?? _shouldAutoExpandReplies,
+    )..addListener(_emitInlineRepliesState);
     _syncState();
     _scheduleAutoLoadReplies();
   }
@@ -129,10 +151,19 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.post != widget.post) {
       if (oldWidget.post.id != widget.post.id) {
+        final inlineState = _restorableInlineRepliesState;
         _replies.clear();
+        _replies.addAll(inlineState?.replies ?? const []);
+        _showRepliesNotifier.value =
+            inlineState?.showReplies ?? _shouldAutoExpandReplies;
         _autoReplyLoadScheduled = false;
       }
       _syncState();
+      _syncReplyExpansionState();
+    } else if (oldWidget.useReplyDialog != widget.useReplyDialog) {
+      _showRepliesNotifier.value =
+          _restorableInlineRepliesState?.showReplies ??
+          _shouldAutoExpandReplies;
       _syncReplyExpansionState();
     }
   }
@@ -140,6 +171,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   @override
   void dispose() {
     _isLoadingRepliesNotifier.dispose();
+    _showRepliesNotifier.removeListener(_emitInlineRepliesState);
     _showRepliesNotifier.dispose();
     super.dispose();
   }
@@ -157,12 +189,23 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   }
 
   void _syncReplyExpansionState() {
-    if (_shouldAutoExpandReplies && !_showRepliesNotifier.value) {
+    final hasCachedState = _restorableInlineRepliesState != null;
+    if (!hasCachedState &&
+        _shouldAutoExpandReplies &&
+        !_showRepliesNotifier.value) {
       _showRepliesNotifier.value = true;
-    } else if (!_shouldAutoExpandReplies && _showRepliesNotifier.value) {
-      _showRepliesNotifier.value = false;
+      _emitInlineRepliesState();
     }
     _scheduleAutoLoadReplies();
+  }
+
+  void _emitInlineRepliesState() {
+    widget.onInlineRepliesStateChanged?.call(
+      InlineRepliesState(
+        replies: List<Post>.unmodifiable(_replies),
+        showReplies: _showRepliesNotifier.value,
+      ),
+    );
   }
 
   void _scheduleAutoLoadReplies() {
@@ -183,6 +226,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
         return;
       }
       _showRepliesNotifier.value = true;
+      _emitInlineRepliesState();
       _loadReplies();
     });
   }
@@ -288,8 +332,22 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   }
 
   Future<void> _openBoostInput() async {
-    final raw = await showBoostInputSheet(context);
-    if (raw == null || raw.isEmpty || !mounted) return;
+    final result = await showBoostInputSheet(context);
+    if (result == null || !mounted) return;
+
+    final raw = result.raw;
+    if (raw.isEmpty) return;
+
+    if (result is BoostInputReplyResult) {
+      if (widget.onReplyWithInitialContent != null) {
+        widget.onReplyWithInitialContent!('$raw\n\n');
+      } else if (widget.onReply != null) {
+        ToastService.showInfo(S.current.boost_tooLong(16));
+        widget.onReply!();
+      }
+      return;
+    }
+
     await _createBoost(raw);
   }
 

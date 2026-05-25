@@ -860,11 +860,16 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   }
 
   void _showTimelineSheet(TopicDetail detail) {
+    final preserveNestedView = _isNestedView;
     showTopicTimelineSheet(
       context: context,
       currentIndex: _controller.currentVisibleStreamIndex,
       stream: detail.postStream.stream,
-      onJumpToStreamIndex: _scrollToStreamIndex,
+      onJumpToStreamIndex: (streamIndex, postId) => _scrollToStreamIndex(
+        streamIndex,
+        postId,
+        preserveNestedView: preserveNestedView,
+      ),
       title: detail.title,
     );
   }
@@ -1456,6 +1461,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           topContentInset: topContentInset,
           isLoggedIn: isLoggedIn,
           onReply: _handleReply,
+          onReplyWithInitialContent: (replyToPost, initialContent) =>
+              _handleReply(replyToPost, initialContent: initialContent),
           onEdit: _handleEdit,
           onRefreshPost: _handleRefreshPost,
           onJumpToPost: _scrollToPost,
@@ -1489,6 +1496,23 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                         )
                         .state =
                     pendingPostNumber;
+              });
+            } else if (pendingPostNumber != null && nestedState.hasMoreRoots) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                final latest = ref
+                    .read(nestedTopicProvider(nestedParams))
+                    .value;
+                if (latest == null ||
+                    !latest.hasMoreRoots ||
+                    latest.isLoadingMore) {
+                  return;
+                }
+                unawaited(
+                  ref
+                      .read(nestedTopicProvider(nestedParams).notifier)
+                      .loadMoreRoots(),
+                );
               });
             }
           },
@@ -1535,6 +1559,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               onScrollIndexMappingChanged: _controller.updateScrollIndexMapping,
               onJumpToPost: _scrollToPost,
               onReply: _handleReply,
+              onReplyWithInitialContent: (replyToPost, initialContent) =>
+                  _handleReply(replyToPost, initialContent: initialContent),
               onEdit: _handleEdit,
               onShareAsImage: _sharePostAsImage,
               onRefreshPost: _handleRefreshPost,

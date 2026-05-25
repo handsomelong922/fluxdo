@@ -66,6 +66,35 @@ void main() {
       expect(trigger.isArmed, isFalse);
     });
 
+    test('manual reset clears armed state and previous scroll position', () {
+      final trigger = NestedLoadMoreTrigger();
+
+      expect(
+        trigger.update(
+          pixels: 1640,
+          maxScrollExtent: 2000,
+          hasMoreRoots: true,
+          isLoadingMore: false,
+        ),
+        isFalse,
+      );
+      expect(trigger.isArmed, isTrue);
+
+      trigger.reset();
+      expect(trigger.isArmed, isFalse);
+
+      expect(
+        trigger.update(
+          pixels: 1648,
+          maxScrollExtent: 2000,
+          hasMoreRoots: true,
+          isLoadingMore: false,
+        ),
+        isFalse,
+      );
+      expect(trigger.isArmed, isTrue);
+    });
+
     test('does not trigger while loading or without more roots', () {
       final trigger = NestedLoadMoreTrigger();
 

@@ -14,6 +14,9 @@ class AiChatMessage {
   final DateTime createdAt;
   final MessageStatus status;
   final String? errorMessage;
+  final int? promptTokens;
+  final int? responseTokens;
+  final int? cachedTokens;
 
   const AiChatMessage({
     required this.id,
@@ -22,6 +25,9 @@ class AiChatMessage {
     required this.createdAt,
     this.status = MessageStatus.completed,
     this.errorMessage,
+    this.promptTokens,
+    this.responseTokens,
+    this.cachedTokens,
   });
 
   AiChatMessage copyWith({
@@ -31,6 +37,9 @@ class AiChatMessage {
     DateTime? createdAt,
     MessageStatus? status,
     String? errorMessage,
+    int? promptTokens,
+    int? responseTokens,
+    int? cachedTokens,
   }) {
     return AiChatMessage(
       id: id ?? this.id,
@@ -39,6 +48,9 @@ class AiChatMessage {
       createdAt: createdAt ?? this.createdAt,
       status: status ?? this.status,
       errorMessage: errorMessage ?? this.errorMessage,
+      promptTokens: promptTokens ?? this.promptTokens,
+      responseTokens: responseTokens ?? this.responseTokens,
+      cachedTokens: cachedTokens ?? this.cachedTokens,
     );
   }
 
@@ -50,6 +62,9 @@ class AiChatMessage {
       'createdAt': createdAt.toIso8601String(),
       'status': status.name,
       if (errorMessage != null) 'errorMessage': errorMessage,
+      if (promptTokens != null) 'promptTokens': promptTokens,
+      if (responseTokens != null) 'responseTokens': responseTokens,
+      if (cachedTokens != null) 'cachedTokens': cachedTokens,
     };
   }
 
@@ -61,6 +76,9 @@ class AiChatMessage {
       createdAt: DateTime.parse(json['createdAt'] as String),
       status: MessageStatus.values.byName(json['status'] as String),
       errorMessage: json['errorMessage'] as String?,
+      promptTokens: json['promptTokens'] as int?,
+      responseTokens: json['responseTokens'] as int?,
+      cachedTokens: json['cachedTokens'] as int?,
     );
   }
 }

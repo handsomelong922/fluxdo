@@ -115,26 +115,60 @@ extension _ScrollActions on _TopicDetailPageState {
     );
   }
 
-  Future<void> _scrollToPost(int postNumber) async {
+  void _rememberNestedJumpPosition(int postNumber) {
+    _pendingNestedRestorePostNumber = postNumber;
+    _controller.updateCurrentPostNumber(postNumber);
+    ref.read(detailScrollPositionProvider(widget.topicId).notifier).state =
+        postNumber;
+    unawaited(
+      ref
+          .read(topicReadingStateServiceProvider)
+          .saveState(
+            topicId: widget.topicId,
+            postNumber: postNumber,
+            nestedView: true,
+          ),
+    );
+  }
+
+  Future<void> _scrollToPost(
+    int postNumber, {
+    bool preserveNestedView = false,
+  }) async {
     final params = _params;
     final detail = ref.read(topicDetailProvider(params)).value;
     if (detail == null) return;
+
+    if (preserveNestedView && !_isNestedView && mounted) {
+      setState(() => _isNestedView = true);
+    }
 
     if (_isNestedView) {
       final nestedScrollIndex = _nestedPostNumberToScrollIndex[postNumber];
       if (nestedScrollIndex != null &&
           _controller.scrollController.hasClients) {
+        _rememberNestedJumpPosition(postNumber);
+        _pendingNestedRestorePostNumber = null;
         await _controller.scrollController.scrollToIndex(
           nestedScrollIndex,
           preferPosition: AutoScrollPosition.begin,
           duration: const Duration(milliseconds: 180),
         );
-        _controller.updateCurrentPostNumber(postNumber);
         _controller.triggerHighlight(postNumber);
         return;
       }
 
-      setState(() => _isNestedView = false);
+      _rememberNestedJumpPosition(postNumber);
+      final nestedParams = NestedTopicParams(topicId: widget.topicId);
+      final nestedState = ref.read(nestedTopicProvider(nestedParams)).value;
+      if (nestedState != null &&
+          nestedState.hasMoreRoots &&
+          !nestedState.isLoadingMore) {
+        unawaited(
+          ref.read(nestedTopicProvider(nestedParams).notifier).loadMoreRoots(),
+        );
+      }
+      return;
     }
 
     final posts = detail.postStream.posts;
@@ -192,7 +226,11 @@ extension _ScrollActions on _TopicDetailPageState {
     _controller.triggerHighlight(postNumber);
   }
 
-  Future<void> _scrollToStreamIndex(int streamIndex, int postId) async {
+  Future<void> _scrollToStreamIndex(
+    int streamIndex,
+    int postId, {
+    bool preserveNestedView = false,
+  }) async {
     final realPostNumber = await _resolvePostNumberForJump(
       postId,
       fallbackPostNumber: streamIndex,
@@ -200,7 +238,10 @@ extension _ScrollActions on _TopicDetailPageState {
     if (realPostNumber == null) return;
 
     _controller.updateStreamIndex(streamIndex);
-    await _scrollToPost(realPostNumber);
+    await _scrollToPost(realPostNumber, preserveNestedView: preserveNestedView);
+    if (preserveNestedView && mounted && !_isNestedView) {
+      setState(() => _isNestedView = true);
+    }
   }
 
   Future<int?> _resolvePostNumberForJump(
