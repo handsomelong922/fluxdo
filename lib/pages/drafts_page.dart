@@ -146,11 +146,13 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
   Future<void> _onDraftTap(Draft draft) async {
     final draftKey = draft.draftKey;
 
-    if (draftKey == Draft.newTopicKey) {
+    if (draft.isNewTopicDraft) {
       // 新话题草稿：进入创建话题页面
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const CreateTopicPage()),
+        MaterialPageRoute(
+          builder: (_) => CreateTopicPage(draftKey: draft.draftKey),
+        ),
       );
     } else if (draftKey == Draft.newPrivateMessageKey) {
       // 私信草稿：直接弹出回复框
@@ -232,7 +234,9 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                             draft.draftKey,
                             sequence: draft.sequence,
                           );
-                          if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext, true);
+                          }
                         } catch (e) {
                           if (dialogContext.mounted) {
                             setState(() => isDeleting = false);
@@ -282,7 +286,7 @@ class _DraftCard extends StatelessWidget {
     String typeLabel;
     IconData typeIcon;
 
-    if (draft.draftKey == Draft.newTopicKey) {
+    if (draft.isNewTopicDraft) {
       typeLabel = context.l10n.drafts_newTopic;
       typeIcon = Icons.add_circle_outline;
     } else if (draft.draftKey == Draft.newPrivateMessageKey) {

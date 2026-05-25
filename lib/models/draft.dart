@@ -69,9 +69,13 @@ class DraftData {
     if (title != null) json['title'] = title;
     if (categoryId != null) json['categoryId'] = categoryId;
     if (tags != null && tags!.isNotEmpty) json['tags'] = tags;
-    if (replyToPostNumber != null) json['replyToPostNumber'] = replyToPostNumber;
+    if (replyToPostNumber != null) {
+      json['replyToPostNumber'] = replyToPostNumber;
+    }
     if (action != null) json['action'] = action;
-    if (recipients != null && recipients!.isNotEmpty) json['recipients'] = recipients;
+    if (recipients != null && recipients!.isNotEmpty) {
+      json['recipients'] = recipients;
+    }
     if (archetypeId != null) json['archetypeId'] = archetypeId;
     if (composerTime != null) json['composerTime'] = composerTime;
     if (typingTime != null) json['typingTime'] = typingTime;
@@ -227,6 +231,27 @@ class Draft {
 
   /// 新私信草稿 Key
   static const String newPrivateMessageKey = 'new_private_message';
+
+  /// 判断是否是新话题草稿 Key。
+  ///
+  /// Discourse 网页端可能为新话题草稿生成带后缀的 key，例如
+  /// `new_topic_xxxxx`，不能只按固定的 `new_topic` 判断。
+  static bool isNewTopicKey(String draftKey) {
+    return draftKey == newTopicKey || draftKey.startsWith('${newTopicKey}_');
+  }
+
+  /// 是否是新话题草稿。
+  bool get isNewTopicDraft {
+    if (isNewTopicKey(draftKey)) {
+      return true;
+    }
+
+    final action = data.action;
+    return draftKey.isNotEmpty &&
+        draftKey != newPrivateMessageKey &&
+        !draftKey.startsWith('topic_') &&
+        (action == 'createTopic' || action == DraftAction.createTopic.value);
+  }
 
   /// 话题回复草稿 Key（回复话题本身）
   static String topicReplyKey(int topicId) => 'topic_$topicId';

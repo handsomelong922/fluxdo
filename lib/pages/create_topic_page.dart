@@ -20,11 +20,13 @@ import '../utils/dialog_utils.dart';
 class CreateTopicPage extends ConsumerStatefulWidget {
   final int? initialCategoryId;
   final List<String>? initialTags;
+  final String draftKey;
 
   const CreateTopicPage({
     super.key,
     this.initialCategoryId,
     this.initialTags,
+    this.draftKey = Draft.newTopicKey,
   });
 
   @override
@@ -59,7 +61,7 @@ class _CreateTopicPageState extends ConsumerState<CreateTopicPage> {
     _contentController.addListener(_updateContentLength);
 
     // 初始化草稿控制器
-    _draftController = DraftController(draftKey: Draft.newTopicKey);
+    _draftController = DraftController(draftKey: widget.draftKey);
 
     // 添加草稿自动保存监听
     _titleController.addListener(_onDraftContentChanged);
@@ -514,8 +516,12 @@ class _CreateTopicPageState extends ConsumerState<CreateTopicPage> {
                                     maxLength: 200,
                                     buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
                                     validator: (value) {
-                                      if (value == null || value.trim().isEmpty) return context.l10n.createTopic_enterTitle;
-                                      if (value.trim().length < minTitleLength) return context.l10n.createTopic_minTitleLength(minTitleLength);
+                                      if (value == null || value.trim().isEmpty) {
+                                        return context.l10n.createTopic_enterTitle;
+                                      }
+                                      if (value.trim().length < minTitleLength) {
+                                        return context.l10n.createTopic_minTitleLength(minTitleLength);
+                                      }
                                       return null;
                                     },
                                     onTap: () {

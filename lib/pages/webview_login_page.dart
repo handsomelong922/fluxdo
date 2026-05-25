@@ -23,6 +23,7 @@ import '../services/webview_settings.dart';
 import '../services/windows_webview_environment_service.dart';
 import '../services/fingerprint_service.dart';
 import '../services/log/log_writer.dart';
+import '../services/login_ready_coordinator.dart';
 import '../widgets/common/dismissible_popup_menu.dart';
 import '../l10n/s.dart';
 import '../utils/dialog_utils.dart';
@@ -556,15 +557,18 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         currentUrl: currentUrl,
         webViewToken: tToken,
       );
+      final pageHtml = await _readRawPreloadedHtml(controller);
+
+      await _finalizeLoginBootstrap(
+        currentUrl: currentUrl,
+        token: finalToken,
+        pageHtml: pageHtml,
+      );
 
       if (mounted) {
         ToastService.showSuccess(S.current.webviewLogin_loginSuccess);
         Navigator.of(context).pop(true);
       }
-
-      unawaited(
-        _finalizeLoginAfterExit(currentUrl: currentUrl, token: finalToken),
-      );
     } finally {
       _loginInProgress = false;
     }
@@ -620,20 +624,32 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     }
 
     _service.setToken(finalToken);
-    _service.onLoginSuccess(finalToken);
     return finalToken;
   }
 
-  Future<void> _finalizeLoginAfterExit({
+  Future<void> _finalizeLoginBootstrap({
     required String? currentUrl,
     required String token,
+    String? pageHtml,
   }) async {
+    const finalizeTimeout = Duration(seconds: 8);
+    var loginReadyNotified = false;
+
+    void notifyLoginReadyOnce(String finalToken) {
+      if (loginReadyNotified) return;
+      loginReadyNotified = true;
+      _service.onLoginSuccess(finalToken);
+    }
+
     try {
-      final reusedPreloaded = false;
-      if (!reusedPreloaded) {
-        debugPrint('[Login] 当前页面无可复用首页数据，回退到 HTTP refresh');
-        await PreloadedDataService().refresh();
-      }
+      final reusedPreloaded = await LoginReadyCoordinator(
+        hydrateFromHtml: PreloadedDataService().hydrateFromHtml,
+        refreshPreloadedData: () async {
+          debugPrint('[Login] 当前页面无可复用首页数据，回退到 HTTP refresh');
+          await PreloadedDataService().refresh();
+        },
+        notifyLoginReady: notifyLoginReadyOnce,
+      ).finalize(token: token, pageHtml: pageHtml).timeout(finalizeTimeout);
 
       final jarToken = await _cookieJar.getTToken();
       final tokenMatch = jarToken == token;
@@ -651,14 +667,43 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         'webViewTokenLen': token.length,
         'tokenMatch': tokenMatch,
         'currentUrl': currentUrl,
+        'reusedPreloaded': reusedPreloaded,
         'jarSessionCookies': jarSessionCookies,
       });
-
+    } on TimeoutException {
+      debugPrint('[Login] 登录态收尾超时（${finalizeTimeout.inSeconds}s），走兜底广播');
+      LogWriter.instance.write({
+        'timestamp': DateTime.now().toIso8601String(),
+        'level': 'warning',
+        'type': 'auth',
+        'event': 'login_bootstrap_timeout',
+        'message': '登录态收尾超时，已兜底广播登录成功',
+        'currentUrl': currentUrl,
+        'timeoutSeconds': finalizeTimeout.inSeconds,
+      });
+    } catch (e) {
+      debugPrint('[Login] 登录态收尾失败: $e');
+    } finally {
+      notifyLoginReadyOnce(token);
       // 上报浏览器指纹（防止因缺少指纹触发风控）
       unawaited(FingerprintService.instance.collectAndReport());
-    } catch (e) {
-      debugPrint('[Login] 登录态后台收尾失败: $e');
     }
+  }
+
+  Future<String?> _readRawPreloadedHtml(
+    InAppWebViewController controller,
+  ) async {
+    try {
+      final result = await controller.evaluateJavascript(
+        source: 'window.__rawPreloaded || null',
+      );
+      if (result is String && result.isNotEmpty) {
+        return result;
+      }
+    } catch (e) {
+      debugPrint('[Login] 读取登录页预加载数据失败: $e');
+    }
+    return null;
   }
 
   Future<String?> _readCurrentUsername(

@@ -37,6 +37,7 @@ class AdaptiveNavigationRail extends StatelessWidget {
     this.extended = false,
     this.leading,
     this.bottomLeading,
+    this.topDestinationCount,
     this.bottomDestinationCount = 1,
   });
 
@@ -50,6 +51,11 @@ class AdaptiveNavigationRail extends StatelessWidget {
   /// 底部导航项上方的自定义组件
   final Widget? bottomLeading;
 
+  /// 固定在顶部的导航项数量（从前往后算起）。
+  ///
+  /// 为 null 时保持旧行为：除底部固定项外，其余都放在顶部。
+  final int? topDestinationCount;
+
   /// 固定在底部的导航项数量（从末尾算起）
   final int bottomDestinationCount;
 
@@ -59,9 +65,17 @@ class AdaptiveNavigationRail extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final isDesktop = PlatformUtils.isDesktop;
 
-    final splitIndex = destinations.length - bottomDestinationCount;
-    final topDestinations = destinations.sublist(0, splitIndex);
-    final bottomDestinations = destinations.sublist(splitIndex);
+    final safeBottomCount = bottomDestinationCount.clamp(0, destinations.length).toInt();
+    final defaultTopCount = destinations.length - safeBottomCount;
+    final safeTopCount = (topDestinationCount ?? defaultTopCount)
+        .clamp(0, destinations.length)
+        .toInt();
+    final remainingAfterTop = destinations.length - safeTopCount;
+    final effectiveBottomCount = safeBottomCount.clamp(0, remainingAfterTop).toInt();
+    final bottomStartIndex = destinations.length - effectiveBottomCount;
+    final topDestinations = destinations.sublist(0, safeTopCount);
+    final extraBottomDestinations = destinations.sublist(safeTopCount, bottomStartIndex);
+    final bottomDestinations = destinations.sublist(bottomStartIndex);
 
     Widget rail = SafeArea(
       child: SizedBox(
@@ -103,9 +117,28 @@ class AdaptiveNavigationRail extends StatelessWidget {
               bottomLeading!,
               const SizedBox(height: 8),
             ],
+            ...extraBottomDestinations.asMap().entries.map((entry) {
+              final index = entry.key + safeTopCount;
+              final dest = entry.value;
+              final selected = index == selectedIndex;
+
+              return _NavigationRailItem(
+                icon: selected
+                    ? _ActiveDestinationIcon(
+                        dest: dest,
+                        defaultIcon: dest.selectedIcon,
+                      )
+                    : dest.icon,
+                label: dest.label,
+                selected: selected,
+                extended: extended,
+                colorScheme: colorScheme,
+                onTap: () => onDestinationSelected(index),
+              );
+            }),
             // 底部导航项
             ...bottomDestinations.asMap().entries.map((entry) {
-              final index = entry.key + splitIndex;
+              final index = entry.key + bottomStartIndex;
               final dest = entry.value;
               final selected = index == selectedIndex;
 

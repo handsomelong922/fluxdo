@@ -18,18 +18,23 @@ class RhttpSettings {
   const RhttpSettings({
     this.enabled = false,
     this.mode = RhttpMode.always,
+    this.forceDisabled = false,
   });
 
   final bool enabled;
   final RhttpMode mode;
+  /// 运行时强制禁用标志，不写入 SharedPreferences。
+  final bool forceDisabled;
 
   RhttpSettings copyWith({
     bool? enabled,
     RhttpMode? mode,
+    bool? forceDisabled,
   }) {
     return RhttpSettings(
       enabled: enabled ?? this.enabled,
       mode: mode ?? this.mode,
+      forceDisabled: forceDisabled ?? this.forceDisabled,
     );
   }
 }
@@ -80,21 +85,34 @@ class RhttpSettingsService {
     _touch();
   }
 
-  /// 强制禁用（Rhttp.init() 失败时调用）
+  /// 强制禁用（Rhttp.init() 失败时调用）。
+  ///
+  /// 仅修改当前进程内存状态，不覆盖用户的 rhttp 开关偏好。
   Future<void> forceDisable() async {
-    await setEnabled(false);
+    if (_prefs == null) return;
+    notifier.value = notifier.value.copyWith(forceDisabled: true);
+    _touch();
     debugPrint('[rhttp] 已强制禁用（初始化失败）');
   }
 
   /// 综合判断当前是否应该使用 rhttp
   bool shouldUseRhttp(NetworkSettings ns, ProxySettings ps) {
     if (!current.enabled) return false;
+    if (current.forceDisabled) return false;
     // rhttp fork 已支持 ECH（通过 TlsSettings.echConfigList），不再排除
     // proxyOnly 模式：仅代理/DOH 启用时使用
     if (current.mode == RhttpMode.proxyOnly) {
       return ns.dohEnabled || ps.isValid;
     }
     return true; // always 模式
+  }
+
+  /// 重置单例内部状态，仅用于测试，使 initialize() 可重新执行。
+  @visibleForTesting
+  void resetForTest() {
+    _prefs = null;
+    _version = 0;
+    notifier.value = const RhttpSettings();
   }
 
   void _touch() {

@@ -157,8 +157,8 @@ class LdcRewardConfigTile extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () {
-              final clientId = clientIdController.text.trim();
-              final clientSecret = clientSecretController.text.trim();
+              final clientId = sanitizeLdcCredential(clientIdController.text);
+              final clientSecret = sanitizeLdcCredential(clientSecretController.text);
               if (clientId.isEmpty || clientSecret.isEmpty) {
                 ToastService.showError(S.current.toast_credentialIncomplete);
                 return;
@@ -175,4 +175,17 @@ class LdcRewardConfigTile extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// 清理凭证中的空白与零宽不可见字符，避免复制时混入隐藏字符导致认证失败。
+String sanitizeLdcCredential(String input) {
+  const invisibleCodes = <int>{0x200B, 0x200C, 0x200D, 0xFEFF};
+  final buffer = StringBuffer();
+  for (final code in input.runes) {
+    if (invisibleCodes.contains(code)) continue;
+    final char = String.fromCharCode(code);
+    if (RegExp(r'\s').hasMatch(char)) continue;
+    buffer.writeCharCode(code);
+  }
+  return buffer.toString();
 }

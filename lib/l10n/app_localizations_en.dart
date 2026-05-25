@@ -4712,6 +4712,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get preferences_basic => 'Basic';
 
   @override
+  String get preferences_clipboardTopicLinkDetection =>
+      'Detect clipboard topic links';
+
+  @override
+  String get preferences_clipboardTopicLinkDetectionDesc =>
+      'Check for Linux.do topic links in the clipboard when returning to the app and ask before opening';
+
+  @override
+  String get preferences_clipboardTopicLink_detected =>
+      'Topic link found in clipboard';
+
+  @override
+  String get preferences_clipboardTopicLink_open => 'Open';
+
+  @override
   String get preferences_autoSummarizeTopicOnEnter =>
       'Auto summarize on topic open';
 
