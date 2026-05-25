@@ -477,9 +477,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   }
 
   void _showDismissConfirmDialog(TopicListFilter currentFilter) {
-    final label = currentFilter == TopicListFilter.newTopics
-        ? context.l10n.topics_newTopics
-        : context.l10n.topics_unreadTopics;
+    final label = _dismissLabel(currentFilter);
     showAppDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -500,6 +498,21 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
         ],
       ),
     );
+  }
+
+  String _dismissLabel(TopicListFilter filter) {
+    if (filter == TopicListFilter.newTopics) {
+      final subset = ref.read(topicNewSubsetProvider);
+      switch (subset) {
+        case NewSubset.all:
+          return context.l10n.topic_filterNewAllShort;
+        case NewSubset.topics:
+          return context.l10n.topic_filterNewTopicsShort;
+        case NewSubset.replies:
+          return context.l10n.topic_filterNewRepliesShort;
+      }
+    }
+    return context.l10n.topics_unreadTopics;
   }
 
   Future<void> _doDismiss() async {
@@ -1153,10 +1166,15 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
                     builder: (context, ref, _) {
                       final order = ref.watch(topicSortOrderProvider);
                       final ascending = ref.watch(topicSortAscendingProvider);
+                      final subset = ref.watch(topicNewSubsetProvider);
                       return SortAndTagsBar(
                         currentFilter: currentFilter,
                         isLoggedIn: isLoggedIn,
                         onFilterChanged: onFilterChanged,
+                        currentSubset: subset,
+                        onSubsetChanged: (subset) => ref
+                            .read(topicNewSubsetProvider.notifier)
+                            .setSubset(subset),
                         currentOrder: order,
                         ascending: ascending,
                         onOrderChanged: (o) => ref

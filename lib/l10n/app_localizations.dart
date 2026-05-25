@@ -9653,6 +9653,36 @@ abstract class AppLocalizations {
   /// **'新话题'**
   String get topic_filterNew;
 
+  /// No description provided for @topic_filterNewAllShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'所有'**
+  String get topic_filterNewAllShort;
+
+  /// No description provided for @topic_filterNewReplies.
+  ///
+  /// In zh, this message translates to:
+  /// **'新 · 回复'**
+  String get topic_filterNewReplies;
+
+  /// No description provided for @topic_filterNewRepliesShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'回复'**
+  String get topic_filterNewRepliesShort;
+
+  /// No description provided for @topic_filterNewTopics.
+  ///
+  /// In zh, this message translates to:
+  /// **'新 · 话题'**
+  String get topic_filterNewTopics;
+
+  /// No description provided for @topic_filterNewTopicsShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'话题'**
+  String get topic_filterNewTopicsShort;
+
   /// No description provided for @topic_filterTooltip.
   ///
   /// In zh, this message translates to:

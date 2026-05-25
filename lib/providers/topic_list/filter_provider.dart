@@ -4,13 +4,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../theme_provider.dart';
 
 /// 话题列表筛选模式
-enum TopicListFilter {
-  latest,
-  newTopics,
-  unread,
-  unseen,
-  top,
-  hot,
+enum TopicListFilter { latest, newTopics, unread, unseen, top, hot }
+
+/// 「新话题」的二级子过滤，对齐网页版 new 页面 subset 参数。
+enum NewSubset { all, topics, replies }
+
+extension NewSubsetX on NewSubset {
+  String? get apiValue {
+    switch (this) {
+      case NewSubset.all:
+        return null;
+      case NewSubset.topics:
+        return 'topics';
+      case NewSubset.replies:
+        return 'replies';
+    }
+  }
 }
 
 /// TopicListFilter 扩展方法
@@ -69,8 +78,7 @@ class TopicFilterNotifier extends StateNotifier<TopicListFilter> {
   static const String _key = 'topic_sort_filter';
   final SharedPreferences _prefs;
 
-  TopicFilterNotifier(this._prefs)
-      : super(_fromName(_prefs.getString(_key)));
+  TopicFilterNotifier(this._prefs) : super(_fromName(_prefs.getString(_key)));
 
   static TopicListFilter _fromName(String? name) {
     for (final filter in TopicListFilter.values) {
@@ -88,6 +96,32 @@ class TopicFilterNotifier extends StateNotifier<TopicListFilter> {
 /// 当前筛选模式（持久化到 SharedPreferences）
 final topicFilterProvider =
     StateNotifierProvider<TopicFilterNotifier, TopicListFilter>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return TopicFilterNotifier(prefs);
-});
+      final prefs = ref.watch(sharedPreferencesProvider);
+      return TopicFilterNotifier(prefs);
+    });
+
+/// 「新话题」二级子过滤持久化 Notifier。
+class NewSubsetNotifier extends StateNotifier<NewSubset> {
+  static const String _key = 'topic_new_subset';
+  final SharedPreferences _prefs;
+
+  NewSubsetNotifier(this._prefs) : super(_fromName(_prefs.getString(_key)));
+
+  static NewSubset _fromName(String? name) {
+    for (final subset in NewSubset.values) {
+      if (subset.name == name) return subset;
+    }
+    return NewSubset.all;
+  }
+
+  void setSubset(NewSubset subset) {
+    state = subset;
+    _prefs.setString(_key, subset.name);
+  }
+}
+
+final topicNewSubsetProvider =
+    StateNotifierProvider<NewSubsetNotifier, NewSubset>((ref) {
+      final prefs = ref.watch(sharedPreferencesProvider);
+      return NewSubsetNotifier(prefs);
+    });

@@ -30,6 +30,8 @@ class SortAndTagsBar extends StatelessWidget {
   final TopicListFilter currentFilter;
   final bool isLoggedIn;
   final ValueChanged<TopicListFilter> onFilterChanged;
+  final NewSubset? currentSubset;
+  final ValueChanged<NewSubset>? onSubsetChanged;
   final TopicSortOrder currentOrder;
   final bool ascending;
   final ValueChanged<TopicSortOrder> onOrderChanged;
@@ -44,6 +46,8 @@ class SortAndTagsBar extends StatelessWidget {
     required this.currentFilter,
     required this.isLoggedIn,
     required this.onFilterChanged,
+    this.currentSubset,
+    this.onSubsetChanged,
     required this.currentOrder,
     required this.ascending,
     required this.onOrderChanged,
@@ -69,6 +73,15 @@ class SortAndTagsBar extends StatelessWidget {
             isLoggedIn: isLoggedIn,
             onFilterChanged: onFilterChanged,
           ),
+          if (currentFilter == TopicListFilter.newTopics &&
+              currentSubset != null &&
+              onSubsetChanged != null) ...[
+            const SizedBox(width: 4),
+            NewSubsetDropdown(
+              currentSubset: currentSubset!,
+              onSubsetChanged: onSubsetChanged!,
+            ),
+          ],
           const SizedBox(width: 6),
           // 排序下拉
           OrderDropdown(
@@ -85,33 +98,32 @@ class SortAndTagsBar extends StatelessWidget {
               child: Row(
                 children: [
                   // 已选标签 chips
-                  ...selectedTags.map((tag) => Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: RemovableTagBadge(
-                      name: tag,
-                      onDeleted: () => onTagRemoved(tag),
-                      size: const BadgeSize(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        radius: 6,
-                        iconSize: 12,
-                        fontSize: 12,
+                  ...selectedTags.map(
+                    (tag) => Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: RemovableTagBadge(
+                        name: tag,
+                        onDeleted: () => onTagRemoved(tag),
+                        size: const BadgeSize(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          radius: 6,
+                          iconSize: 12,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
-                  )),
+                  ),
                   // 添加标签按钮
                   if (onAddTag != null)
-                    _AddTagButton(
-                      colorScheme: colorScheme,
-                      onTap: onAddTag!,
-                    ),
+                    _AddTagButton(colorScheme: colorScheme, onTap: onAddTag!),
                 ],
               ),
             ),
           ),
-          if (trailing != null) ...[
-            const SizedBox(width: 8),
-            trailing!,
-          ],
+          if (trailing != null) ...[const SizedBox(width: 8), trailing!],
         ],
       ),
     );
@@ -122,10 +134,7 @@ class _AddTagButton extends StatelessWidget {
   final ColorScheme colorScheme;
   final VoidCallback onTap;
 
-  const _AddTagButton({
-    required this.colorScheme,
-    required this.onTap,
-  });
+  const _AddTagButton({required this.colorScheme, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -145,7 +154,11 @@ class _AddTagButton extends StatelessWidget {
           children: [
             Icon(Icons.add, size: 14, color: colorScheme.onSurfaceVariant),
             const SizedBox(width: 2),
-            Icon(Icons.label_outline, size: 14, color: colorScheme.onSurfaceVariant),
+            Icon(
+              Icons.label_outline,
+              size: 14,
+              color: colorScheme.onSurfaceVariant,
+            ),
           ],
         ),
       ),

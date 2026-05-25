@@ -105,8 +105,8 @@ class TopicTimelineSheet extends StatefulWidget {
   /// stream 数组（帖子 ID 列表）
   final List<int> stream;
 
-  /// 跳转回调，参数是帖子 ID
-  final void Function(int postId) onJumpToPostId;
+  /// 跳转回调，参数分别是 stream 索引（1-based）和帖子 ID。
+  final void Function(int streamIndex, int postId) onJumpToStreamIndex;
 
   /// 话题标题
   final String? title;
@@ -118,7 +118,7 @@ class TopicTimelineSheet extends StatefulWidget {
     super.key,
     required this.currentIndex,
     required this.stream,
-    required this.onJumpToPostId,
+    required this.onJumpToStreamIndex,
     required this.topPadding,
     this.title,
   });
@@ -225,7 +225,7 @@ class _TopicTimelineSheetState extends State<TopicTimelineSheet> {
   void _commitJump() {
     if (_selectedIndex >= 1 && _selectedIndex <= _totalCount) {
       final postId = widget.stream[_selectedIndex - 1];
-      widget.onJumpToPostId(postId);
+      widget.onJumpToStreamIndex(_selectedIndex, postId);
     }
     Navigator.of(context).pop();
   }
@@ -582,7 +582,7 @@ Future<void> showTopicTimelineSheet({
   required BuildContext context,
   required int currentIndex,
   required List<int> stream,
-  required void Function(int postId) onJumpToPostId,
+  required void Function(int streamIndex, int postId) onJumpToStreamIndex,
   String? title,
 }) {
   // 在 modal 外部获取状态栏高度，因为 showModalBottomSheet 会清零 padding.top
@@ -594,7 +594,7 @@ Future<void> showTopicTimelineSheet({
     builder: (context) => TopicTimelineSheet(
       currentIndex: currentIndex,
       stream: stream,
-      onJumpToPostId: onJumpToPostId,
+      onJumpToStreamIndex: onJumpToStreamIndex,
       title: title,
       topPadding: topPadding,
     ),
