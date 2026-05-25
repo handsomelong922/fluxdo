@@ -182,6 +182,8 @@ class LongPostFooterSegment extends StatelessWidget {
   final bool useReplyDialog;
   final VoidCallback? onShowPostDetail;
   final String? highlightBoostUsername;
+  final InlineRepliesState? inlineRepliesState;
+  final ValueChanged<InlineRepliesState>? onInlineRepliesStateChanged;
 
   const LongPostFooterSegment({
     super.key,
@@ -201,6 +203,8 @@ class LongPostFooterSegment extends StatelessWidget {
     required this.onSolutionChanged,
     this.useReplyDialog = false,
     this.onShowPostDetail,
+    this.inlineRepliesState,
+    this.onInlineRepliesStateChanged,
   });
 
   @override
@@ -234,6 +238,8 @@ class LongPostFooterSegment extends StatelessWidget {
               onSolutionChanged: onSolutionChanged,
               useReplyDialog: useReplyDialog,
               onShowPostDetail: onShowPostDetail,
+              inlineRepliesState: inlineRepliesState,
+              onInlineRepliesStateChanged: onInlineRepliesStateChanged,
             ),
           ),
         ],

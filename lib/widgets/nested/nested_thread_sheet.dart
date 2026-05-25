@@ -94,6 +94,7 @@ class _NestedThreadSheetContentState
   bool _isLoadingMore = false;
   int _page = 0;
   final Map<int, bool> _expansionState = {};
+  final Map<int, NestedRepliesState> _repliesStateByPostNumber = {};
 
   @override
   void initState() {
@@ -167,6 +168,10 @@ class _NestedThreadSheetContentState
                       onJumpToPost: widget.onJumpToPost,
                       onSolutionChanged: widget.onSolutionChanged,
                       expansionState: _expansionState,
+                      repliesStateByPostNumber: _repliesStateByPostNumber,
+                      onRepliesStateChanged: (postNumber, state) {
+                        _repliesStateByPostNumber[postNumber] = state;
+                      },
                     ),
                   // 加载更多
                   if (_hasMore)

@@ -12,6 +12,7 @@ import '../../utils/time_utils.dart';
 import '../content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../post/post_signature.dart';
 import '../post/post_item/widgets/post_footer_section/post_footer_section.dart';
+import '../post/reply_auto_expand_policy.dart';
 import 'nested_collapsed_bar.dart';
 import 'nested_post_gutter.dart';
 import 'nested_thread_sheet.dart';
@@ -23,6 +24,22 @@ const double _verticalGap = 6.0;
 const double _lineWidth = 2.0;
 const double _lineCenterX = _avatarSize / 2; // 竖线 X 中心（相对于帖子左边缘）
 const double _lineAvatarGap = 4.0; // L 连接线末端与头像之间的间距
+
+class NestedRepliesState {
+  const NestedRepliesState({
+    required this.children,
+    required this.hasMore,
+    required this.page,
+    required this.expanded,
+    required this.collapsed,
+  });
+
+  final List<NestedNode> children;
+  final bool hasMore;
+  final int page;
+  final bool expanded;
+  final bool collapsed;
+}
 
 /// 嵌套帖子卡片
 ///
@@ -58,6 +75,9 @@ class NestedPostCard extends ConsumerStatefulWidget {
 
   /// 展开/折叠状态存储（跨滚动回收保持状态）
   final Map<int, bool>? expansionState;
+  final Map<int, NestedRepliesState>? repliesStateByPostNumber;
+  final void Function(int postNumber, NestedRepliesState state)?
+  onRepliesStateChanged;
 
   final Widget Function(int postNumber, Widget child)? buildScrollTag;
 
@@ -79,6 +99,8 @@ class NestedPostCard extends ConsumerStatefulWidget {
     this.onSolutionChanged,
     this.parentLineHighlighted = false,
     this.expansionState,
+    this.repliesStateByPostNumber,
+    this.onRepliesStateChanged,
     this.buildScrollTag,
   });
 
@@ -124,25 +146,56 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   }
 
   void _resetNodeState() {
-    _children = List.from(widget.node.children);
-    _hasMore = widget.node.hasMoreChildren;
     _isLoadingMore = false;
-    _page = 0;
     _depthLineHovered = false;
     _autoLoadScheduled = false;
 
-    // 从状态存储恢复，否则有回复就默认展开。
+    final cachedReplies =
+        widget.repliesStateByPostNumber?[widget.node.post.postNumber];
+    if (cachedReplies != null) {
+      _children = List.from(cachedReplies.children);
+      _hasMore = cachedReplies.hasMore;
+      _page = cachedReplies.page;
+      _expanded = cachedReplies.expanded;
+      _collapsed = cachedReplies.collapsed;
+      widget.expansionState?[widget.node.post.postNumber] = _expanded;
+      return;
+    }
+
+    _children = List.from(widget.node.children);
+    _hasMore = widget.node.hasMoreChildren;
+    _page = 0;
+
+    // 少量回复自动展开；回复过多时保留正文，只显示手动展开入口。
     final cached = widget.expansionState?[widget.node.post.postNumber];
-    if (cached != null) {
+    if (cached != null &&
+        shouldAutoExpandReplyCount(widget.node.directReplyCount)) {
       _expanded = cached;
-      _collapsed = !cached && _hasReplies;
+      _collapsed = false;
     } else {
-      _expanded = _hasReplies && !_atMaxDepth;
+      _expanded =
+          _hasReplies &&
+          !_atMaxDepth &&
+          shouldAutoExpandReplyCount(widget.node.directReplyCount);
       _collapsed = false;
       if (_expanded) {
         widget.expansionState?[widget.node.post.postNumber] = true;
       }
     }
+    _emitRepliesState();
+  }
+
+  void _emitRepliesState() {
+    widget.onRepliesStateChanged?.call(
+      widget.node.post.postNumber,
+      NestedRepliesState(
+        children: List<NestedNode>.unmodifiable(_children),
+        hasMore: _hasMore,
+        page: _page,
+        expanded: _expanded,
+        collapsed: _collapsed,
+      ),
+    );
   }
 
   void _listenChildCreated() {
@@ -165,6 +218,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           _expanded = true;
           _collapsed = false;
           widget.expansionState?[widget.node.post.postNumber] = true;
+          _emitRepliesState();
         });
         notifier.clearLastChildCreated();
       },
@@ -206,6 +260,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       }
       // 持久化到状态存储
       widget.expansionState?[widget.node.post.postNumber] = _expanded;
+      _emitRepliesState();
     });
   }
 
@@ -230,6 +285,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         _hasMore = response.hasMore;
         _page = response.page + 1;
         _isLoadingMore = false;
+        _emitRepliesState();
       });
     } catch (e) {
       if (!mounted) return;
@@ -708,6 +764,8 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
             onSolutionChanged: widget.onSolutionChanged,
             parentLineHighlighted: _depthLineHovered,
             expansionState: widget.expansionState,
+            repliesStateByPostNumber: widget.repliesStateByPostNumber,
+            onRepliesStateChanged: widget.onRepliesStateChanged,
             buildScrollTag: widget.buildScrollTag,
           ),
         if (_hasMore) _buildLoadMoreWithConnector(theme),

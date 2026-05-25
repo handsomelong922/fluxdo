@@ -7,10 +7,14 @@ extension _PostFooterReplyActions on _PostFooterSectionState {
     _isLoadingRepliesNotifier.value = true;
     try {
       final after = _replies.isNotEmpty ? _replies.last.postNumber : 1;
-      final replies = await _service.getPostReplies(widget.post.id, after: after);
+      final replies = await _service.getPostReplies(
+        widget.post.id,
+        after: after,
+      );
       if (mounted) {
         _replies.addAll(replies);
         _isLoadingRepliesNotifier.value = false;
+        _emitInlineRepliesState();
       }
     } on DioException catch (_) {
       // 网络错误已由 ErrorInterceptor 处理
@@ -40,11 +44,13 @@ extension _PostFooterReplyActions on _PostFooterSectionState {
     // 普通模式：内联展开直接回复
     if (_showRepliesNotifier.value) {
       _showRepliesNotifier.value = false;
+      _emitInlineRepliesState();
       return;
     }
 
     if (_replies.isNotEmpty) {
       _showRepliesNotifier.value = true;
+      _emitInlineRepliesState();
       return;
     }
 
@@ -57,6 +63,7 @@ extension _PostFooterReplyActions on _PostFooterSectionState {
         _replies.addAll(replies);
         _isLoadingRepliesNotifier.value = false;
         _showRepliesNotifier.value = true;
+        _emitInlineRepliesState();
       }
     } on DioException catch (_) {
       // 网络错误已由 ErrorInterceptor 处理

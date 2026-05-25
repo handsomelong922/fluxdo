@@ -71,6 +71,7 @@ class NestedPostList extends ConsumerStatefulWidget {
 
 class _NestedPostListState extends ConsumerState<NestedPostList> {
   final Map<int, bool> _expansionState = {};
+  final Map<int, NestedRepliesState> _repliesStateByPostNumber = {};
   final Map<int, int> _postNumberToScrollIndex = {};
   final Map<int, int> _scrollIndexToPostNumber = {};
   final NestedLoadMoreTrigger _loadMoreTrigger = NestedLoadMoreTrigger();
@@ -110,6 +111,17 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
     );
     if (shouldLoadMore) {
       ref.read(nestedTopicProvider(widget.params).notifier).loadMoreRoots();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant NestedPostList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.params != widget.params ||
+        oldWidget.nestedState.sort != widget.nestedState.sort) {
+      _expansionState.clear();
+      _repliesStateByPostNumber.clear();
+      _loadMoreTrigger.reset();
     }
   }
 
@@ -351,6 +363,10 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                   onJumpToPost: widget.onJumpToPost,
                   onSolutionChanged: widget.onSolutionChanged,
                   expansionState: _expansionState,
+                  repliesStateByPostNumber: _repliesStateByPostNumber,
+                  onRepliesStateChanged: (postNumber, state) {
+                    _repliesStateByPostNumber[postNumber] = state;
+                  },
                   buildScrollTag: (postNumber, child) => AutoScrollTag(
                     key: ValueKey('nested-post-$postNumber'),
                     controller: widget.scrollController,

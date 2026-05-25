@@ -39,6 +39,8 @@ class PostItem extends ConsumerStatefulWidget {
   final VoidCallback? onShowPostDetail;
   final bool hideRepliesButton;
   final String? highlightBoostUsername;
+  final InlineRepliesState? inlineRepliesState;
+  final ValueChanged<InlineRepliesState>? onInlineRepliesStateChanged;
 
   const PostItem({
     super.key,
@@ -65,6 +67,8 @@ class PostItem extends ConsumerStatefulWidget {
     this.useReplyDialog = false,
     this.onShowPostDetail,
     this.hideRepliesButton = false,
+    this.inlineRepliesState,
+    this.onInlineRepliesStateChanged,
   });
 
   @override
@@ -258,6 +262,8 @@ class _PostItemState extends ConsumerState<PostItem> {
                 useReplyDialog: widget.useReplyDialog,
                 onShowPostDetail: widget.onShowPostDetail,
                 hideRepliesButton: widget.hideRepliesButton,
+                inlineRepliesState: widget.inlineRepliesState,
+                onInlineRepliesStateChanged: widget.onInlineRepliesStateChanged,
                 onAcceptedAnswerChanged: (accepted) {
                   if (!mounted) return;
                   setState(() {

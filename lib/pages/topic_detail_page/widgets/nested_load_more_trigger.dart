@@ -13,6 +13,11 @@ class NestedLoadMoreTrigger {
 
   bool get isArmed => _armed;
 
+  void reset() {
+    _armed = false;
+    _lastPixels = null;
+  }
+
   bool update({
     required double pixels,
     required double maxScrollExtent,
