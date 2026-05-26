@@ -21,6 +21,7 @@ class TopicDetailOverlay extends StatelessWidget {
   final VoidCallback onOpenInBrowser;
   final VoidCallback onReply;
   final VoidCallback onProgressTap;
+  final bool showProgress;
   final bool isSummaryMode;
   final bool isAuthorOnlyMode;
   final bool isTopLevelMode;
@@ -44,6 +45,7 @@ class TopicDetailOverlay extends StatelessWidget {
     required this.onOpenInBrowser,
     required this.onReply,
     required this.onProgressTap,
+    this.showProgress = true,
     this.isSummaryMode = false,
     this.isAuthorOnlyMode = false,
     this.isTopLevelMode = false,
@@ -64,22 +66,23 @@ class TopicDetailOverlay extends StatelessWidget {
     return Stack(
       children: [
         // 固定的进度栏
-        AnimatedPositioned(
-          key: const ValueKey('progress_bar'),
-          duration: topicDetailBarAnimationDuration,
-          curve: topicDetailBarAnimationCurve,
-          bottom: showBottomBar ? 96 : 24 + bottomPadding,
-          left: 0,
-          right: 0,
-          child: Center(
-            child: TopicProgress(
-              currentIndex: currentStreamIndex,
-              totalCount: totalCount,
-              progressPercent: progressPercent,
-              onTap: onProgressTap,
+        if (showProgress)
+          AnimatedPositioned(
+            key: const ValueKey('progress_bar'),
+            duration: topicDetailBarAnimationDuration,
+            curve: topicDetailBarAnimationCurve,
+            bottom: showBottomBar ? 96 : 24 + bottomPadding,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: TopicProgress(
+                currentIndex: currentStreamIndex,
+                totalCount: totalCount,
+                progressPercent: progressPercent,
+                onTap: onProgressTap,
+              ),
             ),
           ),
-        ),
         // 底部操作栏
         AnimatedPositioned(
           key: const ValueKey('bottom_bar'),

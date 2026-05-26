@@ -1310,6 +1310,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                     onOpenInBrowser: _openInBrowser,
                     onReply: () => _handleReply(null),
                     onProgressTap: () => _showTimelineSheet(detail),
+                    showProgress: !_isNestedView,
                     isSummaryMode: notifier.isSummaryMode,
                     isAuthorOnlyMode: notifier.isAuthorOnlyMode,
                     isTopLevelMode: notifier.isTopLevelMode,
