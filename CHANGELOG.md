@@ -1,3 +1,8 @@
+## v0.4.6
+
+- fix: hide timeline jump in nested view
+
+
 ## v0.4.5
 
 - fix: stabilize auto-expanded replies while scrolling
