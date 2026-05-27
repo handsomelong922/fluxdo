@@ -4666,6 +4666,34 @@ class AppLocalizationsZh extends AppLocalizations {
       '关闭帖子详情加载骨架动画和用户主页背景闪动，保留静态占位';
 
   @override
+  String get preferences_pageTransition => '页面过渡动画';
+
+  @override
+  String get preferences_pageTransitionDesc =>
+      '选择打开和返回页面时的动画效果；减少加载动画开启时默认禁用快照以避免返回后卡手';
+
+  @override
+  String get pageTransition_platform => '跟随系统';
+
+  @override
+  String get pageTransition_noSnapshot => '默认动画（无快照）';
+
+  @override
+  String get pageTransition_fade => '淡入淡出';
+
+  @override
+  String get pageTransition_slide => '滑动';
+
+  @override
+  String get pageTransition_scale => '缩放';
+
+  @override
+  String get pageTransition_flip => '翻转';
+
+  @override
+  String get pageTransition_none => '无动画';
+
+  @override
   String get preferences_longPressPreview => '长按预览';
 
   @override
@@ -10683,6 +10711,34 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
       '關閉話題詳情載入骨架動畫和用戶主頁背景閃動，保留靜態佔位';
 
   @override
+  String get preferences_pageTransition => '頁面過渡動畫';
+
+  @override
+  String get preferences_pageTransitionDesc =>
+      '選擇開啟和返回頁面時的動畫效果；減少載入動畫開啟時預設停用快照以避免返回後卡頓';
+
+  @override
+  String get pageTransition_platform => '跟隨系統';
+
+  @override
+  String get pageTransition_noSnapshot => '預設動畫（無快照）';
+
+  @override
+  String get pageTransition_fade => '淡入淡出';
+
+  @override
+  String get pageTransition_slide => '滑動';
+
+  @override
+  String get pageTransition_scale => '縮放';
+
+  @override
+  String get pageTransition_flip => '翻轉';
+
+  @override
+  String get pageTransition_none => '無動畫';
+
+  @override
   String get preferences_longPressPreview => '長按預覽';
 
   @override
@@ -16574,6 +16630,34 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   @override
   String get preferences_reduceLoadingAnimationsDesc =>
       '關閉話題詳情載入骨架動畫和使用者主頁背景閃動，保留靜態佔位';
+
+  @override
+  String get preferences_pageTransition => '頁面過渡動畫';
+
+  @override
+  String get preferences_pageTransitionDesc =>
+      '選擇開啟和返回頁面時的動畫效果；減少載入動畫開啟時預設停用快照以避免返回後卡頓';
+
+  @override
+  String get pageTransition_platform => '跟隨系統';
+
+  @override
+  String get pageTransition_noSnapshot => '預設動畫（無快照）';
+
+  @override
+  String get pageTransition_fade => '淡入淡出';
+
+  @override
+  String get pageTransition_slide => '滑動';
+
+  @override
+  String get pageTransition_scale => '縮放';
+
+  @override
+  String get pageTransition_flip => '翻轉';
+
+  @override
+  String get pageTransition_none => '無動畫';
 
   @override
   String get preferences_longPressPreview => '長按預覽';

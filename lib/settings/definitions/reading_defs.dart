@@ -1,10 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/s.dart';
 import '../../providers/preferences_provider.dart';
 import '../settings_model.dart';
+import '../../navigation/page_transition_preferences.dart';
+import '../../utils/dialog_utils.dart';
 
 /// 阅读设置数据声明
 List<SettingsGroup> buildReadingGroups(BuildContext context) {
@@ -91,6 +94,17 @@ List<SettingsGroup> buildReadingGroups(BuildContext context) {
               .read(preferencesProvider.notifier)
               .setReduceLoadingAnimations(v),
         ),
+        ActionModel(
+          id: 'pageTransition',
+          title: l10n.preferences_pageTransition,
+          subtitle: l10n.preferences_pageTransitionDesc,
+          icon: Icons.animation_rounded,
+          getDynamicSubtitle: (ref) => _pageTransitionLabel(
+            context,
+            ref.watch(preferencesProvider).pageTransition,
+          ),
+          onTap: (context, ref) => _showPageTransitionPicker(context, ref),
+        ),
         SwitchModel(
           id: 'defaultNestedTopicView',
           title: l10n.nested_title,
@@ -146,4 +160,51 @@ List<SettingsGroup> buildReadingGroups(BuildContext context) {
       ],
     ),
   ];
+}
+
+String _pageTransitionLabel(
+  BuildContext context,
+  AppPageTransition transition,
+) {
+  final l10n = context.l10n;
+  return switch (transition) {
+    AppPageTransition.platform => l10n.pageTransition_platform,
+    AppPageTransition.noSnapshot => l10n.pageTransition_noSnapshot,
+    AppPageTransition.fade => l10n.pageTransition_fade,
+    AppPageTransition.slide => l10n.pageTransition_slide,
+    AppPageTransition.scale => l10n.pageTransition_scale,
+    AppPageTransition.flip => l10n.pageTransition_flip,
+    AppPageTransition.none => l10n.pageTransition_none,
+  };
+}
+
+Future<void> _showPageTransitionPicker(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final current = ref.read(preferencesProvider).pageTransition;
+  final selected = await showAppDialog<AppPageTransition>(
+    context: context,
+    builder: (dialogContext) => SimpleDialog(
+      title: Text(context.l10n.preferences_pageTransition),
+      children: [
+        RadioGroup<AppPageTransition>(
+          groupValue: current,
+          onChanged: (value) => Navigator.of(dialogContext).pop(value),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final transition in AppPageTransition.values)
+                RadioListTile<AppPageTransition>(
+                  title: Text(_pageTransitionLabel(context, transition)),
+                  value: transition,
+                ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+  if (selected == null) return;
+  await ref.read(preferencesProvider.notifier).setPageTransition(selected);
 }

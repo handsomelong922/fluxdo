@@ -65,16 +65,23 @@ class AdaptiveNavigationRail extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final isDesktop = PlatformUtils.isDesktop;
 
-    final safeBottomCount = bottomDestinationCount.clamp(0, destinations.length).toInt();
+    final safeBottomCount = bottomDestinationCount
+        .clamp(0, destinations.length)
+        .toInt();
     final defaultTopCount = destinations.length - safeBottomCount;
     final safeTopCount = (topDestinationCount ?? defaultTopCount)
         .clamp(0, destinations.length)
         .toInt();
     final remainingAfterTop = destinations.length - safeTopCount;
-    final effectiveBottomCount = safeBottomCount.clamp(0, remainingAfterTop).toInt();
+    final effectiveBottomCount = safeBottomCount
+        .clamp(0, remainingAfterTop)
+        .toInt();
     final bottomStartIndex = destinations.length - effectiveBottomCount;
     final topDestinations = destinations.sublist(0, safeTopCount);
-    final extraBottomDestinations = destinations.sublist(safeTopCount, bottomStartIndex);
+    final extraBottomDestinations = destinations.sublist(
+      safeTopCount,
+      bottomStartIndex,
+    );
     final bottomDestinations = destinations.sublist(bottomStartIndex);
 
     Widget rail = SafeArea(
@@ -312,7 +319,8 @@ class _AdaptiveBottomNavigationState
     final id = widget.destinations[index].id;
 
     // 判定是否为双击
-    final isDouble = hasDouble &&
+    final isDouble =
+        hasDouble &&
         _lastActiveTapIndex == index &&
         _lastActiveTapTime != null &&
         now.difference(_lastActiveTapTime!) < _doubleTapWindow;
@@ -358,19 +366,25 @@ class _AdaptiveBottomNavigationState
 
   @override
   Widget build(BuildContext context) {
-    return NavigationBar(
-      selectedIndex: widget.selectedIndex,
-      onDestinationSelected: _handleTap,
-      destinations: widget.destinations.map((d) {
-        return NavigationDestination(
-          icon: d.icon,
-          selectedIcon: _ActiveDestinationIcon(
-            dest: d,
-            defaultIcon: d.selectedIcon,
-          ),
-          label: d.label,
-        );
-      }).toList(),
+    return NavigationBarTheme(
+      data: const NavigationBarThemeData(
+        height: 56,
+        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+      ),
+      child: NavigationBar(
+        selectedIndex: widget.selectedIndex,
+        onDestinationSelected: _handleTap,
+        destinations: widget.destinations.map((d) {
+          return NavigationDestination(
+            icon: d.icon,
+            selectedIcon: _ActiveDestinationIcon(
+              dest: d,
+              defaultIcon: d.selectedIcon,
+            ),
+            label: d.label,
+          );
+        }).toList(),
+      ),
     );
   }
 }
@@ -384,10 +398,7 @@ class _AdaptiveBottomNavigationState
 /// 这样用户滚到深处后就能"预览"单击会发生什么，符合 Twitter/Telegram 的交互惯例。
 /// 只应放在 NavigationBar 的 selectedIcon 位置（或侧栏 selected 状态下）。
 class _ActiveDestinationIcon extends ConsumerWidget {
-  const _ActiveDestinationIcon({
-    required this.dest,
-    required this.defaultIcon,
-  });
+  const _ActiveDestinationIcon({required this.dest, required this.defaultIcon});
 
   final AdaptiveDestination dest;
   final Widget defaultIcon;
@@ -400,16 +411,14 @@ class _ActiveDestinationIcon extends ConsumerWidget {
     );
 
     final actionIcon = action.icon;
-    final showActionIcon = progress >= navScrollIconThreshold &&
+    final showActionIcon =
+        progress >= navScrollIconThreshold &&
         action != NavTapAction.none &&
         actionIcon != null;
 
     final child = showActionIcon
         ? Icon(actionIcon, key: ValueKey('nav-action-${action.name}'))
-        : KeyedSubtree(
-            key: const ValueKey('nav-default'),
-            child: defaultIcon,
-          );
+        : KeyedSubtree(key: const ValueKey('nav-default'), child: defaultIcon);
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 220),

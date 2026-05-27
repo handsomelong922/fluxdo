@@ -2,10 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/l10n/app_localizations.dart';
 import 'package:fluxdo/models/topic.dart';
+import 'package:fluxdo/pages/topic_detail_page/topic_detail_page.dart';
 import 'package:fluxdo/pages/topic_detail_page/widgets/topic_detail_overlay.dart';
 import 'package:fluxdo/widgets/topic/topic_progress.dart';
 
 void main() {
+  group('shouldShowTopicTimelineProgress', () {
+    test('keeps timeline jump in normal view only', () {
+      expect(
+        shouldShowTopicTimelineProgress(
+          isNestedView: false,
+          isTopLevelMode: false,
+        ),
+        isTrue,
+      );
+      expect(
+        shouldShowTopicTimelineProgress(
+          isNestedView: true,
+          isTopLevelMode: false,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldShowTopicTimelineProgress(
+          isNestedView: false,
+          isTopLevelMode: true,
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('TopicDetailOverlay', () {
     testWidgets('shows progress control by default', (tester) async {
       await tester.pumpWidget(_buildApp(showProgress: true));
