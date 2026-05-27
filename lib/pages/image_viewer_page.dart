@@ -17,6 +17,7 @@ import '../utils/share_utils.dart';
 import '../widgets/common/image_context_menu.dart';
 import '../widgets/common/loading_spinner.dart';
 import '../l10n/s.dart';
+import '../navigation/page_transition_preferences.dart';
 
 class ImageViewerPage extends StatefulWidget {
   final String? imageUrl;
@@ -84,7 +85,10 @@ class ImageViewerPage extends StatefulWidget {
           );
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
+          return PopGesturePassthrough(
+            animation: animation,
+            child: FadeTransition(opacity: animation, child: child),
+          );
         },
       ),
     );
@@ -101,7 +105,10 @@ class ImageViewerPage extends StatefulWidget {
           return ImageViewerPage(imageBytes: bytes);
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
+          return PopGesturePassthrough(
+            animation: animation,
+            child: FadeTransition(opacity: animation, child: child),
+          );
         },
       ),
     );

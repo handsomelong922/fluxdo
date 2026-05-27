@@ -267,7 +267,6 @@ class _NoPageTransitionsBuilder extends PageTransitionsBuilder {
   }
 }
 
-@visibleForTesting
 class PopGesturePassthrough extends SingleChildRenderObjectWidget {
   const PopGesturePassthrough({
     super.key,
@@ -298,7 +297,6 @@ class _PopGesturePassthrough extends PopGesturePassthrough {
   });
 }
 
-@visibleForTesting
 class RenderPopGesturePassthrough extends RenderProxyBox {
   RenderPopGesturePassthrough(Animation<double> animation)
     : _animation = animation {
