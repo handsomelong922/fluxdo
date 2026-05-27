@@ -1,5 +1,5 @@
 // 帖子数据模型
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
 import '../l10n/s.dart';
 import '../utils/time_utils.dart';
 import 'avatar_url_policy.dart';
@@ -1319,6 +1319,92 @@ class PostStream {
   }
 }
 
+@visibleForTesting
+int? resolveAcceptedAnswerPostNumber(
+  Map<String, dynamic> json,
+  PostStream postStream,
+) {
+  int? resolvePostId(int? postId) {
+    if (postId == null) return null;
+    for (final post in postStream.posts) {
+      if (post.id == postId) return post.postNumber;
+    }
+    final streamIndex = postStream.stream.indexOf(postId);
+    if (streamIndex >= 0) return streamIndex + 1;
+    return null;
+  }
+
+  int? asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  int? intFrom(Map<String, dynamic> source, List<String> keys) {
+    for (final key in keys) {
+      final value = asInt(source[key]);
+      if (value != null) return value;
+    }
+    return null;
+  }
+
+  int? resolveAcceptedAnswerData(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      final postNumber = intFrom(data, const [
+        'post_number',
+        'accepted_answer_post_number',
+        'answer_post_number',
+      ]);
+      if (postNumber != null) return postNumber;
+
+      return resolvePostId(
+        intFrom(data, const [
+          'post_id',
+          'accepted_answer_post_id',
+          'answer_post_id',
+          'id',
+        ]),
+      );
+    }
+
+    final rawIdOrNumber = asInt(data);
+    if (rawIdOrNumber == null) return null;
+
+    final postNumberFromId = resolvePostId(rawIdOrNumber);
+    if (postNumberFromId != null) return postNumberFromId;
+
+    for (final post in postStream.posts) {
+      if (post.postNumber == rawIdOrNumber) return post.postNumber;
+    }
+    return null;
+  }
+
+  final fromAcceptedAnswer = resolveAcceptedAnswerData(json['accepted_answer']);
+  if (fromAcceptedAnswer != null) return fromAcceptedAnswer;
+
+  final directPostNumber = intFrom(json, const [
+    'accepted_answer_post_number',
+    'answer_post_number',
+    'solved_post_number',
+  ]);
+  if (directPostNumber != null) return directPostNumber;
+
+  final directPostId = intFrom(json, const [
+    'accepted_answer_post_id',
+    'accepted_answer_id',
+    'answer_post_id',
+    'solved_post_id',
+  ]);
+  final fromPostId = resolvePostId(directPostId);
+  if (fromPostId != null) return fromPostId;
+
+  final acceptedPost = postStream.posts
+      .where((p) => p.acceptedAnswer)
+      .firstOrNull;
+  return acceptedPost?.postNumber;
+}
+
 /// 话题详情模型
 class TopicDetail {
   final int id;
@@ -1417,27 +1503,15 @@ class TopicDetail {
             as List<dynamic>?;
     PostStream.injectBadges(postStream.posts, json, rawPosts);
 
-    // 解析 accepted_answer：topic 级别返回的是一个对象 {post_number, username, ...}
+    final acceptedAnswerPostNumber = resolveAcceptedAnswerPostNumber(
+      json,
+      postStream,
+    );
     final acceptedAnswerData = json['accepted_answer'];
-    int? acceptedAnswerPostNumber;
-    bool hasAcceptedAnswer = false;
-
-    if (acceptedAnswerData is Map<String, dynamic>) {
-      // topic 级别的 accepted_answer 是一个对象
-      acceptedAnswerPostNumber = acceptedAnswerData['post_number'] as int?;
-      hasAcceptedAnswer = true;
-    }
-
-    // 备用方案：如果 topic 级别没有，从帖子的 topic_accepted_answer 或 accepted_answer 字段推断
-    if (!hasAcceptedAnswer) {
-      hasAcceptedAnswer = json['has_accepted_answer'] as bool? ?? false;
-    }
-    if (hasAcceptedAnswer && acceptedAnswerPostNumber == null) {
-      final acceptedPost = postStream.posts
-          .where((p) => p.acceptedAnswer)
-          .firstOrNull;
-      acceptedAnswerPostNumber = acceptedPost?.postNumber;
-    }
+    final hasAcceptedAnswer =
+        acceptedAnswerPostNumber != null ||
+        (acceptedAnswerData != null && acceptedAnswerData != false) ||
+        (json['has_accepted_answer'] as bool? ?? false);
 
     // 解析书签数组：分别提取话题书签和帖子书签
     bool topicBookmarked = false;

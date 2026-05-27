@@ -7,6 +7,7 @@ extension _ScrollActions on _TopicDetailPageState {
   void _onScroll() {
     if (_isRefreshing) return;
 
+    _syncTopEdgeState();
     _scheduleCheckTitleVisibility();
     _controller.handleScroll();
 
@@ -29,6 +30,16 @@ extension _ScrollActions on _TopicDetailPageState {
       notifier.isLoadingMore,
     )) {
       notifier.loadMore();
+    }
+  }
+
+  void _syncTopEdgeState() {
+    final sc = _controller.scrollController;
+    final isAtTop =
+        !sc.hasClients ||
+        sc.position.pixels <= sc.position.minScrollExtent + 0.5;
+    if (_isAtTopNotifier.value != isAtTop) {
+      _isAtTopNotifier.value = isAtTop;
     }
   }
 

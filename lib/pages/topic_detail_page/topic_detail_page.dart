@@ -71,6 +71,8 @@ part 'actions/_filter_actions.dart';
 
 const double _topicDetailToolbarHeight = 48.0;
 const double _topicFloatingButtonSize = 44.0;
+const double _topicActionMenuWidth = 168.0;
+const double _topicTopContentGap = 8.0;
 
 @visibleForTesting
 bool shouldShowTopicTimelineProgress({
@@ -151,6 +153,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   final ValueNotifier<bool> _isOverlayVisibleNotifier = ValueNotifier<bool>(
     false,
   );
+
+  /// 页面是否停在最顶部；用于顶部悬浮按钮在标题区域自动隐藏
+  final ValueNotifier<bool> _isAtTopNotifier = ValueNotifier<bool>(true);
   bool _isSwitchingMode = false; // 切换热门回复模式
   late bool _isNestedView; // 嵌套视图模式
   Map<int, int> _nestedPostNumberToScrollIndex = const {};
@@ -373,6 +378,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _showTitleNotifier.dispose();
     _isScrolledUnderNotifier.dispose();
     _isOverlayVisibleNotifier.dispose();
+    _isAtTopNotifier.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
     _pageController.dispose();
@@ -710,11 +716,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
     return SwipeDismissiblePopupMenuButton<String>(
       tooltip: context.l10n.topicDetail_moreOptions,
-      offset: const Offset(0, 8),
+      offset: const Offset(0, 6),
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 260, maxWidth: 320),
-      menuPadding: const EdgeInsets.all(8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      constraints: const BoxConstraints.tightFor(width: _topicActionMenuWidth),
+      menuPadding: const EdgeInsets.all(6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       color: theme.colorScheme.surface.withValues(alpha: 0.98),
       shadowColor: Colors.black.withValues(alpha: 0.18),
       surfaceTintColor: Colors.transparent,
@@ -745,8 +751,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }) {
       return PopupMenuItem<String>(
         value: value,
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        height: 44,
         child: _TopicMenuTile(icon: icon, label: label, selected: selected),
       );
     }
@@ -1052,40 +1058,47 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final topicScaffold = ValueListenableBuilder<bool>(
       valueListenable: _controller.showBottomBarNotifier,
       builder: (context, showBars, _) {
-        final shouldShowAppBar = isSearchMode || !hideBarOnScroll || showBars;
-        final contentTopInset = 0.0;
-        final topicBody = _buildBody(
-          context,
-          detailAsync,
-          detail,
-          notifier,
-          isLoggedIn,
-          topContentInset: contentTopInset,
-        );
-        if (isSearchMode) {
-          return Scaffold(
-            appBar: _buildAppBar(
-              theme: theme,
-              detail: detail,
-              notifier: notifier,
-            ),
-            body: topicBody,
-          );
-        }
+        return ValueListenableBuilder<bool>(
+          valueListenable: _isAtTopNotifier,
+          builder: (context, isAtTop, _) {
+            final shouldShowAppBar = !isAtTop && (!hideBarOnScroll || showBars);
+            final contentTopInset = isSearchMode
+                ? 0.0
+                : MediaQuery.of(context).padding.top + _topicTopContentGap;
+            final topicBody = _buildBody(
+              context,
+              detailAsync,
+              detail,
+              notifier,
+              isLoggedIn,
+              topContentInset: contentTopInset,
+            );
+            if (isSearchMode) {
+              return Scaffold(
+                appBar: _buildAppBar(
+                  theme: theme,
+                  detail: detail,
+                  notifier: notifier,
+                ),
+                body: topicBody,
+              );
+            }
 
-        return Scaffold(
-          extendBodyBehindAppBar: true,
-          body: Stack(
-            children: [
-              topicBody,
-              _buildCollapsibleAppBarOverlay(
-                theme: theme,
-                detail: detail,
-                notifier: notifier,
-                visible: shouldShowAppBar,
+            return Scaffold(
+              extendBodyBehindAppBar: true,
+              body: Stack(
+                children: [
+                  topicBody,
+                  _buildCollapsibleAppBarOverlay(
+                    theme: theme,
+                    detail: detail,
+                    notifier: notifier,
+                    visible: shouldShowAppBar,
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -1745,12 +1758,12 @@ class _TopicMenuTile extends StatelessWidget {
       duration: const Duration(milliseconds: 160),
       curve: Curves.easeOutCubic,
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
       decoration: BoxDecoration(
         color: selected
             ? colorScheme.primaryContainer.withValues(alpha: 0.72)
             : colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(13),
         border: Border.all(
           color: selected
               ? colorScheme.primary.withValues(alpha: 0.18)
@@ -1759,8 +1772,8 @@ class _TopicMenuTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: iconColor),
-          const SizedBox(width: 12),
+          Icon(icon, size: 18, color: iconColor),
+          const SizedBox(width: 8),
           Flexible(
             child: Text(
               label,

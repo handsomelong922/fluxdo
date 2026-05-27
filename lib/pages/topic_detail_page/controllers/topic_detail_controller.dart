@@ -17,7 +17,7 @@ class TopicScrollState {
 
   const TopicScrollState({
     this.showBackToTop = false,
-    this.showBottomBar = true,
+    this.showBottomBar = false,
     this.hasInitialScrolled = false,
     this.isPositioned = false,
     this.jumpTargetPostNumber,
@@ -63,7 +63,7 @@ class TopicDetailController extends ChangeNotifier {
   double _accumulatedScrollDelta = 0;
 
   /// 底部栏显示状态
-  final ValueNotifier<bool> showBottomBarNotifier = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> showBottomBarNotifier = ValueNotifier<bool>(false);
 
   /// 定位完成状态
   final ValueNotifier<bool> isPositionedNotifier = ValueNotifier<bool>(false);
@@ -164,6 +164,16 @@ class TopicDetailController extends ChangeNotifier {
   /// 处理滚动事件
   void handleScroll() {
     onScrolled?.call();
+
+    final isAtTop =
+        scrollController.hasClients &&
+        scrollController.position.pixels <=
+            scrollController.position.minScrollExtent + 0.5;
+    if (isAtTop && _scrollState.showBottomBar) {
+      _scrollState = _scrollState.copyWith(showBottomBar: false);
+      showBottomBarNotifier.value = false;
+      _accumulatedScrollDelta = 0;
+    }
 
     final shouldShowBackToTop =
         scrollController.hasClients && scrollController.position.pixels > 300;

@@ -37,12 +37,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   int _currentPage = 1;
   bool _isLoadingMore = false;
   List<SearchPost> _standardPosts = []; // 标准搜索结果（原始）
-  List<SearchPost> _allPosts = [];      // 最终展示列表（融合后）
+  List<SearchPost> _allPosts = []; // 最终展示列表（融合后）
   List<SearchUser> _allUsers = [];
   bool _hasMorePosts = false;
   bool _hasMoreUsers = false;
   bool _hasError = false;
   bool _isLoadMoreFailed = false;
+  bool _isRefreshingResults = false;
   String _errorMessage = '';
 
   // 最近搜索记录
@@ -55,7 +56,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   // AI 语义搜索
   bool _siteAiSearchAvailable = false;
-  List<SearchPost> _aiPosts = [];  // AI 搜索结果（原始）
+  List<SearchPost> _aiPosts = []; // AI 搜索结果（原始）
   bool _isSearchingAi = false;
 
   @override
@@ -167,17 +168,31 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final currentOrder = ref.read(searchSettingsProvider).sortOrder;
     if (order != null && order != currentOrder) {
       ref.read(searchSettingsProvider.notifier).setSortOrder(order);
-      setState(() {
-        _currentPage = 1;
-        _standardPosts = [];
-        _allPosts = [];
-        _allUsers = [];
-        // 切换排序时清空 AI 结果
+      _refreshResultsForSettings(clearAiPosts: true);
+    }
+  }
+
+  void _refreshResultsForSettings({required bool clearAiPosts}) {
+    setState(() {
+      _currentPage = 1;
+      _isRefreshingResults = _allPosts.isNotEmpty || _allUsers.isNotEmpty;
+      _hasError = false;
+      _isLoadMoreFailed = false;
+      if (clearAiPosts) {
         _aiPosts = [];
         _isSearchingAi = false;
-      });
-      _performSearch();
-    }
+      }
+    });
+    _performSearch();
+  }
+
+  void _onAiSearchToggle(bool value) {
+    final notifier = ref.read(searchSettingsProvider.notifier);
+    notifier.setAiSearchEnabled(value);
+    notifier.setSortOrder(
+      value ? SearchSortOrder.relevance : SearchSortOrder.latest,
+    );
+    _refreshResultsForSettings(clearAiPosts: !value);
   }
 
   void _onFilterChanged(SearchFilter newFilter) {
@@ -238,7 +253,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   /// RRF（Reciprocal Rank Fusion）算法，与 Discourse 前端一致
   /// 将标准搜索结果和 AI 搜索结果按倒数排名融合
-  List<SearchPost> _mergeWithRRF(List<SearchPost> standard, List<SearchPost> ai) {
+  List<SearchPost> _mergeWithRRF(
+    List<SearchPost> standard,
+    List<SearchPost> ai,
+  ) {
     if (ai.isEmpty) return standard;
     if (standard.isEmpty) return ai;
 
@@ -277,7 +295,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   /// 根据当前 AI 开关状态重新构建展示列表
   void _rebuildDisplayPosts() {
     final settings = ref.read(searchSettingsProvider);
-    final showAi = _siteAiSearchAvailable &&
+    final showAi =
+        _siteAiSearchAvailable &&
         settings.aiSearchEnabled &&
         settings.sortOrder == SearchSortOrder.relevance &&
         _aiPosts.isNotEmpty;
@@ -292,7 +311,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   bool _shouldTriggerAiSearch() {
     final sortOrder = ref.read(searchSettingsProvider).sortOrder;
     final aiEnabled = ref.read(searchSettingsProvider).aiSearchEnabled;
-    return _siteAiSearchAvailable && aiEnabled && sortOrder == SearchSortOrder.relevance;
+    return _siteAiSearchAvailable &&
+        aiEnabled &&
+        sortOrder == SearchSortOrder.relevance;
   }
 
   void _triggerAiSearch(String query) async {
@@ -303,7 +324,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       if (!mounted) return;
 
       // 标记为 AI 生成
-      _aiPosts = aiResult.posts.map((p) => p.copyWith(isAiGenerated: true)).toList();
+      _aiPosts = aiResult.posts
+          .map((p) => p.copyWith(isAiGenerated: true))
+          .toList();
 
       setState(() {
         _isSearchingAi = false;
@@ -368,11 +391,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         _hasMorePosts = result.hasMorePosts;
         _hasMoreUsers = result.hasMoreUsers;
         _isLoadingMore = false;
+        _isRefreshingResults = false;
         _rebuildDisplayPosts();
       });
     } catch (e) {
       setState(() {
         _isLoadingMore = false;
+        _isRefreshingResults = false;
         if (isLoadMore) {
           // 加载更多失败：回退页码，显示重试
           _currentPage--;
@@ -747,7 +772,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   Icon(
                     Icons.auto_awesome,
                     size: 16,
-                    color: ref.watch(searchSettingsProvider).sortOrder == SearchSortOrder.relevance
+                    color:
+                        ref.watch(searchSettingsProvider).sortOrder ==
+                            SearchSortOrder.relevance
                         ? theme.colorScheme.tertiary
                         : theme.colorScheme.outline,
                   ),
@@ -756,28 +783,21 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Switch(
-                        value: ref.watch(searchSettingsProvider).aiSearchEnabled &&
-                            ref.watch(searchSettingsProvider).sortOrder == SearchSortOrder.relevance,
-                        onChanged: ref.watch(searchSettingsProvider).sortOrder == SearchSortOrder.relevance
-                            ? (value) {
-                                ref.read(searchSettingsProvider.notifier).setAiSearchEnabled(value);
-                                setState(() {
-                                  _rebuildDisplayPosts();
-                                  // 开启时若还没有 AI 结果，触发搜索
-                                  if (value && _aiPosts.isEmpty && _currentQuery.isNotEmpty) {
-                                    final cleanQuery = _stripOrderFromQuery(_currentQuery);
-                                    _triggerAiSearch(cleanQuery);
-                                  }
-                                });
-                              }
-                            : null,
+                        value:
+                            ref.watch(searchSettingsProvider).aiSearchEnabled &&
+                            ref.watch(searchSettingsProvider).sortOrder ==
+                                SearchSortOrder.relevance,
+                        onChanged: _onAiSearchToggle,
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                 ],
                 Text(
-                  context.l10n.search_resultCount(_allPosts.length, _hasMorePosts ? '+' : ''),
+                  context.l10n.search_resultCount(
+                    _allPosts.length,
+                    _hasMorePosts ? '+' : '',
+                  ),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.outline,
                   ),
@@ -786,126 +806,146 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             ),
           ),
         Expanded(
-          child: ListView.builder(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(16),
-            itemCount:
-                _allPosts.length +
-                (_allUsers.isNotEmpty ? _allUsers.length + 1 : 0) +
-                (_isLoadingMore || _isLoadMoreFailed ? 1 : 0),
-            itemBuilder: (context, index) {
-              // 帖子结果（标准 + AI 混合）
-              if (index < _allPosts.length) {
-                final searchPost = _allPosts[index];
-                final enableLongPress = ref.watch(preferencesProvider).longPressPreview;
-                return SearchPostCard(
-                  post: searchPost,
-                  onTap: () {
-                    final topic = searchPost.topic;
-                    if (topic != null) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => TopicDetailPage(
-                            topicId: topic.id,
-                            scrollToPostNumber: searchPost.postNumber,
+          child: Column(
+            children: [
+              if (_isRefreshingResults)
+                const LinearProgressIndicator(minHeight: 2),
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount:
+                      _allPosts.length +
+                      (_allUsers.isNotEmpty ? _allUsers.length + 1 : 0) +
+                      (_isLoadingMore || _isLoadMoreFailed ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    // 帖子结果（标准 + AI 混合）
+                    if (index < _allPosts.length) {
+                      final searchPost = _allPosts[index];
+                      final enableLongPress = ref
+                          .watch(preferencesProvider)
+                          .longPressPreview;
+                      return SearchPostCard(
+                        post: searchPost,
+                        onTap: () {
+                          final topic = searchPost.topic;
+                          if (topic != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => TopicDetailPage(
+                                  topicId: topic.id,
+                                  scrollToPostNumber: searchPost.postNumber,
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        onLongPress: enableLongPress
+                            ? () => SearchPreviewDialog.show(
+                                context,
+                                post: searchPost,
+                                onOpen: () {
+                                  final topic = searchPost.topic;
+                                  if (topic != null) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => TopicDetailPage(
+                                          topicId: topic.id,
+                                          scrollToPostNumber:
+                                              searchPost.postNumber,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              )
+                            : null,
+                      );
+                    }
+
+                    // 用户标题
+                    final userStartIndex = _allPosts.length;
+                    if (_allUsers.isNotEmpty && index == userStartIndex) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 16, bottom: 8),
+                        child: _buildSectionHeader(
+                          context.l10n.search_users,
+                          _allUsers.length,
+                          _hasMoreUsers,
+                        ),
+                      );
+                    }
+
+                    // 用户结果
+                    if (_allUsers.isNotEmpty && index > userStartIndex) {
+                      final userIndex = index - userStartIndex - 1;
+                      if (userIndex < _allUsers.length) {
+                        return _SearchUserCard(
+                          user: _allUsers[userIndex],
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => UserProfilePage(
+                                  username: _allUsers[userIndex].username,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      }
+                    }
+
+                    // 加载更多失败重试
+                    if (_isLoadMoreFailed) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Center(
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() => _isLoadMoreFailed = false);
+                              _loadMore();
+                            },
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.refresh,
+                                  size: 16,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  context.l10n.common_loadFailedTapRetry,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       );
                     }
-                  },
-                  onLongPress: enableLongPress
-                      ? () => SearchPreviewDialog.show(
-                            context,
-                            post: searchPost,
-                            onOpen: () {
-                              final topic = searchPost.topic;
-                              if (topic != null) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => TopicDetailPage(
-                                      topicId: topic.id,
-                                      scrollToPostNumber: searchPost.postNumber,
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                          )
-                      : null,
-                );
-              }
 
-              // 用户标题
-              final userStartIndex = _allPosts.length;
-              if (_allUsers.isNotEmpty && index == userStartIndex) {
-                return Padding(
-                  padding: const EdgeInsets.only(top: 16, bottom: 8),
-                  child: _buildSectionHeader(
-                    context.l10n.search_users,
-                    _allUsers.length,
-                    _hasMoreUsers,
-                  ),
-                );
-              }
-
-              // 用户结果
-              if (_allUsers.isNotEmpty && index > userStartIndex) {
-                final userIndex = index - userStartIndex - 1;
-                if (userIndex < _allUsers.length) {
-                  return _SearchUserCard(
-                    user: _allUsers[userIndex],
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => UserProfilePage(
-                            username: _allUsers[userIndex].username,
-                          ),
-                        ),
+                    // 加载更多指示器
+                    if (_isLoadingMore) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: LoadingSpinner()),
                       );
-                    },
-                  );
-                }
-              }
+                    }
 
-              // 加载更多失败重试
-              if (_isLoadMoreFailed) {
-                return Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() => _isLoadMoreFailed = false);
-                        _loadMore();
-                      },
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.refresh, size: 16, color: Theme.of(context).colorScheme.primary),
-                          const SizedBox(width: 6),
-                          Text(
-                            context.l10n.common_loadFailedTapRetry,
-                            style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.primary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }
-
-              // 加载更多指示器
-              if (_isLoadingMore) {
-                return const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(child: LoadingSpinner()),
-                );
-              }
-
-              return const SizedBox.shrink();
-            },
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ],
