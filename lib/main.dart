@@ -81,6 +81,7 @@ import 'widgets/read_later/read_later_bubble.dart';
 import 'navigation/nav_action_bus.dart';
 import 'navigation/nav_entry.dart';
 import 'navigation/nav_entry_registry.dart';
+import 'navigation/page_transition_preferences.dart';
 import 'providers/read_later_provider.dart';
 import 'providers/shortcut_provider.dart';
 import 'services/settings/ai_prompt_settings_service.dart';
@@ -388,6 +389,24 @@ class MainApp extends ConsumerWidget {
           );
         }
 
+        final preferences = ref.watch(preferencesProvider);
+        final pageTransitionsTheme = buildAppPageTransitionsTheme(
+          transition: preferences.pageTransition,
+          reduceLoadingAnimations: preferences.reduceLoadingAnimations,
+        );
+        final lightAppBarTheme = AppBarThemeData(
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          backgroundColor: lightScheme.surface,
+          surfaceTintColor: Colors.transparent,
+        );
+        final darkAppBarTheme = AppBarThemeData(
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          backgroundColor: darkScheme.surface,
+          surfaceTintColor: Colors.transparent,
+        );
+
         return MaterialApp(
           navigatorKey: navigatorKey,
           navigatorObservers: [appRouteObserver],
@@ -405,6 +424,14 @@ class MainApp extends ConsumerWidget {
             colorScheme: lightScheme,
             useMaterial3: true,
             fontFamily: themeState.fontFamilyName,
+            pageTransitionsTheme: pageTransitionsTheme,
+            appBarTheme: lightAppBarTheme,
+            navigationBarTheme: NavigationBarThemeData(
+              backgroundColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              indicatorColor: lightScheme.secondaryContainer,
+              elevation: 0,
+            ),
             cardTheme: CardThemeData(
               elevation: 0,
               shape: RoundedRectangleBorder(
@@ -418,6 +445,14 @@ class MainApp extends ConsumerWidget {
             colorScheme: darkScheme,
             useMaterial3: true,
             fontFamily: themeState.fontFamilyName,
+            pageTransitionsTheme: pageTransitionsTheme,
+            appBarTheme: darkAppBarTheme,
+            navigationBarTheme: NavigationBarThemeData(
+              backgroundColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              indicatorColor: darkScheme.secondaryContainer,
+              elevation: 0,
+            ),
             cardTheme: CardThemeData(
               elevation: 0,
               shape: RoundedRectangleBorder(

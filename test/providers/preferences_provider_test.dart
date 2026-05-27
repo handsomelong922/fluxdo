@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/models/avatar_url_policy.dart';
+import 'package:fluxdo/navigation/page_transition_preferences.dart';
 import 'package:fluxdo/providers/preferences_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -35,6 +36,7 @@ void main() {
       expect(notifier.state.showSignatures, isTrue);
       expect(notifier.state.preferStaticAvatars, isFalse);
       expect(notifier.state.hideTopicListAvatars, isFalse);
+      expect(notifier.state.pageTransition, AppPageTransition.platform);
       expect(notifier.state.clipboardTopicLinkDetection, isFalse);
       expect(AvatarUrlPolicy.preferStaticAvatars, isFalse);
     });
@@ -115,6 +117,21 @@ void main() {
 
       expect(notifier.state.reduceLoadingAnimations, isFalse);
       expect(prefs.getBool('pref_reduce_loading_animations'), isFalse);
+    });
+
+    test('persists page transition preference', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final notifier = PreferencesNotifier(prefs);
+
+      await notifier.setPageTransition(AppPageTransition.fade);
+
+      expect(notifier.state.pageTransition, AppPageTransition.fade);
+      expect(prefs.getString('pref_page_transition'), 'fade');
+
+      final reloaded = PreferencesNotifier(prefs);
+
+      expect(reloaded.state.pageTransition, AppPageTransition.fade);
     });
 
     test('persists avatar performance preferences and syncs policy', () async {

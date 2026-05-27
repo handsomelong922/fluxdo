@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/avatar_url_policy.dart';
+import '../navigation/page_transition_preferences.dart';
 import '../navigation/nav_action_bus.dart';
 import '../services/network/request_scheduler_config.dart';
 import '../services/cf_clearance_refresh_service.dart';
@@ -52,6 +53,9 @@ class AppPreferences {
 
   /// 减少帖子详情和用户主页加载时的占位动画
   final bool reduceLoadingAnimations;
+
+  /// 页面切换动画
+  final AppPageTransition pageTransition;
 
   /// 退出时清除图片缓存
   final bool clearCacheOnExit;
@@ -115,6 +119,7 @@ class AppPreferences {
     required this.preferStaticAvatars,
     required this.hideTopicListAvatars,
     required this.reduceLoadingAnimations,
+    required this.pageTransition,
     required this.clearCacheOnExit,
     required this.cfClearanceRefresh,
     required this.expandRelatedLinks,
@@ -149,6 +154,7 @@ class AppPreferences {
     bool? preferStaticAvatars,
     bool? hideTopicListAvatars,
     bool? reduceLoadingAnimations,
+    AppPageTransition? pageTransition,
     bool? clearCacheOnExit,
     bool? cfClearanceRefresh,
     bool? expandRelatedLinks,
@@ -185,6 +191,7 @@ class AppPreferences {
       hideTopicListAvatars: hideTopicListAvatars ?? this.hideTopicListAvatars,
       reduceLoadingAnimations:
           reduceLoadingAnimations ?? this.reduceLoadingAnimations,
+      pageTransition: pageTransition ?? this.pageTransition,
       clearCacheOnExit: clearCacheOnExit ?? this.clearCacheOnExit,
       cfClearanceRefresh: cfClearanceRefresh ?? this.cfClearanceRefresh,
       expandRelatedLinks: expandRelatedLinks ?? this.expandRelatedLinks,
@@ -229,6 +236,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _hideTopicListAvatarsKey = 'pref_hide_topic_list_avatars';
   static const String _reduceLoadingAnimationsKey =
       'pref_reduce_loading_animations';
+  static const String _pageTransitionKey = 'pref_page_transition';
   static const String _clearCacheOnExitKey = 'pref_clear_cache_on_exit';
   static const String _cfClearanceRefreshKey =
       CfClearanceRefreshService.prefKeyEnabled;
@@ -278,6 +286,9 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
               _prefs.getBool(_hideTopicListAvatarsKey) ?? false,
           reduceLoadingAnimations:
               _prefs.getBool(_reduceLoadingAnimationsKey) ?? false,
+          pageTransition: AppPageTransition.fromStorageKey(
+            _prefs.getString(_pageTransitionKey),
+          ),
           clearCacheOnExit: _prefs.getBool(_clearCacheOnExitKey) ?? false,
           cfClearanceRefresh: _prefs.getBool(_cfClearanceRefreshKey) ?? false,
           expandRelatedLinks: _prefs.getBool(_expandRelatedLinksKey) ?? false,
@@ -408,6 +419,11 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setReduceLoadingAnimations(bool enabled) async {
     state = state.copyWith(reduceLoadingAnimations: enabled);
     await _prefs.setBool(_reduceLoadingAnimationsKey, enabled);
+  }
+
+  Future<void> setPageTransition(AppPageTransition transition) async {
+    state = state.copyWith(pageTransition: transition);
+    await _prefs.setString(_pageTransitionKey, transition.storageKey);
   }
 
   Future<void> setClearCacheOnExit(bool enabled) async {

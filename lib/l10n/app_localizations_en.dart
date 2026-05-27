@@ -4798,6 +4798,34 @@ class AppLocalizationsEn extends AppLocalizations {
       'Disable animated topic-detail placeholders and profile background shimmer while keeping static placeholders';
 
   @override
+  String get preferences_pageTransition => 'Page transition';
+
+  @override
+  String get preferences_pageTransitionDesc =>
+      'Choose the animation used when opening and returning from pages. When reduced loading animations is on, the default disables route snapshots to keep pages responsive after back navigation.';
+
+  @override
+  String get pageTransition_platform => 'System default';
+
+  @override
+  String get pageTransition_noSnapshot => 'Default without snapshots';
+
+  @override
+  String get pageTransition_fade => 'Fade';
+
+  @override
+  String get pageTransition_slide => 'Slide';
+
+  @override
+  String get pageTransition_scale => 'Scale';
+
+  @override
+  String get pageTransition_flip => 'Flip';
+
+  @override
+  String get pageTransition_none => 'No animation';
+
+  @override
   String get preferences_longPressPreview => 'Long press preview';
 
   @override

@@ -612,12 +612,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         valueListenable: _showTitleNotifier,
         builder: (context, showTitle, _) => ValueListenableBuilder<bool>(
           valueListenable: _isScrolledUnderNotifier,
-          builder: (context, isScrolledUnder, _) => AnimatedBuilder(
+          builder: (context, _, _) => AnimatedBuilder(
             animation: _expandController,
             builder: (context, child) {
-              final targetElevation = isScrolledUnder ? 3.0 : 0.0;
-              final currentElevation =
-                  targetElevation * (1.0 - _expandController.value);
+              // 顶栏颜色和层级不随滚动加深，避免阅读时出现突兀的 M3 tint。
+              const currentElevation = 0.0;
               final expandProgress = _expandController.value;
               final shouldShowTitle = showTitle || !_hasFirstPost;
 
@@ -626,9 +625,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                 elevation: currentElevation,
                 scrolledUnderElevation: currentElevation,
                 shadowColor: Colors.transparent,
-                surfaceTintColor: theme.colorScheme.surfaceTint.withValues(
-                  alpha: (1.0 - expandProgress).clamp(0.0, 1.0),
-                ),
+                surfaceTintColor: Colors.transparent,
                 backgroundColor: theme.colorScheme.surface,
                 titleSpacing: 0,
                 title: const SizedBox.shrink(),

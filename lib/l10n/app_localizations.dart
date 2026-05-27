@@ -8734,6 +8734,60 @@ abstract class AppLocalizations {
   /// **'关闭帖子详情加载骨架动画和用户主页背景闪动，保留静态占位'**
   String get preferences_reduceLoadingAnimationsDesc;
 
+  /// No description provided for @preferences_pageTransition.
+  ///
+  /// In zh, this message translates to:
+  /// **'页面过渡动画'**
+  String get preferences_pageTransition;
+
+  /// No description provided for @preferences_pageTransitionDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择打开和返回页面时的动画效果；减少加载动画开启时默认禁用快照以避免返回后卡手'**
+  String get preferences_pageTransitionDesc;
+
+  /// No description provided for @pageTransition_platform.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随系统'**
+  String get pageTransition_platform;
+
+  /// No description provided for @pageTransition_noSnapshot.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认动画（无快照）'**
+  String get pageTransition_noSnapshot;
+
+  /// No description provided for @pageTransition_fade.
+  ///
+  /// In zh, this message translates to:
+  /// **'淡入淡出'**
+  String get pageTransition_fade;
+
+  /// No description provided for @pageTransition_slide.
+  ///
+  /// In zh, this message translates to:
+  /// **'滑动'**
+  String get pageTransition_slide;
+
+  /// No description provided for @pageTransition_scale.
+  ///
+  /// In zh, this message translates to:
+  /// **'缩放'**
+  String get pageTransition_scale;
+
+  /// No description provided for @pageTransition_flip.
+  ///
+  /// In zh, this message translates to:
+  /// **'翻转'**
+  String get pageTransition_flip;
+
+  /// No description provided for @pageTransition_none.
+  ///
+  /// In zh, this message translates to:
+  /// **'无动画'**
+  String get pageTransition_none;
+
   /// No description provided for @preferences_longPressPreview.
   ///
   /// In zh, this message translates to:

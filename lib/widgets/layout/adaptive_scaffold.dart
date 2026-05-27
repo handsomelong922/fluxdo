@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../pages/topics_page.dart';
@@ -254,19 +255,59 @@ class _AnimatedBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final theme = Theme.of(context);
     final clampedVisibility = visibility.clamp(0.0, 1.0).toDouble();
+    final maxWidth = (mediaQuery.size.width - 32).clamp(0.0, 520.0);
+    final bottomInset = mediaQuery.padding.bottom;
 
-    return ClipRect(
-      child: IgnorePointer(
-        ignoring: clampedVisibility < 0.01,
-        child: FractionalTranslation(
-          translation: Offset(0, 1 - clampedVisibility),
-          child: Opacity(
-            opacity: clampedVisibility,
-            child: AdaptiveBottomNavigation(
-              selectedIndex: selectedIndex,
-              onDestinationSelected: onDestinationSelected,
-              destinations: destinations,
+    return IgnorePointer(
+      ignoring: clampedVisibility < 0.01,
+      child: SizedBox(
+        height: 72 + bottomInset,
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: FractionalTranslation(
+            translation: Offset(0, 1 - clampedVisibility),
+            child: Opacity(
+              opacity: clampedVisibility,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, bottomInset + 8),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface.withValues(
+                          alpha: 0.72,
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant.withValues(
+                            alpha: 0.45,
+                          ),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.10),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: maxWidth),
+                        child: AdaptiveBottomNavigation(
+                          selectedIndex: selectedIndex,
+                          onDestinationSelected: onDestinationSelected,
+                          destinations: destinations,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),

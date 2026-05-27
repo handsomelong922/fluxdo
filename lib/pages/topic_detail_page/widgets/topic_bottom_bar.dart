@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import '../../../l10n/s.dart';
 import '../../../widgets/common/dismissible_popup_menu.dart';
@@ -47,33 +49,59 @@ class TopicBottomBar extends StatelessWidget {
     final theme = Theme.of(context);
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
-    return Container(
-      height: 80,
+    return Padding(
       padding: EdgeInsets.only(bottom: bottomPadding),
-      decoration: BoxDecoration(color: theme.colorScheme.surface),
-      child: Row(
-        children: [
-          const SizedBox(width: 8),
-          // 回到顶部
-          IconButton(
-            onPressed: onScrollToTop,
-            icon: const Icon(Icons.vertical_align_top),
-            tooltip: context.l10n.topicDetail_scrollToTop,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withValues(alpha: 0.76),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: SizedBox(
+              height: 56,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(width: 6),
+                  // 回到顶部
+                  IconButton(
+                    onPressed: onScrollToTop,
+                    icon: const Icon(Icons.vertical_align_top),
+                    tooltip: context.l10n.topicDetail_scrollToTop,
+                  ),
+                  // 筛选
+                  if (_hasActiveFilter)
+                    _buildActiveFilterChip(context, theme)
+                  else
+                    _buildFilterMenuButton(context, theme),
+                  // 分享菜单
+                  _buildShareMenu(context, theme),
+                  // 在浏览器打开
+                  IconButton(
+                    onPressed: onOpenInBrowser,
+                    icon: const Icon(Icons.language),
+                    tooltip: context.l10n.topicDetail_openInBrowser,
+                  ),
+                  const SizedBox(width: 6),
+                ],
+              ),
+            ),
           ),
-          // 筛选
-          if (_hasActiveFilter)
-            _buildActiveFilterChip(context, theme)
-          else
-            _buildFilterMenuButton(context, theme),
-          // 分享菜单
-          _buildShareMenu(context, theme),
-          // 在浏览器打开
-          IconButton(
-            onPressed: onOpenInBrowser,
-            icon: const Icon(Icons.language),
-            tooltip: context.l10n.topicDetail_openInBrowser,
-          ),
-        ],
+        ),
       ),
     );
   }
