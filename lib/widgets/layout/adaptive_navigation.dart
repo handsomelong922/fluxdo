@@ -369,7 +369,7 @@ class _AdaptiveBottomNavigationState
     return NavigationBarTheme(
       data: const NavigationBarThemeData(
         height: 52,
-        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
       ),
       child: NavigationBar(
         selectedIndex: widget.selectedIndex,
@@ -377,14 +377,35 @@ class _AdaptiveBottomNavigationState
         destinations: widget.destinations.map((d) {
           return NavigationDestination(
             icon: d.icon,
-            selectedIcon: _ActiveDestinationIcon(
-              dest: d,
-              defaultIcon: d.selectedIcon,
+            selectedIcon: _SelectedDestinationIconFeedback(
+              child: _ActiveDestinationIcon(
+                dest: d,
+                defaultIcon: d.selectedIcon,
+              ),
             ),
             label: d.label,
           );
         }).toList(),
       ),
+    );
+  }
+}
+
+class _SelectedDestinationIconFeedback extends StatelessWidget {
+  const _SelectedDestinationIconFeedback({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 1.0, end: 1.14),
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutBack,
+      builder: (context, scale, child) {
+        return Transform.scale(scale: scale, child: child);
+      },
+      child: child,
     );
   }
 }
