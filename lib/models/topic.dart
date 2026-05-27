@@ -203,6 +203,11 @@ class TopicPoster {
 }
 
 class Topic {
+  static final RegExp _deletedPlaceholderPattern = RegExp(
+    r'(话题已被作者删除|主题已被作者删除|topic has been deleted|topic was deleted)',
+    caseSensitive: false,
+  );
+
   final int id;
   final String title;
   final String slug;
@@ -324,6 +329,16 @@ class Topic {
       hasAcceptedAnswer: json['has_accepted_answer'] as bool? ?? false,
       canHaveAnswer: json['can_have_answer'] as bool? ?? false,
     );
+  }
+
+  /// Discourse 会把作者删除的话题以不可见/删除占位形态返回到列表中。
+  ///
+  /// 不能仅凭 [closed] 判断：锁图标也用于正常关闭的话题。这里仅过滤
+  /// API 明确标记为不可见，或列表摘要已经暴露删除占位文案的条目。
+  bool get isDeletedPlaceholder {
+    if (!visible) return true;
+    final text = '${title.trim()}\n${excerpt?.trim() ?? ''}';
+    return _deletedPlaceholderPattern.hasMatch(text);
   }
 }
 

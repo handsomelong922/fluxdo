@@ -16,6 +16,27 @@ import 'interceptors/network_log_interceptor.dart';
 import 'interceptors/redirect_interceptor.dart';
 import 'interceptors/request_header_interceptor.dart';
 
+const Set<String> _retryableReadMethods = {'GET', 'HEAD', 'OPTIONS'};
+const Set<int> _retryableDiscourseStatuses = {408, 429, 502, 503, 504};
+
+@visibleForTesting
+bool shouldRetryDiscourseRequest(DioException error, int attempt) {
+  final method = error.requestOptions.method.toUpperCase();
+  if (!_retryableReadMethods.contains(method)) return false;
+
+  return switch (error.type) {
+    DioExceptionType.connectionTimeout ||
+    DioExceptionType.sendTimeout ||
+    DioExceptionType.receiveTimeout ||
+    DioExceptionType.connectionError => true,
+    DioExceptionType.unknown => error.error is! FormatException,
+    DioExceptionType.badResponse => _retryableDiscourseStatuses.contains(
+      error.response?.statusCode,
+    ),
+    DioExceptionType.cancel || DioExceptionType.badCertificate => false,
+  };
+}
+
 /// 统一封装的 Dio 工厂
 class DiscourseDio {
   static Dio create({
@@ -23,6 +44,7 @@ class DiscourseDio {
     Duration receiveTimeout = const Duration(seconds: 30),
     Map<String, dynamic>? defaultHeaders,
     String? baseUrl,
+
     /// null 表示不限制（用于下载、MessageBus 等），非 null 启用调度器。
     /// 实际并发数和速率从 [RequestSchedulerConfig] 动态读取。
     int? maxConcurrent = 3,
@@ -71,13 +93,12 @@ class DiscourseDio {
         RetryInterceptor(
           dio: dio,
           logPrint: (msg) => debugPrint('[Dio Retry] $msg'),
-          retries: 0, // TODO: 调试完成后改回 3
+          retries: 2,
           retryDelays: const [
-            Duration(seconds: 1),
-            Duration(seconds: 2),
-            Duration(seconds: 4),
+            Duration(milliseconds: 350),
+            Duration(milliseconds: 900),
           ],
-          retryableExtraStatuses: {429, 502, 503, 504},
+          retryEvaluator: shouldRetryDiscourseRequest,
         ),
       );
     }

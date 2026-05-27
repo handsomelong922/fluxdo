@@ -17,6 +17,9 @@ import 'tab_state_provider.dart';
 class TopicListNotifier extends AsyncNotifier<List<Topic>> {
   TopicListNotifier(this._categoryId);
 
+  static const int _minInitialVisibleTopics = 20;
+  static const int _maxInitialFilterBackfillPages = 2;
+
   final int? _categoryId;
 
   int _page = 0;
@@ -63,26 +66,32 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       final preloadedService = PreloadedDataService();
       final preloadedData = preloadedService.getInitialTopicListSync();
       if (preloadedData != null) {
-        final result = _paginationHelper.processRefresh(
-          PaginationResult(
-            items: preloadedData.topics,
-            moreUrl: preloadedData.moreTopicsUrl,
-          ),
+        final result = await _processFilteredRefresh(
+          service: ref.read(discourseServiceProvider),
+          currentFilter: currentFilter,
+          filterParams: filter,
+          order: orderParam,
+          ascending: ascendingParam,
+          subset: subset,
+          response: preloadedData,
         );
         _hasMore = result.hasMore;
-        return _applyTopicFilters(result.items); // CUSTOM: Keyword Filter
+        return result.items;
       }
       if (preloadedService.hasInitialTopicList) {
         final asyncPreloaded = await preloadedService.getInitialTopicList();
         if (asyncPreloaded != null) {
-          final result = _paginationHelper.processRefresh(
-            PaginationResult(
-              items: asyncPreloaded.topics,
-              moreUrl: asyncPreloaded.moreTopicsUrl,
-            ),
+          final result = await _processFilteredRefresh(
+            service: ref.read(discourseServiceProvider),
+            currentFilter: currentFilter,
+            filterParams: filter,
+            order: orderParam,
+            ascending: ascendingParam,
+            subset: subset,
+            response: asyncPreloaded,
           );
           _hasMore = result.hasMore;
-          return _applyTopicFilters(result.items); // CUSTOM: Keyword Filter
+          return result.items;
         }
       }
     }
@@ -99,11 +108,17 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       subset: subset,
     );
 
-    final result = _paginationHelper.processRefresh(
-      PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+    final result = await _processFilteredRefresh(
+      service: service,
+      currentFilter: currentFilter,
+      filterParams: filter,
+      order: orderParam,
+      ascending: ascendingParam,
+      subset: subset,
+      response: response,
     );
     _hasMore = result.hasMore;
-    return _applyTopicFilters(result.items); // CUSTOM: Keyword Filter
+    return result.items;
   }
 
   // CUSTOM: Keyword Filter
@@ -118,10 +133,13 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         contentState.hasBlockedTags || contentState.hasBlockedUsers;
 
     if (!hasKeywordFilters && !hasContentFilters) {
-      return topics;
+      return topics.where((topic) => !topic.isDeletedPlaceholder).toList();
     }
 
     return topics.where((topic) {
+      if (topic.isDeletedPlaceholder) {
+        return false;
+      }
       if (hasKeywordFilters && keywordFilter.matches(topic.title)) {
         return false;
       }
@@ -130,6 +148,57 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       }
       return true;
     }).toList();
+  }
+
+  Future<PaginationState<Topic>> _processFilteredRefresh({
+    required DiscourseService service,
+    required TopicListFilter currentFilter,
+    required TopicFilterParams filterParams,
+    required String? order,
+    required bool? ascending,
+    required String? subset,
+    required TopicListResponse response,
+  }) async {
+    var visibleTopics = _dedupeTopics(_applyTopicFilters(response.topics));
+    var moreTopicsUrl = response.moreTopicsUrl;
+    var lastLoadedPage = 0;
+
+    while (visibleTopics.length < _minInitialVisibleTopics &&
+        moreTopicsUrl != null &&
+        lastLoadedPage < _maxInitialFilterBackfillPages) {
+      final nextPage = lastLoadedPage + 1;
+      final nextResponse = await _fetchTopics(
+        service,
+        currentFilter,
+        nextPage,
+        filterParams,
+        order: order,
+        ascending: ascending,
+        subset: subset,
+      );
+      lastLoadedPage = nextPage;
+      moreTopicsUrl = nextResponse.moreTopicsUrl;
+
+      final nextVisible = _applyTopicFilters(nextResponse.topics);
+      if (nextVisible.isEmpty) continue;
+      visibleTopics = _dedupeTopics([...visibleTopics, ...nextVisible]);
+    }
+
+    _page = lastLoadedPage;
+    return _paginationHelper.processRefresh(
+      PaginationResult(items: visibleTopics, moreUrl: moreTopicsUrl),
+    );
+  }
+
+  List<Topic> _dedupeTopics(List<Topic> topics) {
+    final seen = <int>{};
+    final result = <Topic>[];
+    for (final topic in topics) {
+      if (seen.add(topic.id)) {
+        result.add(topic);
+      }
+    }
+    return result;
   }
 
   Future<TopicListResponse> _fetchTopics(
@@ -266,14 +335,17 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         subset: _subsetForFilter(currentFilter),
       );
 
-      final result = _paginationHelper.processRefresh(
-        PaginationResult(
-          items: response.topics,
-          moreUrl: response.moreTopicsUrl,
-        ),
+      final result = await _processFilteredRefresh(
+        service: service,
+        currentFilter: currentFilter,
+        filterParams: filterParams,
+        order: order,
+        ascending: ascending,
+        subset: _subsetForFilter(currentFilter),
+        response: response,
       );
       _hasMore = result.hasMore;
-      return _applyTopicFilters(result.items); // CUSTOM: Keyword Filter
+      return result.items;
     });
   }
 
@@ -296,16 +368,17 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       _page = 0;
       _isLoadMoreFailed = false;
 
-      final result = _paginationHelper.processRefresh(
-        PaginationResult(
-          items: response.topics,
-          moreUrl: response.moreTopicsUrl,
-        ),
+      final result = await _processFilteredRefresh(
+        service: service,
+        currentFilter: currentFilter,
+        filterParams: filterParams,
+        order: order,
+        ascending: ascending,
+        subset: _subsetForFilter(currentFilter),
+        response: response,
       );
       _hasMore = result.hasMore;
-      state = AsyncValue.data(
-        _applyTopicFilters(result.items),
-      ); // CUSTOM: Keyword Filter
+      state = AsyncValue.data(result.items);
     } catch (e) {
       debugPrint('Silent refresh failed: $e');
     }

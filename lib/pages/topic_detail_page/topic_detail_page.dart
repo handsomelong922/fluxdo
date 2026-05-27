@@ -860,6 +860,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   }
 
   void _showTimelineSheet(TopicDetail detail) {
+    if (_isNestedView) return;
+
     final preserveNestedView = _isNestedView;
     showTopicTimelineSheet(
       context: context,
@@ -1206,6 +1208,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final params = _params;
     final searchState = ref.watch(topicSearchProvider(widget.topicId));
     final isSearchMode = searchState.isSearchMode;
+    final reduceLoadingAnimations = ref.watch(
+      preferencesProvider.select((p) => p.reduceLoadingAnimations),
+    );
 
     // 初始加载或切换模式时显示骨架屏
     // 注意：当 hasError 为 true 时，即使 isLoading 也为 true（AsyncLoading.copyWithPrevious 语义），
@@ -1214,7 +1219,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       final showHeaderSkeleton =
           widget.scrollToPostNumber == null || widget.scrollToPostNumber == 0;
       return _wrapWithConstraint(
-        PostListSkeleton(withHeader: showHeaderSkeleton),
+        PostListSkeleton(
+          withHeader: showHeaderSkeleton,
+          animate: !reduceLoadingAnimations,
+        ),
       );
     }
 
@@ -1222,7 +1230,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       final showHeaderSkeleton =
           widget.scrollToPostNumber == null || widget.scrollToPostNumber == 0;
       return _wrapWithConstraint(
-        PostListSkeleton(withHeader: showHeaderSkeleton),
+        PostListSkeleton(
+          withHeader: showHeaderSkeleton,
+          animate: !reduceLoadingAnimations,
+        ),
       );
     }
 
@@ -1236,7 +1247,12 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           posts.first.postNumber <= jumpTarget &&
           posts.last.postNumber >= jumpTarget;
       if (!hasTarget) {
-        return _wrapWithConstraint(const PostListSkeleton(withHeader: false));
+        return _wrapWithConstraint(
+          PostListSkeleton(
+            withHeader: false,
+            animate: !reduceLoadingAnimations,
+          ),
+        );
       }
     }
 
@@ -1443,6 +1459,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
 
     final centerPostIndex = _controller.findCenterPostIndex(posts);
+    final reduceLoadingAnimations = ref.watch(
+      preferencesProvider.select((p) => p.reduceLoadingAnimations),
+    );
 
     // 嵌套视图模式
     if (_isNestedView) {
@@ -1450,7 +1469,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       final nestedAsync = ref.watch(nestedTopicProvider(nestedParams));
 
       Widget nestedView = nestedAsync.when(
-        loading: () => PostListSkeleton(withHeader: true),
+        loading: () => PostListSkeleton(
+          withHeader: true,
+          animate: !reduceLoadingAnimations,
+        ),
         error: (e, s) => Center(child: Text('$e')),
         data: (nestedState) => NestedPostList(
           nestedState: nestedState,

@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../config/site_customization.dart';
 import '../constants.dart';
+import '../pages/cdk_page.dart';
 import '../pages/user_profile_page.dart';
 import '../pages/webview_page.dart';
 import '../providers/preferences_provider.dart';
@@ -46,6 +47,11 @@ bool _isUploadLink(String url) {
       url.contains('/secure-media-uploads/');
 }
 
+bool isCdkUrlString(String url) {
+  final uri = Uri.tryParse(url.startsWith('//') ? 'https:$url' : url);
+  return uri != null && uri.host.toLowerCase() == 'cdk.linux.do';
+}
+
 /// 打开外部链接
 ///
 /// 根据用户偏好决定使用内置浏览器还是外部浏览器
@@ -54,6 +60,11 @@ Future<void> launchExternalLink(BuildContext context, String url) async {
   if (url.isEmpty) return;
   final uri = Uri.tryParse(url);
   if (uri == null) return;
+
+  if (isCdkUrlString(url) && (uri.scheme == 'http' || uri.scheme == 'https')) {
+    CdkPage.open(context, url: url);
+    return;
+  }
 
   // 链接安全检查
   final config = AppConstants.siteCustomization.linkSecurityConfig;
@@ -82,16 +93,15 @@ Future<void> launchExternalLink(BuildContext context, String url) async {
         break;
     }
   }
+  if (!context.mounted) return;
 
   final prefs = ProviderScope.containerOf(
-    // ignore: use_build_context_synchronously
     context,
     listen: false,
   ).read(preferencesProvider);
   final preferInApp = prefs.openExternalLinksInAppBrowser;
 
   if (preferInApp && (uri.scheme == 'http' || uri.scheme == 'https')) {
-    // ignore: use_build_context_synchronously
     WebViewPage.open(context, url);
     return;
   }
@@ -113,19 +123,31 @@ Future<void> launchExternalLink(BuildContext context, String url) async {
 Future<void> launchContentLink(
   BuildContext context,
   String url, {
-  void Function(int topicId, String? topicSlug, int? postNumber)? onInternalLinkTap,
+  void Function(int topicId, String? topicSlug, int? postNumber)?
+  onInternalLinkTap,
   void Function(String url)? onDownloadAttachment,
 }) async {
   if (url.isEmpty) return;
   if (url.startsWith('upload://')) {
     url = await DiscourseService().resolveShortUrlForLink(url) ?? url;
+    if (!context.mounted) return;
+  }
+
+  if (isCdkUrlString(url)) {
+    final fullUrl = UrlHelper.resolveUrl(url);
+    if (!context.mounted) return;
+    CdkPage.open(context, url: fullUrl);
+    return;
   }
 
   // 1. 识别用户链接 /u/username
   final userInfo = DiscourseUrlParser.parseUser(url);
   if (userInfo != null && isInternalUrlString(url)) {
+    if (!context.mounted) return;
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => UserProfilePage(username: userInfo.username)),
+      MaterialPageRoute(
+        builder: (_) => UserProfilePage(username: userInfo.username),
+      ),
     );
     return;
   }
@@ -134,11 +156,16 @@ Future<void> launchContentLink(
   final topicInfo = DiscourseUrlParser.parseTopic(url);
   if (topicInfo != null && isInternalUrlString(url)) {
     if (onInternalLinkTap != null) {
-      onInternalLinkTap(topicInfo.topicId, topicInfo.slug, topicInfo.postNumber);
+      onInternalLinkTap(
+        topicInfo.topicId,
+        topicInfo.slug,
+        topicInfo.postNumber,
+      );
       return;
     }
     // 没有回调时用 WebView 打开
     final fullUrl = UrlHelper.resolveUrl(url);
+    if (!context.mounted) return;
     WebViewPage.open(context, fullUrl);
     return;
   }
@@ -151,6 +178,7 @@ Future<void> launchContentLink(
     } else {
       final uri = Uri.tryParse(fullUrl);
       if (uri != null && await canLaunchUrl(uri)) {
+        if (!context.mounted) return;
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
     }
@@ -161,6 +189,7 @@ Future<void> launchContentLink(
   if (url.startsWith('mailto:')) {
     final uri = Uri.tryParse(url);
     if (uri != null && await canLaunchUrl(uri)) {
+      if (!context.mounted) return;
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
     return;
@@ -169,11 +198,13 @@ Future<void> launchContentLink(
   // 5. 站点内部链接（主域名或子域名、相对路径）→ 内置浏览器
   if (isInternalUrlString(url)) {
     final fullUrl = UrlHelper.resolveUrl(url);
+    if (!context.mounted) return;
     WebViewPage.open(context, fullUrl);
     return;
   }
 
   // 6. 外部链接 → 根据用户偏好决定
+  if (!context.mounted) return;
   await launchExternalLink(context, url);
 }
 
@@ -187,10 +218,9 @@ Future<bool> launchInExternalBrowser(String url) async {
 
   if (Platform.isAndroid) {
     try {
-      final result = await _browserChannel.invokeMethod<bool>(
-        'openInBrowser',
-        {'url': url},
-      );
+      final result = await _browserChannel.invokeMethod<bool>('openInBrowser', {
+        'url': url,
+      });
       return result ?? false;
     } catch (e) {
       debugPrint('[LinkLauncher] Failed to launch browser: $e');

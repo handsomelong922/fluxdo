@@ -4791,6 +4791,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Only affects topic list cards and reclaims the avatar column width';
 
   @override
+  String get preferences_reduceLoadingAnimations => 'Reduce loading animations';
+
+  @override
+  String get preferences_reduceLoadingAnimationsDesc =>
+      'Disable animated topic-detail placeholders and profile background shimmer while keeping static placeholders';
+
+  @override
   String get preferences_longPressPreview => 'Long press preview';
 
   @override

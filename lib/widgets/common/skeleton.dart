@@ -15,11 +15,9 @@ import 'package:flutter/material.dart';
 /// ```
 class Skeleton extends StatefulWidget {
   final Widget child;
+  final bool animate;
 
-  const Skeleton({
-    required this.child,
-    super.key,
-  });
+  const Skeleton({required this.child, this.animate = true, super.key});
 
   @override
   State<Skeleton> createState() => _SkeletonState();
@@ -29,6 +27,9 @@ class _SkeletonState extends State<Skeleton> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    if (!widget.animate) {
+      return widget.child;
+    }
     // 使用更明显的渐变效果
     // 注意：不能使用 Colors.transparent（它是透明黑色 0x00000000），
     // 否则在浅色模式下与 surface 背景色混合时会产生黑色扫描效果
@@ -48,10 +49,7 @@ class _SkeletonState extends State<Skeleton> {
 
     return _Shimmer(
       linearGradient: shimmerGradient,
-      child: _ShimmerLoading(
-        isLoading: true,
-        child: widget.child,
-      ),
+      child: _ShimmerLoading(isLoading: true, child: widget.child),
     );
   }
 }
@@ -62,10 +60,7 @@ class _Shimmer extends StatefulWidget {
     return context.findAncestorStateOfType<_ShimmerState>();
   }
 
-  const _Shimmer({
-    required this.linearGradient,
-    this.child,
-  });
+  const _Shimmer({required this.linearGradient, this.child});
 
   final LinearGradient linearGradient;
   final Widget? child;
@@ -74,7 +69,8 @@ class _Shimmer extends StatefulWidget {
   _ShimmerState createState() => _ShimmerState();
 }
 
-class _ShimmerState extends State<_Shimmer> with SingleTickerProviderStateMixin {
+class _ShimmerState extends State<_Shimmer>
+    with SingleTickerProviderStateMixin {
   late AnimationController _shimmerController;
 
   @override
@@ -135,10 +131,7 @@ class _SlidingGradientTransform extends GradientTransform {
 
 /// ShimmerLoading 包装器
 class _ShimmerLoading extends StatefulWidget {
-  const _ShimmerLoading({
-    required this.isLoading,
-    required this.child,
-  });
+  const _ShimmerLoading({required this.isLoading, required this.child});
 
   final bool isLoading;
   final Widget child;
@@ -249,10 +242,7 @@ class SkeletonBox extends StatelessWidget {
 class SkeletonCircle extends StatelessWidget {
   final double size;
 
-  const SkeletonCircle({
-    super.key,
-    required this.size,
-  });
+  const SkeletonCircle({super.key, required this.size});
 
   @override
   Widget build(BuildContext context) {

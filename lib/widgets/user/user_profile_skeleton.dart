@@ -4,7 +4,9 @@ import '../common/skeleton.dart';
 
 /// 用户资料页骨架屏
 class UserProfileSkeleton extends StatelessWidget {
-  const UserProfileSkeleton({super.key});
+  final bool animate;
+
+  const UserProfileSkeleton({super.key, this.animate = true});
 
   @override
   Widget build(BuildContext context) {
@@ -14,6 +16,7 @@ class UserProfileSkeleton extends StatelessWidget {
 
     return Scaffold(
       body: Skeleton(
+        animate: animate,
         child: CustomScrollView(
           slivers: [
             // AppBar 骨架屏
@@ -31,8 +34,9 @@ class UserProfileSkeleton extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     color: Theme.of(context).scaffoldBackgroundColor,
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(16)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: _buildTabBarSkeleton(context),
@@ -61,21 +65,18 @@ class UserProfileSkeleton extends StatelessWidget {
       height: 36,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(
-          6,
-          (index) {
-            // 不同宽度模拟真实 Tab 文字长度
-            final widths = [32.0, 32.0, 32.0, 32.0, 24.0, 32.0];
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: SkeletonBox(
-                width: widths[index],
-                height: 20,
-                borderRadius: 4,
-              ),
-            );
-          },
-        ),
+        children: List.generate(6, (index) {
+          // 不同宽度模拟真实 Tab 文字长度
+          final widths = [32.0, 32.0, 32.0, 32.0, 24.0, 32.0];
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: SkeletonBox(
+              width: widths[index],
+              height: 20,
+              borderRadius: 4,
+            ),
+          );
+        }),
       ),
     );
   }
@@ -85,7 +86,7 @@ class UserProfileSkeleton extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         // 背景 - 使用 GrainGradient，与正式页面同款
-        const GrainGradientBackground(),
+        GrainGradientBackground(animate: animate),
         // 压暗遮罩（与正式页面展开时一致）
         Container(color: Colors.black.withValues(alpha: 0.6)),
         // 内容
@@ -125,12 +126,20 @@ class UserProfileSkeleton extends StatelessWidget {
                           child: _SkeletonBoxWhite(width: 80, height: 16),
                         ),
                         // 等级标签 (padding vertical:2, fontSize:10, 总高约18)
-                        const _SkeletonBoxWhite(width: 72, height: 18, borderRadius: 12),
+                        const _SkeletonBoxWhite(
+                          width: 72,
+                          height: 18,
+                          borderRadius: 12,
+                        ),
                       ],
                     ),
                   ),
                   // 关注按钮 (高度32)
-                  const _SkeletonBoxWhite(width: 72, height: 32, borderRadius: 18),
+                  const _SkeletonBoxWhite(
+                    width: 72,
+                    height: 32,
+                    borderRadius: 18,
+                  ),
                 ],
               ),
               // 与真实页面一致：16 + 12 = 28
@@ -172,9 +181,7 @@ class UserActionItemSkeleton extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -221,10 +228,7 @@ class UserActionItemSkeleton extends StatelessWidget {
 class UserActionListSkeleton extends StatelessWidget {
   final int itemCount;
 
-  const UserActionListSkeleton({
-    super.key,
-    this.itemCount = 5,
-  });
+  const UserActionListSkeleton({super.key, this.itemCount = 5});
 
   @override
   Widget build(BuildContext context) {

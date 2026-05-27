@@ -131,11 +131,13 @@ const double kTopicDetailHeaderSkeletonHeight = 150.0;
 class PostListSkeleton extends StatelessWidget {
   final int? itemCount;
   final bool withHeader;
+  final bool animate;
 
   const PostListSkeleton({
     super.key,
     this.itemCount,
     this.withHeader = false,
+    this.animate = true,
   });
 
   @override
@@ -151,6 +153,7 @@ class PostListSkeleton extends StatelessWidget {
     final count = itemCount ?? calculateSkeletonCount(availableHeight);
 
     return Skeleton(
+      animate: animate,
       child: ListView.builder(
         itemCount: count + (withHeader ? 1 : 0),
         itemBuilder: (context, index) {

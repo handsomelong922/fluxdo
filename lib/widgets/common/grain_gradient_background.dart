@@ -6,11 +6,29 @@ import 'package:paper_shaders/paper_shaders.dart';
 /// 包含 corners 形状的 shader 动画 + 3 层径向渐变辉光。
 /// 颜色从 [Theme.of(context).colorScheme] 动态获取。
 class GrainGradientBackground extends StatelessWidget {
-  const GrainGradientBackground({super.key});
+  final bool animate;
+
+  const GrainGradientBackground({super.key, this.animate = true});
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    if (!animate) {
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              colorScheme.primary.withValues(alpha: 0.92),
+              colorScheme.tertiary.withValues(alpha: 0.78),
+              colorScheme.secondary.withValues(alpha: 0.72),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Stack(
       fit: StackFit.expand,
@@ -34,7 +52,10 @@ class GrainGradientBackground extends StatelessWidget {
             gradient: RadialGradient(
               center: const Alignment(-0.6, -0.7),
               radius: 1.5,
-              colors: [colorScheme.primary.withValues(alpha: 0.25), colorScheme.primary.withValues(alpha: 0)],
+              colors: [
+                colorScheme.primary.withValues(alpha: 0.25),
+                colorScheme.primary.withValues(alpha: 0),
+              ],
               stops: const [0.0, 0.6],
             ),
           ),
@@ -44,7 +65,10 @@ class GrainGradientBackground extends StatelessWidget {
             gradient: RadialGradient(
               center: const Alignment(0.4, -0.5),
               radius: 1.3,
-              colors: [colorScheme.tertiary.withValues(alpha: 0.22), colorScheme.tertiary.withValues(alpha: 0)],
+              colors: [
+                colorScheme.tertiary.withValues(alpha: 0.22),
+                colorScheme.tertiary.withValues(alpha: 0),
+              ],
               stops: const [0.0, 0.55],
             ),
           ),
@@ -54,7 +78,10 @@ class GrainGradientBackground extends StatelessWidget {
             gradient: RadialGradient(
               center: const Alignment(0.1, 0.4),
               radius: 1.2,
-              colors: [colorScheme.secondary.withValues(alpha: 0.18), colorScheme.secondary.withValues(alpha: 0)],
+              colors: [
+                colorScheme.secondary.withValues(alpha: 0.18),
+                colorScheme.secondary.withValues(alpha: 0),
+              ],
               stops: const [0.0, 0.6],
             ),
           ),

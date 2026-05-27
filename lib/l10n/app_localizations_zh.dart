@@ -4659,6 +4659,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get preferences_hideTopicListAvatarsDesc => '仅影响首页和话题列表卡片，并回收原头像列宽度';
 
   @override
+  String get preferences_reduceLoadingAnimations => '减少加载动画';
+
+  @override
+  String get preferences_reduceLoadingAnimationsDesc =>
+      '关闭帖子详情加载骨架动画和用户主页背景闪动，保留静态占位';
+
+  @override
   String get preferences_longPressPreview => '长按预览';
 
   @override
@@ -10669,6 +10676,13 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get preferences_hideTopicListAvatarsDesc => '僅影響首頁和話題列表卡片，並回收原頭像欄寬度';
 
   @override
+  String get preferences_reduceLoadingAnimations => '減少載入動畫';
+
+  @override
+  String get preferences_reduceLoadingAnimationsDesc =>
+      '關閉話題詳情載入骨架動畫和用戶主頁背景閃動，保留靜態佔位';
+
+  @override
   String get preferences_longPressPreview => '長按預覽';
 
   @override
@@ -16553,6 +16567,13 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get preferences_hideTopicListAvatarsDesc => '僅影響首頁和話題列表卡片，並回收原頭像欄寬度';
+
+  @override
+  String get preferences_reduceLoadingAnimations => '減少載入動畫';
+
+  @override
+  String get preferences_reduceLoadingAnimationsDesc =>
+      '關閉話題詳情載入骨架動畫和使用者主頁背景閃動，保留靜態佔位';
 
   @override
   String get preferences_longPressPreview => '長按預覽';
