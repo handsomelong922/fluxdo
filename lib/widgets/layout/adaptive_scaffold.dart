@@ -258,13 +258,13 @@ class _AnimatedBottomNav extends StatelessWidget {
     final mediaQuery = MediaQuery.of(context);
     final theme = Theme.of(context);
     final clampedVisibility = visibility.clamp(0.0, 1.0).toDouble();
-    final maxWidth = (mediaQuery.size.width - 32).clamp(0.0, 520.0);
+    final maxWidth = (mediaQuery.size.width - 72).clamp(0.0, 420.0);
     final bottomInset = mediaQuery.padding.bottom;
 
     return IgnorePointer(
       ignoring: clampedVisibility < 0.01,
       child: SizedBox(
-        height: 72 + bottomInset,
+        height: 84 + bottomInset,
         child: Align(
           alignment: Alignment.bottomCenter,
           child: FractionalTranslation(
@@ -272,9 +272,9 @@ class _AnimatedBottomNav extends StatelessWidget {
             child: Opacity(
               opacity: clampedVisibility,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(16, 0, 16, bottomInset + 8),
+                padding: EdgeInsets.fromLTRB(36, 0, 36, bottomInset + 18),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(22),
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                     child: DecoratedBox(
@@ -282,7 +282,7 @@ class _AnimatedBottomNav extends StatelessWidget {
                         color: theme.colorScheme.surface.withValues(
                           alpha: 0.72,
                         ),
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(22),
                         border: Border.all(
                           color: theme.colorScheme.outlineVariant.withValues(
                             alpha: 0.45,

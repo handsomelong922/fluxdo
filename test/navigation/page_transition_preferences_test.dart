@@ -40,6 +40,19 @@ void main() {
   });
 
   group('buildAppPageTransitionsTheme', () {
+    test('uses responsive platform builders for the system default', () {
+      final theme = buildAppPageTransitionsTheme(
+        transition: AppPageTransition.platform,
+        reduceLoadingAnimations: false,
+      );
+
+      expect(theme.builders[TargetPlatform.android], isNotNull);
+      expect(
+        theme.builders[TargetPlatform.iOS],
+        isA<CupertinoPageTransitionsBuilder>(),
+      );
+    });
+
     test(
       'keeps Cupertino transition on Apple platforms in no-snapshot mode',
       () {

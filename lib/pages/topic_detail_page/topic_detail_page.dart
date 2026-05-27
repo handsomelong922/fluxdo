@@ -68,6 +68,8 @@ part 'actions/_scroll_actions.dart';
 part 'actions/_user_actions.dart';
 part 'actions/_filter_actions.dart';
 
+const double _topicDetailToolbarHeight = 48.0;
+
 @visibleForTesting
 bool shouldShowTopicTimelineProgress({
   required bool isNestedView,
@@ -463,7 +465,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   }
 
   void _checkTitleVisibility() {
-    final barHeight = kToolbarHeight + MediaQuery.of(context).padding.top;
+    final barHeight =
+        _topicDetailToolbarHeight + MediaQuery.of(context).padding.top;
     final ctx = _headerKey.currentContext;
 
     if (ctx == null) {
@@ -607,7 +610,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
     // 正常模式下的 AppBar
     return PreferredSize(
-      preferredSize: const Size.fromHeight(kToolbarHeight),
+      preferredSize: const Size.fromHeight(_topicDetailToolbarHeight),
       child: ValueListenableBuilder<bool>(
         valueListenable: _showTitleNotifier,
         builder: (context, showTitle, _) => ValueListenableBuilder<bool>(
@@ -622,6 +625,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
               return AppBar(
                 automaticallyImplyLeading: !widget.embeddedMode,
+                toolbarHeight: _topicDetailToolbarHeight,
                 elevation: currentElevation,
                 scrolledUnderElevation: currentElevation,
                 shadowColor: Colors.transparent,
@@ -665,7 +669,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             duration: topicDetailBarAnimationDuration,
             curve: topicDetailBarAnimationCurve,
             child: SizedBox(
-              height: kToolbarHeight + MediaQuery.of(context).padding.top,
+              height:
+                  _topicDetailToolbarHeight +
+                  MediaQuery.of(context).padding.top,
               child: _buildAppBar(
                 theme: theme,
                 detail: detail,
@@ -1056,7 +1062,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       builder: (context, showBars, _) {
         final shouldShowAppBar = isSearchMode || !hideBarOnScroll || showBars;
         final appBarHeight =
-            kToolbarHeight + MediaQuery.of(context).padding.top;
+            _topicDetailToolbarHeight + MediaQuery.of(context).padding.top;
         final contentTopInset = isSearchMode ? 0.0 : appBarHeight;
         final topicBody = _buildBody(
           context,
@@ -1496,6 +1502,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           scrollController: _controller.scrollController,
           headerKey: _headerKey,
           topContentInset: topContentInset,
+          topBoundaryHeight: _topicDetailToolbarHeight,
           isLoggedIn: isLoggedIn,
           onReply: _handleReply,
           onReplyWithInitialContent: (replyToPost, initialContent) =>
@@ -1577,6 +1584,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               centerKey: _centerKey,
               headerKey: _headerKey,
               topContentInset: topContentInset,
+              topBoundaryHeight: _topicDetailToolbarHeight,
               highlightPostNumber: highlightPostNumber,
               highlightBoostUsername: widget.highlightBoostUsername,
               typingUsers: typingUsers,
