@@ -1,3 +1,8 @@
+## v0.4.9
+
+- fix: refine default transitions and compact chrome
+
+
 ## v0.4.8
 
 - fix: pass through image viewer pop gestures
