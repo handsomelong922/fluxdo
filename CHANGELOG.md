@@ -1,3 +1,8 @@
+## v0.5.1
+
+- fix: improve topic detail chrome and release notes
+
+
 ## v0.5.0
 
 - fix: compact icon-only bottom navigation
