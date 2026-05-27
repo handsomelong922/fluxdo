@@ -258,7 +258,7 @@ class _AnimatedBottomNav extends StatelessWidget {
     final mediaQuery = MediaQuery.of(context);
     final theme = Theme.of(context);
     final clampedVisibility = visibility.clamp(0.0, 1.0).toDouble();
-    final maxWidth = (mediaQuery.size.width - 72).clamp(0.0, 420.0);
+    final maxWidth = (mediaQuery.size.width - 72).clamp(0.0, 420.0) * 0.85;
     final bottomInset = mediaQuery.padding.bottom;
 
     return IgnorePointer(
