@@ -1,3 +1,8 @@
+## v0.4.7
+
+- feat: improve feed filtering and loading behavior
+
+
 ## v0.4.6
 
 - fix: hide timeline jump in nested view
