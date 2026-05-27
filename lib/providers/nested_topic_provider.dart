@@ -29,6 +29,7 @@ class NestedTopicState {
   final String sort;
   final int? pinnedPostNumber;
   final bool isLoadingMore;
+  final bool isRefreshingSort;
   final List<int> newRootPostIds;
   final NestedChildCreatedEvent? lastChildCreated;
 
@@ -41,6 +42,7 @@ class NestedTopicState {
     this.sort = 'top',
     this.pinnedPostNumber,
     this.isLoadingMore = false,
+    this.isRefreshingSort = false,
     this.newRootPostIds = const [],
     this.lastChildCreated,
   });
@@ -56,6 +58,7 @@ class NestedTopicState {
     String? sort,
     int? pinnedPostNumber,
     bool? isLoadingMore,
+    bool? isRefreshingSort,
     List<int>? newRootPostIds,
     NestedChildCreatedEvent? lastChildCreated,
     bool clearLastChildCreated = false,
@@ -69,6 +72,7 @@ class NestedTopicState {
       sort: sort ?? this.sort,
       pinnedPostNumber: pinnedPostNumber ?? this.pinnedPostNumber,
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      isRefreshingSort: isRefreshingSort ?? this.isRefreshingSort,
       newRootPostIds: newRootPostIds ?? this.newRootPostIds,
       lastChildCreated: clearLastChildCreated
           ? null
@@ -146,7 +150,9 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
     if (current == null || current.sort == newSort) return;
 
     // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
-    state = const AsyncValue.loading();
+    state = AsyncValue.data(
+      current.copyWith(sort: newSort, isRefreshingSort: true),
+    );
 
     try {
       final service = ref.read(discourseServiceProvider);
@@ -159,20 +165,22 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
       if (!ref.mounted) return;
       // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
       state = AsyncValue.data(
-        NestedTopicState(
-          topicJson: current.topicJson,
-          opPost: current.opPost,
+        current.copyWith(
           roots: response.roots,
           hasMoreRoots: response.hasMoreRoots,
           currentPage: 0,
           sort: newSort,
           pinnedPostNumber: response.pinnedPostNumber,
+          isRefreshingSort: false,
+          isLoadingMore: false,
+          newRootPostIds: const [],
         ),
       );
     } catch (e, s) {
       if (!ref.mounted) return;
       // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
-      state = AsyncValue.error(e, s);
+      state = AsyncValue.data(current.copyWith(isRefreshingSort: false));
+      debugPrint('[NestedTopic] changeSort failed: $e\n$s');
     }
   }
 

@@ -14,6 +14,7 @@ import '../../utils/link_launcher.dart';
 import '../../utils/quote_builder.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:async';
+import 'dart:ui';
 import '../../models/draft.dart';
 import '../../models/topic.dart';
 import '../../utils/responsive.dart';
@@ -69,6 +70,7 @@ part 'actions/_user_actions.dart';
 part 'actions/_filter_actions.dart';
 
 const double _topicDetailToolbarHeight = 48.0;
+const double _topicFloatingButtonSize = 44.0;
 
 @visibleForTesting
 bool shouldShowTopicTimelineProgress({
@@ -655,33 +657,185 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     required bool visible,
   }) {
     return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
+      top: MediaQuery.of(context).padding.top + 8,
+      left: 12,
+      right: 12,
       child: IgnorePointer(
         ignoring: !visible,
         child: AnimatedSlide(
-          offset: visible ? Offset.zero : const Offset(0, -1),
+          offset: visible ? Offset.zero : const Offset(0, -1.4),
           duration: topicDetailBarAnimationDuration,
           curve: topicDetailBarAnimationCurve,
           child: AnimatedOpacity(
             opacity: visible ? 1 : 0,
             duration: topicDetailBarAnimationDuration,
             curve: topicDetailBarAnimationCurve,
-            child: SizedBox(
-              height:
-                  _topicDetailToolbarHeight +
-                  MediaQuery.of(context).padding.top,
-              child: _buildAppBar(
-                theme: theme,
-                detail: detail,
-                notifier: notifier,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (widget.embeddedMode)
+                  const SizedBox(width: _topicFloatingButtonSize)
+                else
+                  _FloatingTopicChromeButton(
+                    tooltip: MaterialLocalizations.of(
+                      context,
+                    ).backButtonTooltip,
+                    icon: Icons.arrow_back_ios_new_rounded,
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                if (detail == null)
+                  const SizedBox(width: _topicFloatingButtonSize)
+                else
+                  _buildFloatingTopicMenu(
+                    theme: theme,
+                    detail: detail,
+                    notifier: notifier,
+                  ),
+              ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildFloatingTopicMenu({
+    required ThemeData theme,
+    required TopicDetail? detail,
+    required TopicDetailNotifier notifier,
+  }) {
+    if (detail == null) {
+      return const SizedBox(width: _topicFloatingButtonSize);
+    }
+
+    return SwipeDismissiblePopupMenuButton<String>(
+      tooltip: context.l10n.topicDetail_moreOptions,
+      offset: const Offset(0, 8),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 260, maxWidth: 320),
+      menuPadding: const EdgeInsets.all(8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      color: theme.colorScheme.surface.withValues(alpha: 0.98),
+      shadowColor: Colors.black.withValues(alpha: 0.18),
+      surfaceTintColor: Colors.transparent,
+      child: const _FloatingTopicChromeButtonSurface(icon: Icons.menu_rounded),
+      onSelected: (value) => _handleTopicMenuSelection(value, detail, notifier),
+      itemBuilder: (context) => _buildTopicMenuItems(detail),
+    );
+  }
+
+  List<PopupMenuEntry<String>> _buildTopicMenuItems(TopicDetail detail) {
+    final firstPost = detail.postStream.posts
+        .where((p) => p.postNumber == 1)
+        .firstOrNull;
+    final canEditTopic = detail.canEdit || (firstPost?.canEdit ?? false);
+    final useSwipeEntry = ref.watch(
+      preferencesProvider.select((p) => p.aiSwipeEntry),
+    );
+    final hasAiModel = ref.watch(hasAvailableAiModelProvider);
+    final isInReadLater = ref
+        .read(readLaterProvider.notifier)
+        .contains(widget.topicId);
+
+    PopupMenuItem<String> item({
+      required String value,
+      required IconData icon,
+      required String label,
+      bool selected = false,
+    }) {
+      return PopupMenuItem<String>(
+        value: value,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+        height: 48,
+        child: _TopicMenuTile(icon: icon, label: label, selected: selected),
+      );
+    }
+
+    return [
+      item(
+        value: 'search',
+        icon: Icons.search_rounded,
+        label: context.l10n.topicDetail_searchTopic,
+      ),
+      if (!useSwipeEntry && hasAiModel)
+        item(
+          value: 'ai_assistant',
+          icon: Icons.auto_awesome_rounded,
+          label: context.l10n.topicDetail_aiAssistant,
+        ),
+      if (canEditTopic)
+        item(
+          value: 'edit_topic',
+          icon: Icons.edit_outlined,
+          label: context.l10n.topicDetail_editTopic,
+        ),
+      item(
+        value: 'bookmark',
+        icon: detail.bookmarked
+            ? Icons.bookmark_rounded
+            : Icons.bookmark_border_rounded,
+        label: detail.bookmarked
+            ? context.l10n.topicDetail_editBookmark
+            : context.l10n.common_addBookmark,
+        selected: detail.bookmarked,
+      ),
+      item(
+        value: 'read_later',
+        icon: isInReadLater ? Icons.layers_rounded : Icons.layers_outlined,
+        label: isInReadLater
+            ? context.l10n.topicDetail_removeFromReadLater
+            : context.l10n.topicDetail_addToReadLater,
+        selected: isInReadLater,
+      ),
+      item(
+        value: 'subscribe',
+        icon: TopicNotificationButton.getIcon(detail.notificationLevel),
+        label: context.l10n.topic_notificationSettings,
+      ),
+      item(
+        value: 'toggle_nested_view',
+        icon: _isNestedView ? Icons.forum_rounded : Icons.forum_outlined,
+        label:
+            '${context.l10n.nested_title} · ${_isNestedView ? context.l10n.common_close : context.l10n.common_enable}',
+        selected: _isNestedView,
+      ),
+      item(
+        value: 'reading_settings',
+        icon: Icons.auto_stories_rounded,
+        label: context.l10n.settings_reading,
+      ),
+    ];
+  }
+
+  void _handleTopicMenuSelection(
+    String value,
+    TopicDetail detail,
+    TopicDetailNotifier notifier,
+  ) {
+    if (value == 'search') {
+      _showTopicSearch();
+    } else if (value == 'ai_assistant') {
+      _showAiAssistantSheet(detail);
+    } else if (value == 'subscribe') {
+      showNotificationLevelSheet(
+        context,
+        detail.notificationLevel,
+        (level) => _handleNotificationLevelChanged(notifier, level),
+      );
+    } else if (value == 'edit_topic') {
+      _handleEditTopic();
+    } else if (value == 'bookmark') {
+      _handleBookmark(notifier);
+    } else if (value == 'read_later') {
+      _handleReadLater();
+    } else if (value == 'toggle_nested_view') {
+      _setNestedView(!_isNestedView);
+    } else if (value == 'reading_settings') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ReadingSettingsPage()),
+      );
+    }
   }
 
   /// 构建 AppBar Actions
@@ -695,179 +849,17 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       return [];
     }
 
-    // 编辑话题入口：可以编辑话题元数据 或 可以编辑首贴内容
-    final firstPost = detail.postStream.posts
-        .where((p) => p.postNumber == 1)
-        .firstOrNull;
-    final canEditTopic = detail.canEdit || (firstPost?.canEdit ?? false);
-
-    final useSwipeEntry = ref.watch(
-      preferencesProvider.select((p) => p.aiSwipeEntry),
-    );
-
     return [
-      // AI 助手按钮（滑动入口模式下隐藏）
-      if (!useSwipeEntry && ref.watch(hasAvailableAiModelProvider))
-        IconButton(
-          icon: const Icon(Icons.auto_awesome),
-          tooltip: context.l10n.topicDetail_aiAssistant,
-          onPressed: () => _showAiAssistantSheet(detail),
-        ),
-      // 搜索按钮
-      IconButton(
-        icon: const Icon(Icons.search),
-        tooltip: context.l10n.topicDetail_searchTopic,
-        onPressed: () {
-          ref
-              .read(topicSearchProvider(widget.topicId).notifier)
-              .enterSearchMode();
-        },
-      ),
-      // 更多选项
-      SwipeDismissiblePopupMenuButton<String>(
-        icon: const Icon(Icons.more_vert),
-        tooltip: context.l10n.topicDetail_moreOptions,
-        onSelected: (value) {
-          if (value == 'subscribe') {
-            showNotificationLevelSheet(
-              context,
-              detail.notificationLevel,
-              (level) => _handleNotificationLevelChanged(notifier, level),
-            );
-          } else if (value == 'edit_topic') {
-            _handleEditTopic();
-          } else if (value == 'bookmark') {
-            _handleBookmark(notifier);
-          } else if (value == 'read_later') {
-            _handleReadLater();
-          } else if (value == 'toggle_nested_view') {
-            _setNestedView(!_isNestedView);
-          } else if (value == 'reading_settings') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ReadingSettingsPage()),
-            );
-          }
-        },
-        itemBuilder: (context) => [
-          if (canEditTopic)
-            PopupMenuItem(
-              value: 'edit_topic',
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.edit_outlined,
-                    size: 20,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(context.l10n.topicDetail_editTopic),
-                ],
-              ),
-            ),
-          PopupMenuItem(
-            value: 'bookmark',
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  detail.bookmarked ? Icons.bookmark : Icons.bookmark_border,
-                  size: 20,
-                  color: detail.bookmarked
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurface,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  detail.bookmarked
-                      ? context.l10n.topicDetail_editBookmark
-                      : context.l10n.common_addBookmark,
-                ),
-              ],
-            ),
-          ),
-          PopupMenuItem(
-            value: 'read_later',
-            child: Builder(
-              builder: (context) {
-                final isInReadLater = ref
-                    .read(readLaterProvider.notifier)
-                    .contains(widget.topicId);
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isInReadLater ? Icons.layers : Icons.layers_outlined,
-                      size: 20,
-                      color: isInReadLater
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.onSurface,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      isInReadLater
-                          ? context.l10n.topicDetail_removeFromReadLater
-                          : context.l10n.topicDetail_addToReadLater,
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-          PopupMenuItem(
-            value: 'subscribe',
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  TopicNotificationButton.getIcon(detail.notificationLevel),
-                  size: 20,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-                const SizedBox(width: 12),
-                Text(context.l10n.topic_notificationSettings),
-              ],
-            ),
-          ),
-          const PopupMenuDivider(),
-          PopupMenuItem(
-            value: 'toggle_nested_view',
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _isNestedView ? Icons.forum : Icons.forum_outlined,
-                  size: 20,
-                  color: _isNestedView
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurface,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '${context.l10n.nested_title} · ${_isNestedView ? context.l10n.common_close : context.l10n.common_enable}',
-                ),
-              ],
-            ),
-          ),
-          PopupMenuItem(
-            value: 'reading_settings',
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.auto_stories_rounded,
-                  size: 20,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-                const SizedBox(width: 12),
-                Text(context.l10n.settings_reading),
-              ],
-            ),
-          ),
-        ],
+      _buildFloatingTopicMenu(
+        theme: Theme.of(context),
+        detail: detail,
+        notifier: notifier,
       ),
     ];
+  }
+
+  void _showTopicSearch() {
+    ref.read(topicSearchProvider(widget.topicId).notifier).enterSearchMode();
   }
 
   void _showTimelineSheet(TopicDetail detail) {
@@ -1061,9 +1053,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       valueListenable: _controller.showBottomBarNotifier,
       builder: (context, showBars, _) {
         final shouldShowAppBar = isSearchMode || !hideBarOnScroll || showBars;
-        final appBarHeight =
-            _topicDetailToolbarHeight + MediaQuery.of(context).padding.top;
-        final contentTopInset = isSearchMode ? 0.0 : appBarHeight;
+        final contentTopInset = 0.0;
         final topicBody = _buildBody(
           context,
           detailAsync,
@@ -1655,6 +1645,135 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         return Opacity(opacity: isPositioned ? 1.0 : 0.0, child: child);
       },
       child: scrollView,
+    );
+  }
+}
+
+class _FloatingTopicChromeButton extends StatelessWidget {
+  const _FloatingTopicChromeButton({
+    required this.icon,
+    required this.onPressed,
+    required this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onPressed,
+        child: _FloatingTopicChromeButtonSurface(icon: icon),
+      ),
+    );
+  }
+}
+
+class _FloatingTopicChromeButtonSurface extends StatelessWidget {
+  const _FloatingTopicChromeButtonSurface({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface.withValues(alpha: 0.82),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: SizedBox(
+            width: _topicFloatingButtonSize,
+            height: _topicFloatingButtonSize,
+            child: Center(child: _FloatingTopicChromeButtonContent(icon: icon)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FloatingTopicChromeButtonContent extends StatelessWidget {
+  const _FloatingTopicChromeButtonContent({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurface);
+  }
+}
+
+class _TopicMenuTile extends StatelessWidget {
+  const _TopicMenuTile({
+    required this.icon,
+    required this.label,
+    required this.selected,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final iconColor = selected
+        ? colorScheme.primary
+        : colorScheme.onSurfaceVariant;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: selected
+            ? colorScheme.primaryContainer.withValues(alpha: 0.72)
+            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: selected
+              ? colorScheme.primary.withValues(alpha: 0.18)
+              : colorScheme.outlineVariant.withValues(alpha: 0.28),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: iconColor),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: iconColor,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

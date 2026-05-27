@@ -298,6 +298,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                       label: context.l10n.nested_sortTop,
                       value: 'top',
                       current: ns.sort,
+                      enabled: !ns.isRefreshingSort,
                       onTap: () => ref
                           .read(nestedTopicProvider(p).notifier)
                           .changeSort('top'),
@@ -307,6 +308,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                       label: context.l10n.nested_sortNew,
                       value: 'new',
                       current: ns.sort,
+                      enabled: !ns.isRefreshingSort,
                       onTap: () => ref
                           .read(nestedTopicProvider(p).notifier)
                           .changeSort('new'),
@@ -316,6 +318,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                       label: context.l10n.nested_sortOld,
                       value: 'old',
                       current: ns.sort,
+                      enabled: !ns.isRefreshingSort,
                       onTap: () => ref
                           .read(nestedTopicProvider(p).notifier)
                           .changeSort('old'),
@@ -324,6 +327,14 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                 ),
               ),
             ),
+
+            if (ns.isRefreshingSort)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: LinearProgressIndicator(minHeight: 2),
+                ),
+              ),
 
             if (ns.newRootPostIds.isNotEmpty)
               SliverToBoxAdapter(
@@ -414,12 +425,14 @@ class _SortChip extends StatelessWidget {
   final String label;
   final String value;
   final String current;
+  final bool enabled;
   final VoidCallback onTap;
 
   const _SortChip({
     required this.label,
     required this.value,
     required this.current,
+    required this.enabled,
     required this.onTap,
   });
 
@@ -428,7 +441,7 @@ class _SortChip extends StatelessWidget {
     final theme = Theme.of(context);
     final isActive = value == current;
     return GestureDetector(
-      onTap: isActive ? null : onTap,
+      onTap: !enabled || isActive ? null : onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
@@ -442,7 +455,9 @@ class _SortChip extends StatelessWidget {
         child: Text(
           label,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: isActive
+            color: !enabled
+                ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.55)
+                : isActive
                 ? theme.colorScheme.primary
                 : theme.colorScheme.onSurfaceVariant,
             fontWeight: isActive ? FontWeight.bold : FontWeight.normal,

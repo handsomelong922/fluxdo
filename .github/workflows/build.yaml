@@ -242,26 +242,20 @@ jobs:
 
       - name: Generate release notes
         run: |
-          tags=($(git tag --merged HEAD --sort=-creatordate))
-          preTag=$(curl -s "https://api.github.com/repos/lingyan000/fluxdo/releases/latest" | \
-          sed -nE 's/.*"tag_name": "([^"]+)".*/\1/p' || echo "")
-
           out="release_notes.md"
           > "$out"
+          currentTag="${GITHUB_REF_NAME}"
+          previousTag=$(git describe --tags --abbrev=0 "${currentTag}^{commit}^" 2>/dev/null || true)
 
-          for i in "${!tags[@]}"; do
-            curr="${tags[i]}"
-            [[ "$curr" == "$preTag" ]] && break
+          range="${previousTag:+$previousTag..}$currentTag"
+          echo "Changes in $currentTag${previousTag:+ since $previousTag}" >> "$out"
+          echo "" >> "$out"
 
-            prev="${tags[i+1]}"
-            range="${prev:+$prev..}$curr"
-
-            git log --no-merges --pretty=format:"- %s%n" "$range" | \
-              grep -v 'Update changelog' | \
-              grep -v 'Co-Authored-By: Release Script' | \
-              grep -v '^- chore: bump version to ' >> "$out" || true
-            echo "" >> "$out"
-          done
+          git log --no-merges --pretty=format:"- %s%n" "$range" | \
+            grep -v 'Update changelog' | \
+            grep -v 'Co-Authored-By: Release Script' | \
+            grep -v '^- chore: bump version to ' >> "$out" || true
+          echo "" >> "$out"
 
       - name: Wait for telegram-bot-api
         env:
