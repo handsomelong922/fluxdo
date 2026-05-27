@@ -68,6 +68,14 @@ part 'actions/_scroll_actions.dart';
 part 'actions/_user_actions.dart';
 part 'actions/_filter_actions.dart';
 
+@visibleForTesting
+bool shouldShowTopicTimelineProgress({
+  required bool isNestedView,
+  required bool isTopLevelMode,
+}) {
+  return !isNestedView && !isTopLevelMode;
+}
+
 /// 话题详情页面
 class TopicDetailPage extends ConsumerStatefulWidget {
   final int topicId;
@@ -860,7 +868,13 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   }
 
   void _showTimelineSheet(TopicDetail detail) {
-    if (_isNestedView) return;
+    final notifier = ref.read(topicDetailProvider(_params).notifier);
+    if (!shouldShowTopicTimelineProgress(
+      isNestedView: _isNestedView,
+      isTopLevelMode: notifier.isTopLevelMode,
+    )) {
+      return;
+    }
 
     final preserveNestedView = _isNestedView;
     showTopicTimelineSheet(
@@ -1326,7 +1340,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                     onOpenInBrowser: _openInBrowser,
                     onReply: () => _handleReply(null),
                     onProgressTap: () => _showTimelineSheet(detail),
-                    showProgress: !_isNestedView,
+                    showProgress: shouldShowTopicTimelineProgress(
+                      isNestedView: _isNestedView,
+                      isTopLevelMode: notifier.isTopLevelMode,
+                    ),
                     isSummaryMode: notifier.isSummaryMode,
                     isAuthorOnlyMode: notifier.isAuthorOnlyMode,
                     isTopLevelMode: notifier.isTopLevelMode,
