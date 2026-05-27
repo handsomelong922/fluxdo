@@ -1,3 +1,14 @@
+## v0.4.8
+
+- fix: pass through image viewer pop gestures
+
+- fix: allow back transition touch passthrough
+
+- feat: refine transitions and floating chrome
+
+- fix: hide unusable topic jump in tree views
+
+
 ## v0.4.7
 
 - feat: improve feed filtering and loading behavior
