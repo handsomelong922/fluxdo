@@ -74,4 +74,38 @@ void main() {
       },
     );
   });
+
+  group('PopGesturePassthrough', () {
+    testWidgets('does not hit test while route animation reverses', (
+      tester,
+    ) async {
+      final controller = AnimationController(
+        vsync: tester,
+        duration: const Duration(milliseconds: 100),
+        value: 1,
+      );
+      var tapped = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PopGesturePassthrough(
+            animation: controller,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => tapped = true,
+              child: const SizedBox(width: 100, height: 100),
+            ),
+          ),
+        ),
+      );
+
+      controller.reverse();
+      await tester.pump();
+      await tester.tap(find.byType(GestureDetector), warnIfMissed: false);
+
+      expect(tapped, isFalse);
+
+      controller.dispose();
+    });
+  });
 }
