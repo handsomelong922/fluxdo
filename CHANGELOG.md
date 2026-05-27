@@ -1,3 +1,8 @@
+## v0.5.2
+
+- fix: refine topic actions and search sorting
+
+
 ## v0.5.1
 
 - fix: improve topic detail chrome and release notes
