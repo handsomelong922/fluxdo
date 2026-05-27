@@ -20,6 +20,7 @@ class NestedPostList extends ConsumerStatefulWidget {
   final AutoScrollController scrollController;
   final GlobalKey headerKey;
   final double topContentInset;
+  final double topBoundaryHeight;
   final bool isLoggedIn;
   final void Function(Post? replyToPost) onReply;
   final void Function(Post? replyToPost, String initialContent)?
@@ -48,6 +49,7 @@ class NestedPostList extends ConsumerStatefulWidget {
     required this.scrollController,
     required this.headerKey,
     this.topContentInset = 0,
+    this.topBoundaryHeight = kToolbarHeight,
     required this.isLoggedIn,
     required this.onReply,
     this.onReplyWithInitialContent,
@@ -152,7 +154,8 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
 
     final position = widget.scrollController.position;
     final viewportHeight = position.viewportDimension;
-    final topBoundary = kToolbarHeight + MediaQuery.of(context).padding.top;
+    final topBoundary =
+        widget.topBoundaryHeight + MediaQuery.of(context).padding.top;
     final eyeline = topBoundary;
     final visiblePostNumbers = <int>{};
     int? eyelinePostNumber;

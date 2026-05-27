@@ -43,10 +43,24 @@ PageTransitionsTheme buildAppPageTransitionsTheme({
     transition: transition,
     reduceLoadingAnimations: reduceLoadingAnimations,
   );
+
+  if (effectiveTransition == AppPageTransition.platform) {
+    return const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: _ResponsivePlatformPageTransitionsBuilder(),
+        TargetPlatform.fuchsia: _ResponsivePlatformPageTransitionsBuilder(),
+        TargetPlatform.windows: _ResponsivePlatformPageTransitionsBuilder(),
+        TargetPlatform.linux: _ResponsivePlatformPageTransitionsBuilder(),
+        TargetPlatform.iOS: _ResponsiveCupertinoPageTransitionsBuilder(),
+        TargetPlatform.macOS: _ResponsiveCupertinoPageTransitionsBuilder(),
+      },
+    );
+  }
+
   final builder = switch (effectiveTransition) {
     AppPageTransition.platform => null,
     AppPageTransition.noSnapshot =>
-      const _NoSnapshotZoomPageTransitionsBuilder(),
+      const _NoSnapshotPlatformPageTransitionsBuilder(),
     AppPageTransition.fade => const _FadePageTransitionsBuilder(),
     AppPageTransition.slide => const _SlidePageTransitionsBuilder(),
     AppPageTransition.scale => const _ScalePageTransitionsBuilder(),
@@ -61,12 +75,12 @@ PageTransitionsTheme buildAppPageTransitionsTheme({
   if (effectiveTransition == AppPageTransition.noSnapshot) {
     return const PageTransitionsTheme(
       builders: {
-        TargetPlatform.android: _NoSnapshotZoomPageTransitionsBuilder(),
-        TargetPlatform.fuchsia: _NoSnapshotZoomPageTransitionsBuilder(),
-        TargetPlatform.windows: _NoSnapshotZoomPageTransitionsBuilder(),
-        TargetPlatform.linux: _NoSnapshotZoomPageTransitionsBuilder(),
-        TargetPlatform.iOS: _PopPassthroughCupertinoPageTransitionsBuilder(),
-        TargetPlatform.macOS: _PopPassthroughCupertinoPageTransitionsBuilder(),
+        TargetPlatform.android: _NoSnapshotPlatformPageTransitionsBuilder(),
+        TargetPlatform.fuchsia: _NoSnapshotPlatformPageTransitionsBuilder(),
+        TargetPlatform.windows: _NoSnapshotPlatformPageTransitionsBuilder(),
+        TargetPlatform.linux: _NoSnapshotPlatformPageTransitionsBuilder(),
+        TargetPlatform.iOS: _ResponsiveCupertinoPageTransitionsBuilder(),
+        TargetPlatform.macOS: _ResponsiveCupertinoPageTransitionsBuilder(),
       },
     );
   }
@@ -76,8 +90,37 @@ PageTransitionsTheme buildAppPageTransitionsTheme({
   );
 }
 
-class _NoSnapshotZoomPageTransitionsBuilder extends PageTransitionsBuilder {
-  const _NoSnapshotZoomPageTransitionsBuilder();
+class _ResponsivePlatformPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _ResponsivePlatformPageTransitionsBuilder();
+
+  static const _zoom = ZoomPageTransitionsBuilder(
+    allowSnapshotting: true,
+    allowEnterRouteSnapshotting: false,
+  );
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return _PopGesturePassthrough(
+      animation: animation,
+      child: _zoom.buildTransitions(
+        route,
+        context,
+        animation,
+        secondaryAnimation,
+        child,
+      ),
+    );
+  }
+}
+
+class _NoSnapshotPlatformPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoSnapshotPlatformPageTransitionsBuilder();
 
   static const _zoom = ZoomPageTransitionsBuilder(
     allowSnapshotting: false,
@@ -105,9 +148,9 @@ class _NoSnapshotZoomPageTransitionsBuilder extends PageTransitionsBuilder {
   }
 }
 
-class _PopPassthroughCupertinoPageTransitionsBuilder
+class _ResponsiveCupertinoPageTransitionsBuilder
     extends CupertinoPageTransitionsBuilder {
-  const _PopPassthroughCupertinoPageTransitionsBuilder();
+  const _ResponsiveCupertinoPageTransitionsBuilder();
 
   @override
   Widget buildTransitions<T>(

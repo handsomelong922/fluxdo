@@ -368,7 +368,7 @@ class _AdaptiveBottomNavigationState
   Widget build(BuildContext context) {
     return NavigationBarTheme(
       data: const NavigationBarThemeData(
-        height: 56,
+        height: 52,
         labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
       ),
       child: NavigationBar(

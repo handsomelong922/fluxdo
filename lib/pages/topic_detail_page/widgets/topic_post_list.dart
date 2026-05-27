@@ -32,6 +32,7 @@ class TopicPostList extends StatefulWidget {
   final GlobalKey centerKey;
   final GlobalKey headerKey;
   final double topContentInset;
+  final double topBoundaryHeight;
   final int? highlightPostNumber;
   final List<TypingUser> typingUsers;
   final bool isLoggedIn;
@@ -89,6 +90,7 @@ class TopicPostList extends StatefulWidget {
     required this.centerKey,
     required this.headerKey,
     this.topContentInset = 0,
+    this.topBoundaryHeight = kToolbarHeight,
     required this.highlightPostNumber,
     this.highlightBoostUsername,
     required this.typingUsers,
@@ -228,7 +230,8 @@ class _TopicPostListState extends State<TopicPostList> {
     final viewportHeight = position.viewportDimension;
 
     // 视口可见区域的上下边界
-    final topBoundary = kToolbarHeight + MediaQuery.of(context).padding.top;
+    final topBoundary =
+        widget.topBoundaryHeight + MediaQuery.of(context).padding.top;
     final bottomBoundary = viewportHeight;
 
     // === 计算 eyeline 位置 ===
