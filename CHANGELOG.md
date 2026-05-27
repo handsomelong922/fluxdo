@@ -1,3 +1,8 @@
+## v0.5.0
+
+- fix: compact icon-only bottom navigation
+
+
 ## v0.4.9
 
 - fix: refine default transitions and compact chrome
