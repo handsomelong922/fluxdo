@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/cdk_providers.dart';
-import '../pages/webview_page.dart';
+import '../pages/cdk_page.dart';
 import '../services/network/exceptions/oauth_exception.dart';
 import 'common/loading_spinner.dart';
 import '../../../../l10n/s.dart';
@@ -47,15 +47,14 @@ class CdkBalanceCard extends ConsumerWidget {
       return Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => WebViewPage.open(
-            context,
-            'https://cdk.linux.do',
-            title: 'LINUX DO CDK',
-          ),
+          onTap: () => CdkPage.open(context),
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
                     Container(
@@ -111,7 +110,9 @@ class CdkBalanceCard extends ConsumerWidget {
                   child: Divider(
                     height: 1,
                     thickness: 0.5,
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.2,
+                    ),
                   ),
                 ),
             ],
@@ -122,186 +123,169 @@ class CdkBalanceCard extends ConsumerWidget {
 
     if (compact) {
       return GestureDetector(
-        onTap: () => WebViewPage.open(
-          context,
-          'https://cdk.linux.do',
-          title: 'LINUX DO CDK',
-        ),
+        onTap: () => CdkPage.open(context),
         child: Card(
-        elevation: 0,
-        color: theme.colorScheme.surfaceContainerLow,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha:0.2)),
-        ),
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.tertiaryContainer,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.token_rounded,
-                  size: 20,
-                  color: theme.colorScheme.onTertiaryContainer,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    S.current.cdk_balance,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+          elevation: 0,
+          color: theme.colorScheme.surfaceContainerLow,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+            ),
+          ),
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.tertiaryContainer,
+                    shape: BoxShape.circle,
                   ),
-                  Text(
-                    '${userInfo.score}',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface,
-                    ),
+                  child: Icon(
+                    Icons.token_rounded,
+                    size: 20,
+                    color: theme.colorScheme.onTertiaryContainer,
                   ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      S.current.cdk_balance,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      '${userInfo.score}',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+                if (isRefreshing) ...[
+                  const Spacer(),
+                  LoadingSpinner(size: 20, color: theme.colorScheme.tertiary),
                 ],
-              ),
-              if (isRefreshing) ...[
-                const Spacer(),
-                LoadingSpinner(
-                  size: 20,
-                  color: theme.colorScheme.tertiary,
-                ),
               ],
-            ],
+            ),
           ),
         ),
-      ),
       );
     }
 
     return GestureDetector(
-      onTap: () => WebViewPage.open(
-        context,
-        'https://cdk.linux.do',
-        title: 'LINUX DO CDK',
-      ),
+      onTap: () => CdkPage.open(context),
       child: Card(
         elevation: 8,
-        shadowColor: theme.colorScheme.tertiary.withValues(alpha:0.3),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        shadowColor: theme.colorScheme.tertiary.withValues(alpha: 0.3),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
         child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              theme.colorScheme.tertiary,
-              theme.colorScheme.secondary,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [theme.colorScheme.tertiary, theme.colorScheme.secondary],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Stack(
+            children: [
+              // 装饰背景
+              Positioned(
+                right: -20,
+                top: -20,
+                child: Icon(
+                  Icons.token_rounded,
+                  size: 150,
+                  color: Colors.white.withValues(alpha: 0.1),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.token_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'LINUX DO CDK',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.9),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        if (isRefreshing)
+                          const LoadingSpinner(size: 30, color: Colors.white70)
+                        else if (onDisable != null)
+                          GestureDetector(
+                            onTap: onDisable,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.power_settings_new_rounded,
+                                color: Colors.white.withValues(alpha: 0.7),
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          '${userInfo.score}',
+                          style: theme.textTheme.displaySmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            fontSize: 36,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          S.current.cdk_points,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
           ),
         ),
-        child: Stack(
-          children: [
-            // 装饰背景
-            Positioned(
-              right: -20,
-              top: -20,
-              child: Icon(
-                Icons.token_rounded,
-                size: 150,
-                color: Colors.white.withValues(alpha:0.1),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha:0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.token_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'LINUX DO CDK',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: Colors.white.withValues(alpha:0.9),
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                      if (isRefreshing)
-                        const LoadingSpinner(
-                          size: 30,
-                          color: Colors.white70,
-                        )
-                      else if (onDisable != null)
-                        GestureDetector(
-                          onTap: onDisable,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha:0.15),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.power_settings_new_rounded,
-                              color: Colors.white.withValues(alpha:0.7),
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        '${userInfo.score}',
-                        style: theme.textTheme.displaySmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          fontSize: 36,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        S.current.cdk_points,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: Colors.white.withValues(alpha:0.7),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
-    ),
     );
   }
 
@@ -327,7 +311,9 @@ class CdkBalanceCard extends ConsumerWidget {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      isExpired ? Icons.lock_clock_rounded : Icons.error_outline_rounded,
+                      isExpired
+                          ? Icons.lock_clock_rounded
+                          : Icons.error_outline_rounded,
                       size: 20,
                       color: isExpired
                           ? theme.colorScheme.error
@@ -346,7 +332,9 @@ class CdkBalanceCard extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          isExpired ? S.current.common_authExpired : S.current.common_loadFailed,
+                          isExpired
+                              ? S.current.common_authExpired
+                              : S.current.common_loadFailed,
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: isExpired
@@ -364,7 +352,8 @@ class CdkBalanceCard extends ConsumerWidget {
                     )
                   else
                     TextButton(
-                      onPressed: () => ref.read(cdkUserInfoProvider.notifier).refresh(),
+                      onPressed: () =>
+                          ref.read(cdkUserInfoProvider.notifier).refresh(),
                       child: Text(S.current.common_retry),
                     ),
                 ],
@@ -376,7 +365,9 @@ class CdkBalanceCard extends ConsumerWidget {
                 child: Divider(
                   height: 1,
                   thickness: 0.5,
-                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.2,
+                  ),
                 ),
               ),
           ],
@@ -412,7 +403,9 @@ class CdkBalanceCard extends ConsumerWidget {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  isExpired ? Icons.lock_clock_rounded : Icons.error_outline_rounded,
+                  isExpired
+                      ? Icons.lock_clock_rounded
+                      : Icons.error_outline_rounded,
                   size: 20,
                   color: isExpired
                       ? theme.colorScheme.error
@@ -431,7 +424,9 @@ class CdkBalanceCard extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      isExpired ? S.current.common_authExpired : S.current.common_loadFailed,
+                      isExpired
+                          ? S.current.common_authExpired
+                          : S.current.common_loadFailed,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: isExpired
@@ -449,7 +444,8 @@ class CdkBalanceCard extends ConsumerWidget {
                 )
               else
                 TextButton(
-                  onPressed: () => ref.read(cdkUserInfoProvider.notifier).refresh(),
+                  onPressed: () =>
+                      ref.read(cdkUserInfoProvider.notifier).refresh(),
                   child: Text(S.current.common_retry),
                 ),
             ],
@@ -464,9 +460,7 @@ class CdkBalanceCard extends ConsumerWidget {
       shadowColor: isExpired
           ? theme.colorScheme.error.withValues(alpha: 0.3)
           : theme.colorScheme.tertiary.withValues(alpha: 0.3),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: Container(
@@ -477,10 +471,7 @@ class CdkBalanceCard extends ConsumerWidget {
                     theme.colorScheme.error.withValues(alpha: 0.8),
                     theme.colorScheme.error.withValues(alpha: 0.6),
                   ]
-                : [
-                    theme.colorScheme.tertiary,
-                    theme.colorScheme.secondary,
-                  ],
+                : [theme.colorScheme.tertiary, theme.colorScheme.secondary],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -491,7 +482,9 @@ class CdkBalanceCard extends ConsumerWidget {
               right: -20,
               top: -20,
               child: Icon(
-                isExpired ? Icons.lock_clock_rounded : Icons.error_outline_rounded,
+                isExpired
+                    ? Icons.lock_clock_rounded
+                    : Icons.error_outline_rounded,
                 size: 150,
                 color: Colors.white.withValues(alpha: 0.1),
               ),
@@ -510,7 +503,9 @@ class CdkBalanceCard extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
-                          isExpired ? Icons.lock_clock_rounded : Icons.error_outline_rounded,
+                          isExpired
+                              ? Icons.lock_clock_rounded
+                              : Icons.error_outline_rounded,
                           color: Colors.white,
                           size: 20,
                         ),
@@ -545,7 +540,9 @@ class CdkBalanceCard extends ConsumerWidget {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    isExpired ? S.current.common_authExpired : S.current.common_loadFailed,
+                    isExpired
+                        ? S.current.common_authExpired
+                        : S.current.common_loadFailed,
                     style: theme.textTheme.displaySmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -554,7 +551,9 @@ class CdkBalanceCard extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    isExpired ? S.current.cdk_reAuthHint : S.current.common_checkNetworkRetry,
+                    isExpired
+                        ? S.current.cdk_reAuthHint
+                        : S.current.common_checkNetworkRetry,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: Colors.white.withValues(alpha: 0.7),
                     ),
@@ -572,7 +571,8 @@ class CdkBalanceCard extends ConsumerWidget {
                     )
                   else
                     FilledButton.icon(
-                      onPressed: () => ref.read(cdkUserInfoProvider.notifier).refresh(),
+                      onPressed: () =>
+                          ref.read(cdkUserInfoProvider.notifier).refresh(),
                       icon: const Icon(Icons.refresh_rounded, size: 18),
                       label: Text(S.current.common_retry),
                       style: FilledButton.styleFrom(
@@ -620,10 +620,7 @@ class CdkBalanceCard extends ConsumerWidget {
                     ),
                   ),
                 ),
-                LoadingSpinner(
-                  size: 16,
-                  color: theme.colorScheme.tertiary,
-                ),
+                LoadingSpinner(size: 16, color: theme.colorScheme.tertiary),
               ],
             ),
           ),
@@ -646,7 +643,9 @@ class CdkBalanceCard extends ConsumerWidget {
         color: theme.colorScheme.surfaceContainerLow,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2)),
+          side: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+          ),
         ),
         margin: EdgeInsets.zero,
         child: Padding(
@@ -673,10 +672,7 @@ class CdkBalanceCard extends ConsumerWidget {
                 ),
               ),
               const Spacer(),
-              LoadingSpinner(
-                size: 16,
-                color: theme.colorScheme.tertiary,
-              ),
+              LoadingSpinner(size: 16, color: theme.colorScheme.tertiary),
             ],
           ),
         ),
@@ -707,7 +703,11 @@ class CdkBalanceCard extends ConsumerWidget {
                 color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.token_rounded, color: Colors.white, size: 20),
+              child: const Icon(
+                Icons.token_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(

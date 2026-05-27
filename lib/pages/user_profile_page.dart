@@ -75,7 +75,14 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
   bool _reactionsLoading = false;
 
   // tab 对应的 filter: summary=总结, 4,5=全部(话题+回复), 4=话题, 5=回复, 1=点赞, reactions=回应
-  static const List<String> _tabFilters = ['summary', '4,5', '4', '5', '1', 'reactions'];
+  static const List<String> _tabFilters = [
+    'summary',
+    '4,5',
+    '4',
+    '5',
+    '1',
+    'reactions',
+  ];
 
   @override
   void initState() {
@@ -136,8 +143,8 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
           _notificationLevel = user.ignored == true
               ? 'ignore'
               : user.muted == true
-                  ? 'mute'
-                  : 'normal';
+              ? 'mute'
+              : 'normal';
           _isLoading = false;
         });
         // 总结 tab 数据已从 _summary 获取，无需额外加载
@@ -187,9 +194,10 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
     if (user == null || _isBlockActionLoading) return;
 
     final notifier = ref.read(contentFilterProvider.notifier);
-    final isBlocked = ref.read(contentFilterProvider).blockedUsers.any(
-      (name) => name.toLowerCase() == user.username.toLowerCase(),
-    );
+    final isBlocked = ref
+        .read(contentFilterProvider)
+        .blockedUsers
+        .any((name) => name.toLowerCase() == user.username.toLowerCase());
 
     setState(() => _isBlockActionLoading = true);
     try {
@@ -218,7 +226,8 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
     }
   }
 
-  bool get _isEnglishLocale => Localizations.localeOf(context).languageCode == 'en';
+  bool get _isEnglishLocale =>
+      Localizations.localeOf(context).languageCode == 'en';
 
   bool get _isTraditionalChineseLocale {
     final locale = Localizations.localeOf(context);
@@ -261,10 +270,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
   void _openMessageDialog() {
     if (_user == null) return;
 
-    showReplySheet(
-      context: context,
-      targetUsername: _user!.username,
-    );
+    showReplySheet(context: context, targetUsername: _user!.username);
   }
 
   /// 打开用户内容搜索
@@ -327,12 +333,11 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
       await service.updateUserNotificationLevel(_user!.username, level: level);
       if (mounted) {
         setState(() {
-          _user = _user!.copyWith(
-            muted: level == 'mute',
-            ignored: false,
-          );
+          _user = _user!.copyWith(muted: level == 'mute', ignored: false);
         });
-        final label = level == 'mute' ? S.current.userProfile_setToMute : S.current.userProfile_restored;
+        final label = level == 'mute'
+            ? S.current.userProfile_setToMute
+            : S.current.userProfile_restored;
         ToastService.showSuccess(label);
       }
     } catch (_) {
@@ -353,7 +358,9 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
       final m = target.minute.toString().padLeft(2, '0');
       final time = '$h:$m';
       // 同一天只显示时间
-      if (target.day == now.day && target.month == now.month && target.year == now.year) {
+      if (target.day == now.day &&
+          target.month == now.month &&
+          target.year == now.year) {
         return time;
       }
       // 同年显示 月日 周几 时间
@@ -369,8 +376,18 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
         (S.current.userProfile_laterToday, Duration(hours: 18 - now.hour)),
       (S.current.userProfile_tomorrow, Duration(days: 1)),
       if (now.weekday <= DateTime.wednesday)
-        (S.current.userProfile_laterThisWeek, Duration(days: DateTime.thursday - now.weekday)),
-      (S.current.userProfile_nextMonday, Duration(days: (DateTime.monday - now.weekday + 7) % 7 == 0 ? 7 : (DateTime.monday - now.weekday + 7) % 7)),
+        (
+          S.current.userProfile_laterThisWeek,
+          Duration(days: DateTime.thursday - now.weekday),
+        ),
+      (
+        S.current.userProfile_nextMonday,
+        Duration(
+          days: (DateTime.monday - now.weekday + 7) % 7 == 0
+              ? 7
+              : (DateTime.monday - now.weekday + 7) % 7,
+        ),
+      ),
       (S.current.userProfile_twoWeeks, Duration(days: 14)),
       (S.current.userProfile_nextMonth, Duration(days: 30)),
       (S.current.userProfile_twoMonths, Duration(days: 60)),
@@ -406,9 +423,12 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                     return ListTile(
                       title: Text(option.$1),
                       trailing: desc.isNotEmpty
-                          ? Text(desc, style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ))
+                          ? Text(
+                              desc,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            )
                           : null,
                       onTap: () {
                         final expiry = DateTime.now().toUtc().add(option.$2);
@@ -437,7 +457,14 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
     final isSuspended = _user!.isSuspended;
     final isSilenced = _user!.isSilenced;
 
-    if (!hasBio && !hasLocation && !hasWebsite && !hasJoinedAt && !isSuspended && !isSilenced) return;
+    if (!hasBio &&
+        !hasLocation &&
+        !hasWebsite &&
+        !hasJoinedAt &&
+        !isSuspended &&
+        !isSilenced) {
+      return;
+    }
 
     showAppBottomSheet(
       context: context,
@@ -453,10 +480,12 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
           return Container(
             decoration: BoxDecoration(
               color: theme.scaffoldBackgroundColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha:0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 10,
                   offset: const Offset(0, -2),
                 ),
@@ -496,7 +525,10 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                 Expanded(
                   child: ListView(
                     controller: scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 24,
+                    ),
                     children: [
                       // 封禁/禁言状态
                       if (isSuspended)
@@ -506,7 +538,11 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                           title: context.l10n.userProfile_suspendedStatus,
                           label: _user!.isSuspendedForever
                               ? context.l10n.userProfile_permanentlySuspended
-                              : context.l10n.userProfile_suspendedUntil(TimeUtils.formatFullDate(_user!.suspendedTill)),
+                              : context.l10n.userProfile_suspendedUntil(
+                                  TimeUtils.formatFullDate(
+                                    _user!.suspendedTill,
+                                  ),
+                                ),
                           reason: _user!.suspendReason,
                           color: theme.colorScheme.error,
                         ),
@@ -517,7 +553,9 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                           title: context.l10n.userProfile_silencedStatus,
                           label: _user!.isSilencedForever
                               ? context.l10n.userProfile_permanentlySilenced
-                              : context.l10n.userProfile_silencedUntil(TimeUtils.formatFullDate(_user!.silencedTill)),
+                              : context.l10n.userProfile_silencedUntil(
+                                  TimeUtils.formatFullDate(_user!.silencedTill),
+                                ),
                           reason: _user!.silenceReason,
                           color: Colors.orange,
                         ),
@@ -655,7 +693,14 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
     );
   }
 
-  Widget _buildInfoRow(BuildContext context, IconData icon, String label, String value, {String? url, bool isLink = false}) {
+  Widget _buildInfoRow(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value, {
+    String? url,
+    bool isLink = false,
+  }) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -667,10 +712,16 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha:0.5),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+              child: Icon(
+                icon,
+                size: 20,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -687,9 +738,13 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                   Text(
                     value,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: isLink ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                      color: isLink
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurface,
                       decoration: isLink ? TextDecoration.underline : null,
-                      decorationColor: theme.colorScheme.primary.withValues(alpha:0.3),
+                      decorationColor: theme.colorScheme.primary.withValues(
+                        alpha: 0.3,
+                      ),
                     ),
                   ),
                 ],
@@ -699,7 +754,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
               Icon(
                 Icons.open_in_new_rounded,
                 size: 16,
-                color: theme.colorScheme.outline.withValues(alpha:0.5),
+                color: theme.colorScheme.outline.withValues(alpha: 0.5),
               ),
           ],
         ),
@@ -714,14 +769,17 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
   );
 
   /// 用户回应分页助手（游标分页）
-  static final _reactionsPaginationHelper = PaginationHelpers.forList<UserReaction>(
-    keyExtractor: (r) => r.id,
-    expectedPageSize: 20,
-  );
+  static final _reactionsPaginationHelper =
+      PaginationHelpers.forList<UserReaction>(
+        keyExtractor: (r) => r.id,
+        expectedPageSize: 20,
+      );
 
   Future<void> _loadActions(String filter, {bool loadMore = false}) async {
     // 如果已有数据且正在加载，跳过（防止重复加载更多）
-    if (_loadingCache[filter] == true && _actionsCache.containsKey(filter)) return;
+    if (_loadingCache[filter] == true && _actionsCache.containsKey(filter)) {
+      return;
+    }
 
     setState(() => _loadingCache[filter] = true);
 
@@ -737,7 +795,9 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
       if (mounted) {
         setState(() {
           if (loadMore) {
-            final currentState = PaginationState<UserAction>(items: _actionsCache[filter] ?? []);
+            final currentState = PaginationState<UserAction>(
+              items: _actionsCache[filter] ?? [],
+            );
             final result = _actionsPaginationHelper.processLoadMore(
               currentState,
               PaginationResult(items: response.actions, expectedPageSize: 30),
@@ -768,15 +828,21 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
 
     try {
       final service = ref.read(discourseServiceProvider);
-      final beforeId = loadMore && _reactionsCache != null && _reactionsCache!.isNotEmpty
+      final beforeId =
+          loadMore && _reactionsCache != null && _reactionsCache!.isNotEmpty
           ? _reactionsCache!.last.id
           : null;
-      final response = await service.getUserReactions(widget.username, beforeReactionUserId: beforeId);
+      final response = await service.getUserReactions(
+        widget.username,
+        beforeReactionUserId: beforeId,
+      );
 
       if (mounted) {
         setState(() {
           if (loadMore) {
-            final currentState = PaginationState<UserReaction>(items: _reactionsCache ?? []);
+            final currentState = PaginationState<UserReaction>(
+              items: _reactionsCache ?? [],
+            );
             final result = _reactionsPaginationHelper.processLoadMore(
               currentState,
               PaginationResult(items: response.reactions, expectedPageSize: 20),
@@ -804,9 +870,12 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final currentUser = ref.watch(currentUserProvider).value;
+    final reduceLoadingAnimations = ref.watch(
+      preferencesProvider.select((p) => p.reduceLoadingAnimations),
+    );
 
     if (_isLoading) {
-      return const UserProfileSkeleton();
+      return UserProfileSkeleton(animate: !reduceLoadingAnimations);
     }
 
     if (_error != null) {
@@ -817,7 +886,10 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
     }
 
     // 计算 pinned header 高度
-    final double pinnedHeaderHeight = kToolbarHeight + MediaQuery.of(context).padding.top + 36; // 36 是 TabBar 高度
+    final double pinnedHeaderHeight =
+        kToolbarHeight +
+        MediaQuery.of(context).padding.top +
+        36; // 36 是 TabBar 高度
 
     return Scaffold(
       body: ScrollConfiguration(
@@ -845,11 +917,16 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
     );
   }
 
-  Widget _buildSliverAppBar(BuildContext context, ThemeData theme, User? currentUser) {
+  Widget _buildSliverAppBar(
+    BuildContext context,
+    ThemeData theme,
+    User? currentUser,
+  ) {
     final bgUrl = _user?.backgroundUrl;
     final hasBackground = bgUrl != null && bgUrl.isNotEmpty;
     // Standard toolbar height is usually 56.0 + status bar height
-    final double pinnedHeight = kToolbarHeight + MediaQuery.of(context).padding.top;
+    final double pinnedHeight =
+        kToolbarHeight + MediaQuery.of(context).padding.top;
     // 横屏时屏幕高度有限，限制 expandedHeight 不超过屏幕高度的 70%
     final screenHeight = MediaQuery.of(context).size.height;
     final double expandedHeight = 410.0.clamp(0.0, screenHeight * 0.7);
@@ -862,7 +939,13 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
     final hasInfo = hasBio || hasLocation || hasWebsite || hasJoinedAt;
 
     // 检查是否是自己
-    final isOwnProfile = currentUser != null && _user != null && currentUser.username == _user!.username;
+    final isOwnProfile =
+        currentUser != null &&
+        _user != null &&
+        currentUser.username == _user!.username;
+    final reduceLoadingAnimations = ref.watch(
+      preferencesProvider.select((p) => p.reduceLoadingAnimations),
+    );
 
     return SliverAppBar(
       expandedHeight: expandedHeight,
@@ -870,7 +953,8 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
       stretch: true,
       elevation: 0,
       scrolledUnderElevation: 0,
-      backgroundColor: Colors.transparent, // Transparent to show FlexibleSpaceBar background
+      backgroundColor:
+          Colors.transparent, // Transparent to show FlexibleSpaceBar background
       surfaceTintColor: Colors.transparent, // Prevent M3 tint
       iconTheme: const IconThemeData(color: Colors.white),
       actions: [
@@ -907,7 +991,11 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                 value: 'about',
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline_rounded, size: 20, color: theme.colorScheme.onSurface),
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 20,
+                      color: theme.colorScheme.onSurface,
+                    ),
                     const SizedBox(width: 12),
                     Text(context.l10n.common_about),
                   ],
@@ -917,7 +1005,11 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                 value: 'share',
                 child: Row(
                   children: [
-                    Icon(Icons.share_outlined, size: 20, color: theme.colorScheme.onSurface),
+                    Icon(
+                      Icons.share_outlined,
+                      size: 20,
+                      color: theme.colorScheme.onSurface,
+                    ),
                     const SizedBox(width: 12),
                     Text(context.l10n.userProfile_shareUser),
                   ],
@@ -930,11 +1022,19 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                   value: 'level_normal',
                   child: Row(
                     children: [
-                      Icon(Icons.notifications_outlined, size: 20, color: theme.colorScheme.onSurface),
+                      Icon(
+                        Icons.notifications_outlined,
+                        size: 20,
+                        color: theme.colorScheme.onSurface,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(child: Text(context.l10n.userProfile_normal)),
                       if (_notificationLevel == 'normal')
-                        Icon(Icons.check, size: 18, color: theme.colorScheme.primary),
+                        Icon(
+                          Icons.check,
+                          size: 18,
+                          color: theme.colorScheme.primary,
+                        ),
                     ],
                   ),
                 ),
@@ -943,11 +1043,19 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                     value: 'level_mute',
                     child: Row(
                       children: [
-                        Icon(Icons.notifications_off_outlined, size: 20, color: theme.colorScheme.onSurface),
+                        Icon(
+                          Icons.notifications_off_outlined,
+                          size: 20,
+                          color: theme.colorScheme.onSurface,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(child: Text(context.l10n.userProfile_mute)),
                         if (_notificationLevel == 'mute')
-                          Icon(Icons.check, size: 18, color: theme.colorScheme.primary),
+                          Icon(
+                            Icons.check,
+                            size: 18,
+                            color: theme.colorScheme.primary,
+                          ),
                       ],
                     ),
                   ),
@@ -956,11 +1064,19 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                     value: 'level_ignore',
                     child: Row(
                       children: [
-                        Icon(Icons.visibility_off_outlined, size: 20, color: theme.colorScheme.onSurface),
+                        Icon(
+                          Icons.visibility_off_outlined,
+                          size: 20,
+                          color: theme.colorScheme.onSurface,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(child: Text(context.l10n.userProfile_ignored)),
                         if (_notificationLevel == 'ignore')
-                          Icon(Icons.check, size: 18, color: theme.colorScheme.primary),
+                          Icon(
+                            Icons.check,
+                            size: 18,
+                            color: theme.colorScheme.primary,
+                          ),
                       ],
                     ),
                   ),
@@ -980,22 +1096,22 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
           child: Material(
             color: Theme.of(context).scaffoldBackgroundColor,
             child: TabBar(
-            controller: _tabController,
-            labelColor: theme.colorScheme.primary,
-            unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-            indicatorColor: theme.colorScheme.primary,
-            labelPadding: const EdgeInsets.symmetric(horizontal: 12),
-            indicatorSize: TabBarIndicatorSize.label,
-            dividerColor: Colors.transparent,
-            tabs: [
-              Tab(height: 36, text: context.l10n.userProfile_tabSummary),
-              Tab(height: 36, text: context.l10n.userProfile_tabActivity),
-              Tab(height: 36, text: context.l10n.userProfile_tabTopics),
-              Tab(height: 36, text: context.l10n.userProfile_tabReplies),
-              Tab(height: 36, text: context.l10n.userProfile_tabLikes),
-              Tab(height: 36, text: context.l10n.userProfile_tabReactions),
-            ],
-          ),
+              controller: _tabController,
+              labelColor: theme.colorScheme.primary,
+              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+              indicatorColor: theme.colorScheme.primary,
+              labelPadding: const EdgeInsets.symmetric(horizontal: 12),
+              indicatorSize: TabBarIndicatorSize.label,
+              dividerColor: Colors.transparent,
+              tabs: [
+                Tab(height: 36, text: context.l10n.userProfile_tabSummary),
+                Tab(height: 36, text: context.l10n.userProfile_tabActivity),
+                Tab(height: 36, text: context.l10n.userProfile_tabTopics),
+                Tab(height: 36, text: context.l10n.userProfile_tabReplies),
+                Tab(height: 36, text: context.l10n.userProfile_tabLikes),
+                Tab(height: 36, text: context.l10n.userProfile_tabReactions),
+              ],
+            ),
           ),
         ),
       ),
@@ -1003,13 +1119,17 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
       flexibleSpace: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           final currentHeight = constraints.biggest.height;
-          final t = ((currentHeight - pinnedHeight) / (expandedHeight - pinnedHeight)).clamp(0.0, 1.0);
-          
+          final t =
+              ((currentHeight - pinnedHeight) / (expandedHeight - pinnedHeight))
+                  .clamp(0.0, 1.0);
+
           // 标题透明度：收起时显示（当 t < 0.3 时完全显示，避免半透明）
-          final titleOpacity = t < 0.3 ? 1.0 : (1.0 - ((t - 0.3) / 0.7)).clamp(0.0, 1.0);
+          final titleOpacity = t < 0.3
+              ? 1.0
+              : (1.0 - ((t - 0.3) / 0.7)).clamp(0.0, 1.0);
           // 内容透明度：展开时显示
           final contentOpacity = ((t - 0.4) / 0.6).clamp(0.0, 1.0);
-          
+
           return Stack(
             fit: StackFit.expand,
             children: [
@@ -1022,7 +1142,9 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                     maxHeight: expandedHeight,
                     child: SizedBox(
                       height: expandedHeight,
-                      child: const GrainGradientBackground(),
+                      child: GrainGradientBackground(
+                        animate: !reduceLoadingAnimations,
+                      ),
                     ),
                   ),
                 ),
@@ -1034,24 +1156,25 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                   ),
                   fit: BoxFit.cover,
                   alignment: Alignment.center,
-                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                    if (wasSynchronouslyLoaded || frame != null) {
-                      return AnimatedOpacity(
-                        opacity: frame != null ? 1.0 : 0.0,
-                        duration: const Duration(milliseconds: 300),
-                        child: child,
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
+                  frameBuilder:
+                      (context, child, frame, wasSynchronouslyLoaded) {
+                        if (wasSynchronouslyLoaded || frame != null) {
+                          return AnimatedOpacity(
+                            opacity: frame != null ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 300),
+                            child: child,
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
                   errorBuilder: (_, _, _) => const SizedBox.shrink(),
                 ),
 
               // ===== 层 1: 统一压暗遮罩 - 随向上滑动变得更暗 =====
               Container(
                 color: Color.lerp(
-                  Colors.black.withValues(alpha:0.6), // 展开状态：默认更暗 (0.6)
-                  Colors.black.withValues(alpha:0.85), // 收起状态：稍微透一点 (0.85)
+                  Colors.black.withValues(alpha: 0.6), // 展开状态：默认更暗 (0.6)
+                  Colors.black.withValues(alpha: 0.85), // 收起状态：稍微透一点 (0.85)
                   Curves.easeOut.transform(1.0 - t), // 使用 easeOut 曲线优化滑动体验
                 ),
               ),
@@ -1075,7 +1198,9 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                           GestureDetector(
                             onTap: () {
                               if (_user?.getAvatarUrl() != null) {
-                                final avatarUrl = _user!.getAvatarUrl(size: 360);
+                                final avatarUrl = _user!.getAvatarUrl(
+                                  size: 360,
+                                );
                                 ImageViewerPage.open(
                                   context,
                                   avatarUrl,
@@ -1086,7 +1211,10 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                             child: Container(
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
                               ),
                               child: AvatarWithFlair(
                                 flairSize: 30,
@@ -1110,7 +1238,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                             ),
                           ),
                           const SizedBox(width: 16),
-                          
+
                           // 2. 姓名、身份信息
                           Expanded(
                             child: Column(
@@ -1122,14 +1250,22 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                                   children: [
                                     Flexible(
                                       child: Text(
-                                        (_user?.name?.isNotEmpty == true) ? _user!.name! : (_user?.username ?? ''),
+                                        (_user?.name?.isNotEmpty == true)
+                                            ? _user!.name!
+                                            : (_user?.username ?? ''),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 22,
                                           fontWeight: FontWeight.bold,
-                                          shadows: [Shadow(color: Colors.black45, offset: Offset(0, 1), blurRadius: 2)],
+                                          shadows: [
+                                            Shadow(
+                                              color: Colors.black45,
+                                              offset: Offset(0, 1),
+                                              blurRadius: 2,
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -1137,29 +1273,41 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                                       const SizedBox(width: 8),
                                       Padding(
                                         padding: const EdgeInsets.only(top: 4),
-                                        child: _buildStatusEmoji(_user!.status!),
+                                        child: _buildStatusEmoji(
+                                          _user!.status!,
+                                        ),
                                       ),
                                     ],
                                   ],
                                 ),
-                                
+
                                 // Row 2: Username
                                 if (_user?.username != null)
                                   Padding(
-                                    padding: const EdgeInsets.only(top: 2, bottom: 6),
+                                    padding: const EdgeInsets.only(
+                                      top: 2,
+                                      bottom: 6,
+                                    ),
                                     child: Text(
-                                       '@${_user?.username}',
-                                       style: TextStyle(color: Colors.white.withValues(alpha:0.85), fontSize: 13),
+                                      '@${_user?.username}',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.85,
+                                        ),
+                                        fontSize: 13,
+                                      ),
                                     ),
                                   )
                                 else
                                   const SizedBox(height: 6), // 占位
-
                                 // Row 3: Level Badge
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha:0.2),
+                                    color: Colors.white.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
@@ -1195,8 +1343,15 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                                 _buildRestrictionBanner(
                                   icon: Icons.block_rounded,
                                   label: _user!.isSuspendedForever
-                                      ? context.l10n.userProfile_suspendedBannerForever
-                                      : context.l10n.userProfile_suspendedBannerUntil(TimeUtils.formatFullDate(_user!.suspendedTill)),
+                                      ? context
+                                            .l10n
+                                            .userProfile_suspendedBannerForever
+                                      : context.l10n
+                                            .userProfile_suspendedBannerUntil(
+                                              TimeUtils.formatFullDate(
+                                                _user!.suspendedTill,
+                                              ),
+                                            ),
                                   reason: _user!.suspendReason,
                                   color: Colors.redAccent,
                                 ),
@@ -1208,8 +1363,15 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                                 _buildRestrictionBanner(
                                   icon: Icons.mic_off_rounded,
                                   label: _user!.isSilencedForever
-                                      ? context.l10n.userProfile_silencedBannerForever
-                                      : context.l10n.userProfile_silencedBannerUntil(TimeUtils.formatFullDate(_user!.silencedTill)),
+                                      ? context
+                                            .l10n
+                                            .userProfile_silencedBannerForever
+                                      : context.l10n
+                                            .userProfile_silencedBannerUntil(
+                                              TimeUtils.formatFullDate(
+                                                _user!.silencedTill,
+                                              ),
+                                            ),
                                   reason: _user!.silenceReason,
                                   color: Colors.orangeAccent,
                                 ),
@@ -1225,7 +1387,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                             height: 54,
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha:0.1),
+                              color: Colors.white.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
@@ -1237,7 +1399,9 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                           textStyle: TextStyle(
-                                            color: Colors.white.withValues(alpha:0.9),
+                                            color: Colors.white.withValues(
+                                              alpha: 0.9,
+                                            ),
                                             fontSize: 14,
                                             height: 1.3,
                                           ),
@@ -1247,7 +1411,9 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            color: Colors.white.withValues(alpha:0.5),
+                                            color: Colors.white.withValues(
+                                              alpha: 0.5,
+                                            ),
                                             fontSize: 14,
                                             height: 1.3,
                                             fontStyle: FontStyle.italic,
@@ -1259,7 +1425,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                                   Icon(
                                     Icons.chevron_right,
                                     size: 16,
-                                    color: Colors.white.withValues(alpha:0.6),
+                                    color: Colors.white.withValues(alpha: 0.6),
                                   ),
                                 ],
                               ],
@@ -1275,7 +1441,8 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // 第一行：关注、粉丝
-                            if (_user?.totalFollowing != null || _user?.totalFollowers != null)
+                            if (_user?.totalFollowing != null ||
+                                _user?.totalFollowers != null)
                               Wrap(
                                 spacing: 16,
                                 children: [
@@ -1290,7 +1457,13 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                                           ),
                                         ),
                                       ),
-                                      child: _buildStatSlot(NumberUtils.formatCount(_user!.totalFollowing!), context.l10n.userProfile_following, _user!.totalFollowing!),
+                                      child: _buildStatSlot(
+                                        NumberUtils.formatCount(
+                                          _user!.totalFollowing!,
+                                        ),
+                                        context.l10n.userProfile_following,
+                                        _user!.totalFollowing!,
+                                      ),
                                     ),
                                   if (_user?.totalFollowers != null)
                                     GestureDetector(
@@ -1303,42 +1476,81 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                                           ),
                                         ),
                                       ),
-                                      child: _buildStatSlot(NumberUtils.formatCount(_user!.totalFollowers!), context.l10n.userProfile_followers, _user!.totalFollowers!),
+                                      child: _buildStatSlot(
+                                        NumberUtils.formatCount(
+                                          _user!.totalFollowers!,
+                                        ),
+                                        context.l10n.userProfile_followers,
+                                        _user!.totalFollowers!,
+                                      ),
                                     ),
                                 ],
                               ),
                             // 第二行：获赞、访问、话题、回复
-                            if (_user?.totalFollowing != null || _user?.totalFollowers != null)
+                            if (_user?.totalFollowing != null ||
+                                _user?.totalFollowers != null)
                               const SizedBox(height: 8),
                             Wrap(
                               spacing: 16,
                               children: [
-                                _buildStatSlot(NumberUtils.formatCount(_summary!.likesReceived), context.l10n.userProfile_statsLikes, _summary!.likesReceived),
-                                _buildStatSlot(NumberUtils.formatCount(_summary!.daysVisited), context.l10n.userProfile_statsVisits, _summary!.daysVisited),
-                                _buildStatSlot(NumberUtils.formatCount(_summary!.topicCount), context.l10n.userProfile_statsTopics, _summary!.topicCount),
-                                _buildStatSlot(NumberUtils.formatCount(_summary!.postCount), context.l10n.userProfile_statsReplies, _summary!.postCount),
+                                _buildStatSlot(
+                                  NumberUtils.formatCount(
+                                    _summary!.likesReceived,
+                                  ),
+                                  context.l10n.userProfile_statsLikes,
+                                  _summary!.likesReceived,
+                                ),
+                                _buildStatSlot(
+                                  NumberUtils.formatCount(
+                                    _summary!.daysVisited,
+                                  ),
+                                  context.l10n.userProfile_statsVisits,
+                                  _summary!.daysVisited,
+                                ),
+                                _buildStatSlot(
+                                  NumberUtils.formatCount(_summary!.topicCount),
+                                  context.l10n.userProfile_statsTopics,
+                                  _summary!.topicCount,
+                                ),
+                                _buildStatSlot(
+                                  NumberUtils.formatCount(_summary!.postCount),
+                                  context.l10n.userProfile_statsReplies,
+                                  _summary!.postCount,
+                                ),
                               ],
                             ),
                           ],
                         ),
-                      
+
                       // 最近活动时间
-                      if (_user?.lastPostedAt != null || _user?.lastSeenAt != null) ...[
+                      if (_user?.lastPostedAt != null ||
+                          _user?.lastSeenAt != null) ...[
                         const SizedBox(height: 12),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha:0.15),
+                            color: Colors.white.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.flash_on_rounded, size: 12, color: Colors.white70),
+                              const Icon(
+                                Icons.flash_on_rounded,
+                                size: 12,
+                                color: Colors.white70,
+                              ),
                               const SizedBox(width: 4),
                               RelativeTimeText(
-                                dateTime: _user?.lastSeenAt ?? _user!.lastPostedAt!,
-                                style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                dateTime:
+                                    _user?.lastSeenAt ?? _user!.lastPostedAt!,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 11,
+                                ),
                               ),
                             ],
                           ),
@@ -1355,60 +1567,64 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                 right: 48 + MediaQuery.of(context).padding.right, // 横屏时需加上右侧安全区
                 bottom: 14 + 36, // 调整位置适应 TabBar (36是TabBar高度)
                 child: GestureDetector(
-                  onTap: titleOpacity > 0.5 ? () {
-                    _scrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                    );
-                  } : null,
+                  onTap: titleOpacity > 0.5
+                      ? () {
+                          _scrollController.animateTo(
+                            0,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOut,
+                          );
+                        }
+                      : null,
                   behavior: HitTestBehavior.opaque,
                   child: Opacity(
                     opacity: titleOpacity,
                     child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // 头像 radius=16，flair 大小 14，偏移 right=-3, bottom=-1
-                      AvatarWithFlair(
-                        flairSize: 14,
-                        flairRight: -3,
-                        flairBottom: -1,
-                        flairUrl: _user?.flairUrl,
-                        flairName: _user?.flairName,
-                        flairBgColor: _user?.flairBgColor,
-                        flairColor: _user?.flairColor,
-                        avatar: SmartAvatar(
-                          imageUrl: _user?.getAvatarUrl() != null
-                              ? _user!.getAvatarUrl(size: 64)
-                              : null,
-                          radius: 16,
-                          fallbackText: _user?.username,
-                          border: Border.all(color: Colors.white70, width: 1),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          (_user?.name?.isNotEmpty == true) ? _user!.name! : (_user?.username ?? ''),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 头像 radius=16，flair 大小 14，偏移 right=-3, bottom=-1
+                        AvatarWithFlair(
+                          flairSize: 14,
+                          flairRight: -3,
+                          flairBottom: -1,
+                          flairUrl: _user?.flairUrl,
+                          flairName: _user?.flairName,
+                          flairBgColor: _user?.flairBgColor,
+                          flairColor: _user?.flairColor,
+                          avatar: SmartAvatar(
+                            imageUrl: _user?.getAvatarUrl() != null
+                                ? _user!.getAvatarUrl(size: 64)
+                                : null,
+                            radius: 16,
+                            fallbackText: _user?.username,
+                            border: Border.all(color: Colors.white70, width: 1),
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            (_user?.name?.isNotEmpty == true)
+                                ? _user!.name!
+                                : (_user?.username ?? ''),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
                 ),
               ),
 
               // 移除之前的所有伪装层
             ],
           );
-        }
+        },
       ),
     );
   }
@@ -1433,7 +1649,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withValues(alpha:0.7),
+              color: Colors.white.withValues(alpha: 0.7),
               fontSize: 12,
             ),
           ),
@@ -1475,18 +1691,29 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
               _isFollowed ? Icons.check_rounded : Icons.add_rounded,
               size: 16,
             ),
-            label: Text(_isFollowed ? context.l10n.userProfile_followed : context.l10n.userProfile_follow),
+            label: Text(
+              _isFollowed
+                  ? context.l10n.userProfile_followed
+                  : context.l10n.userProfile_follow,
+            ),
             style: TextButton.styleFrom(
-              backgroundColor: _isFollowed ? Colors.white.withValues(alpha:0.15) : Colors.white,
+              backgroundColor: _isFollowed
+                  ? Colors.white.withValues(alpha: 0.15)
+                  : Colors.white,
               foregroundColor: _isFollowed ? Colors.white : Colors.black87,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
-                side: _isFollowed ? const BorderSide(color: Colors.white38) : BorderSide.none,
+                side: _isFollowed
+                    ? const BorderSide(color: Colors.white38)
+                    : BorderSide.none,
               ),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
               minimumSize: const Size(0, 32),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           );
   }
@@ -1538,7 +1765,10 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
               minimumSize: const Size(0, 32),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           );
   }
@@ -1597,7 +1827,9 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
     final emoji = status.emoji;
     if (emoji == null || emoji.isEmpty) return const SizedBox.shrink();
 
-    final isEmojiName = emoji.contains(RegExp(r'[a-zA-Z0-9_]')) && !emoji.contains(RegExp(r'[^\x00-\x7F]'));
+    final isEmojiName =
+        emoji.contains(RegExp(r'[a-zA-Z0-9_]')) &&
+        !emoji.contains(RegExp(r'[^\x00-\x7F]'));
 
     if (isEmojiName) {
       final cleanName = emoji.replaceAll(':', '');
@@ -1612,10 +1844,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
       );
     }
 
-    return Text(
-      emoji,
-      style: const TextStyle(fontSize: 16),
-    );
+    return Text(emoji, style: const TextStyle(fontSize: 16));
   }
 
   Widget _buildActionList(String filter) {
@@ -1645,7 +1874,10 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
           children: [
             Icon(Icons.inbox_outlined, size: 48, color: Colors.grey[400]),
             const SizedBox(height: 8),
-            Text(context.l10n.userProfile_noContent, style: TextStyle(color: Colors.grey[600])),
+            Text(
+              context.l10n.userProfile_noContent,
+              style: TextStyle(color: Colors.grey[600]),
+            ),
           ],
         ),
       );
@@ -1654,7 +1886,8 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification is ScrollEndNotification &&
-            notification.metrics.pixels >= notification.metrics.maxScrollExtent - 200 &&
+            notification.metrics.pixels >=
+                notification.metrics.maxScrollExtent - 200 &&
             hasMore &&
             !isLoading) {
           _loadActions(filter, loadMore: true);
@@ -1693,23 +1926,39 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
       children: [
         // 热门话题
         if (summary.topics.isNotEmpty) ...[
-          _buildSectionHeader(theme, Icons.article_rounded, context.l10n.userProfile_topTopics),
+          _buildSectionHeader(
+            theme,
+            Icons.article_rounded,
+            context.l10n.userProfile_topTopics,
+          ),
           const SizedBox(height: 8),
-          ...summary.topics.map((topic) => _buildSummaryTopicItem(theme, topic)),
+          ...summary.topics.map(
+            (topic) => _buildSummaryTopicItem(theme, topic),
+          ),
           const SizedBox(height: 20),
         ],
 
         // 热门回复
         if (summary.replies.isNotEmpty) ...[
-          _buildSectionHeader(theme, Icons.chat_bubble_rounded, context.l10n.userProfile_topReplies),
+          _buildSectionHeader(
+            theme,
+            Icons.chat_bubble_rounded,
+            context.l10n.userProfile_topReplies,
+          ),
           const SizedBox(height: 8),
-          ...summary.replies.map((reply) => _buildSummaryReplyItem(theme, reply)),
+          ...summary.replies.map(
+            (reply) => _buildSummaryReplyItem(theme, reply),
+          ),
           const SizedBox(height: 20),
         ],
 
         // 热门链接
         if (summary.links.isNotEmpty) ...[
-          _buildSectionHeader(theme, Icons.link_rounded, context.l10n.userProfile_topLinks),
+          _buildSectionHeader(
+            theme,
+            Icons.link_rounded,
+            context.l10n.userProfile_topLinks,
+          ),
           const SizedBox(height: 8),
           ...summary.links.map((link) => _buildSummaryLinkItem(theme, link)),
           const SizedBox(height: 20),
@@ -1717,7 +1966,11 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
 
         // 最多回复至
         if (summary.mostRepliedToUsers.isNotEmpty) ...[
-          _buildSectionHeader(theme, Icons.reply_rounded, context.l10n.userProfile_mostRepliedTo),
+          _buildSectionHeader(
+            theme,
+            Icons.reply_rounded,
+            context.l10n.userProfile_mostRepliedTo,
+          ),
           const SizedBox(height: 8),
           _buildUserChips(theme, summary.mostRepliedToUsers),
           const SizedBox(height: 20),
@@ -1725,7 +1978,11 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
 
         // 被谁赞的最多
         if (summary.mostLikedByUsers.isNotEmpty) ...[
-          _buildSectionHeader(theme, Icons.favorite_rounded, context.l10n.userProfile_mostLikedBy),
+          _buildSectionHeader(
+            theme,
+            Icons.favorite_rounded,
+            context.l10n.userProfile_mostLikedBy,
+          ),
           const SizedBox(height: 8),
           _buildUserChips(theme, summary.mostLikedByUsers),
           const SizedBox(height: 20),
@@ -1733,7 +1990,11 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
 
         // 赞最多
         if (summary.mostLikedUsers.isNotEmpty) ...[
-          _buildSectionHeader(theme, Icons.thumb_up_rounded, context.l10n.userProfile_mostLiked),
+          _buildSectionHeader(
+            theme,
+            Icons.thumb_up_rounded,
+            context.l10n.userProfile_mostLiked,
+          ),
           const SizedBox(height: 8),
           _buildUserChips(theme, summary.mostLikedUsers),
           const SizedBox(height: 20),
@@ -1741,15 +2002,25 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
 
         // 热门类别
         if (summary.topCategories.isNotEmpty) ...[
-          _buildSectionHeader(theme, Icons.category_rounded, context.l10n.userProfile_topCategories),
+          _buildSectionHeader(
+            theme,
+            Icons.category_rounded,
+            context.l10n.userProfile_topCategories,
+          ),
           const SizedBox(height: 8),
-          ...summary.topCategories.map((cat) => _buildSummaryCategoryItem(theme, cat)),
+          ...summary.topCategories.map(
+            (cat) => _buildSummaryCategoryItem(theme, cat),
+          ),
           const SizedBox(height: 20),
         ],
 
         // 热门徽章
         if (summary.badges.isNotEmpty) ...[
-          _buildSectionHeader(theme, Icons.military_tech_rounded, context.l10n.userProfile_topBadges),
+          _buildSectionHeader(
+            theme,
+            Icons.military_tech_rounded,
+            context.l10n.userProfile_topBadges,
+          ),
           const SizedBox(height: 8),
           _buildBadgeChips(theme, summary.badges),
           const SizedBox(height: 20),
@@ -1769,9 +2040,16 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
               padding: const EdgeInsets.only(top: 80),
               child: Column(
                 children: [
-                  Icon(Icons.summarize_outlined, size: 48, color: Colors.grey[400]),
+                  Icon(
+                    Icons.summarize_outlined,
+                    size: 48,
+                    color: Colors.grey[400],
+                  ),
                   const SizedBox(height: 8),
-                  Text(context.l10n.userProfile_noSummary, style: TextStyle(color: Colors.grey[600])),
+                  Text(
+                    context.l10n.userProfile_noSummary,
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
                 ],
               ),
             ),
@@ -1806,9 +2084,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
       child: InkWell(
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => TopicDetailPage(topicId: topic.id),
-          ),
+          MaterialPageRoute(builder: (_) => TopicDetailPage(topicId: topic.id)),
         ),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -1826,7 +2102,11 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
               ),
               if (topic.likeCount > 0) ...[
                 const SizedBox(width: 8),
-                Icon(Icons.favorite_rounded, size: 14, color: theme.colorScheme.outline),
+                Icon(
+                  Icons.favorite_rounded,
+                  size: 14,
+                  color: theme.colorScheme.outline,
+                ),
                 const SizedBox(width: 2),
                 Text(
                   '${topic.likeCount}',
@@ -1852,14 +2132,14 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
       child: InkWell(
         onTap: targetTopicId != null
             ? () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TopicDetailPage(
-                      topicId: targetTopicId,
-                      scrollToPostNumber: reply.postNumber,
-                    ),
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TopicDetailPage(
+                    topicId: targetTopicId,
+                    scrollToPostNumber: reply.postNumber,
                   ),
-                )
+                ),
+              )
             : null,
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -1867,7 +2147,10 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
             children: [
               Expanded(
                 child: Text(
-                  topic?.title ?? context.l10n.userProfile_topicHash(targetTopicId.toString()),
+                  topic?.title ??
+                      context.l10n.userProfile_topicHash(
+                        targetTopicId.toString(),
+                      ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -1877,7 +2160,11 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
               ),
               if (reply.likeCount > 0) ...[
                 const SizedBox(width: 8),
-                Icon(Icons.favorite_rounded, size: 14, color: theme.colorScheme.outline),
+                Icon(
+                  Icons.favorite_rounded,
+                  size: 14,
+                  color: theme.colorScheme.outline,
+                ),
                 const SizedBox(width: 2),
                 Text(
                   '${reply.likeCount}',
@@ -1917,7 +2204,11 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Icon(Icons.open_in_new_rounded, size: 16, color: theme.colorScheme.outline),
+              Icon(
+                Icons.open_in_new_rounded,
+                size: 16,
+                color: theme.colorScheme.outline,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -1966,55 +2257,64 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: users.map((user) => InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => UserProfilePage(username: user.username),
-          ),
-        ),
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SmartAvatar(
-                imageUrl: user.getAvatarUrl(size: 48),
-                radius: 12,
-                fallbackText: user.username,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                user.name?.isNotEmpty == true ? user.name! : user.username,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w500,
+      children: users
+          .map(
+            (user) => InkWell(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => UserProfilePage(username: user.username),
                 ),
               ),
-              const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(10),
+                  color: theme.colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  '${user.count}',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 10,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SmartAvatar(
+                      imageUrl: user.getAvatarUrl(size: 48),
+                      radius: 12,
+                      fallbackText: user.username,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      user.name?.isNotEmpty == true
+                          ? user.name!
+                          : user.username,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${user.count}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-      )).toList(),
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -2076,18 +2376,14 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
         return GestureDetector(
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => BadgePage(badgeId: badge.id),
-            ),
+            MaterialPageRoute(builder: (_) => BadgePage(badgeId: badge.id)),
           ),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               gradient: BadgeUIUtils.getBadgeGradient(context, badgeType),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: color.withValues(alpha: 0.3),
-              ),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -2128,9 +2424,16 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.emoji_emotions_outlined, size: 48, color: Colors.grey[400]),
+            Icon(
+              Icons.emoji_emotions_outlined,
+              size: 48,
+              color: Colors.grey[400],
+            ),
             const SizedBox(height: 8),
-            Text(context.l10n.userProfile_noReactions, style: TextStyle(color: Colors.grey[600])),
+            Text(
+              context.l10n.userProfile_noReactions,
+              style: TextStyle(color: Colors.grey[600]),
+            ),
           ],
         ),
       );
@@ -2139,7 +2442,8 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification is ScrollEndNotification &&
-            notification.metrics.pixels >= notification.metrics.maxScrollExtent - 200 &&
+            notification.metrics.pixels >=
+                notification.metrics.maxScrollExtent - 200 &&
             hasMore &&
             !isLoading) {
           _loadReactions(loadMore: true);
@@ -2170,9 +2474,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => Navigator.push(
@@ -2216,7 +2518,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                 ],
               ),
               const SizedBox(height: 12),
-              
+
               // 标题
               Text(
                 action.title,
@@ -2226,7 +2528,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              
+
               // 摘要
               if (action.excerpt != null && action.excerpt!.isNotEmpty) ...[
                 const SizedBox(height: 8),
@@ -2260,9 +2562,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => Navigator.push(
@@ -2287,7 +2587,8 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
                       image: emojiImageProvider(emojiUrl),
                       width: 20,
                       height: 20,
-                      errorBuilder: (_, _, _) => const Icon(Icons.emoji_emotions, size: 20),
+                      errorBuilder: (_, _, _) =>
+                          const Icon(Icons.emoji_emotions, size: 20),
                     )
                   else
                     const Icon(Icons.emoji_emotions, size: 20),
@@ -2312,7 +2613,8 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
               const SizedBox(height: 12),
 
               // 话题标题
-              if (reaction.topicTitle != null && reaction.topicTitle!.isNotEmpty)
+              if (reaction.topicTitle != null &&
+                  reaction.topicTitle!.isNotEmpty)
                 Text(
                   reaction.topicTitle!,
                   maxLines: 2,

@@ -81,6 +81,17 @@ List<SettingsGroup> buildReadingGroups(BuildContext context) {
               ref.read(preferencesProvider.notifier).setHideTopicListAvatars(v),
         ),
         SwitchModel(
+          id: 'reduceLoadingAnimations',
+          title: l10n.preferences_reduceLoadingAnimations,
+          subtitle: l10n.preferences_reduceLoadingAnimationsDesc,
+          icon: Icons.motion_photos_off_rounded,
+          getValue: (ref) =>
+              ref.watch(preferencesProvider).reduceLoadingAnimations,
+          onChanged: (ref, v) => ref
+              .read(preferencesProvider.notifier)
+              .setReduceLoadingAnimations(v),
+        ),
+        SwitchModel(
           id: 'defaultNestedTopicView',
           title: l10n.nested_title,
           subtitle: '进入帖子时默认使用树形视图',

@@ -8722,6 +8722,18 @@ abstract class AppLocalizations {
   /// **'仅影响首页和话题列表卡片，并回收原头像列宽度'**
   String get preferences_hideTopicListAvatarsDesc;
 
+  /// No description provided for @preferences_reduceLoadingAnimations.
+  ///
+  /// In zh, this message translates to:
+  /// **'减少加载动画'**
+  String get preferences_reduceLoadingAnimations;
+
+  /// No description provided for @preferences_reduceLoadingAnimationsDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭帖子详情加载骨架动画和用户主页背景闪动，保留静态占位'**
+  String get preferences_reduceLoadingAnimationsDesc;
+
   /// No description provided for @preferences_longPressPreview.
   ///
   /// In zh, this message translates to:

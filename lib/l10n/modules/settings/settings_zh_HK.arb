@@ -57,6 +57,8 @@
   "preferences_preferStaticAvatarsDesc": "當同時存在動態圖和靜態圖時，統一優先顯示靜態頭像",
   "preferences_hideTopicListAvatars": "隱藏話題列表頭像",
   "preferences_hideTopicListAvatarsDesc": "僅影響首頁和話題列表卡片，並回收原頭像欄寬度",
+  "preferences_reduceLoadingAnimations": "減少載入動畫",
+  "preferences_reduceLoadingAnimationsDesc": "關閉話題詳情載入骨架動畫和用戶主頁背景閃動，保留靜態佔位",
   "preferences_longPressPreview": "長按預覽",
   "preferences_longPressPreviewDesc": "長按話題卡片快速預覽內容",
   "preferences_openLinksInApp": "外部鏈接使用內置瀏覽器",

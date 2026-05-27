@@ -57,6 +57,8 @@
   "preferences_preferStaticAvatarsDesc": "Use non-animated avatars whenever both versions are available",
   "preferences_hideTopicListAvatars": "Hide topic list avatars",
   "preferences_hideTopicListAvatarsDesc": "Only affects topic list cards and reclaims the avatar column width",
+  "preferences_reduceLoadingAnimations": "Reduce loading animations",
+  "preferences_reduceLoadingAnimationsDesc": "Disable animated topic-detail placeholders and profile background shimmer while keeping static placeholders",
   "preferences_longPressPreview": "Long press preview",
   "preferences_longPressPreviewDesc": "Long press topic card to preview content",
   "preferences_openLinksInApp": "Open links in app browser",

@@ -74,6 +74,8 @@
   "preferences_preferStaticAvatarsDesc": "当同时存在动态图和静态图时，统一优先显示静态头像",
   "preferences_hideTopicListAvatars": "隐藏话题列表头像",
   "preferences_hideTopicListAvatarsDesc": "仅影响首页和话题列表卡片，并回收原头像列宽度",
+  "preferences_reduceLoadingAnimations": "减少加载动画",
+  "preferences_reduceLoadingAnimationsDesc": "关闭帖子详情加载骨架动画和用户主页背景闪动，保留静态占位",
   "preferences_longPressPreview": "长按预览",
   "preferences_longPressPreviewDesc": "长按话题卡片快速预览内容",
   "preferences_openLinksInApp": "外部链接使用内置浏览器",

@@ -101,6 +101,22 @@ void main() {
       expect(prefs.getBool('pref_show_signatures'), isTrue);
     });
 
+    test('persists reduced loading animations preference', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final notifier = PreferencesNotifier(prefs);
+
+      await notifier.setReduceLoadingAnimations(true);
+
+      expect(notifier.state.reduceLoadingAnimations, isTrue);
+      expect(prefs.getBool('pref_reduce_loading_animations'), isTrue);
+
+      await notifier.setReduceLoadingAnimations(false);
+
+      expect(notifier.state.reduceLoadingAnimations, isFalse);
+      expect(prefs.getBool('pref_reduce_loading_animations'), isFalse);
+    });
+
     test('persists avatar performance preferences and syncs policy', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();

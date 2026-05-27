@@ -11,11 +11,18 @@ const _filteredPostPlaceholderHtml = '<p>内容已被用户屏蔽规则隐藏</p
 class ContentFilterState {
   final List<String> blockedTags;
   final List<String> blockedUsers;
+  final Set<String> normalizedBlockedTags;
+  final Set<String> normalizedBlockedUsers;
 
-  const ContentFilterState({
+  ContentFilterState({
     this.blockedTags = const <String>[],
     this.blockedUsers = const <String>[],
-  });
+  }) : normalizedBlockedTags = {
+         for (final tag in blockedTags) tag.toLowerCase(),
+       },
+       normalizedBlockedUsers = {
+         for (final user in blockedUsers) user.toLowerCase(),
+       };
 
   bool get hasBlockedTags => blockedTags.isNotEmpty;
   bool get hasBlockedUsers => blockedUsers.isNotEmpty;
@@ -73,7 +80,7 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
 
   bool _containsIgnoreCase(Iterable<String> values, String target) {
     final normalizedTarget = target.toLowerCase();
-    return values.any((value) => value.toLowerCase() == normalizedTarget);
+    return values.contains(normalizedTarget);
   }
 
   void setBlockedTagsFromInput(String raw) {
@@ -90,7 +97,8 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
 
   Future<bool> addBlockedUser(String username) async {
     final normalized = normalizeSingleValue(username);
-    if (normalized == null || _containsIgnoreCase(state.blockedUsers, normalized)) {
+    if (normalized == null ||
+        _containsIgnoreCase(state.normalizedBlockedUsers, normalized)) {
       return false;
     }
 
@@ -134,8 +142,7 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
     if (tagName == null || tagName.isEmpty || !state.hasBlockedTags) {
       return false;
     }
-    final target = tagName.toLowerCase();
-    return state.blockedTags.any((tag) => tag.toLowerCase() == target);
+    return state.normalizedBlockedTags.contains(tagName.toLowerCase());
   }
 
   bool matchesAnyTag(Iterable<Tag> tags) {
@@ -150,8 +157,7 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
     if (username == null || username.isEmpty || !state.hasBlockedUsers) {
       return false;
     }
-    final target = username.toLowerCase();
-    return _containsIgnoreCase(state.blockedUsers, target);
+    return state.normalizedBlockedUsers.contains(username.toLowerCase());
   }
 
   Post applyUserFilterToPost(Post post) {

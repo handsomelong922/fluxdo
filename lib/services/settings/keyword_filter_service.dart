@@ -15,8 +15,11 @@ class KeywordFilterNotifier extends StateNotifier<List<String>> {
   static const String _storageKey = 'custom_keyword_filter_patterns';
 
   final SharedPreferences _prefs;
+  List<RegExp> _compiledPatterns = const <RegExp>[];
 
-  KeywordFilterNotifier(this._prefs) : super(_load(_prefs));
+  KeywordFilterNotifier(this._prefs) : super(_load(_prefs)) {
+    _rebuildCompiledPatterns();
+  }
 
   static List<String> _load(SharedPreferences prefs) {
     return prefs.getStringList(_storageKey) ?? const <String>[];
@@ -30,6 +33,7 @@ class KeywordFilterNotifier extends StateNotifier<List<String>> {
     if (state.contains(trimmed)) return false;
     if (!isValidRegex(trimmed)) return false;
     state = [...state, trimmed];
+    _rebuildCompiledPatterns();
     _save();
     return true;
   }
@@ -39,6 +43,7 @@ class KeywordFilterNotifier extends StateNotifier<List<String>> {
     if (index < 0 || index >= state.length) return;
     final list = [...state]..removeAt(index);
     state = list;
+    _rebuildCompiledPatterns();
     _save();
   }
 
@@ -58,6 +63,7 @@ class KeywordFilterNotifier extends StateNotifier<List<String>> {
     final list = [...state];
     list[index] = trimmed;
     state = list;
+    _rebuildCompiledPatterns();
     _save();
     return true;
   }
@@ -66,20 +72,17 @@ class KeywordFilterNotifier extends StateNotifier<List<String>> {
   void remove(String pattern) {
     if (!state.contains(pattern)) return;
     state = state.where((e) => e != pattern).toList();
+    _rebuildCompiledPatterns();
     _save();
   }
 
   /// 判断标题是否命中任意一条正则（大小写不敏感）
   bool matches(String? title) {
     if (title == null || title.isEmpty) return false;
-    if (state.isEmpty) return false;
-    for (final pattern in state) {
-      try {
-        if (RegExp(pattern, caseSensitive: false).hasMatch(title)) {
-          return true;
-        }
-      } catch (_) {
-        // 非法正则（数据损坏场景）直接跳过
+    if (_compiledPatterns.isEmpty) return false;
+    for (final pattern in _compiledPatterns) {
+      if (pattern.hasMatch(title)) {
+        return true;
       }
     }
     return false;
@@ -97,11 +100,23 @@ class KeywordFilterNotifier extends StateNotifier<List<String>> {
   void _save() {
     _prefs.setStringList(_storageKey, state);
   }
+
+  void _rebuildCompiledPatterns() {
+    final compiled = <RegExp>[];
+    for (final pattern in state) {
+      try {
+        compiled.add(RegExp(pattern, caseSensitive: false));
+      } catch (_) {
+        // 非法正则（数据损坏场景）直接跳过。
+      }
+    }
+    _compiledPatterns = compiled;
+  }
 }
 
 // CUSTOM: Keyword Filter
 final keywordFilterProvider =
     StateNotifierProvider<KeywordFilterNotifier, List<String>>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return KeywordFilterNotifier(prefs);
-});
+      final prefs = ref.watch(sharedPreferencesProvider);
+      return KeywordFilterNotifier(prefs);
+    });

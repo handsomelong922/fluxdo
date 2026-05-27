@@ -50,6 +50,9 @@ class AppPreferences {
   /// 在话题列表中隐藏头像
   final bool hideTopicListAvatars;
 
+  /// 减少帖子详情和用户主页加载时的占位动画
+  final bool reduceLoadingAnimations;
+
   /// 退出时清除图片缓存
   final bool clearCacheOnExit;
 
@@ -111,6 +114,7 @@ class AppPreferences {
     required this.hideBarOnScroll,
     required this.preferStaticAvatars,
     required this.hideTopicListAvatars,
+    required this.reduceLoadingAnimations,
     required this.clearCacheOnExit,
     required this.cfClearanceRefresh,
     required this.expandRelatedLinks,
@@ -144,6 +148,7 @@ class AppPreferences {
     bool? hideBarOnScroll,
     bool? preferStaticAvatars,
     bool? hideTopicListAvatars,
+    bool? reduceLoadingAnimations,
     bool? clearCacheOnExit,
     bool? cfClearanceRefresh,
     bool? expandRelatedLinks,
@@ -178,6 +183,8 @@ class AppPreferences {
       hideBarOnScroll: hideBarOnScroll ?? this.hideBarOnScroll,
       preferStaticAvatars: preferStaticAvatars ?? this.preferStaticAvatars,
       hideTopicListAvatars: hideTopicListAvatars ?? this.hideTopicListAvatars,
+      reduceLoadingAnimations:
+          reduceLoadingAnimations ?? this.reduceLoadingAnimations,
       clearCacheOnExit: clearCacheOnExit ?? this.clearCacheOnExit,
       cfClearanceRefresh: cfClearanceRefresh ?? this.cfClearanceRefresh,
       expandRelatedLinks: expandRelatedLinks ?? this.expandRelatedLinks,
@@ -220,6 +227,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _hideBarOnScrollKey = 'pref_hide_bar_on_scroll';
   static const String _preferStaticAvatarsKey = 'pref_prefer_static_avatars';
   static const String _hideTopicListAvatarsKey = 'pref_hide_topic_list_avatars';
+  static const String _reduceLoadingAnimationsKey =
+      'pref_reduce_loading_animations';
   static const String _clearCacheOnExitKey = 'pref_clear_cache_on_exit';
   static const String _cfClearanceRefreshKey =
       CfClearanceRefreshService.prefKeyEnabled;
@@ -267,6 +276,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           preferStaticAvatars: _prefs.getBool(_preferStaticAvatarsKey) ?? false,
           hideTopicListAvatars:
               _prefs.getBool(_hideTopicListAvatarsKey) ?? false,
+          reduceLoadingAnimations:
+              _prefs.getBool(_reduceLoadingAnimationsKey) ?? false,
           clearCacheOnExit: _prefs.getBool(_clearCacheOnExitKey) ?? false,
           cfClearanceRefresh: _prefs.getBool(_cfClearanceRefreshKey) ?? false,
           expandRelatedLinks: _prefs.getBool(_expandRelatedLinksKey) ?? false,
@@ -392,6 +403,11 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setHideTopicListAvatars(bool enabled) async {
     state = state.copyWith(hideTopicListAvatars: enabled);
     await _prefs.setBool(_hideTopicListAvatarsKey, enabled);
+  }
+
+  Future<void> setReduceLoadingAnimations(bool enabled) async {
+    state = state.copyWith(reduceLoadingAnimations: enabled);
+    await _prefs.setBool(_reduceLoadingAnimationsKey, enabled);
   }
 
   Future<void> setClearCacheOnExit(bool enabled) async {
