@@ -8,16 +8,21 @@ Widget buildQuoteCard({
   required ThemeData theme,
   required dynamic element,
   required Widget Function(String html, TextStyle? textStyle) htmlBuilder,
+  required Future<void> Function(String url) onLinkTap,
 }) {
-  final username = element.attributes['data-username'] ?? S.current.common_quote;
+  final username =
+      element.attributes['data-username'] ?? S.current.common_quote;
   final imgElement = element.querySelector('img.avatar');
   final avatarUrl = imgElement?.attributes['src'] ?? '';
-    final titleElement = element.querySelector('.quote-title__text-content');
+  final titleElement = element.querySelector('.quote-title__text-content');
   String? titleHtml;
   String? categoryHtml;
+  String? quoteHref;
   if (titleElement != null) {
-    final categoryElement =
-        titleElement.querySelector('.badge-category__wrapper');
+    quoteHref = titleElement.querySelector('a')?.attributes['href'];
+    final categoryElement = titleElement.querySelector(
+      '.badge-category__wrapper',
+    );
     if (categoryElement != null) {
       categoryHtml = categoryElement.outerHtml;
       categoryElement.remove();
@@ -32,6 +37,7 @@ Widget buildQuoteCard({
     if (titleDiv != null) {
       final titleLink = titleDiv.querySelector('a');
       if (titleLink != null) {
+        quoteHref = titleLink.attributes['href'];
         titleHtml = titleLink.outerHtml;
       }
     }
@@ -40,15 +46,12 @@ Widget buildQuoteCard({
   final blockquoteElement = element.querySelector('blockquote');
   final quoteContent = blockquoteElement?.innerHtml ?? '';
 
-  return Container(
+  final card = Container(
     margin: const EdgeInsets.symmetric(vertical: 8),
     decoration: BoxDecoration(
       color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
       border: Border(
-        left: BorderSide(
-          color: theme.colorScheme.outline,
-          width: 4,
-        ),
+        left: BorderSide(color: theme.colorScheme.outline, width: 4),
       ),
       borderRadius: const BorderRadius.only(
         topRight: Radius.circular(4),
@@ -124,5 +127,18 @@ Widget buildQuoteCard({
         ),
       ],
     ),
+  );
+
+  if (quoteHref == null || quoteHref.isEmpty) {
+    return card;
+  }
+
+  return InkWell(
+    onTap: () => onLinkTap(quoteHref!),
+    borderRadius: const BorderRadius.only(
+      topRight: Radius.circular(4),
+      bottomRight: Radius.circular(4),
+    ),
+    child: card,
   );
 }

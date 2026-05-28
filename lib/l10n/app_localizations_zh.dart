@@ -241,6 +241,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearance_dialogBlurDesc => '对话框弹出时模糊背景';
 
   @override
+  String get appearance_displayMode => '屏幕帧率';
+
+  @override
+  String get appearance_displayModeAuto => '自动';
+
+  @override
+  String get appearance_displayModeRestartHint => '部分设备需重启应用后生效';
+
+  @override
   String get appearance_font => '字体';
 
   @override
@@ -6333,6 +6342,15 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get appearance_dialogBlurDesc => '對話框彈出時模糊背景';
 
   @override
+  String get appearance_displayMode => '螢幕幀率';
+
+  @override
+  String get appearance_displayModeAuto => '自動';
+
+  @override
+  String get appearance_displayModeRestartHint => '部分裝置需重啟應用後生效';
+
+  @override
   String get appearance_font => '字體';
 
   @override
@@ -12252,6 +12270,15 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get appearance_dialogBlurDesc => '對話框彈出時模糊背景';
+
+  @override
+  String get appearance_displayMode => '螢幕影格率';
+
+  @override
+  String get appearance_displayModeAuto => '自動';
+
+  @override
+  String get appearance_displayModeRestartHint => '部分裝置需重啟應用後生效';
 
   @override
   String get appearance_font => '字體';

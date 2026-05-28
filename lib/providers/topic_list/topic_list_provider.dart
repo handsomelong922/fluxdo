@@ -492,6 +492,9 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     try {
       final service = ref.read(discourseServiceProvider);
       final detail = await service.getTopicDetail(topicId);
+      final firstPostCooked = detail.postStream.posts.isNotEmpty
+          ? detail.postStream.posts.first.cooked
+          : null;
 
       final updatedTopic = Topic(
         id: detail.id,
@@ -502,8 +505,10 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         replyCount: detail.postsCount > 0 ? detail.postsCount - 1 : 0,
         views: existingTopic.views,
         likeCount: existingTopic.likeCount,
+        excerpt: firstPostCooked,
         lastPostedAt: existingTopic.lastPostedAt,
         pinned: existingTopic.pinned,
+        visible: detail.visible,
         tags: detail.tags ?? existingTopic.tags,
         posters: existingTopic.posters,
         unseen: false,
@@ -514,6 +519,13 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
             ? detail.postStream.posts.last.username
             : existingTopic.lastPosterUsername,
       );
+
+      if (updatedTopic.isDeletedPlaceholder) {
+        state = AsyncValue.data(
+          currentTopics.where((t) => t.id != topicId).toList(),
+        );
+        return;
+      }
 
       final newList = currentTopics.map((t) {
         return t.id == topicId ? updatedTopic : t;

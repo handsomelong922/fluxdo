@@ -15,8 +15,25 @@ void main() {
       expect(topic.isDeletedPlaceholder, isTrue);
     });
 
+    test('filters author-deleted placeholder variants', () {
+      expect(_topic(excerpt: '<p>此话题已被作者删除</p>').isDeletedPlaceholder, isTrue);
+      expect(_topic(excerpt: '<p>该主题已经被作者删除</p>').isDeletedPlaceholder, isTrue);
+      expect(
+        _topic(
+          excerpt: '<p>This topic was deleted by the author.</p>',
+        ).isDeletedPlaceholder,
+        isTrue,
+      );
+    });
+
     test('does not filter normal closed topics', () {
       final topic = _topic(closed: true, excerpt: '<p>正常关闭的话题</p>');
+
+      expect(topic.isDeletedPlaceholder, isFalse);
+    });
+
+    test('does not filter long discussions mentioning deleted topics', () {
+      final topic = _topic(excerpt: '<p>我想讨论一下为什么有些话题已被作者删除后还会出现在列表里。</p>');
 
       expect(topic.isDeletedPlaceholder, isFalse);
     });

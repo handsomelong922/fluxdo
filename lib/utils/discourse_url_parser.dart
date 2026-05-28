@@ -4,11 +4,7 @@ class TopicLinkInfo {
   final String? slug;
   final int? postNumber;
 
-  const TopicLinkInfo({
-    required this.topicId,
-    this.slug,
-    this.postNumber,
-  });
+  const TopicLinkInfo({required this.topicId, this.slug, this.postNumber});
 }
 
 /// 用户链接解析结果
@@ -41,8 +37,10 @@ class DiscourseUrlParser {
   );
 
   /// 用户链接格式：/u/username
-  static final _userRegex = RegExp(
-    r'/u/([^/?#]+)',
+  static final _userRegex = RegExp(r'/u/([^/?#]+)', caseSensitive: false);
+
+  static final _postFragmentRegex = RegExp(
+    r'^post[-_]?(\d+)$',
     caseSensitive: false,
   );
 
@@ -59,7 +57,9 @@ class DiscourseUrlParser {
     if (idOnlyMatch != null) {
       return TopicLinkInfo(
         topicId: int.parse(idOnlyMatch.group(1)!),
-        postNumber: int.tryParse(idOnlyMatch.group(2) ?? ''),
+        postNumber:
+            int.tryParse(idOnlyMatch.group(2) ?? '') ??
+            _parsePostNumberFromFragment(url),
       );
     }
 
@@ -70,7 +70,9 @@ class DiscourseUrlParser {
       return TopicLinkInfo(
         topicId: int.parse(withSlugMatch.group(2)!),
         slug: slugStr != 'topic' ? slugStr : null,
-        postNumber: int.tryParse(withSlugMatch.group(3) ?? ''),
+        postNumber:
+            int.tryParse(withSlugMatch.group(3) ?? '') ??
+            _parsePostNumberFromFragment(url),
       );
     }
 
@@ -98,5 +100,15 @@ class DiscourseUrlParser {
   /// 是否是用户链接（用于快速判断）
   static bool isUserLink(String url) {
     return _userRegex.hasMatch(url);
+  }
+
+  static int? _parsePostNumberFromFragment(String url) {
+    final uri = Uri.tryParse(url);
+    final fragment = uri?.fragment;
+    if (fragment == null || fragment.isEmpty) {
+      return null;
+    }
+    final match = _postFragmentRegex.firstMatch(fragment);
+    return match == null ? null : int.tryParse(match.group(1)!);
   }
 }

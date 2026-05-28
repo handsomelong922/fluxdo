@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/topic.dart';
-import '../../../pages/topic_detail_page/topic_detail_page.dart';
 import '../../../providers/preferences_provider.dart';
+import '../../../utils/topic_link_navigation.dart';
 import '../../content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../../content/discourse_html_content/chunked/html_chunk.dart';
 import '../../content/discourse_html_content/image_utils.dart';
@@ -11,6 +11,7 @@ import '../small_action_item.dart';
 import 'widgets/post_footer_section/post_footer_section.dart';
 import 'widgets/post_header_section.dart';
 import 'widgets/post_segment_frame.dart';
+import 'widgets/accepted_solution_marker.dart';
 
 class LongPostRenderData {
   final List<HtmlChunk> chunks;
@@ -94,6 +95,7 @@ class LongPostChunkSegment extends ConsumerWidget {
   final HtmlChunk chunk;
   final LongPostRenderData renderData;
   final void Function(String quote, Post post)? onQuoteImage;
+  final void Function(int postNumber)? onJumpToPost;
 
   const LongPostChunkSegment({
     super.key,
@@ -103,6 +105,7 @@ class LongPostChunkSegment extends ConsumerWidget {
     required this.chunk,
     required this.renderData,
     required this.onQuoteImage,
+    required this.onJumpToPost,
   });
 
   @override
@@ -137,15 +140,14 @@ class LongPostChunkSegment extends ConsumerWidget {
           child: HtmlChunkWidget(
             chunk: chunk,
             textStyle: contentTextStyle,
-            onInternalLinkTap: (topicId, topicSlug, postNumber) {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => TopicDetailPage(
-                    topicId: topicId,
-                    initialTitle: topicSlug,
-                    scrollToPostNumber: postNumber,
-                  ),
-                ),
+            onInternalLinkTap: (targetTopicId, topicSlug, postNumber) {
+              openInternalTopicLink(
+                context,
+                currentTopicId: topicId,
+                targetTopicId: targetTopicId,
+                topicSlug: topicSlug,
+                postNumber: postNumber,
+                onJumpToPost: onJumpToPost,
               );
             },
             linkCounts: post.linkCounts,
@@ -209,6 +211,8 @@ class LongPostFooterSegment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isAcceptedAnswer =
+        post.acceptedAnswer || post.postNumber == acceptedAnswerPostNumber;
     return PostSegmentFrame(
       post: post,
       highlight: highlight,
@@ -221,6 +225,13 @@ class LongPostFooterSegment extends StatelessWidget {
             post: post,
             margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           ),
+          if (isAcceptedAnswer)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: SelectionContainer.disabled(
+                child: AcceptedSolutionMarker(),
+              ),
+            ),
           SelectionContainer.disabled(
             child: PostFooterSection(
               post: post,

@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 import 'pages/topics_page.dart';
@@ -59,6 +60,7 @@ import 'services/migration_service.dart';
 import 'services/navigation/app_route_observer.dart';
 import 'services/window_state_service.dart';
 import 'services/windows_webview_environment_service.dart';
+import 'services/metaverse_auto_auth_service.dart';
 import 'models/user.dart';
 import 'constants.dart';
 import 'providers/connectivity_provider.dart';
@@ -92,6 +94,34 @@ import 'utils/platform_utils.dart';
 Future<bool> _initRhttp() async {
   await rhttp.Rhttp.init();
   return true;
+}
+
+Future<void> _applyAndroidDisplayMode(SharedPreferences prefs) async {
+  final targetRate = prefs.getInt('pref_display_mode_refresh_rate') ?? 0;
+  try {
+    if (targetRate == 0) {
+      await FlutterDisplayMode.setPreferredMode(DisplayMode.auto);
+      return;
+    }
+
+    final modes = await FlutterDisplayMode.supported;
+    final active = await FlutterDisplayMode.active;
+    final matches = modes
+        .where((mode) => mode.refreshRate.round() == targetRate)
+        .toList();
+    if (matches.isEmpty) {
+      await FlutterDisplayMode.setPreferredMode(DisplayMode.auto);
+      return;
+    }
+
+    final picked = matches.firstWhere(
+      (mode) => mode.width == active.width && mode.height == active.height,
+      orElse: () => matches.first,
+    );
+    await FlutterDisplayMode.setPreferredMode(picked);
+  } catch (e) {
+    debugPrint('[Main] 应用屏幕刷新率失败: $e');
+  }
 }
 
 Future<void> main() async {
@@ -237,6 +267,10 @@ Future<void> main() async {
         DeviceOrientation.portraitDown,
       ]);
     }
+  }
+
+  if (Platform.isAndroid) {
+    unawaited(_applyAndroidDisplayMode(prefs));
   }
 
   // 提前触发预加载数据请求，与 runApp 并行执行
@@ -620,6 +654,7 @@ class _MainPageState extends ConsumerState<MainPage>
       final user = next.value;
       if (user != null && !_messageBusInitialized) {
         _messageBusInitialized = true;
+        unawaited(MetaverseAutoAuthService.ensureEnabled(ref));
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           _messageBusSub?.close();

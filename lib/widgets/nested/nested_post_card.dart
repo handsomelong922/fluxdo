@@ -6,11 +6,12 @@ import '../../models/topic.dart';
 import '../../providers/nested_topic_provider.dart';
 import '../../providers/preferences_provider.dart';
 import '../../providers/topic_session_provider.dart';
-import '../../pages/topic_detail_page/topic_detail_page.dart';
 import '../../pages/user_profile_page.dart';
+import '../../utils/topic_link_navigation.dart';
 import '../../utils/time_utils.dart';
 import '../content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../post/post_signature.dart';
+import '../post/post_item/widgets/accepted_solution_marker.dart';
 import '../post/post_item/widgets/post_footer_section/post_footer_section.dart';
 import '../post/reply_auto_expand_policy.dart';
 import 'nested_collapsed_bar.dart';
@@ -536,6 +537,9 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   /// 帖子文章区
   Widget _buildArticle(ThemeData theme, Post post) {
     final isOp = widget.detail.createdBy?.username == post.username;
+    final isAcceptedAnswer =
+        post.acceptedAnswer ||
+        post.postNumber == widget.detail.acceptedAnswerPostNumber;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -555,15 +559,14 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           ),
           post: post,
           topicId: widget.topicId,
-          onInternalLinkTap: (topicId, topicSlug, postNumber) {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => TopicDetailPage(
-                  topicId: topicId,
-                  initialTitle: topicSlug,
-                  scrollToPostNumber: postNumber,
-                ),
-              ),
+          onInternalLinkTap: (targetTopicId, topicSlug, postNumber) {
+            openInternalTopicLink(
+              context,
+              currentTopicId: widget.topicId,
+              targetTopicId: targetTopicId,
+              topicSlug: topicSlug,
+              postNumber: postNumber,
+              onJumpToPost: widget.onJumpToPost,
             );
           },
         ),
@@ -573,6 +576,8 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           contentPadding: const EdgeInsets.only(top: 6),
           fontSize: 11,
         ),
+        if (isAcceptedAnswer)
+          const SelectionContainer.disabled(child: AcceptedSolutionMarker()),
         // 完整操作栏（复用 PostFooterSection，隐藏回复展开按钮）
         PostFooterSection(
           post: post,

@@ -78,32 +78,32 @@ class LdcOAuthService {
     }
   }
 
+  Future<bool> authorizeSilently() async {
+    final authUrl = await _loadAuthUrl();
+    final response = await _loadAuthPage(authUrl);
+
+    if (await _tryCallbackFromLocation(response.headers.value('location'))) {
+      return true;
+    }
+
+    final approveLink = _extractApproveLink(response.data);
+    if (approveLink == null) {
+      return false;
+    }
+
+    await _approveAndCallback(approveLink);
+    return true;
+  }
+
   Future<bool> authorize(BuildContext context) async {
-    final String authUrl;
-    try {
-      authUrl = await getAuthUrl();
-    } on DioException {
-      throw Exception(S.current.oauth_getAuthUrlFailed);
+    final authUrl = await _loadAuthUrl();
+    final response = await _loadAuthPage(authUrl);
+
+    if (await _tryCallbackFromLocation(response.headers.value('location'))) {
+      return true;
     }
 
-    final Response response;
-    try {
-      response = await _dio.get(
-        authUrl,
-        options: Options(
-          followRedirects: false,
-          validateStatus: (status) => status != null && status < 500,
-          extra: {'skipCsrf': true, 'allowRedirectSetCookie': true},
-        ),
-      );
-    } on DioException {
-      throw Exception(S.current.oauth_networkError);
-    }
-
-    final document = html_parser.parse(response.data);
-    final approveLink = document
-        .querySelector('a[href*="/oauth2/approve/"]')
-        ?.attributes['href'];
+    final approveLink = _extractApproveLink(response.data);
 
     if (!context.mounted) return false;
     if (approveLink == null) {
@@ -129,39 +129,97 @@ class LdcOAuthService {
       barrierDismissible: false,
       builder: (context) => _AuthDialog(
         onApprove: () async {
-          final approveResponse = await _dio.get(
-            'https://connect.linux.do$approveLink',
-            options: Options(
-              followRedirects: false,
-              validateStatus: (status) => status != null && status < 500,
-              extra: {
-                'skipCsrf': true,
-                'skipRedirect': true,
-                'allowRedirectSetCookie': true,
-              },
-            ),
-          );
-
-          final location = approveResponse.headers.value('location');
-          if (location == null) {
-            throw Exception(S.current.oauth_noRedirectResponse);
-          }
-
-          final uri = Uri.parse(location);
-          final code = uri.queryParameters['code'];
-          final state = uri.queryParameters['state'];
-
-          if (code == null || state == null) {
-            throw Exception(S.current.oauth_missingParams);
-          }
-
-          await callback(code, state);
+          await _approveAndCallback(approveLink);
           return true;
         },
       ),
     );
 
     return confirmed ?? false;
+  }
+
+  Future<String> _loadAuthUrl() async {
+    final String authUrl;
+    try {
+      authUrl = await getAuthUrl();
+    } on DioException {
+      throw Exception(S.current.oauth_getAuthUrlFailed);
+    }
+    return authUrl;
+  }
+
+  Future<Response<dynamic>> _loadAuthPage(String authUrl) async {
+    final Response response;
+    try {
+      response = await _dio.get(
+        authUrl,
+        options: Options(
+          followRedirects: false,
+          validateStatus: (status) => status != null && status < 500,
+          extra: {'skipCsrf': true, 'allowRedirectSetCookie': true},
+        ),
+      );
+    } on DioException {
+      throw Exception(S.current.oauth_networkError);
+    }
+    return response;
+  }
+
+  String? _extractApproveLink(Object? html) {
+    final document = html_parser.parse(html?.toString() ?? '');
+    return document
+        .querySelector('a[href*="/oauth2/approve/"]')
+        ?.attributes['href'];
+  }
+
+  Future<bool> _tryCallbackFromLocation(String? location) async {
+    if (location == null || location.isEmpty) {
+      return false;
+    }
+    final uri = Uri.tryParse(location);
+    if (uri == null) {
+      return false;
+    }
+    final code = uri.queryParameters['code'];
+    final state = uri.queryParameters['state'];
+    if (code == null || state == null) {
+      return false;
+    }
+    await callback(code, state);
+    return true;
+  }
+
+  Future<void> _approveAndCallback(String approveLink) async {
+    final approveUri = Uri.parse(
+      'https://connect.linux.do',
+    ).resolve(approveLink);
+    final approveResponse = await _dio.get(
+      approveUri.toString(),
+      options: Options(
+        followRedirects: false,
+        validateStatus: (status) => status != null && status < 500,
+        extra: {
+          'skipCsrf': true,
+          'skipRedirect': true,
+          'allowRedirectSetCookie': true,
+        },
+      ),
+    );
+
+    final location = approveResponse.headers.value('location');
+    if (location == null) {
+      throw Exception(S.current.oauth_noRedirectResponse);
+    }
+
+    final uri = Uri.parse(location);
+    final code = uri.queryParameters['code'];
+    final state = uri.queryParameters['state'];
+
+    if (code == null || state == null) {
+      throw Exception(S.current.oauth_missingParams);
+    }
+
+    await callback(code, state);
   }
 }
 

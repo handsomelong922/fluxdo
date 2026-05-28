@@ -544,6 +544,24 @@ abstract class AppLocalizations {
   /// **'对话框弹出时模糊背景'**
   String get appearance_dialogBlurDesc;
 
+  /// No description provided for @appearance_displayMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'屏幕帧率'**
+  String get appearance_displayMode;
+
+  /// No description provided for @appearance_displayModeAuto.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动'**
+  String get appearance_displayModeAuto;
+
+  /// No description provided for @appearance_displayModeRestartHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'部分设备需重启应用后生效'**
+  String get appearance_displayModeRestartHint;
+
   /// No description provided for @appearance_font.
   ///
   /// In zh, this message translates to:
