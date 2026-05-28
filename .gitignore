@@ -33,6 +33,7 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+/dist/
 /coverage/
 .artifacts/
 flatpak/stage/
@@ -66,6 +67,10 @@ ios/rust_libs/
 
 # Firebase config (contains API keys)
 android/app/google-services.json
+
+# Android signing secrets
+/fluxdo-key.jks
+/android/key.properties
 
 # Generated CA certificates (CI/local build auto-generates)
 assets/certs/proxy_ca.pem
