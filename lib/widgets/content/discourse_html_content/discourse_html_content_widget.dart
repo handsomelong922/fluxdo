@@ -43,35 +43,52 @@ class DiscourseHtmlContent extends ConsumerStatefulWidget {
   final TextStyle? textStyle;
   final bool compact; // 紧凑模式：移除段落边距
   /// 内部链接点击回调 (linux.do 话题链接)
-  final void Function(int topicId, String? topicSlug, int? postNumber)? onInternalLinkTap;
+  final void Function(int topicId, String? topicSlug, int? postNumber)?
+  onInternalLinkTap;
+
   /// 链接点击统计数据
   final List<LinkCount>? linkCounts;
+
   /// 外部传入的画廊图片列表（用于分块渲染时共享完整画廊）
   final List<String>? galleryImages;
+
   /// 外部传入的 spoiler 图片 URL 集合（与 galleryImages 配合使用）
   final Set<String>? spoilerImageUrls;
+
   /// 外部共享的已揭示图片 URL 集合（跨分块/嵌套共享状态）
   final Set<String>? revealedImageUrls;
+
   /// 是否启用选择区域（分块渲染时由外层统一控制）
   final bool enableSelectionArea;
+
   /// 被提及用户列表（含状态 emoji）
   final List<MentionedUser>? mentionedUsers;
+
   /// 完整 HTML（用于脚注匹配，分块渲染时传递）
   final String? fullHtml;
+
   /// 是否是分块渲染的子块（子块仍需注入点击数，与嵌套渲染区分）
   final bool isChunkChild;
+
   /// Post 对象（用于投票数据）
   final Post? post;
+
   /// 话题 ID（用于链接点击追踪）
   final int? topicId;
+
   /// 覆盖混排优化开关（null 表示使用全局设置）
   final bool? enablePanguSpacing;
+
   /// 截图模式：展开代码块、表格等滚动区域，确保完整显示
   final bool screenshotMode;
+
   /// 文本选择变化回调
   final void Function(SelectedContent?)? onSelectionChanged;
+
   /// 自定义右键/长按菜单构建器
-  final Widget Function(BuildContext, SelectableRegionState)? contextMenuBuilder;
+  final Widget Function(BuildContext, SelectableRegionState)?
+  contextMenuBuilder;
+
   /// 图片引用回调（长按图片 → 引用 → 打开回复框）
   final void Function(String quote, Post post)? onQuoteImage;
 
@@ -104,7 +121,8 @@ class DiscourseHtmlContent extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<DiscourseHtmlContent> createState() => _DiscourseHtmlContentState();
+  ConsumerState<DiscourseHtmlContent> createState() =>
+      _DiscourseHtmlContentState();
 }
 
 class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
@@ -123,6 +141,7 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
 
   /// 预处理后的 HTML 缓存，避免每次 build 都重新执行正则替换
   String? _cachedProcessedHtml;
+
   /// 缓存对应的原始输入快照，用于判断是否需要重新计算
   String? _cachedRawHtml;
   List<MentionedUser>? _cachedMentionedUsers;
@@ -210,8 +229,6 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     );
   }
 
-
-
   /// 预处理 HTML：注入用户状态 emoji、链接点击次数，添加内联元素 padding
   String _preprocessHtml(String html, bool enablePanguSpacing) {
     // 检查全局缓存
@@ -266,7 +283,10 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     // 在 code 外部使用普通字体渲染（宽度可控），不换行特性确保和 code 粘在一起
     // 同时匹配 \u00A0 和 &nbsp;（innerHtml 会将 \u00A0 序列化为 &nbsp;）
     processedHtml = processedHtml.replaceAllMapped(
-      RegExp('(?:\u00A0|&nbsp;)?<code>([^<]*)</code>(?:\u00A0|&nbsp;)?', caseSensitive: false),
+      RegExp(
+        '(?:\u00A0|&nbsp;)?<code>([^<]*)</code>(?:\u00A0|&nbsp;)?',
+        caseSensitive: false,
+      ),
       (match) {
         final content = match.group(1)!;
         return '\u00A0<code>$content</code>\u00A0';
@@ -289,7 +309,8 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     // 5. 注入链接点击数（顶层处理或分块子块处理，避免嵌套重复）
     // - fullHtml == null: 顶层渲染
     // - isChunkChild: 分块子块（需要注入，因为分块时顶层没有处理 HTML）
-    if (widget.linkCounts != null && (widget.fullHtml == null || widget.isChunkChild)) {
+    if (widget.linkCounts != null &&
+        (widget.fullHtml == null || widget.isChunkChild)) {
       processedHtml = _injectClickCounts(processedHtml);
     }
 
@@ -308,7 +329,8 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     key = key * 37 + html.length;
     key = key * 37 + (enablePanguSpacing ? 1 : 0);
     // 是否注入链接点击数
-    final injectLinks = widget.linkCounts != null &&
+    final injectLinks =
+        widget.linkCounts != null &&
         (widget.fullHtml == null || widget.isChunkChild);
     key = key * 37 + (injectLinks ? 1 : 0);
     // mentionedUsers 的 statusEmoji 影响注入结果
@@ -350,7 +372,10 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
         final content = match.group(2)!;
         final closeTag = match.group(3)!;
         // 添加 data-clicks 属性防止重复处理，追加点击数 span
-        final newOpenTag = openTag.replaceFirst('<a', '<a data-clicks="$formattedCount"');
+        final newOpenTag = openTag.replaceFirst(
+          '<a',
+          '<a data-clicks="$formattedCount"',
+        );
         return '$newOpenTag$content$closeTag <span class="click-count">\u2009$formattedCount\u2009</span>';
       });
     }
@@ -384,12 +409,33 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     );
   }
 
+  Future<void> _openContentUrl(String url) async {
+    _trackClick(url);
+    await launchContentLink(
+      context,
+      url,
+      onInternalLinkTap: widget.onInternalLinkTap,
+      onDownloadAttachment: (downloadUrl) {
+        ref
+            .read(downloadProvider.notifier)
+            .startDownload(
+              url: downloadUrl,
+              suggestedFilename: _attachmentFileNames[downloadUrl],
+            );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final linkColor = theme.colorScheme.primary.toARGB32().toRadixString(16).substring(2);
+    final linkColor = theme.colorScheme.primary
+        .toARGB32()
+        .toRadixString(16)
+        .substring(2);
     final enablePanguSpacing =
-        widget.enablePanguSpacing ?? ref.watch(preferencesProvider).displayPanguSpacing;
+        widget.enablePanguSpacing ??
+        ref.watch(preferencesProvider).displayPanguSpacing;
     // 仅当输入变化时才重新执行正则预处理，避免每次 build 都重复计算
     if (_cachedProcessedHtml == null ||
         _cachedRawHtml != widget.html ||
@@ -416,7 +462,8 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
         bool isInSpoiler = false;
         var parent = element.parent;
         while (parent != null) {
-          if (parent.classes.contains('spoiler') || parent.classes.contains('spoiled')) {
+          if (parent.classes.contains('spoiler') ||
+              parent.classes.contains('spoiled')) {
             isInSpoiler = true;
             break;
           }
@@ -426,8 +473,11 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
         // img 垂直居中（与 Discourse 一致：img { vertical-align: middle }）
         if (element.localName == 'img') {
           if (element.classes.contains('emoji')) {
-
-            return {'vertical-align': 'middle', 'width': 'auto', 'height': 'auto'};
+            return {
+              'vertical-align': 'middle',
+              'width': 'auto',
+              'height': 'auto',
+            };
           }
           return {'vertical-align': 'middle'};
         }
@@ -440,13 +490,10 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
 
         // Callout 标题内的链接继承标题颜色
         if (element.localName == 'a') {
-          final parentClasses =
-              (element.parent?.classes ?? const <String>[]).cast<String>();
+          final parentClasses = (element.parent?.classes ?? const <String>[])
+              .cast<String>();
           if (parentClasses.contains('callout-title')) {
-            return {
-              'color': 'inherit',
-              'text-decoration': 'none',
-            };
+            return {'color': 'inherit', 'text-decoration': 'none'};
           }
         }
 
@@ -462,7 +509,8 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
           // recognizer 判定为与根 resolvers 相同，导致 recognizer 丢失。
           // inline-block 让链接走 onRenderBlock 路径，由 TagA.onRenderBlock
           // 正确地用 GestureDetector 包裹整个链接。
-          final hasEmojiImg = element.getElementsByTagName('img')
+          final hasEmojiImg = element
+              .getElementsByTagName('img')
               .any((img) => img.classes.contains('emoji'));
           if (hasEmojiImg) {
             return {
@@ -471,35 +519,24 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
               'display': 'inline-block',
             };
           }
-          return {
-            'color': '#$linkColor',
-            'text-decoration': 'none',
-          };
+          return {'color': '#$linkColor', 'text-decoration': 'none'};
         }
         // 无序列表样式
         if (element.localName == 'ul') {
-          return {
-            'padding-left': '20px',
-            'margin': '8px 0',
-          };
+          return {'padding-left': '20px', 'margin': '8px 0'};
         }
         // 有序列表样式
         if (element.localName == 'ol') {
-          return {
-            'padding-left': '20px',
-            'margin': '8px 0',
-          };
+          return {'padding-left': '20px', 'margin': '8px 0'};
         }
         // 列表项样式
         if (element.localName == 'li') {
-          return {
-            'margin': '4px 0',
-            'line-height': '1.5',
-          };
+          return {'margin': '4px 0', 'line-height': '1.5'};
         }
         // 内联 spoiler：使用特殊 font-family 标记，让文本正常渲染但可被识别
         if (element.localName == 'span' &&
-            (element.classes.contains('spoiler') || element.classes.contains('spoiled'))) {
+            (element.classes.contains('spoiler') ||
+                element.classes.contains('spoiled'))) {
           return getSpoilerStyles();
         }
         return {};
@@ -523,28 +560,16 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
           return true;
         }
 
-        // 追踪链接点击（fire-and-forget）
-        _trackClick(url);
-
         // 统一链接处理逻辑
-        await launchContentLink(
-          context,
-          url,
-          onInternalLinkTap: widget.onInternalLinkTap,
-          onDownloadAttachment: (downloadUrl) {
-            ref.read(downloadProvider.notifier).startDownload(
-                  url: downloadUrl,
-                  suggestedFilename: _attachmentFileNames[downloadUrl],
-                );
-          },
-        );
+        await _openContentUrl(url);
         return true;
       },
     );
 
     // 检测是否需要内联装饰（code 背景 / spoiler 粒子）
     // 快速字符串检测，避免对无 code/spoiler 的帖子创建 Ticker + 扫描 RenderTree
-    final needsOverlay = processedHtml.contains('<code>') ||
+    final needsOverlay =
+        processedHtml.contains('<code>') ||
         processedHtml.contains('"spoiler"') ||
         processedHtml.contains('"spoiled"');
 
@@ -576,12 +601,14 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     if (widget.enableSelectionArea) {
       return SelectionArea(
         onSelectionChanged: widget.onSelectionChanged,
-        contextMenuBuilder: widget.contextMenuBuilder ?? (context, state) {
-          return AdaptiveTextSelectionToolbar.buttonItems(
-            anchors: state.contextMenuAnchors,
-            buttonItems: state.contextMenuButtonItems,
-          );
-        },
+        contextMenuBuilder:
+            widget.contextMenuBuilder ??
+            (context, state) {
+              return AdaptiveTextSelectionToolbar.buttonItems(
+                anchors: state.contextMenuAnchors,
+                buttonItems: state.contextMenuButtonItems,
+              );
+            },
         child: result,
       );
     }
@@ -605,7 +632,8 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     }
 
     // 处理 Discourse 懒加载视频 (div.lazy-video-container)
-    if (element.localName == 'div' && element.classes.contains('lazy-video-container')) {
+    if (element.localName == 'div' &&
+        element.classes.contains('lazy-video-container')) {
       return buildLazyVideo(
         context: context,
         theme: theme,
@@ -660,15 +688,13 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     }
 
     // 链接点击数 (span.click-count)：直接 WidgetSpan 渲染
-    if (element.localName == 'span' && element.classes.contains('click-count')) {
+    if (element.localName == 'span' &&
+        element.classes.contains('click-count')) {
       final count = element.text.trim();
       final isDark = theme.brightness == Brightness.dark;
 
       return InlineCustomWidget(
-        child: buildClickCountWidget(
-          count: count,
-          isDark: isDark,
-        ),
+        child: buildClickCountWidget(count: count, isDark: isDark),
       );
     }
 
@@ -727,7 +753,8 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     }
 
     // 处理 Discourse 图片网格 (div.d-image-grid)
-    if (element.localName == 'div' && element.classes.contains('d-image-grid')) {
+    if (element.localName == 'div' &&
+        element.classes.contains('d-image-grid')) {
       return buildImageGrid(
         context: context,
         theme: theme,
@@ -754,6 +781,7 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
         theme: theme,
         element: element,
         htmlBuilder: htmlBuilder,
+        onLinkTap: _openContentUrl,
       );
     }
 
@@ -801,7 +829,8 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     }
 
     // 处理 Spoiler 隐藏内容
-    if (element.classes.contains('spoiler') || element.classes.contains('spoiled')) {
+    if (element.classes.contains('spoiler') ||
+        element.classes.contains('spoiled')) {
       // span.spoiler：返回 null 让文本正常渲染（样式由 customStylesBuilder 设置）
       // 粒子效果由外层的 SpoilerOverlay 通过 RenderTree 扫描实现
       if (element.localName == 'span') {
@@ -840,7 +869,8 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     }
 
     // 处理脚注引用 (sup.footnote-ref)
-    if (element.localName == 'sup' && element.classes.contains('footnote-ref')) {
+    if (element.localName == 'sup' &&
+        element.classes.contains('footnote-ref')) {
       final footnoteRef = buildFootnoteRef(
         context: context,
         theme: theme,
@@ -852,12 +882,14 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     }
 
     // 处理脚注分隔线 (.footnotes-sep) - 隐藏
-    if (element.localName == 'hr' && element.classes.contains('footnotes-sep')) {
+    if (element.localName == 'hr' &&
+        element.classes.contains('footnotes-sep')) {
       return buildFootnotesSep();
     }
 
     // 处理脚注列表 (section.footnotes / ol.footnotes-list)
-    if (element.localName == 'section' && element.classes.contains('footnotes')) {
+    if (element.localName == 'section' &&
+        element.classes.contains('footnotes')) {
       return buildFootnotesList(
         context: context,
         theme: theme,
@@ -865,7 +897,8 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
         htmlBuilder: htmlBuilder,
       );
     }
-    if (element.localName == 'ol' && element.classes.contains('footnotes-list')) {
+    if (element.localName == 'ol' &&
+        element.classes.contains('footnotes-list')) {
       return buildFootnotesList(
         context: context,
         theme: theme,
@@ -876,20 +909,12 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
 
     // 处理块级数学公式 (div.math)
     if (element.localName == 'div' && element.classes.contains('math')) {
-      return buildMathBlock(
-        context: context,
-        theme: theme,
-        element: element,
-      );
+      return buildMathBlock(context: context, theme: theme, element: element);
     }
 
     // 处理行内数学公式 (span.math)
     if (element.localName == 'span' && element.classes.contains('math')) {
-      return buildInlineMath(
-        context: context,
-        theme: theme,
-        element: element,
-      );
+      return buildInlineMath(context: context, theme: theme, element: element);
     }
 
     // 处理分割线

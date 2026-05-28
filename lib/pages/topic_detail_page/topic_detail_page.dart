@@ -801,8 +801,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       item(
         value: 'toggle_nested_view',
         icon: _isNestedView ? Icons.forum_rounded : Icons.forum_outlined,
-        label:
-            '${context.l10n.nested_title} · ${_isNestedView ? context.l10n.common_close : context.l10n.common_enable}',
+        label: context.l10n.nested_title,
         selected: _isNestedView,
       ),
       item(
@@ -1560,6 +1559,15 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                       .read(nestedTopicProvider(nestedParams).notifier)
                       .loadMoreRoots(),
                 );
+              });
+            } else if (pendingPostNumber != null &&
+                !nestedState.hasMoreRoots &&
+                !nestedState.isLoadingMore) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                _pendingNestedRestorePostNumber = null;
+                setState(() => _isNestedView = false);
+                unawaited(_scrollToPost(pendingPostNumber));
               });
             }
           },

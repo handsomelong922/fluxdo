@@ -3,8 +3,10 @@ import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../services/cdk_oauth_service.dart';
 import '../services/network/cookie/raw_set_cookie_queue.dart';
 import '../services/toast_service.dart';
 import '../services/webview_settings.dart';
@@ -42,6 +44,7 @@ class _CdkPageState extends State<CdkPage> {
   double _progress = 0;
   bool _canGoBack = false;
   String _currentUrl = '';
+  String? _loadError;
 
   @override
   void initState() {
@@ -129,64 +132,121 @@ class _CdkPageState extends State<CdkPage> {
           future: _cookieSyncFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
-              return const SizedBox.shrink();
+              return const Center(child: CircularProgressIndicator());
             }
 
-            return WebViewSettings.wrapWithScrollFix(
-              InAppWebView(
-                webViewEnvironment: windowsWebViewEnvironment,
-                initialUrlRequest:
-                    (!io.Platform.isWindows && widget.url.isNotEmpty)
-                    ? URLRequest(url: WebUri(widget.url))
-                    : null,
-                initialSettings: WebViewSettings.visible
-                  ..useShouldOverrideUrlLoading = true,
-                initialUserScripts: WebViewSettings.ios15PolyfillScripts,
-                onReceivedServerTrustAuthRequest: (_, challenge) =>
-                    WebViewSettings.handleServerTrustAuthRequest(challenge),
-                onWebViewCreated: (controller) async {
-                  _controller = controller;
-                  if (io.Platform.isWindows && widget.url.isNotEmpty) {
-                    await RawSetCookieQueue.instance.flushToWebView();
-                    await controller.loadUrl(
-                      urlRequest: URLRequest(url: WebUri(widget.url)),
-                    );
-                  }
-                  if (io.Platform.isAndroid) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      const MethodChannel(
-                        'com.fluxdo/webauthn',
-                      ).invokeMethod('enableWebAuthentication');
-                    });
-                  }
-                },
-                onLoadStart: (_, url) {
-                  setState(() {
-                    _isLoading = true;
-                    _currentUrl = url?.toString() ?? _currentUrl;
-                  });
-                },
-                onProgressChanged: (_, progress) {
-                  setState(() => _progress = progress / 100);
-                },
-                onLoadStop: (controller, url) async {
-                  await WebViewSettings.injectScrollFix(controller);
-                  final canGoBack = await controller.canGoBack();
-                  setState(() {
-                    _isLoading = false;
-                    _canGoBack = canGoBack;
-                    _currentUrl = url?.toString() ?? _currentUrl;
-                  });
-                },
-                onUpdateVisitedHistory: (controller, url, _) async {
-                  final canGoBack = await controller.canGoBack();
-                  setState(() {
-                    _canGoBack = canGoBack;
-                    _currentUrl = url?.toString() ?? _currentUrl;
-                  });
-                },
-              ),
-              getController: () => _controller,
+            return Stack(
+              children: [
+                WebViewSettings.wrapWithScrollFix(
+                  InAppWebView(
+                    webViewEnvironment: windowsWebViewEnvironment,
+                    initialUrlRequest:
+                        (!io.Platform.isWindows && widget.url.isNotEmpty)
+                        ? URLRequest(url: WebUri(widget.url))
+                        : null,
+                    initialSettings: WebViewSettings.visible
+                      ..useShouldOverrideUrlLoading = true,
+                    initialUserScripts: WebViewSettings.ios15PolyfillScripts,
+                    onReceivedServerTrustAuthRequest: (_, challenge) =>
+                        WebViewSettings.handleServerTrustAuthRequest(challenge),
+                    onWebViewCreated: (controller) async {
+                      _controller = controller;
+                      if (io.Platform.isWindows && widget.url.isNotEmpty) {
+                        await RawSetCookieQueue.instance.flushToWebView();
+                        await controller.loadUrl(
+                          urlRequest: URLRequest(url: WebUri(widget.url)),
+                        );
+                      }
+                      if (io.Platform.isAndroid) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          const MethodChannel(
+                            'com.fluxdo/webauthn',
+                          ).invokeMethod('enableWebAuthentication');
+                        });
+                      }
+                    },
+                    onLoadStart: (_, url) {
+                      setState(() {
+                        _isLoading = true;
+                        _loadError = null;
+                        _currentUrl = url?.toString() ?? _currentUrl;
+                      });
+                    },
+                    onProgressChanged: (_, progress) {
+                      setState(() => _progress = progress / 100);
+                    },
+                    onLoadStop: (controller, url) async {
+                      await WebViewSettings.injectScrollFix(controller);
+                      final canGoBack = await controller.canGoBack();
+                      setState(() {
+                        _isLoading = false;
+                        _canGoBack = canGoBack;
+                        _currentUrl = url?.toString() ?? _currentUrl;
+                      });
+                    },
+                    onReceivedError: (_, request, error) {
+                      if (request.isForMainFrame == false) return;
+                      setState(() {
+                        _isLoading = false;
+                        _loadError = error.description;
+                      });
+                    },
+                    onReceivedHttpError: (_, request, response) {
+                      if (request.isForMainFrame == false) return;
+                      final statusCode = response.statusCode;
+                      if (statusCode == null || statusCode < 400) return;
+                      setState(() {
+                        _isLoading = false;
+                        _loadError = 'HTTP $statusCode';
+                      });
+                    },
+                    onUpdateVisitedHistory: (controller, url, _) async {
+                      final canGoBack = await controller.canGoBack();
+                      setState(() {
+                        _canGoBack = canGoBack;
+                        _currentUrl = url?.toString() ?? _currentUrl;
+                      });
+                    },
+                  ),
+                  getController: () => _controller,
+                ),
+                if (_loadError != null)
+                  Positioned.fill(
+                    child: ColoredBox(
+                      color: theme.colorScheme.surface,
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.refresh_rounded,
+                                size: 40,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _loadError!,
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton.icon(
+                                onPressed: () {
+                                  setState(() => _loadError = null);
+                                  _controller?.reload();
+                                },
+                                icon: const Icon(Icons.refresh_rounded),
+                                label: Text(context.l10n.common_refresh),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             );
           },
         ),
@@ -196,6 +256,19 @@ class _CdkPageState extends State<CdkPage> {
 
   Future<void> _seedAndBarrier() async {
     if (io.Platform.isWindows) return;
+    await RawSetCookieQueue.instance.flushToWebView();
+    try {
+      final authorized = await CdkOAuthService().authorizeSilently().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => false,
+      );
+      if (authorized) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('cdk_enabled', true);
+      }
+    } catch (e) {
+      debugPrint('[CdkPage] 静默授权跳过: $e');
+    }
     await RawSetCookieQueue.instance.flushToWebView();
   }
 

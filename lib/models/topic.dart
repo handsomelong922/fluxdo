@@ -204,7 +204,11 @@ class TopicPoster {
 
 class Topic {
   static final RegExp _deletedPlaceholderPattern = RegExp(
-    r'(话题已被作者删除|主题已被作者删除|topic has been deleted|topic was deleted)',
+    r'^((此|该|这个)?(话题|主题|帖子|内容)(已经?|已)?被作者删除|'
+    r'this topic (has been|was) deleted by (the )?author|'
+    r'topic (has been|was) deleted by (the )?author|'
+    r'topic (has been|was) deleted|'
+    r'deleted by (the )?author)[。.!！]*$',
     caseSensitive: false,
   );
 
@@ -337,7 +341,27 @@ class Topic {
   /// API 明确标记为不可见，或列表摘要已经暴露删除占位文案的条目。
   bool get isDeletedPlaceholder {
     if (!visible) return true;
-    final text = '${title.trim()}\n${excerpt?.trim() ?? ''}';
+    final excerptText = _plainDeletedPlaceholderText(excerpt);
+    if (_looksLikeDeletedPlaceholder(excerptText)) {
+      return true;
+    }
+
+    final titleText = _plainDeletedPlaceholderText(title);
+    return titleText.length <= 40 && _looksLikeDeletedPlaceholder(titleText);
+  }
+
+  static String _plainDeletedPlaceholderText(String? value) {
+    return (value ?? '')
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  static bool _looksLikeDeletedPlaceholder(String text) {
+    if (text.isEmpty || text.length > 80) {
+      return false;
+    }
     return _deletedPlaceholderPattern.hasMatch(text);
   }
 }

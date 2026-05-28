@@ -247,6 +247,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearance_dialogBlurDesc => 'Blur background when dialog appears';
 
   @override
+  String get appearance_displayMode => 'Display refresh rate';
+
+  @override
+  String get appearance_displayModeAuto => 'Auto';
+
+  @override
+  String get appearance_displayModeRestartHint =>
+      'May require app restart on some devices';
+
+  @override
   String get appearance_font => 'Font';
 
   @override

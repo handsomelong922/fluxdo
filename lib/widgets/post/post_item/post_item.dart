@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/topic.dart';
-import '../../../pages/topic_detail_page/topic_detail_page.dart';
 import '../../../l10n/s.dart';
 import '../../../providers/preferences_provider.dart';
 import '../../../utils/code_selection_context.dart';
+import '../../../utils/topic_link_navigation.dart';
 import '../../content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../post_signature.dart';
 import '../small_action_item.dart';
@@ -14,6 +14,7 @@ import 'widgets/post_footer_section/post_footer_section.dart';
 import 'widgets/post_header_section.dart';
 import 'widgets/post_notice_widget.dart';
 import 'widgets/post_segment_frame.dart';
+import 'widgets/accepted_solution_marker.dart';
 
 class PostItem extends ConsumerStatefulWidget {
   final Post post;
@@ -83,15 +84,21 @@ class _PostItemState extends ConsumerState<PostItem> {
   @override
   void initState() {
     super.initState();
-    _acceptedAnswer = widget.post.acceptedAnswer;
+    _acceptedAnswer = _isAcceptedAnswer(widget);
   }
 
   @override
   void didUpdateWidget(PostItem oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.post != widget.post) {
-      _acceptedAnswer = widget.post.acceptedAnswer;
+    if (oldWidget.post != widget.post ||
+        oldWidget.acceptedAnswerPostNumber != widget.acceptedAnswerPostNumber) {
+      _acceptedAnswer = _isAcceptedAnswer(widget);
     }
+  }
+
+  bool _isAcceptedAnswer(PostItem candidate) {
+    return candidate.post.acceptedAnswer ||
+        candidate.post.postNumber == candidate.acceptedAnswerPostNumber;
   }
 
   @override
@@ -169,14 +176,13 @@ class _PostItemState extends ConsumerState<PostItem> {
                   topicId: widget.topicId,
                   onQuoteImage: widget.onQuoteImage,
                   onInternalLinkTap: (topicId, topicSlug, postNumber) {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => TopicDetailPage(
-                          topicId: topicId,
-                          initialTitle: topicSlug,
-                          scrollToPostNumber: postNumber,
-                        ),
-                      ),
+                    openInternalTopicLink(
+                      context,
+                      currentTopicId: widget.topicId,
+                      targetTopicId: topicId,
+                      topicSlug: topicSlug,
+                      postNumber: postNumber,
+                      onJumpToPost: widget.onJumpToPost,
                     );
                   },
                   onSelectionChanged: widget.onQuoteSelection != null
@@ -208,6 +214,10 @@ class _PostItemState extends ConsumerState<PostItem> {
               ),
             ),
             PostSignature(post: post),
+            if (_acceptedAnswer)
+              const SelectionContainer.disabled(
+                child: AcceptedSolutionMarker(),
+              ),
             // 举报隐藏帖子：显示展开按钮
             if (post.cookedHidden &&
                 post.canSeeHiddenPost &&

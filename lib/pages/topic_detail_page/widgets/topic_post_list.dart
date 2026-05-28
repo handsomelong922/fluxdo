@@ -773,6 +773,7 @@ class _TopicPostListState extends State<TopicPostList> {
           chunk: segment.chunkData!,
           renderData: segment.renderData!,
           onQuoteImage: onQuoteImage,
+          onJumpToPost: onJumpToPost,
         );
         break;
       case _PostRenderSegmentType.longFooter:

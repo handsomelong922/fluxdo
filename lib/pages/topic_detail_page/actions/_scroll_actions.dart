@@ -175,9 +175,15 @@ extension _ScrollActions on _TopicDetailPageState {
       if (nestedState != null &&
           nestedState.hasMoreRoots &&
           !nestedState.isLoadingMore) {
-        unawaited(
-          ref.read(nestedTopicProvider(nestedParams).notifier).loadMoreRoots(),
-        );
+        await ref
+            .read(nestedTopicProvider(nestedParams).notifier)
+            .loadMoreRoots();
+      } else if (nestedState != null &&
+          !nestedState.hasMoreRoots &&
+          !nestedState.isLoadingMore &&
+          mounted) {
+        setState(() => _isNestedView = false);
+        await _scrollToPost(postNumber);
       }
       return;
     }
