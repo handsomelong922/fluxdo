@@ -1,3 +1,8 @@
+## v0.5.3
+
+- fix: improve metaverse auth topic jumps and display mode
+
+
 ## v0.5.2
 
 - fix: refine topic actions and search sorting
