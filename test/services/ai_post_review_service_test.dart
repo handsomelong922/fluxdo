@@ -182,6 +182,7 @@ class _FakeAiChatService extends AiChatService {
     required List<Map<String, String>> messages,
     String? systemPrompt,
     ThinkingConfig thinkingConfig = const ThinkingConfig(),
+    AiModelFeatureConfig featureConfig = const AiModelFeatureConfig(),
   }) {
     return _onSend(systemPrompt: systemPrompt, messages: messages);
   }

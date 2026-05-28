@@ -61,16 +61,82 @@ class ThinkingConfig {
   }
 }
 
+/// 联网搜索上下文规模。
+enum AiWebSearchContextSize { low, medium, high }
+
+/// 模型级能力配置。
+///
+/// 不同供应商的联网参数不兼容，因此只保存语义化配置，由
+/// AiChatService 在发请求时按供应商类型转换。
+class AiModelFeatureConfig {
+  final bool webSearchEnabled;
+  final AiWebSearchContextSize webSearchContextSize;
+  final int webSearchMaxUses;
+  final bool streamResponse;
+
+  const AiModelFeatureConfig({
+    this.webSearchEnabled = false,
+    this.webSearchContextSize = AiWebSearchContextSize.medium,
+    this.webSearchMaxUses = 5,
+    this.streamResponse = true,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'web_search_enabled': webSearchEnabled,
+      'web_search_context_size': webSearchContextSize.name,
+      'web_search_max_uses': webSearchMaxUses,
+      'stream_response': streamResponse,
+    };
+  }
+
+  factory AiModelFeatureConfig.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const AiModelFeatureConfig();
+    final rawContextSize = json['web_search_context_size'] as String?;
+    return AiModelFeatureConfig(
+      webSearchEnabled: json['web_search_enabled'] as bool? ?? false,
+      webSearchContextSize: AiWebSearchContextSize.values.firstWhere(
+        (size) => size.name == rawContextSize,
+        orElse: () => AiWebSearchContextSize.medium,
+      ),
+      webSearchMaxUses: _clampWebSearchMaxUses(
+        json['web_search_max_uses'] as int? ?? 5,
+      ),
+      streamResponse: json['stream_response'] as bool? ?? true,
+    );
+  }
+
+  AiModelFeatureConfig copyWith({
+    bool? webSearchEnabled,
+    AiWebSearchContextSize? webSearchContextSize,
+    int? webSearchMaxUses,
+    bool? streamResponse,
+  }) {
+    return AiModelFeatureConfig(
+      webSearchEnabled: webSearchEnabled ?? this.webSearchEnabled,
+      webSearchContextSize: webSearchContextSize ?? this.webSearchContextSize,
+      webSearchMaxUses: webSearchMaxUses != null
+          ? _clampWebSearchMaxUses(webSearchMaxUses)
+          : this.webSearchMaxUses,
+      streamResponse: streamResponse ?? this.streamResponse,
+    );
+  }
+
+  static int _clampWebSearchMaxUses(int value) => value.clamp(1, 10);
+}
+
 /// AI 模型
 class AiModel {
   final String id;
   final String? name;
   final bool enabled;
+  final AiModelFeatureConfig features;
 
   const AiModel({
     required this.id,
     this.name,
     this.enabled = true,
+    this.features = const AiModelFeatureConfig(),
   });
 
   factory AiModel.fromJson(Map<String, dynamic> json) {
@@ -78,6 +144,9 @@ class AiModel {
       id: json['id'] as String,
       name: json['name'] as String?,
       enabled: json['enabled'] as bool? ?? true,
+      features: AiModelFeatureConfig.fromJson(
+        json['features'] as Map<String, dynamic>?,
+      ),
     );
   }
 
@@ -86,6 +155,7 @@ class AiModel {
       'id': id,
       if (name != null) 'name': name,
       'enabled': enabled,
+      'features': features.toJson(),
     };
   }
 
@@ -93,11 +163,13 @@ class AiModel {
     String? id,
     String? name,
     bool? enabled,
+    AiModelFeatureConfig? features,
   }) {
     return AiModel(
       id: id ?? this.id,
       name: name ?? this.name,
       enabled: enabled ?? this.enabled,
+      features: features ?? this.features,
     );
   }
 }

@@ -33,6 +33,7 @@ class AiChatService {
     required List<Map<String, String>> messages,
     String? systemPrompt,
     ThinkingConfig thinkingConfig = const ThinkingConfig(),
+    AiModelFeatureConfig featureConfig = const AiModelFeatureConfig(),
   }) async* {
     await for (final chunk in sendChatChunks(
       provider: provider,
@@ -41,6 +42,7 @@ class AiChatService {
       messages: messages,
       systemPrompt: systemPrompt,
       thinkingConfig: thinkingConfig,
+      featureConfig: featureConfig,
     )) {
       if (chunk is TextDelta) {
         yield chunk.text;
@@ -56,6 +58,7 @@ class AiChatService {
     required List<Map<String, String>> messages,
     String? systemPrompt,
     ThinkingConfig thinkingConfig = const ThinkingConfig(),
+    AiModelFeatureConfig featureConfig = const AiModelFeatureConfig(),
   }) async* {
     final dio = _createDio();
     try {
@@ -73,6 +76,7 @@ class AiChatService {
             messages,
             systemPrompt,
             thinkingConfig,
+            featureConfig,
           );
 
         case AiProviderType.openaiResponse:
@@ -84,6 +88,7 @@ class AiChatService {
             messages,
             systemPrompt,
             thinkingConfig,
+            featureConfig,
           );
 
         case AiProviderType.gemini:
@@ -95,6 +100,7 @@ class AiChatService {
             messages,
             systemPrompt,
             thinkingConfig,
+            featureConfig,
           );
 
         case AiProviderType.anthropic:
@@ -106,6 +112,7 @@ class AiChatService {
             messages,
             systemPrompt,
             thinkingConfig,
+            featureConfig,
           );
       }
 
@@ -124,6 +131,7 @@ class AiChatService {
     List<Map<String, String>> messages,
     String? systemPrompt,
     ThinkingConfig thinkingConfig,
+    AiModelFeatureConfig featureConfig,
   ) {
     final allMessages = <Map<String, String>>[
       if (systemPrompt != null) {'role': 'system', 'content': systemPrompt},
@@ -139,6 +147,10 @@ class AiChatService {
         'stream_options': {'include_usage': true},
         if (_toOpenAiReasoningEffort(thinkingConfig) case final effort?)
           'reasoning_effort': effort,
+        if (featureConfig.webSearchEnabled)
+          'web_search_options': {
+            'search_context_size': _toOpenAiSearchContextSize(featureConfig),
+          },
       },
       options: Options(
         headers: {
@@ -158,6 +170,7 @@ class AiChatService {
     List<Map<String, String>> messages,
     String? systemPrompt,
     ThinkingConfig thinkingConfig,
+    AiModelFeatureConfig featureConfig,
   ) {
     // OpenAI Response API 使用 input 数组
     final input = <Map<String, String>>[
@@ -173,6 +186,13 @@ class AiChatService {
         'stream': true,
         if (_toOpenAiReasoningEffort(thinkingConfig) case final effort?)
           'reasoning': {'effort': effort},
+        if (featureConfig.webSearchEnabled)
+          'tools': [
+            {
+              'type': 'web_search',
+              'search_context_size': _toOpenAiSearchContextSize(featureConfig),
+            },
+          ],
       },
       options: Options(
         headers: {
@@ -192,6 +212,7 @@ class AiChatService {
     List<Map<String, String>> messages,
     String? systemPrompt,
     ThinkingConfig thinkingConfig,
+    AiModelFeatureConfig featureConfig,
   ) {
     // Gemini 使用 contents 格式
     final contents = messages.map((m) {
@@ -222,6 +243,14 @@ class AiChatService {
       };
     }
 
+    if (featureConfig.webSearchEnabled) {
+      data['tools'] = [
+        {
+          'google_search': <String, dynamic>{},
+        },
+      ];
+    }
+
     return dio.post<ResponseBody>(
       '$baseUrl/models/$model:streamGenerateContent',
       queryParameters: {
@@ -244,6 +273,7 @@ class AiChatService {
     List<Map<String, String>> messages,
     String? systemPrompt,
     ThinkingConfig thinkingConfig,
+    AiModelFeatureConfig featureConfig,
   ) {
     final data = <String, dynamic>{
       'model': model,
@@ -267,6 +297,16 @@ class AiChatService {
         'type': 'enabled',
         'budget_tokens': budget,
       };
+    }
+
+    if (featureConfig.webSearchEnabled) {
+      data['tools'] = [
+        {
+          'type': 'web_search_20250305',
+          'name': 'web_search',
+          'max_uses': featureConfig.webSearchMaxUses,
+        },
+      ];
     }
 
     return dio.post<ResponseBody>(
@@ -323,6 +363,14 @@ class AiChatService {
       ThinkingLevel.medium => 'medium',
       ThinkingLevel.high => 'high',
       ThinkingLevel.custom => 'high',
+    };
+  }
+
+  String _toOpenAiSearchContextSize(AiModelFeatureConfig config) {
+    return switch (config.webSearchContextSize) {
+      AiWebSearchContextSize.low => 'low',
+      AiWebSearchContextSize.medium => 'medium',
+      AiWebSearchContextSize.high => 'high',
     };
   }
 

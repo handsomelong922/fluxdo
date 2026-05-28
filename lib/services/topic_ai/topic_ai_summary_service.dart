@@ -65,6 +65,7 @@ class TopicAiSummaryService {
           apiKey: apiKey,
           messages: messages,
           systemPrompt: _buildSystemPrompt(detail.title),
+          featureConfig: selectedModel.model.features,
         );
 
     final buffer = StringBuffer();

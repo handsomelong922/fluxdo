@@ -102,6 +102,94 @@ void main() {
       final usage = chunks.whereType<UsageReport>().single;
       expect(usage.cachedTokens, 11);
     });
+
+    test('adds provider-specific web search config', () async {
+      final cases = [
+        (
+          type: AiProviderType.openai,
+          assertBody: (Map<String, dynamic> body) {
+            expect(body['web_search_options'], {'search_context_size': 'high'});
+            expect(body.containsKey('tools'), isFalse);
+          },
+        ),
+        (
+          type: AiProviderType.openaiResponse,
+          assertBody: (Map<String, dynamic> body) {
+            expect(body['tools'], [
+              {'type': 'web_search', 'search_context_size': 'high'},
+            ]);
+            expect(body.containsKey('web_search_options'), isFalse);
+          },
+        ),
+        (
+          type: AiProviderType.gemini,
+          assertBody: (Map<String, dynamic> body) {
+            expect(body['tools'], [
+              {'google_search': <String, dynamic>{}},
+            ]);
+          },
+        ),
+        (
+          type: AiProviderType.anthropic,
+          assertBody: (Map<String, dynamic> body) {
+            expect(body['tools'], [
+              {
+                'type': 'web_search_20250305',
+                'name': 'web_search',
+                'max_uses': 3,
+              },
+            ]);
+          },
+        ),
+      ];
+
+      for (final entry in cases) {
+        final adapter = _RecordingAdapter(response: _sse([]));
+        final service = AiChatService(adapterFactory: () => adapter);
+
+        await service
+            .sendChatChunks(
+              provider: _provider(entry.type),
+              model: 'model-test',
+              apiKey: 'key',
+              messages: [
+                {'role': 'user', 'content': 'latest news?'},
+              ],
+              featureConfig: const AiModelFeatureConfig(
+                webSearchEnabled: true,
+                webSearchContextSize: AiWebSearchContextSize.high,
+                webSearchMaxUses: 3,
+              ),
+            )
+            .toList();
+
+        entry.assertBody(adapter.body);
+      }
+    });
+  });
+
+  group('AiModelFeatureConfig', () {
+    test('round-trips feature config and clamps max web search uses', () {
+      const model = AiModel(
+        id: 'm1',
+        features: AiModelFeatureConfig(
+          webSearchEnabled: true,
+          webSearchContextSize: AiWebSearchContextSize.low,
+          webSearchMaxUses: 99,
+          streamResponse: false,
+        ),
+      );
+
+      final restored = AiModel.fromJson(model.toJson());
+
+      expect(restored.features.webSearchEnabled, isTrue);
+      expect(
+        restored.features.webSearchContextSize,
+        AiWebSearchContextSize.low,
+      );
+      expect(restored.features.webSearchMaxUses, 10);
+      expect(restored.features.streamResponse, isFalse);
+    });
   });
 
   group('SseTransformer', () {

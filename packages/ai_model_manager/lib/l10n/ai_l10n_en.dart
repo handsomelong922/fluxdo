@@ -71,15 +71,13 @@ class AiL10nEn extends AiL10n {
 
   // ---- 供应商编辑页 ----
   @override
-  String get pleaseEnterBaseUrlAndApiKey =>
-      'Please enter Base URL and API Key';
+  String get pleaseEnterBaseUrlAndApiKey => 'Please enter Base URL and API Key';
   @override
   String get connectionSuccess => 'Connection successful';
   @override
   String get connectionFailed => 'Connection failed';
   @override
-  String connectionFailedWithError(String error) =>
-      'Connection failed: $error';
+  String connectionFailedWithError(String error) => 'Connection failed: $error';
   @override
   String fetchedModelsCount(int count) => 'Fetched $count models';
   @override
@@ -128,6 +126,28 @@ class AiL10nEn extends AiL10n {
   String get cancelDefault => 'Unset Default';
   @override
   String get setAsDefault => 'Set Default';
+  @override
+  String get webSearch => 'Web Search';
+  @override
+  String get webSearchOpenAiChatHint =>
+      'Adds web_search_options for compatible OpenAI chat models';
+  @override
+  String get webSearchOpenAiResponsesHint =>
+      'Uses the Responses API web_search tool for fresh information';
+  @override
+  String get webSearchGeminiHint => 'Enables Gemini Google Search grounding';
+  @override
+  String get webSearchAnthropicHint => 'Enables Claude Web Search tool';
+  @override
+  String get webSearchContextSize => 'Search Context';
+  @override
+  String get webSearchContextLow => 'Low';
+  @override
+  String get webSearchContextMedium => 'Medium';
+  @override
+  String get webSearchContextHigh => 'High';
+  @override
+  String get webSearchMaxUses => 'Uses';
 
   // ---- 聊天历史页 ----
   @override

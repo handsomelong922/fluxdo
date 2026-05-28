@@ -467,6 +467,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
         messages: chatMessages,
         systemPrompt: _buildSystemPrompt(topicContext),
         thinkingConfig: thinkingConfig,
+        featureConfig: selectedModel.model.features,
       );
 
       final buffer = StringBuffer();
@@ -769,6 +770,9 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
         systemPrompt: titleGenerationPrompt.isNotEmpty
             ? titleGenerationPrompt
             : AiL10n.current.titleGenerationPrompt,
+        featureConfig: model.model.features.copyWith(
+          webSearchEnabled: false,
+        ),
       );
 
       final buffer = StringBuffer();

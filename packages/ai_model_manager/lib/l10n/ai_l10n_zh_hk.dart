@@ -119,6 +119,28 @@ class AiL10nZhHK extends AiL10n {
   String get cancelDefault => '取消預設';
   @override
   String get setAsDefault => '設為預設';
+  @override
+  String get webSearch => '聯網搜索';
+  @override
+  String get webSearchOpenAiChatHint =>
+      '為支持搜索的 OpenAI 聊天模型附加 web_search_options';
+  @override
+  String get webSearchOpenAiResponsesHint =>
+      '通過 Responses API 的 web_search 工具獲取實時信息';
+  @override
+  String get webSearchGeminiHint => '啟用 Gemini Google Search grounding';
+  @override
+  String get webSearchAnthropicHint => '啟用 Claude Web Search 工具';
+  @override
+  String get webSearchContextSize => '搜索上下文';
+  @override
+  String get webSearchContextLow => '低';
+  @override
+  String get webSearchContextMedium => '中';
+  @override
+  String get webSearchContextHigh => '高';
+  @override
+  String get webSearchMaxUses => '次數';
 
   // ---- 聊天歷史頁 ----
   @override
@@ -143,8 +165,7 @@ class AiL10nZhHK extends AiL10n {
   @override
   String get deleteTopicSessions => '刪除話題會話';
   @override
-  String confirmDeleteTopicSessions(String title) =>
-      '確定要刪除「$title」的所有會話記錄嗎？';
+  String confirmDeleteTopicSessions(String title) => '確定要刪除「$title」的所有會話記錄嗎？';
   @override
   String get justNow => '剛剛';
   @override
@@ -199,13 +220,11 @@ class AiL10nZhHK extends AiL10n {
 
   // ---- System Prompts ----
   @override
-  String get systemPromptIntro =>
-      '你是一個有幫助的 AI 助手，正在幫助用戶理解和討論一個論壇話題。';
+  String get systemPromptIntro => '你是一個有幫助的 AI 助手，正在幫助用戶理解和討論一個論壇話題。';
   @override
   String systemPromptTopicTitle(String title) => '話題標題：$title';
   @override
-  String get systemPromptContextHint =>
-      '用戶可能會就話題內容向你提問，請基於提供的上下文回答。';
+  String get systemPromptContextHint => '用戶可能會就話題內容向你提問，請基於提供的上下文回答。';
   @override
   String get systemPromptMarkdown => '請用 Markdown 格式回覆。';
   @override

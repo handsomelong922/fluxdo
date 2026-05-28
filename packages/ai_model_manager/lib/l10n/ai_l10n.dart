@@ -99,6 +99,18 @@ class AiL10n {
   String get manuallyAdd => '手动添加';
   String get cancelDefault => '取消默认';
   String get setAsDefault => '设为默认';
+  String get webSearch => '联网搜索';
+  String get webSearchOpenAiChatHint =>
+      '为支持搜索的 OpenAI 聊天模型附加 web_search_options';
+  String get webSearchOpenAiResponsesHint =>
+      '通过 Responses API 的 web_search 工具获取实时信息';
+  String get webSearchGeminiHint => '启用 Gemini Google Search grounding';
+  String get webSearchAnthropicHint => '启用 Claude Web Search 工具';
+  String get webSearchContextSize => '搜索上下文';
+  String get webSearchContextLow => '低';
+  String get webSearchContextMedium => '中';
+  String get webSearchContextHigh => '高';
+  String get webSearchMaxUses => '次数';
 
   // ---- 聊天历史页 ----
   String get sessionHistory => '会话记录';
@@ -112,8 +124,7 @@ class AiL10n {
   String get deleteAllTopicSessions => '删除此话题所有会话';
   String get unnamedSession => '未命名会话';
   String get deleteTopicSessions => '删除话题会话';
-  String confirmDeleteTopicSessions(String title) =>
-      '确定要删除「$title」的所有会话记录吗？';
+  String confirmDeleteTopicSessions(String title) => '确定要删除「$title」的所有会话记录吗？';
   String get justNow => '刚刚';
   String minutesAgo(int count) => '$count 分钟前';
   String hoursAgo(int count) => '$count 小时前';
@@ -143,11 +154,9 @@ class AiL10n {
   String get emptyResponseError => '未收到 AI 回复，请检查网络设置或重试';
 
   // ---- System Prompts（影响 AI 回复语言） ----
-  String get systemPromptIntro =>
-      '你是一个有帮助的 AI 助手，正在帮助用户理解和讨论一个论坛话题。';
+  String get systemPromptIntro => '你是一个有帮助的 AI 助手，正在帮助用户理解和讨论一个论坛话题。';
   String systemPromptTopicTitle(String title) => '话题标题：$title';
-  String get systemPromptContextHint =>
-      '用户可能会就话题内容向你提问，请基于提供的上下文回答。';
+  String get systemPromptContextHint => '用户可能会就话题内容向你提问，请基于提供的上下文回答。';
   String get systemPromptMarkdown => '请用 Markdown 格式回复。';
   String contextContentPrefix(String text) => '以下是话题内容：\n$text';
   String get contextReadyResponse => '好的，我已经阅读了话题内容。请问你有什么问题？';

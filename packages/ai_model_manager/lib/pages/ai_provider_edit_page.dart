@@ -30,8 +30,10 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
   bool _isCheckingConnectivity = false;
   bool _isFetchingModels = false;
   bool _isSaving = false;
+
   /// 连通性检查结果：null=未检查，true=成功，false=失败
   bool? _connectivitySuccess;
+
   /// 连通性检查失败时的错误信息
   String? _connectivityError;
 
@@ -47,10 +49,9 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
   void initState() {
     super.initState();
     _selectedType = widget.provider?.type ?? AiProviderType.openai;
-    _nameController =
-        TextEditingController(text: widget.provider?.name ?? '');
-    _baseUrlController =
-        TextEditingController(text: widget.provider?.baseUrl ?? _selectedType.defaultBaseUrl);
+    _nameController = TextEditingController(text: widget.provider?.name ?? '');
+    _baseUrlController = TextEditingController(
+        text: widget.provider?.baseUrl ?? _selectedType.defaultBaseUrl);
     _apiKeyController = TextEditingController();
     _models = List.from(widget.provider?.models ?? []);
 
@@ -60,8 +61,7 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
   }
 
   Future<void> _loadApiKey() async {
-    final key =
-        await AiProviderListNotifier.getApiKey(widget.provider!.id);
+    final key = await AiProviderListNotifier.getApiKey(widget.provider!.id);
     if (mounted && key != null) {
       _apiKeyController.text = key;
     }
@@ -142,8 +142,7 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
 
     try {
       final service = ref.read(aiProviderApiServiceProvider);
-      final fetched =
-          await service.fetchModels(_selectedType, baseUrl, apiKey);
+      final fetched = await service.fetchModels(_selectedType, baseUrl, apiKey);
 
       if (mounted) {
         // 保留已有模型的 enabled 状态
@@ -156,11 +155,13 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
         setState(() {
           _models = merged;
         });
-        AiToastDelegate.showSuccess(AiL10n.current.fetchedModelsCount(fetched.length));
+        AiToastDelegate.showSuccess(
+            AiL10n.current.fetchedModelsCount(fetched.length));
       }
     } catch (e) {
       if (mounted) {
-        AiToastDelegate.showError(AiL10n.current.fetchModelsFailed(AiProviderApiService.friendlyError(e)));
+        AiToastDelegate.showError(AiL10n.current
+            .fetchModelsFailed(AiProviderApiService.friendlyError(e)));
       }
     } finally {
       if (mounted) {
@@ -208,6 +209,13 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
     );
   }
 
+  void _updateModelFeatures(int index, AiModelFeatureConfig features) {
+    setState(() {
+      final model = _models[index];
+      _models[index] = model.copyWith(features: features);
+    });
+  }
+
   Future<void> _save() async {
     final name = _nameController.text.trim();
     final baseUrl = _baseUrlController.text.trim();
@@ -253,7 +261,8 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
       }
     } catch (e) {
       if (mounted) {
-        AiToastDelegate.showError(AiL10n.current.saveFailed(AiProviderApiService.friendlyError(e)));
+        AiToastDelegate.showError(
+            AiL10n.current.saveFailed(AiProviderApiService.friendlyError(e)));
       }
     } finally {
       if (mounted) {
@@ -298,7 +307,8 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
         if (error == null) {
           AiToastDelegate.showSuccess(AiL10n.current.modelAvailable(modelId));
         } else {
-          AiToastDelegate.showError(AiL10n.current.modelUnavailable(modelId, error));
+          AiToastDelegate.showError(
+              AiL10n.current.modelUnavailable(modelId, error));
         }
       }
     } catch (e) {
@@ -317,7 +327,9 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? AiL10n.current.editProvider : AiL10n.current.addProvider),
+        title: Text(_isEditing
+            ? AiL10n.current.editProvider
+            : AiL10n.current.addProvider),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -403,9 +415,8 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
                 labelText: 'API Key',
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
-                  icon: Icon(_obscureApiKey
-                      ? Icons.visibility_off
-                      : Icons.visibility),
+                  icon: Icon(
+                      _obscureApiKey ? Icons.visibility_off : Icons.visibility),
                   onPressed: () {
                     setState(() {
                       _obscureApiKey = !_obscureApiKey;
@@ -451,8 +462,10 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
                         child: Text(
                           _connectivitySuccess!
                               ? AiL10n.current.connectionSuccess
-                              : (_connectivityError != null && _connectivityError!.isNotEmpty
-                                  ? AiL10n.current.connectionFailedWithError(_connectivityError!)
+                              : (_connectivityError != null &&
+                                      _connectivityError!.isNotEmpty
+                                  ? AiL10n.current.connectionFailedWithError(
+                                      _connectivityError!)
                                   : AiL10n.current.connectionFailed),
                           style: TextStyle(
                             fontSize: 13,
@@ -638,18 +651,24 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
                   label: AiL10n.current.test,
                   isLoading: isTesting,
                   highlightColor: hasTestResult && !isTesting
-                      ? (testResult == null ? Colors.green : theme.colorScheme.error)
+                      ? (testResult == null
+                          ? Colors.green
+                          : theme.colorScheme.error)
                       : null,
                   onTap: isTesting ? null : () => _testModel(model.id),
                 ),
                 if (_isEditing) ...[
                   const SizedBox(width: 8),
                   _ModelActionChip(
-                    icon: isDefault ? Icons.star_rounded : Icons.star_outline_rounded,
-                    label: isDefault ? AiL10n.current.cancelDefault : AiL10n.current.setAsDefault,
+                    icon: isDefault
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    label: isDefault
+                        ? AiL10n.current.cancelDefault
+                        : AiL10n.current.setAsDefault,
                     highlightColor: isDefault ? Colors.amber[700] : null,
-                    onTap: () => _setDefaultModel(
-                        ref, providerId!, model.id, isDefault),
+                    onTap: () =>
+                        _setDefaultModel(ref, providerId!, model.id, isDefault),
                   ),
                 ],
                 const Spacer(),
@@ -666,9 +685,138 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
               ],
             ),
           ),
+          _ModelFeatureControls(
+            providerType: _selectedType,
+            features: model.features,
+            onChanged: (features) => _updateModelFeatures(index, features),
+          ),
         ],
       ),
     );
+  }
+}
+
+class _ModelFeatureControls extends StatelessWidget {
+  final AiProviderType providerType;
+  final AiModelFeatureConfig features;
+  final ValueChanged<AiModelFeatureConfig> onChanged;
+
+  const _ModelFeatureControls({
+    required this.providerType,
+    required this.features,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+          child: Column(
+            children: [
+              SwitchListTile.adaptive(
+                value: features.webSearchEnabled,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(AiL10n.current.webSearch),
+                subtitle: Text(_webSearchSubtitle(providerType)),
+                onChanged: (value) => onChanged(
+                  features.copyWith(webSearchEnabled: value),
+                ),
+              ),
+              if (features.webSearchEnabled) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<AiWebSearchContextSize>(
+                        initialValue: features.webSearchContextSize,
+                        decoration: InputDecoration(
+                          labelText: AiL10n.current.webSearchContextSize,
+                          border: const OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: AiWebSearchContextSize.values
+                            .map(
+                              (size) => DropdownMenuItem(
+                                value: size,
+                                child: Text(_contextSizeLabel(size)),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: providerType == AiProviderType.anthropic
+                            ? null
+                            : (size) {
+                                if (size == null) return;
+                                onChanged(
+                                  features.copyWith(
+                                    webSearchContextSize: size,
+                                  ),
+                                );
+                              },
+                      ),
+                    ),
+                    if (providerType == AiProviderType.anthropic) ...[
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        width: 104,
+                        child: DropdownButtonFormField<int>(
+                          initialValue: features.webSearchMaxUses,
+                          decoration: InputDecoration(
+                            labelText: AiL10n.current.webSearchMaxUses,
+                            border: const OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: List.generate(10, (index) => index + 1)
+                              .map(
+                                (value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text('$value'),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            onChanged(
+                              features.copyWith(webSearchMaxUses: value),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _webSearchSubtitle(AiProviderType type) {
+    return switch (type) {
+      AiProviderType.openai => AiL10n.current.webSearchOpenAiChatHint,
+      AiProviderType.openaiResponse =>
+        AiL10n.current.webSearchOpenAiResponsesHint,
+      AiProviderType.gemini => AiL10n.current.webSearchGeminiHint,
+      AiProviderType.anthropic => AiL10n.current.webSearchAnthropicHint,
+    };
+  }
+
+  String _contextSizeLabel(AiWebSearchContextSize size) {
+    return switch (size) {
+      AiWebSearchContextSize.low => AiL10n.current.webSearchContextLow,
+      AiWebSearchContextSize.medium => AiL10n.current.webSearchContextMedium,
+      AiWebSearchContextSize.high => AiL10n.current.webSearchContextHigh,
+    };
   }
 }
 
