@@ -204,9 +204,11 @@ class TopicPoster {
 
 class Topic {
   static final RegExp _deletedPlaceholderPattern = RegExp(
-    r'^((此|该|这个)?(话题|主题|帖子|内容)(已经?|已)?被作者删除|'
+    r'^((此|该|这个)?(话题|主题|帖子|内容)(已经?|已)?被(作者|用户|发帖人|楼主)删除|'
     r'this topic (has been|was) deleted by (the )?author|'
     r'topic (has been|was) deleted by (the )?author|'
+    r'this content (has been|was) deleted by (the )?author|'
+    r'content (has been|was) deleted by (the )?author|'
     r'topic (has been|was) deleted|'
     r'deleted by (the )?author)[。.!！]*$',
     caseSensitive: false,
@@ -214,6 +216,7 @@ class Topic {
 
   final int id;
   final String title;
+  final String? fancyTitle;
   final String slug;
   final int postsCount;
   final int replyCount;
@@ -228,6 +231,8 @@ class Topic {
   final bool visible;
   final bool closed;
   final bool archived;
+  final DateTime? deletedAt;
+  final bool userDeleted;
   final List<Tag> tags;
   final List<TopicPoster> posters;
 
@@ -252,6 +257,7 @@ class Topic {
   Topic({
     required this.id,
     required this.title,
+    this.fancyTitle,
     required this.slug,
     required this.postsCount,
     required this.replyCount,
@@ -266,6 +272,8 @@ class Topic {
     this.visible = true,
     this.closed = false,
     this.archived = false,
+    this.deletedAt,
+    this.userDeleted = false,
     this.tags = const <Tag>[],
     this.posters = const [],
     this.unseen = false,
@@ -289,6 +297,7 @@ class Topic {
     return Topic(
       id: json['id'] as int,
       title: json['title'] as String? ?? '',
+      fancyTitle: json['fancy_title'] as String?,
       slug: json['slug'] as String? ?? '',
       postsCount: json['posts_count'] as int? ?? 0,
       replyCount: json['reply_count'] as int? ?? 0,
@@ -303,6 +312,8 @@ class Topic {
       visible: json['visible'] as bool? ?? true,
       closed: json['closed'] as bool? ?? false,
       archived: json['archived'] as bool? ?? false,
+      deletedAt: TimeUtils.parseUtcTime(json['deleted_at'] as String?),
+      userDeleted: json['user_deleted'] as bool? ?? false,
       tags:
           (json['tags'] as List<dynamic>?)
               ?.map((e) => Tag.fromJson(e))
@@ -341,19 +352,31 @@ class Topic {
   /// API 明确标记为不可见，或列表摘要已经暴露删除占位文案的条目。
   bool get isDeletedPlaceholder {
     if (!visible) return true;
+    if (deletedAt != null || userDeleted) return true;
     final excerptText = _plainDeletedPlaceholderText(excerpt);
     if (_looksLikeDeletedPlaceholder(excerptText)) {
       return true;
     }
 
     final titleText = _plainDeletedPlaceholderText(title);
-    return titleText.length <= 40 && _looksLikeDeletedPlaceholder(titleText);
+    if (titleText.length <= 40 && _looksLikeDeletedPlaceholder(titleText)) {
+      return true;
+    }
+
+    final fancyTitleText = _plainDeletedPlaceholderText(fancyTitle);
+    return fancyTitleText.length <= 40 &&
+        _looksLikeDeletedPlaceholder(fancyTitleText);
   }
 
   static String _plainDeletedPlaceholderText(String? value) {
     return (value ?? '')
         .replaceAll(RegExp(r'<[^>]+>'), ' ')
         .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }

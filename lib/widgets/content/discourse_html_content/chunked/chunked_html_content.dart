@@ -15,7 +15,8 @@ class ChunkedHtmlContent extends StatefulWidget {
   final TextStyle? textStyle;
 
   /// 内部链接点击回调 (linux.do 话题链接)
-  final void Function(int topicId, String? topicSlug, int? postNumber)? onInternalLinkTap;
+  final void Function(int topicId, String? topicSlug, int? postNumber)?
+  onInternalLinkTap;
 
   /// 链接点击统计数据
   final List<LinkCount>? linkCounts;
@@ -39,10 +40,14 @@ class ChunkedHtmlContent extends StatefulWidget {
   final void Function(SelectedContent?)? onSelectionChanged;
 
   /// 自定义右键/长按菜单构建器
-  final Widget Function(BuildContext, SelectableRegionState)? contextMenuBuilder;
+  final Widget Function(BuildContext, SelectableRegionState)?
+  contextMenuBuilder;
 
   /// 图片引用回调（长按图片 → 引用 → 打开回复框）
   final void Function(String quote, Post post)? onQuoteImage;
+
+  /// 当前话题内搜索关键词；非空时高亮正文中的匹配文本。
+  final String? searchHighlightQuery;
 
   /// 获取 HTML 分块结果，不需要分块时返回 null
   static List<HtmlChunk>? getChunks(String html) {
@@ -87,6 +92,7 @@ class ChunkedHtmlContent extends StatefulWidget {
     this.onSelectionChanged,
     this.contextMenuBuilder,
     this.onQuoteImage,
+    this.searchHighlightQuery,
   });
 
   @override
@@ -98,6 +104,7 @@ class _ChunkedHtmlContentState extends State<ChunkedHtmlContent> {
   late bool _useChunking;
   late List<String> _galleryImages;
   late Set<String> _spoilerImageUrls;
+
   /// 所有分块共享的已揭示图片 URL 集合
   final Set<String> _revealedImageUrls = {};
 
@@ -121,7 +128,8 @@ class _ChunkedHtmlContentState extends State<ChunkedHtmlContent> {
     _galleryImages = galleryInfo.images;
     _spoilerImageUrls = galleryInfo.spoilerImageUrls;
 
-    _useChunking = widget.enableChunking ??
+    _useChunking =
+        widget.enableChunking ??
         (widget.html.length > ChunkedHtmlContent.chunkThreshold);
 
     if (_useChunking) {
@@ -156,6 +164,7 @@ class _ChunkedHtmlContentState extends State<ChunkedHtmlContent> {
         onSelectionChanged: widget.onSelectionChanged,
         contextMenuBuilder: widget.contextMenuBuilder,
         onQuoteImage: widget.onQuoteImage,
+        searchHighlightQuery: widget.searchHighlightQuery,
         galleryImages: _galleryImages,
         spoilerImageUrls: _spoilerImageUrls,
         revealedImageUrls: _revealedImageUrls,
@@ -166,31 +175,36 @@ class _ChunkedHtmlContentState extends State<ChunkedHtmlContent> {
     final children = <Widget>[];
     for (int i = 0; i < _chunks!.length; i++) {
       final chunk = _chunks![i];
-      children.add(HtmlChunkWidget(
-        key: ValueKey('chunk-${chunk.index}'),
-        chunk: chunk,
-        textStyle: widget.textStyle,
-        onInternalLinkTap: widget.onInternalLinkTap,
-        linkCounts: widget.linkCounts,
-        galleryImages: _galleryImages,
-        spoilerImageUrls: _spoilerImageUrls,
-        revealedImageUrls: _revealedImageUrls,
-        mentionedUsers: widget.mentionedUsers,
-        fullHtml: widget.html,
-        post: widget.post,
-        topicId: widget.topicId,
-        onQuoteImage: widget.onQuoteImage,
-      ));
+      children.add(
+        HtmlChunkWidget(
+          key: ValueKey('chunk-${chunk.index}'),
+          chunk: chunk,
+          textStyle: widget.textStyle,
+          onInternalLinkTap: widget.onInternalLinkTap,
+          linkCounts: widget.linkCounts,
+          galleryImages: _galleryImages,
+          spoilerImageUrls: _spoilerImageUrls,
+          revealedImageUrls: _revealedImageUrls,
+          mentionedUsers: widget.mentionedUsers,
+          fullHtml: widget.html,
+          post: widget.post,
+          topicId: widget.topicId,
+          onQuoteImage: widget.onQuoteImage,
+          searchHighlightQuery: widget.searchHighlightQuery,
+        ),
+      );
     }
 
     return SelectionArea(
       onSelectionChanged: widget.onSelectionChanged,
-      contextMenuBuilder: widget.contextMenuBuilder ?? (context, state) {
-        return AdaptiveTextSelectionToolbar.buttonItems(
-          anchors: state.contextMenuAnchors,
-          buttonItems: state.contextMenuButtonItems,
-        );
-      },
+      contextMenuBuilder:
+          widget.contextMenuBuilder ??
+          (context, state) {
+            return AdaptiveTextSelectionToolbar.buttonItems(
+              anchors: state.contextMenuAnchors,
+              buttonItems: state.contextMenuButtonItems,
+            );
+          },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
@@ -203,7 +217,8 @@ class _ChunkedHtmlContentState extends State<ChunkedHtmlContent> {
 class HtmlChunkWidget extends StatelessWidget {
   final HtmlChunk chunk;
   final TextStyle? textStyle;
-  final void Function(int topicId, String? topicSlug, int? postNumber)? onInternalLinkTap;
+  final void Function(int topicId, String? topicSlug, int? postNumber)?
+  onInternalLinkTap;
   final List<LinkCount>? linkCounts;
   final List<String> galleryImages;
   final Set<String>? spoilerImageUrls;
@@ -223,10 +238,14 @@ class HtmlChunkWidget extends StatelessWidget {
   final void Function(SelectedContent?)? onSelectionChanged;
 
   /// 自定义右键/长按菜单构建器
-  final Widget Function(BuildContext, SelectableRegionState)? contextMenuBuilder;
+  final Widget Function(BuildContext, SelectableRegionState)?
+  contextMenuBuilder;
 
   /// 图片引用回调
   final void Function(String quote, Post post)? onQuoteImage;
+
+  /// 当前话题内搜索关键词；非空时高亮正文中的匹配文本。
+  final String? searchHighlightQuery;
 
   const HtmlChunkWidget({
     super.key,
@@ -245,6 +264,7 @@ class HtmlChunkWidget extends StatelessWidget {
     this.onSelectionChanged,
     this.contextMenuBuilder,
     this.onQuoteImage,
+    this.searchHighlightQuery,
   });
 
   @override
@@ -267,6 +287,7 @@ class HtmlChunkWidget extends StatelessWidget {
         onSelectionChanged: onSelectionChanged,
         contextMenuBuilder: contextMenuBuilder,
         onQuoteImage: onQuoteImage,
+        searchHighlightQuery: searchHighlightQuery,
       ),
     );
   }

@@ -82,6 +82,7 @@ class TopicPostList extends StatefulWidget {
 
   /// 高亮指定用户的 boost（从 boost 通知跳转时使用）
   final String? highlightBoostUsername;
+  final String? searchHighlightQuery;
 
   const TopicPostList({
     super.key,
@@ -93,6 +94,7 @@ class TopicPostList extends StatefulWidget {
     this.topBoundaryHeight = kToolbarHeight,
     required this.highlightPostNumber,
     this.highlightBoostUsername,
+    this.searchHighlightQuery,
     required this.typingUsers,
     required this.isLoggedIn,
     required this.hasMoreBefore,
@@ -752,6 +754,7 @@ class _TopicPostListState extends State<TopicPostList> {
           onInlineRepliesStateChanged: (state) {
             _inlineRepliesStateByPostId[post.id] = state;
           },
+          searchHighlightQuery: widget.searchHighlightQuery,
         );
         break;
       case _PostRenderSegmentType.longHeader:
@@ -774,6 +777,7 @@ class _TopicPostListState extends State<TopicPostList> {
           renderData: segment.renderData!,
           onQuoteImage: onQuoteImage,
           onJumpToPost: onJumpToPost,
+          searchHighlightQuery: widget.searchHighlightQuery,
         );
         break;
       case _PostRenderSegmentType.longFooter:

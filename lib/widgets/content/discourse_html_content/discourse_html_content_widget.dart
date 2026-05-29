@@ -12,6 +12,7 @@ import '../../../services/emoji_handler.dart';
 import '../../../providers/download_provider.dart';
 import '../../../utils/discourse_url_parser.dart';
 import '../../../utils/link_launcher.dart';
+import '../../../utils/topic_search_highlight.dart';
 import '../../../utils/url_helper.dart';
 import 'discourse_widget_factory.dart';
 import 'builders/quote_card_builder.dart';
@@ -92,6 +93,9 @@ class DiscourseHtmlContent extends ConsumerStatefulWidget {
   /// 图片引用回调（长按图片 → 引用 → 打开回复框）
   final void Function(String quote, Post post)? onQuoteImage;
 
+  /// 当前话题内搜索关键词；非空时高亮正文中的匹配文本。
+  final String? searchHighlightQuery;
+
   const DiscourseHtmlContent({
     super.key,
     required this.html,
@@ -113,6 +117,7 @@ class DiscourseHtmlContent extends ConsumerStatefulWidget {
     this.onSelectionChanged,
     this.contextMenuBuilder,
     this.onQuoteImage,
+    this.searchHighlightQuery,
   });
 
   /// 批量预热 Pangu 混排处理（在 isolate 中执行，避免首次渲染阻塞主线程）
@@ -448,7 +453,13 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
       _cachedPanguSpacing = enablePanguSpacing;
       _cachedProcessedHtml = _preprocessHtml(widget.html, enablePanguSpacing);
     }
-    final processedHtml = _cachedProcessedHtml!;
+    final highlightQuery = widget.searchHighlightQuery?.trim() ?? '';
+    final processedHtml = highlightQuery.isEmpty
+        ? _cachedProcessedHtml!
+        : TopicSearchHighlight.highlightHtml(
+            _cachedProcessedHtml!,
+            highlightQuery,
+          );
 
     final htmlWidget = HtmlWidget(
       processedHtml,
@@ -480,6 +491,16 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
             };
           }
           return {'vertical-align': 'middle'};
+        }
+
+        if (element.localName == 'mark' &&
+            element.classes.contains('topic-search-highlight')) {
+          return {
+            'background-color': isDark ? '#7c5f00' : '#ffe08a',
+            'color': isDark ? '#fff7d6' : '#1f1a00',
+            'font-weight': '700',
+            'border-radius': '3px',
+          };
         }
 
         // 内联代码样式：回归文档流，支持自然换行

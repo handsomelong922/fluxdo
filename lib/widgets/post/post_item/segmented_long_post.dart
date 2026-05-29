@@ -96,6 +96,7 @@ class LongPostChunkSegment extends ConsumerWidget {
   final LongPostRenderData renderData;
   final void Function(String quote, Post post)? onQuoteImage;
   final void Function(int postNumber)? onJumpToPost;
+  final String? searchHighlightQuery;
 
   const LongPostChunkSegment({
     super.key,
@@ -106,6 +107,7 @@ class LongPostChunkSegment extends ConsumerWidget {
     required this.renderData,
     required this.onQuoteImage,
     required this.onJumpToPost,
+    this.searchHighlightQuery,
   });
 
   @override
@@ -160,6 +162,7 @@ class LongPostChunkSegment extends ConsumerWidget {
             topicId: topicId,
             enableSelectionArea: false,
             onQuoteImage: onQuoteImage,
+            searchHighlightQuery: searchHighlightQuery,
           ),
         ),
       ),

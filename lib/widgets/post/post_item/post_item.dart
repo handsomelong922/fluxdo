@@ -42,6 +42,7 @@ class PostItem extends ConsumerStatefulWidget {
   final String? highlightBoostUsername;
   final InlineRepliesState? inlineRepliesState;
   final ValueChanged<InlineRepliesState>? onInlineRepliesStateChanged;
+  final String? searchHighlightQuery;
 
   const PostItem({
     super.key,
@@ -70,6 +71,7 @@ class PostItem extends ConsumerStatefulWidget {
     this.hideRepliesButton = false,
     this.inlineRepliesState,
     this.onInlineRepliesStateChanged,
+    this.searchHighlightQuery,
   });
 
   @override
@@ -172,6 +174,7 @@ class _PostItemState extends ConsumerState<PostItem> {
                   ),
                   linkCounts: post.linkCounts,
                   mentionedUsers: post.mentionedUsers,
+                  searchHighlightQuery: widget.searchHighlightQuery,
                   post: post,
                   topicId: widget.topicId,
                   onQuoteImage: widget.onQuoteImage,

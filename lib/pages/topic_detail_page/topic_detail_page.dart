@@ -16,6 +16,7 @@ import 'package:uuid/uuid.dart';
 import 'dart:async';
 import 'dart:ui';
 import '../../models/draft.dart';
+import '../../models/nested_topic.dart';
 import '../../models/topic.dart';
 import '../../utils/responsive.dart';
 import '../../utils/share_utils.dart';
@@ -52,7 +53,6 @@ import '../../widgets/layout/master_detail_layout.dart';
 import '../../widgets/share/share_image_preview.dart';
 import '../../widgets/share/export_sheet.dart';
 import '../../widgets/bookmark/bookmark_edit_sheet.dart';
-import '../../widgets/search/topic_search_view.dart';
 import '../../providers/read_later_provider.dart';
 import '../../models/read_later_item.dart';
 import '../../providers/topic_search_provider.dart';
@@ -159,9 +159,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   bool _isSwitchingMode = false; // 切换热门回复模式
   late bool _isNestedView; // 嵌套视图模式
   Map<int, int> _nestedPostNumberToScrollIndex = const {};
+  Set<int> _nestedExpandedPostNumbers = const <int>{};
   // 搜索相关
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  int _topicSearchResultIndex = 0;
   late final AnimationController _expandController;
   late final Animation<Offset> _animation;
   Set<int> _lastReadPostNumbers = {};
@@ -182,7 +184,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   bool _isScreenTrackRunning = false;
   TopicReadingState? _restoredReadingState;
   int? _pendingNestedRestorePostNumber;
-  bool _preservePendingNestedRestore = false;
 
   @override
   void initState() {
@@ -573,90 +574,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     );
   }
 
-  /// 构建带动画的 AppBar
-  PreferredSizeWidget _buildAppBar({
-    required ThemeData theme,
-    required TopicDetail? detail,
-    required TopicDetailNotifier notifier,
-  }) {
-    final searchState = ref.watch(topicSearchProvider(widget.topicId));
-
-    // 搜索模式下的 AppBar
-    if (searchState.isSearchMode) {
-      return AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: theme.colorScheme.surface,
-        title: TextField(
-          controller: _searchController,
-          focusNode: _searchFocusNode,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: context.l10n.topicDetail_searchHint,
-            border: InputBorder.none,
-            hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-          ),
-          style: theme.textTheme.bodyLarge,
-          textInputAction: TextInputAction.search,
-          onSubmitted: (query) {
-            ref
-                .read(topicSearchProvider(widget.topicId).notifier)
-                .search(query);
-          },
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: () {
-              _searchController.clear();
-              ref
-                  .read(topicSearchProvider(widget.topicId).notifier)
-                  .exitSearchMode();
-            },
-          ),
-        ],
-      );
-    }
-
-    // 正常模式下的 AppBar
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(_topicDetailToolbarHeight),
-      child: ValueListenableBuilder<bool>(
-        valueListenable: _showTitleNotifier,
-        builder: (context, showTitle, _) => ValueListenableBuilder<bool>(
-          valueListenable: _isScrolledUnderNotifier,
-          builder: (context, _, _) => AnimatedBuilder(
-            animation: _expandController,
-            builder: (context, child) {
-              // 顶栏颜色和层级不随滚动加深，避免阅读时出现突兀的 M3 tint。
-              const currentElevation = 0.0;
-              final expandProgress = _expandController.value;
-              final shouldShowTitle = showTitle || !_hasFirstPost;
-
-              return AppBar(
-                automaticallyImplyLeading: !widget.embeddedMode,
-                toolbarHeight: _topicDetailToolbarHeight,
-                elevation: currentElevation,
-                scrolledUnderElevation: currentElevation,
-                shadowColor: Colors.transparent,
-                surfaceTintColor: Colors.transparent,
-                backgroundColor: theme.colorScheme.surface,
-                titleSpacing: 0,
-                title: const SizedBox.shrink(),
-                centerTitle: false,
-                actions: _buildAppBarActions(
-                  detail: detail,
-                  notifier: notifier,
-                  shouldShowTitle: shouldShowTitle,
-                  expandProgress: expandProgress,
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildCollapsibleAppBarOverlay({
     required ThemeData theme,
     required TopicDetail? detail,
@@ -762,7 +679,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       item(
         value: 'search',
         icon: Icons.search_rounded,
-        label: context.l10n.topicDetail_searchTopic,
+        label: context.l10n.common_search,
       ),
       if (!useSwipeEntry && hasAiModel)
         item(
@@ -844,28 +761,55 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
   }
 
-  /// 构建 AppBar Actions
-  List<Widget> _buildAppBarActions({
-    required TopicDetail? detail,
-    required TopicDetailNotifier notifier,
-    required bool shouldShowTitle,
-    required double expandProgress,
-  }) {
-    if (detail == null) {
-      return [];
-    }
-
-    return [
-      _buildFloatingTopicMenu(
-        theme: Theme.of(context),
-        detail: detail,
-        notifier: notifier,
-      ),
-    ];
-  }
-
   void _showTopicSearch() {
     ref.read(topicSearchProvider(widget.topicId).notifier).enterSearchMode();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocusNode.requestFocus();
+    });
+  }
+
+  void _closeTopicSearch() {
+    _searchController.clear();
+    _topicSearchResultIndex = 0;
+    ref.read(topicSearchProvider(widget.topicId).notifier).exitSearchMode();
+  }
+
+  Future<void> _submitTopicSearch(String query) async {
+    final notifier = ref.read(topicSearchProvider(widget.topicId).notifier);
+    await notifier.search(query);
+    if (!mounted) return;
+
+    final results = ref.read(topicSearchProvider(widget.topicId)).results;
+    setState(() => _topicSearchResultIndex = 0);
+    if (results.isNotEmpty) {
+      await _jumpToTopicSearchResult(0);
+    }
+  }
+
+  Future<void> _jumpToTopicSearchResult(int index) async {
+    final results = ref.read(topicSearchProvider(widget.topicId)).results;
+    if (results.isEmpty) return;
+
+    final clampedIndex = index.clamp(0, results.length - 1);
+    setState(() => _topicSearchResultIndex = clampedIndex);
+    await _scrollToPost(
+      results[clampedIndex].postNumber,
+      preserveNestedView: _isNestedView,
+    );
+  }
+
+  void _jumpToPreviousTopicSearchResult() {
+    final total = ref.read(topicSearchProvider(widget.topicId)).results.length;
+    if (total == 0) return;
+    final next = (_topicSearchResultIndex - 1 + total) % total;
+    unawaited(_jumpToTopicSearchResult(next));
+  }
+
+  void _jumpToNextTopicSearchResult() {
+    final total = ref.read(topicSearchProvider(widget.topicId)).results.length;
+    if (total == 0) return;
+    final next = (_topicSearchResultIndex + 1) % total;
+    unawaited(_jumpToTopicSearchResult(next));
   }
 
   void _showTimelineSheet(TopicDetail detail) {
@@ -888,6 +832,96 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         preserveNestedView: preserveNestedView,
       ),
       title: detail.title,
+    );
+  }
+
+  Widget _buildInlineTopicSearchOverlay(TopicSearchState searchState) {
+    final theme = Theme.of(context);
+    final safeTop = MediaQuery.of(context).padding.top;
+    final total = searchState.results.length;
+    final current = total == 0 ? 0 : _topicSearchResultIndex + 1;
+
+    return Positioned(
+      top: safeTop + 8,
+      left: 12,
+      right: 12,
+      child: Material(
+        elevation: 8,
+        shadowColor: Colors.black.withValues(alpha: 0.16),
+        color: theme.colorScheme.surface.withValues(alpha: 0.98),
+        surfaceTintColor: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            children: [
+              const SizedBox(width: 6),
+              Icon(
+                Icons.search_rounded,
+                size: 20,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: context.l10n.topicDetail_searchHint,
+                    border: InputBorder.none,
+                    isDense: true,
+                    hintStyle: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  style: theme.textTheme.bodyMedium,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (query) => unawaited(_submitTopicSearch(query)),
+                ),
+              ),
+              if (searchState.isLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Text(
+                    '$current/$total',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: total == 0
+                          ? theme.colorScheme.onSurfaceVariant
+                          : theme.colorScheme.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              IconButton(
+                tooltip: '上一个',
+                icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                onPressed: total > 0 ? _jumpToPreviousTopicSearchResult : null,
+              ),
+              IconButton(
+                tooltip: '下一个',
+                icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                onPressed: total > 0 ? _jumpToNextTopicSearchResult : null,
+              ),
+              IconButton(
+                tooltip: context.l10n.common_close,
+                icon: const Icon(Icons.close_rounded),
+                onPressed: _closeTopicSearch,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1062,9 +1096,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           valueListenable: _isAtTopNotifier,
           builder: (context, isAtTop, _) {
             final shouldShowAppBar = !isAtTop && (!hideBarOnScroll || showBars);
-            final contentTopInset = isSearchMode
-                ? 0.0
-                : MediaQuery.of(context).padding.top + _topicTopContentGap;
+            final contentTopInset =
+                MediaQuery.of(context).padding.top + _topicTopContentGap;
             final topicBody = _buildBody(
               context,
               detailAsync,
@@ -1073,17 +1106,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               isLoggedIn,
               topContentInset: contentTopInset,
             );
-            if (isSearchMode) {
-              return Scaffold(
-                appBar: _buildAppBar(
-                  theme: theme,
-                  detail: detail,
-                  notifier: notifier,
-                ),
-                body: topicBody,
-              );
-            }
-
             return Scaffold(
               extendBodyBehindAppBar: true,
               body: Stack(
@@ -1110,10 +1132,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           canPop: !isSearchMode,
           onPopInvokedWithResult: (bool didPop, dynamic result) {
             if (!didPop) {
-              _searchController.clear();
-              ref
-                  .read(topicSearchProvider(widget.topicId).notifier)
-                  .exitSearchMode();
+              _closeTopicSearch();
             }
           },
           child: topicScaffold,
@@ -1138,10 +1157,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                     curve: Curves.easeOutCubic,
                   );
                 } else {
-                  _searchController.clear();
-                  ref
-                      .read(topicSearchProvider(widget.topicId).notifier)
-                      .exitSearchMode();
+                  _closeTopicSearch();
                 }
               }
             },
@@ -1228,6 +1244,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final params = _params;
     final searchState = ref.watch(topicSearchProvider(widget.topicId));
     final isSearchMode = searchState.isSearchMode;
+    final searchQuery = isSearchMode ? searchState.query.trim() : '';
     final reduceLoadingAnimations = ref.watch(
       preferencesProvider.select((p) => p.reduceLoadingAnimations),
     );
@@ -1296,28 +1313,15 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         notifier,
         isLoggedIn,
         topContentInset: topContentInset,
+        searchHighlightQuery: searchQuery,
       );
     }
 
     // Stack 组装
     return Stack(
       children: [
-        // 使用 Offstage 保持帖子列表存在但在搜索模式下隐藏，保留滚动位置
-        Offstage(offstage: isSearchMode, child: content),
-
-        // 搜索视图
-        if (isSearchMode)
-          TopicSearchView(
-            topicId: widget.topicId,
-            onJumpToPost: (postNumber) {
-              // 退出搜索模式并跳转到指定帖子
-              ref
-                  .read(topicSearchProvider(widget.topicId).notifier)
-                  .exitSearchMode();
-              _searchController.clear();
-              _scrollToPost(postNumber);
-            },
-          ),
+        content,
+        if (isSearchMode) _buildInlineTopicSearchOverlay(searchState),
 
         // TopicDetailOverlay (Bottom Bar)
         // 使用 ValueListenableBuilder 隔离状态变化，避免整页重建
@@ -1435,6 +1439,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     TopicDetailNotifier notifier,
     bool isLoggedIn, {
     double topContentInset = 0,
+    String? searchHighlightQuery,
   }) {
     final posts = detail.postStream.posts;
     final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
@@ -1528,13 +1533,12 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                 : mapping[pendingPostNumber];
             if (pendingPostNumber != null && scrollIndex != null) {
               _pendingNestedRestorePostNumber = null;
-              _preservePendingNestedRestore = false;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
                 unawaited(
                   _controller.scrollController.scrollToIndex(
                     scrollIndex,
-                    preferPosition: AutoScrollPosition.begin,
+                    preferPosition: AutoScrollPosition.middle,
                     duration: const Duration(milliseconds: 1),
                   ),
                 );
@@ -1569,20 +1573,15 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
                 _pendingNestedRestorePostNumber = null;
-                final preserveNested = _preservePendingNestedRestore;
-                _preservePendingNestedRestore = false;
-                if (preserveNested) {
-                  _controller.triggerHighlight(pendingPostNumber);
-                } else {
-                  setState(() => _isNestedView = false);
-                  unawaited(_scrollToPost(pendingPostNumber));
-                }
+                _controller.triggerHighlight(pendingPostNumber);
               });
             }
           },
           onContinueAiSummary: _continueAiSummary,
           onFirstVisiblePostChanged: _updateStreamIndexForPostNumber,
           onVisiblePostsChanged: _updateVisiblePosts,
+          expandedPostNumbers: _nestedExpandedPostNumbers,
+          searchHighlightQuery: searchHighlightQuery,
         ),
       );
 
@@ -1608,6 +1607,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               highlightPostNumber: highlightPostNumber,
               highlightBoostUsername: widget.highlightBoostUsername,
               typingUsers: typingUsers,
+              searchHighlightQuery: searchHighlightQuery,
               isLoggedIn: isLoggedIn,
               hasMoreBefore: notifier.hasMoreBefore,
               hasMoreAfter: notifier.hasMoreAfter,

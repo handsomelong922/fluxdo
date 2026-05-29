@@ -81,6 +81,7 @@ class NestedPostCard extends ConsumerStatefulWidget {
   onRepliesStateChanged;
 
   final Widget Function(int postNumber, Widget child)? buildScrollTag;
+  final String? searchHighlightQuery;
 
   const NestedPostCard({
     super.key,
@@ -103,6 +104,7 @@ class NestedPostCard extends ConsumerStatefulWidget {
     this.repliesStateByPostNumber,
     this.onRepliesStateChanged,
     this.buildScrollTag,
+    this.searchHighlightQuery,
   });
 
   @override
@@ -559,6 +561,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           ),
           post: post,
           topicId: widget.topicId,
+          searchHighlightQuery: widget.searchHighlightQuery,
           onInternalLinkTap: (targetTopicId, topicSlug, postNumber) {
             openInternalTopicLink(
               context,
@@ -772,6 +775,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
             repliesStateByPostNumber: widget.repliesStateByPostNumber,
             onRepliesStateChanged: widget.onRepliesStateChanged,
             buildScrollTag: widget.buildScrollTag,
+            searchHighlightQuery: widget.searchHighlightQuery,
           ),
         if (_hasMore) _buildLoadMoreWithConnector(theme),
       ],

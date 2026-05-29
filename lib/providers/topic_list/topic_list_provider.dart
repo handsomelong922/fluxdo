@@ -493,6 +493,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       final updatedTopic = Topic(
         id: detail.id,
         title: detail.title,
+        fancyTitle: existingTopic.fancyTitle,
         slug: detail.slug,
         categoryId: detail.categoryId.toString(),
         postsCount: detail.postsCount,
@@ -503,6 +504,8 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         lastPostedAt: existingTopic.lastPostedAt,
         pinned: existingTopic.pinned,
         visible: detail.visible,
+        closed: detail.closed,
+        archived: detail.archived,
         tags: detail.tags ?? existingTopic.tags,
         posters: existingTopic.posters,
         unseen: false,
@@ -580,6 +583,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     final updated = Topic(
       id: topic.id,
       title: topic.title,
+      fancyTitle: topic.fancyTitle,
       slug: topic.slug,
       postsCount: topic.postsCount,
       replyCount: topic.replyCount,
@@ -594,6 +598,8 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       visible: topic.visible,
       closed: topic.closed,
       archived: topic.archived,
+      deletedAt: topic.deletedAt,
+      userDeleted: topic.userDeleted,
       tags: topic.tags,
       posters: topic.posters,
       unseen: false,

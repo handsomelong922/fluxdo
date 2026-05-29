@@ -35,6 +35,8 @@ class NestedPostList extends ConsumerStatefulWidget {
   final ValueChanged<double>? onPointerScroll;
   final void Function(Map<int, int>)? onPostNumberScrollIndexMappingChanged;
   final void Function(TopicSummary summary)? onContinueAiSummary;
+  final Set<int> expandedPostNumbers;
+  final String? searchHighlightQuery;
 
   /// 可见帖子上报（走 ScreenTrack 上报链路）
   final void Function(Set<int> visiblePostNumbers)? onVisiblePostsChanged;
@@ -65,6 +67,8 @@ class NestedPostList extends ConsumerStatefulWidget {
     this.onContinueAiSummary,
     this.onVisiblePostsChanged,
     this.onFirstVisiblePostChanged,
+    this.expandedPostNumbers = const <int>{},
+    this.searchHighlightQuery,
   });
 
   @override
@@ -124,6 +128,22 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
       _expansionState.clear();
       _repliesStateByPostNumber.clear();
       _loadMoreTrigger.reset();
+    }
+    if (widget.expandedPostNumbers.isNotEmpty &&
+        oldWidget.expandedPostNumbers != widget.expandedPostNumbers) {
+      for (final postNumber in widget.expandedPostNumbers) {
+        _expansionState[postNumber] = true;
+        final repliesState = _repliesStateByPostNumber[postNumber];
+        if (repliesState != null) {
+          _repliesStateByPostNumber[postNumber] = NestedRepliesState(
+            children: repliesState.children,
+            hasMore: repliesState.hasMore,
+            page: repliesState.page,
+            expanded: true,
+            collapsed: false,
+          );
+        }
+      }
     }
   }
 
@@ -264,6 +284,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                     topicHasAcceptedAnswer: widget.detail.hasAcceptedAnswer,
                     acceptedAnswerPostNumber:
                         widget.detail.acceptedAnswerPostNumber,
+                    searchHighlightQuery: widget.searchHighlightQuery,
                     onReply: widget.isLoggedIn
                         ? () => widget.onReply(null)
                         : null,
@@ -381,6 +402,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                   onRepliesStateChanged: (postNumber, state) {
                     _repliesStateByPostNumber[postNumber] = state;
                   },
+                  searchHighlightQuery: widget.searchHighlightQuery,
                   buildScrollTag: (postNumber, child) => AutoScrollTag(
                     key: ValueKey('nested-post-$postNumber'),
                     controller: widget.scrollController,

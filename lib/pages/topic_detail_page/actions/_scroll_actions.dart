@@ -155,7 +155,7 @@ extension _ScrollActions on _TopicDetailPageState {
     }
 
     if (_isNestedView) {
-      _preservePendingNestedRestore = preserveNestedView;
+      _expandKnownNestedAncestors(postNumber);
       final nestedScrollIndex = _nestedPostNumberToScrollIndex[postNumber];
       if (nestedScrollIndex != null &&
           _controller.scrollController.hasClients) {
@@ -163,7 +163,7 @@ extension _ScrollActions on _TopicDetailPageState {
         _pendingNestedRestorePostNumber = null;
         await _controller.scrollController.scrollToIndex(
           nestedScrollIndex,
-          preferPosition: AutoScrollPosition.begin,
+          preferPosition: AutoScrollPosition.middle,
           duration: const Duration(milliseconds: 180),
         );
         _controller.triggerHighlight(postNumber);
@@ -183,13 +183,8 @@ extension _ScrollActions on _TopicDetailPageState {
           !nestedState.hasMoreRoots &&
           !nestedState.isLoadingMore &&
           mounted) {
-        if (preserveNestedView) {
-          _pendingNestedRestorePostNumber = null;
-          _controller.triggerHighlight(postNumber);
-        } else {
-          setState(() => _isNestedView = false);
-          await _scrollToPost(postNumber);
-        }
+        _pendingNestedRestorePostNumber = null;
+        _controller.triggerHighlight(postNumber);
       }
       return;
     }
@@ -265,6 +260,41 @@ extension _ScrollActions on _TopicDetailPageState {
     if (preserveNestedView && mounted && !_isNestedView) {
       setState(() => _isNestedView = true);
     }
+  }
+
+  void _expandKnownNestedAncestors(int targetPostNumber) {
+    final nestedState = ref
+        .read(nestedTopicProvider(NestedTopicParams(topicId: widget.topicId)))
+        .value;
+    if (nestedState == null) return;
+
+    final ancestors = <int>{};
+    for (final root in nestedState.roots) {
+      if (_collectNestedAncestors(root, targetPostNumber, ancestors)) break;
+    }
+    if (ancestors.isEmpty) return;
+
+    setState(() {
+      _nestedExpandedPostNumbers = {
+        ..._nestedExpandedPostNumbers,
+        ...ancestors,
+      };
+    });
+  }
+
+  bool _collectNestedAncestors(
+    NestedNode node,
+    int targetPostNumber,
+    Set<int> ancestors,
+  ) {
+    if (node.post.postNumber == targetPostNumber) return true;
+    for (final child in node.children) {
+      if (_collectNestedAncestors(child, targetPostNumber, ancestors)) {
+        ancestors.add(node.post.postNumber);
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<int?> _resolvePostNumberForJump(
@@ -383,7 +413,7 @@ extension _ScrollActions on _TopicDetailPageState {
           } else {
             await _controller.scrollController.scrollToIndex(
               _controller.scrollIndexForPostIndex(targetPostIndex),
-              preferPosition: AutoScrollPosition.begin,
+              preferPosition: AutoScrollPosition.middle,
               duration: const Duration(milliseconds: 1),
             );
           }

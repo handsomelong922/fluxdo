@@ -41,7 +41,10 @@ class BrowsingHistoryNotifier extends AsyncNotifier<List<Topic>> {
       final response = await service.getBrowsingHistory(page: 0);
 
       final result = _topicPaginationHelper.processRefresh(
-        PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: response.topics,
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
       _hasMore = result.hasMore;
       return result.items;
@@ -65,7 +68,10 @@ class BrowsingHistoryNotifier extends AsyncNotifier<List<Topic>> {
       final currentState = PaginationState(items: currentList);
       final paginationResult = _topicPaginationHelper.processLoadMore(
         currentState,
-        PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: response.topics,
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
 
       _hasMore = paginationResult.hasMore;
@@ -88,9 +94,10 @@ class BrowsingHistoryNotifier extends AsyncNotifier<List<Topic>> {
   }
 }
 
-final browsingHistoryProvider = AsyncNotifierProvider.autoDispose<BrowsingHistoryNotifier, List<Topic>>(() {
-  return BrowsingHistoryNotifier();
-});
+final browsingHistoryProvider =
+    AsyncNotifierProvider.autoDispose<BrowsingHistoryNotifier, List<Topic>>(() {
+      return BrowsingHistoryNotifier();
+    });
 
 /// 书签 Notifier (支持分页)
 class BookmarksNotifier extends AsyncNotifier<List<Topic>> {
@@ -125,7 +132,10 @@ class BookmarksNotifier extends AsyncNotifier<List<Topic>> {
       final response = await service.getUserBookmarks(page: 0);
 
       final result = _topicPaginationHelper.processRefresh(
-        PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: response.topics,
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
       _hasMore = result.hasMore;
       return result.items;
@@ -149,7 +159,10 @@ class BookmarksNotifier extends AsyncNotifier<List<Topic>> {
       final currentState = PaginationState(items: currentList);
       final paginationResult = _topicPaginationHelper.processLoadMore(
         currentState,
-        PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: response.topics,
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
 
       _hasMore = paginationResult.hasMore;
@@ -181,50 +194,63 @@ class BookmarksNotifier extends AsyncNotifier<List<Topic>> {
   }
 
   /// 更新本地列表中指定书签的元数据
-  void updateBookmarkMeta(int bookmarkId, {String? name, DateTime? reminderAt, bool clearReminderAt = false}) {
+  void updateBookmarkMeta(
+    int bookmarkId, {
+    String? name,
+    DateTime? reminderAt,
+    bool clearReminderAt = false,
+  }) {
     final current = state.value;
     if (current == null) return;
-    state = AsyncValue.data(current.map((t) {
-      if (t.bookmarkId != bookmarkId) return t;
-      return Topic(
-        id: t.id,
-        title: t.title,
-        slug: t.slug,
-        postsCount: t.postsCount,
-        replyCount: t.replyCount,
-        views: t.views,
-        likeCount: t.likeCount,
-        excerpt: t.excerpt,
-        createdAt: t.createdAt,
-        lastPostedAt: t.lastPostedAt,
-        lastPosterUsername: t.lastPosterUsername,
-        categoryId: t.categoryId,
-        pinned: t.pinned,
-        visible: t.visible,
-        closed: t.closed,
-        archived: t.archived,
-        tags: t.tags,
-        posters: t.posters,
-        unseen: t.unseen,
-        unread: t.unread,
-        newPosts: t.newPosts,
-        lastReadPostNumber: t.lastReadPostNumber,
-        highestPostNumber: t.highestPostNumber,
-        bookmarkedPostNumber: t.bookmarkedPostNumber,
-        bookmarkId: t.bookmarkId,
-        bookmarkName: name ?? t.bookmarkName,
-        bookmarkReminderAt: clearReminderAt ? null : (reminderAt ?? t.bookmarkReminderAt),
-        bookmarkableType: t.bookmarkableType,
-        hasAcceptedAnswer: t.hasAcceptedAnswer,
-        canHaveAnswer: t.canHaveAnswer,
-      );
-    }).toList());
+    state = AsyncValue.data(
+      current.map((t) {
+        if (t.bookmarkId != bookmarkId) return t;
+        return Topic(
+          id: t.id,
+          title: t.title,
+          fancyTitle: t.fancyTitle,
+          slug: t.slug,
+          postsCount: t.postsCount,
+          replyCount: t.replyCount,
+          views: t.views,
+          likeCount: t.likeCount,
+          excerpt: t.excerpt,
+          createdAt: t.createdAt,
+          lastPostedAt: t.lastPostedAt,
+          lastPosterUsername: t.lastPosterUsername,
+          categoryId: t.categoryId,
+          pinned: t.pinned,
+          visible: t.visible,
+          closed: t.closed,
+          archived: t.archived,
+          deletedAt: t.deletedAt,
+          userDeleted: t.userDeleted,
+          tags: t.tags,
+          posters: t.posters,
+          unseen: t.unseen,
+          unread: t.unread,
+          newPosts: t.newPosts,
+          lastReadPostNumber: t.lastReadPostNumber,
+          highestPostNumber: t.highestPostNumber,
+          bookmarkedPostNumber: t.bookmarkedPostNumber,
+          bookmarkId: t.bookmarkId,
+          bookmarkName: name ?? t.bookmarkName,
+          bookmarkReminderAt: clearReminderAt
+              ? null
+              : (reminderAt ?? t.bookmarkReminderAt),
+          bookmarkableType: t.bookmarkableType,
+          hasAcceptedAnswer: t.hasAcceptedAnswer,
+          canHaveAnswer: t.canHaveAnswer,
+        );
+      }).toList(),
+    );
   }
 }
 
-final bookmarksProvider = AsyncNotifierProvider.autoDispose<BookmarksNotifier, List<Topic>>(() {
-  return BookmarksNotifier();
-});
+final bookmarksProvider =
+    AsyncNotifierProvider.autoDispose<BookmarksNotifier, List<Topic>>(() {
+      return BookmarksNotifier();
+    });
 
 /// 我的话题 Notifier (支持分页)
 class MyTopicsNotifier extends AsyncNotifier<List<Topic>> {
@@ -259,7 +285,10 @@ class MyTopicsNotifier extends AsyncNotifier<List<Topic>> {
       final response = await service.getUserCreatedTopics(page: 0);
 
       final result = _topicPaginationHelper.processRefresh(
-        PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: response.topics,
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
       _hasMore = result.hasMore;
       return result.items;
@@ -283,7 +312,10 @@ class MyTopicsNotifier extends AsyncNotifier<List<Topic>> {
       final currentState = PaginationState(items: currentList);
       final paginationResult = _topicPaginationHelper.processLoadMore(
         currentState,
-        PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: response.topics,
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
 
       _hasMore = paginationResult.hasMore;
@@ -306,9 +338,10 @@ class MyTopicsNotifier extends AsyncNotifier<List<Topic>> {
   }
 }
 
-final myTopicsProvider = AsyncNotifierProvider.autoDispose<MyTopicsNotifier, List<Topic>>(() {
-  return MyTopicsNotifier();
-});
+final myTopicsProvider =
+    AsyncNotifierProvider.autoDispose<MyTopicsNotifier, List<Topic>>(() {
+      return MyTopicsNotifier();
+    });
 
 /// 私信筛选类型
 enum PrivateMessageFilter { inbox, sent, archive }
@@ -346,7 +379,10 @@ abstract class PrivateMessagesNotifier extends AsyncNotifier<List<Topic>> {
       final response = await fetch(0);
 
       final result = _topicPaginationHelper.processRefresh(
-        PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: response.topics,
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
       _hasMore = result.hasMore;
       return result.items;
@@ -369,7 +405,10 @@ abstract class PrivateMessagesNotifier extends AsyncNotifier<List<Topic>> {
       final currentState = PaginationState<Topic>(items: currentList);
       final paginationResult = _topicPaginationHelper.processLoadMore(
         currentState,
-        PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: response.topics,
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
 
       _hasMore = paginationResult.hasMore;
@@ -410,9 +449,15 @@ class _PmArchiveNotifier extends PrivateMessagesNotifier {
       ref.read(discourseServiceProvider).getPrivateMessagesArchive(page: page);
 }
 
-final pmInboxProvider = AsyncNotifierProvider.autoDispose<_PmInboxNotifier, List<Topic>>(
-    () => _PmInboxNotifier());
-final pmSentProvider = AsyncNotifierProvider.autoDispose<_PmSentNotifier, List<Topic>>(
-    () => _PmSentNotifier());
-final pmArchiveProvider = AsyncNotifierProvider.autoDispose<_PmArchiveNotifier, List<Topic>>(
-    () => _PmArchiveNotifier());
+final pmInboxProvider =
+    AsyncNotifierProvider.autoDispose<_PmInboxNotifier, List<Topic>>(
+      () => _PmInboxNotifier(),
+    );
+final pmSentProvider =
+    AsyncNotifierProvider.autoDispose<_PmSentNotifier, List<Topic>>(
+      () => _PmSentNotifier(),
+    );
+final pmArchiveProvider =
+    AsyncNotifierProvider.autoDispose<_PmArchiveNotifier, List<Topic>>(
+      () => _PmArchiveNotifier(),
+    );
