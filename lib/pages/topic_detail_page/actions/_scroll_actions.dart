@@ -155,6 +155,7 @@ extension _ScrollActions on _TopicDetailPageState {
     }
 
     if (_isNestedView) {
+      _preservePendingNestedRestore = preserveNestedView;
       final nestedScrollIndex = _nestedPostNumberToScrollIndex[postNumber];
       if (nestedScrollIndex != null &&
           _controller.scrollController.hasClients) {
@@ -182,8 +183,13 @@ extension _ScrollActions on _TopicDetailPageState {
           !nestedState.hasMoreRoots &&
           !nestedState.isLoadingMore &&
           mounted) {
-        setState(() => _isNestedView = false);
-        await _scrollToPost(postNumber);
+        if (preserveNestedView) {
+          _pendingNestedRestorePostNumber = null;
+          _controller.triggerHighlight(postNumber);
+        } else {
+          setState(() => _isNestedView = false);
+          await _scrollToPost(postNumber);
+        }
       }
       return;
     }

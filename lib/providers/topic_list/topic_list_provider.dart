@@ -43,12 +43,6 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     final sortOrder = ref.read(topicSortOrderProvider);
     final sortAscending = ref.read(topicSortAscendingProvider);
 
-    // CUSTOM: Keyword Filter 监听关键词变化，用户改动屏蔽规则后会重新构建并过滤
-    ref.watch(keywordFilterProvider);
-    // CUSTOM: Tag Filter
-    // CUSTOM: User Filter
-    ref.watch(contentFilterProvider);
-
     _page = 0;
     _hasMore = true;
     _isLoadMoreFailed = false;

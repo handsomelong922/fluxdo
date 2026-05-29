@@ -191,9 +191,6 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
       disposeTimer?.cancel();
     });
 
-    // CUSTOM: User Filter 监听屏蔽规则变化，自动重建详情数据
-    ref.watch(contentFilterProvider);
-
     _hasMoreAfter = true;
     _hasMoreBefore = true;
     _isLoadMoreFailed = false;

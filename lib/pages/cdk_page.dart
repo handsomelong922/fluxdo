@@ -13,6 +13,18 @@ import '../services/webview_settings.dart';
 import '../services/windows_webview_environment_service.dart';
 import '../l10n/s.dart';
 
+@visibleForTesting
+bool isTrustedCdkWebViewHost(String host) {
+  final normalizedHost = host.toLowerCase();
+  if (normalizedHost == 'cdk.linux.do' ||
+      normalizedHost == 'credit.linux.do' ||
+      normalizedHost == 'connect.linux.do' ||
+      normalizedHost == 'linux.do') {
+    return true;
+  }
+  return normalizedHost.endsWith('.linux.do');
+}
+
 /// CDK 专用领取页。
 ///
 /// 仍然使用 WebView 承载 cdk.linux.do 的登录态与领取交互，但移除通用浏览器
@@ -149,6 +161,30 @@ class _CdkPageState extends State<CdkPage> {
                     initialUserScripts: WebViewSettings.ios15PolyfillScripts,
                     onReceivedServerTrustAuthRequest: (_, challenge) =>
                         WebViewSettings.handleServerTrustAuthRequest(challenge),
+                    shouldOverrideUrlLoading:
+                        (controller, navigationAction) async {
+                          final uri = navigationAction.request.url;
+                          if (uri == null) {
+                            return NavigationActionPolicy.ALLOW;
+                          }
+
+                          final targetFrame = navigationAction.targetFrame;
+                          if (targetFrame == null ||
+                              targetFrame.isMainFrame == false) {
+                            if (_shouldOpenInsideCdkWebView(uri)) {
+                              await controller.loadUrl(
+                                urlRequest: URLRequest(url: uri),
+                              );
+                            }
+                            return NavigationActionPolicy.CANCEL;
+                          }
+
+                          if (_shouldOpenInsideCdkWebView(uri)) {
+                            return NavigationActionPolicy.ALLOW;
+                          }
+
+                          return NavigationActionPolicy.ALLOW;
+                        },
                     onWebViewCreated: (controller) async {
                       _controller = controller;
                       if (io.Platform.isWindows && widget.url.isNotEmpty) {
@@ -296,5 +332,9 @@ class _CdkPageState extends State<CdkPage> {
     if (!mounted) {
       return;
     }
+  }
+
+  bool _shouldOpenInsideCdkWebView(WebUri uri) {
+    return isTrustedCdkWebViewHost(uri.host);
   }
 }

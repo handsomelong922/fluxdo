@@ -71,7 +71,7 @@ part 'actions/_filter_actions.dart';
 
 const double _topicDetailToolbarHeight = 48.0;
 const double _topicFloatingButtonSize = 44.0;
-const double _topicActionMenuWidth = 168.0;
+const double _topicActionMenuWidth = 128.0;
 const double _topicTopContentGap = 8.0;
 
 @visibleForTesting
@@ -182,6 +182,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   bool _isScreenTrackRunning = false;
   TopicReadingState? _restoredReadingState;
   int? _pendingNestedRestorePostNumber;
+  bool _preservePendingNestedRestore = false;
 
   @override
   void initState() {
@@ -752,7 +753,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       return PopupMenuItem<String>(
         value: value,
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-        height: 44,
+        height: 40,
         child: _TopicMenuTile(icon: icon, label: label, selected: selected),
       );
     }
@@ -1511,7 +1512,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               _handleReply(replyToPost, initialContent: initialContent),
           onEdit: _handleEdit,
           onRefreshPost: _handleRefreshPost,
-          onJumpToPost: _scrollToPost,
+          onJumpToPost: (postNumber) =>
+              _scrollToPost(postNumber, preserveNestedView: true),
           onVoteChanged: _handleVoteChanged,
           onNotificationLevelChanged: (level) =>
               _handleNotificationLevelChanged(notifier, level),
@@ -1526,6 +1528,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                 : mapping[pendingPostNumber];
             if (pendingPostNumber != null && scrollIndex != null) {
               _pendingNestedRestorePostNumber = null;
+              _preservePendingNestedRestore = false;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
                 unawaited(
@@ -1566,8 +1569,14 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
                 _pendingNestedRestorePostNumber = null;
-                setState(() => _isNestedView = false);
-                unawaited(_scrollToPost(pendingPostNumber));
+                final preserveNested = _preservePendingNestedRestore;
+                _preservePendingNestedRestore = false;
+                if (preserveNested) {
+                  _controller.triggerHighlight(pendingPostNumber);
+                } else {
+                  setState(() => _isNestedView = false);
+                  unawaited(_scrollToPost(pendingPostNumber));
+                }
               });
             }
           },
@@ -1766,7 +1775,7 @@ class _TopicMenuTile extends StatelessWidget {
       duration: const Duration(milliseconds: 160),
       curve: Curves.easeOutCubic,
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: selected
             ? colorScheme.primaryContainer.withValues(alpha: 0.72)
@@ -1779,12 +1788,14 @@ class _TopicMenuTile extends StatelessWidget {
         ),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 18, color: iconColor),
-          const SizedBox(width: 8),
+          Icon(icon, size: 17, color: iconColor),
+          const SizedBox(width: 6),
           Flexible(
             child: Text(
               label,
+              textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.labelLarge?.copyWith(

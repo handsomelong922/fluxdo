@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:ai_model_manager/ai_model_manager.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/topic.dart';
@@ -12,6 +13,41 @@ class TopicAiSummaryService {
   TopicAiSummaryService(this._ref);
 
   final Ref _ref;
+
+  @visibleForTesting
+  static bool promptRequestsWebSearch(String prompt) {
+    final normalized = prompt.toLowerCase();
+    const triggers = [
+      '联网',
+      '搜索',
+      '实时',
+      '最新',
+      '查询',
+      '查证',
+      '检索',
+      'web search',
+      'internet',
+      'search the web',
+      'latest',
+      'current',
+      'recent',
+    ];
+    return triggers.any(normalized.contains);
+  }
+
+  @visibleForTesting
+  static AiModelFeatureConfig summaryFeatureConfig(
+    AiModelFeatureConfig base,
+    String prompt,
+  ) {
+    if (base.webSearchEnabled || !promptRequestsWebSearch(prompt)) {
+      return base;
+    }
+    return base.copyWith(
+      webSearchEnabled: true,
+      webSearchContextSize: AiWebSearchContextSize.high,
+    );
+  }
 
   Future<TopicSummary> generateSummary({
     required int topicId,
@@ -45,6 +81,10 @@ class TopicAiSummaryService {
         promptSettings.summaryAllRepliesPrompt.trim().isNotEmpty
         ? promptSettings.summaryAllRepliesPrompt.trim()
         : defaultSummaryAllRepliesPrompt();
+    final featureConfig = summaryFeatureConfig(
+      selectedModel.model.features,
+      summaryPrompt,
+    );
 
     final messages = <Map<String, String>>[
       {
@@ -64,8 +104,11 @@ class TopicAiSummaryService {
           model: selectedModel.model.id,
           apiKey: apiKey,
           messages: messages,
-          systemPrompt: _buildSystemPrompt(detail.title),
-          featureConfig: selectedModel.model.features,
+          systemPrompt: _buildSystemPrompt(
+            detail.title,
+            webSearchEnabled: featureConfig.webSearchEnabled,
+          ),
+          featureConfig: featureConfig,
         );
 
     final buffer = StringBuffer();
@@ -88,12 +131,17 @@ class TopicAiSummaryService {
     );
   }
 
-  String _buildSystemPrompt(String title) {
+  String _buildSystemPrompt(String title, {required bool webSearchEnabled}) {
     final buffer = StringBuffer()
       ..writeln(AiL10n.current.systemPromptIntro)
       ..writeln(AiL10n.current.systemPromptTopicTitle(title))
       ..writeln(AiL10n.current.systemPromptContextHint)
       ..writeln(AiL10n.current.systemPromptMarkdown);
+    if (webSearchEnabled) {
+      buffer.writeln(
+        '如果用户要求最新、实时或联网信息，必须优先使用可用的联网搜索工具查证后再总结，并在答案中区分帖子内容与外部最新信息。',
+      );
+    }
     return buffer.toString();
   }
 
