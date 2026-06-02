@@ -184,6 +184,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   bool _isScreenTrackRunning = false;
   TopicReadingState? _restoredReadingState;
   int? _pendingNestedRestorePostNumber;
+  int? _lastUnreachableJumpTarget;
 
   @override
   void initState() {
@@ -1284,6 +1285,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           posts.first.postNumber <= jumpTarget &&
           posts.last.postNumber >= jumpTarget;
       if (!hasTarget) {
+        if (!detailAsync.isLoading) {
+          _scheduleUnreachableJumpFallback(jumpTarget);
+        }
         return _wrapWithConstraint(
           PostListSkeleton(
             withHeader: false,
@@ -1676,6 +1680,22 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       },
       child: scrollView,
     );
+  }
+
+  void _scheduleUnreachableJumpFallback(int postNumber) {
+    if (_lastUnreachableJumpTarget == postNumber) return;
+    _lastUnreachableJumpTarget = postNumber;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _lastUnreachableJumpTarget = null;
+      if (!mounted || _controller.jumpTargetPostNumber != postNumber) return;
+      _controller.clearJumpTarget();
+      _controller.skipNextJumpHighlight = false;
+      if (!_controller.isPositioned) {
+        _controller.markPositioned();
+      }
+      setState(() {});
+    });
   }
 }
 

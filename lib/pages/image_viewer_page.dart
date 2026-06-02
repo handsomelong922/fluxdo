@@ -197,12 +197,19 @@ class _ImageViewerPageState extends State<ImageViewerPage>
     if (_showUI) {
       _restoreSystemUI();
     } else {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+      // 用 immersiveSticky 而非 manual+overlays:[]。Android 15+ 默认
+      // edge-to-edge，manual 模式可能被系统忽略，导致隐藏后无法恢复。
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
   }
 
-  void _restoreSystemUI() {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  Future<void> _restoreSystemUI() async {
+    // 先显式清除 immersive flags 并显示 bars，再切回 edgeToEdge。
+    await SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: SystemUiOverlay.values,
+    );
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
   /// 预加载相邻图片
