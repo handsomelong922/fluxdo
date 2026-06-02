@@ -10,10 +10,7 @@ class ExportSheet extends StatefulWidget {
   /// 话题详情
   final TopicDetail detail;
 
-  const ExportSheet({
-    super.key,
-    required this.detail,
-  });
+  const ExportSheet({super.key, required this.detail});
 
   /// 显示导出 Sheet
   static Future<void> show(BuildContext context, TopicDetail detail) {
@@ -103,7 +100,9 @@ class _ExportSheetState extends State<ExportSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.3,
+                  ),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -115,7 +114,7 @@ class _ExportSheetState extends State<ExportSheet> {
               child: Text(
                 context.l10n.export_title,
                 style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
@@ -205,7 +204,9 @@ class _ExportSheetState extends State<ExportSheet> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        context.l10n.export_markdownLimit(ExportUtils.maxMarkdownPosts),
+                        context.l10n.export_markdownLimit(
+                          ExportUtils.maxMarkdownPosts,
+                        ),
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.primary,
                         ),
@@ -233,9 +234,13 @@ class _ExportSheetState extends State<ExportSheet> {
                         ),
                       )
                     : const Icon(Icons.download),
-                label: Text(_isExporting
-                    ? (_total > 0 ? context.l10n.export_exporting(_progress, _total) : context.l10n.export_exportingNoProgress)
-                    : context.l10n.common_export),
+                label: Text(
+                  _isExporting
+                      ? (_total > 0
+                            ? context.l10n.export_exporting(_progress, _total)
+                            : context.l10n.export_exportingNoProgress)
+                      : context.l10n.common_export,
+                ),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),

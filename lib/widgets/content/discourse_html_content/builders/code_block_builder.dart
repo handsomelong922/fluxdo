@@ -22,15 +22,24 @@ Widget buildCodeBlock({
   final className = codeElement.className as String;
   // 检测 mermaid 代码块
   if (className.contains('lang-mermaid')) {
-    return _MermaidWidget(codeElement: codeElement, screenshotMode: screenshotMode);
+    return _MermaidWidget(
+      codeElement: codeElement,
+      screenshotMode: screenshotMode,
+    );
   }
-  return _CodeBlockWidget(codeElement: codeElement, screenshotMode: screenshotMode);
+  return _CodeBlockWidget(
+    codeElement: codeElement,
+    screenshotMode: screenshotMode,
+  );
 }
 
 class _CodeBlockWidget extends StatefulWidget {
   final dynamic codeElement;
   final bool screenshotMode;
-  const _CodeBlockWidget({required this.codeElement, this.screenshotMode = false});
+  const _CodeBlockWidget({
+    required this.codeElement,
+    this.screenshotMode = false,
+  });
 
   @override
   State<_CodeBlockWidget> createState() => _CodeBlockWidgetState();
@@ -124,9 +133,15 @@ class _CodeBlockWidgetState extends State<_CodeBlockWidget> {
         }
       }
 
-      final bgColor = isDark ? const Color(0xff282a36) : const Color(0xfff6f8fa);
-      final borderColor = theme.colorScheme.outlineVariant.withValues(alpha: 0.3);
-      final thumbColor = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.15);
+      final bgColor = isDark
+          ? const Color(0xff282a36)
+          : const Color(0xfff6f8fa);
+      final borderColor = theme.colorScheme.outlineVariant.withValues(
+        alpha: 0.3,
+      );
+      final thumbColor = (isDark ? Colors.white : Colors.black).withValues(
+        alpha: 0.15,
+      );
       final lineNumberColor = isDark
           ? Colors.white.withValues(alpha: 0.35)
           : Colors.black.withValues(alpha: 0.35);
@@ -193,14 +208,22 @@ class _CodeBlockWidgetState extends State<_CodeBlockWidget> {
                 ),
                 child: SelectionContainer.disabled(
                   child: ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                    behavior: ScrollConfiguration.of(
+                      context,
+                    ).copyWith(scrollbars: false),
                     child: SingleChildScrollView(
                       controller: _lineNumberVController,
                       physics: const NeverScrollableScrollPhysics(),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 8,
+                        ),
                         child: Text(
-                          List.generate(lineCount, (i) => (i + 1).toString().padLeft(padWidth)).join('\n'),
+                          List.generate(
+                            lineCount,
+                            (i) => (i + 1).toString().padLeft(padWidth),
+                          ).join('\n'),
                           style: baseStyle.copyWith(color: lineNumberColor),
                           textAlign: TextAlign.right,
                         ),
@@ -216,7 +239,9 @@ class _CodeBlockWidgetState extends State<_CodeBlockWidget> {
                   onPointerDown: (_) {
                     scheduleMicrotask(() {
                       CodeSelectionContextTracker.instance.set(
-                        CodeSelectionContext(language: displayLanguage.toLowerCase()),
+                        CodeSelectionContext(
+                          language: displayLanguage.toLowerCase(),
+                        ),
                       );
                     });
                   },
@@ -231,12 +256,18 @@ class _CodeBlockWidgetState extends State<_CodeBlockWidget> {
                       controller: _vController,
                       scrollDirection: Axis.vertical,
                       // 短代码禁止垂直滚动，避免预估高度与实际高度微小误差导致的滑动
-                      physics: needsVerticalScroll ? null : const NeverScrollableScrollPhysics(),
+                      physics: needsVerticalScroll
+                          ? null
+                          : const NeverScrollableScrollPhysics(),
                       child: RawScrollbar(
                         controller: _hController,
                         thumbVisibility: false,
                         thickness: 4,
-                        padding: const EdgeInsets.only(left: 2, right: 2, bottom: 4),
+                        padding: const EdgeInsets.only(
+                          left: 2,
+                          right: 2,
+                          bottom: 4,
+                        ),
                         radius: const Radius.circular(2),
                         thumbColor: thumbColor,
                         child: SingleChildScrollView(
@@ -274,7 +305,9 @@ class _CodeBlockWidgetState extends State<_CodeBlockWidget> {
                 height: 32,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.black.withValues(alpha: 0.03),
                   border: Border(bottom: BorderSide(color: borderColor)),
                 ),
                 child: SelectionContainer.disabled(
@@ -285,8 +318,10 @@ class _CodeBlockWidgetState extends State<_CodeBlockWidget> {
                         displayLanguage,
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.6,
+                          ),
                         ),
                       ),
                       InkWell(
@@ -296,21 +331,28 @@ class _CodeBlockWidgetState extends State<_CodeBlockWidget> {
                         },
                         borderRadius: BorderRadius.circular(4),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
                                 Icons.copy_rounded,
                                 size: 14,
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.6,
+                                ),
                               ),
                               const SizedBox(width: 4),
                               Text(
                                 S.current.common_copy,
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                  color: theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.6,
+                                  ),
                                 ),
                               ),
                             ],
@@ -328,7 +370,9 @@ class _CodeBlockWidgetState extends State<_CodeBlockWidget> {
         ),
       );
     } catch (e, stackTrace) {
-      debugPrint('=== Code Block Error ===\nError: $e\nStackTrace: $stackTrace');
+      debugPrint(
+        '=== Code Block Error ===\nError: $e\nStackTrace: $stackTrace',
+      );
       final theme = Theme.of(context);
       return Container(
         padding: const EdgeInsets.all(12),
@@ -336,7 +380,10 @@ class _CodeBlockWidgetState extends State<_CodeBlockWidget> {
           color: theme.colorScheme.errorContainer,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(S.current.codeBlock_renderFailed(e.toString()), style: TextStyle(color: theme.colorScheme.onErrorContainer)),
+        child: Text(
+          S.current.codeBlock_renderFailed(e.toString()),
+          style: TextStyle(color: theme.colorScheme.onErrorContainer),
+        ),
       );
     }
   }
@@ -346,13 +393,17 @@ class _CodeBlockWidgetState extends State<_CodeBlockWidget> {
 class _MermaidWidget extends StatefulWidget {
   final dynamic codeElement;
   final bool screenshotMode;
-  const _MermaidWidget({required this.codeElement, this.screenshotMode = false});
+  const _MermaidWidget({
+    required this.codeElement,
+    this.screenshotMode = false,
+  });
 
   @override
   State<_MermaidWidget> createState() => _MermaidWidgetState();
 }
 
-class _MermaidWidgetState extends State<_MermaidWidget> with SingleTickerProviderStateMixin {
+class _MermaidWidgetState extends State<_MermaidWidget>
+    with SingleTickerProviderStateMixin {
   bool _showCode = false;
   bool _shouldLoad = false;
   bool _initialized = false;
@@ -432,9 +483,15 @@ class _MermaidWidgetState extends State<_MermaidWidget> with SingleTickerProvide
               begin: Alignment(-1.0 + 2.0 * controller.value, 0),
               end: Alignment(-0.5 + 2.0 * controller.value, 0),
               colors: [
-                theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
-                theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.3,
+                ),
+                theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.6,
+                ),
+                theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.3,
+                ),
               ],
               stops: const [0.0, 0.5, 1.0],
             ),
@@ -451,7 +508,9 @@ class _MermaidWidgetState extends State<_MermaidWidget> with SingleTickerProvide
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xff282a36) : const Color(0xfff6f8fa);
     final borderColor = theme.colorScheme.outlineVariant.withValues(alpha: 0.3);
-    final thumbColor = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.15);
+    final thumbColor = (isDark ? Colors.white : Colors.black).withValues(
+      alpha: 0.15,
+    );
     final imageUrl = _buildMermaidInkUrl(text, isDark);
 
     return Container(
@@ -467,20 +526,41 @@ class _MermaidWidgetState extends State<_MermaidWidget> with SingleTickerProvide
           // 工具栏
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: borderColor))),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: borderColor)),
+            ),
             child: Row(
               children: [
                 InkWell(
                   onTap: () => setState(() => _showCode = !_showCode),
                   borderRadius: BorderRadius.circular(4),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(_showCode ? Icons.auto_graph : Icons.code, size: 16, color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+                        Icon(
+                          _showCode ? Icons.auto_graph : Icons.code,
+                          size: 16,
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.7,
+                          ),
+                        ),
                         const SizedBox(width: 4),
-                        Text(_showCode ? S.current.codeBlock_chart : S.current.codeBlock_code, style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.7))),
+                        Text(
+                          _showCode
+                              ? S.current.codeBlock_chart
+                              : S.current.codeBlock_code,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.7,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -494,7 +574,11 @@ class _MermaidWidgetState extends State<_MermaidWidget> with SingleTickerProvide
                   borderRadius: BorderRadius.circular(4),
                   child: Padding(
                     padding: const EdgeInsets.all(6),
-                    child: Icon(Icons.copy, size: 16, color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+                    child: Icon(
+                      Icons.copy,
+                      size: 16,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
                   ),
                 ),
               ],
@@ -502,98 +586,120 @@ class _MermaidWidgetState extends State<_MermaidWidget> with SingleTickerProvide
           ),
           // 内容区域
           ClipRRect(
-            borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(8), bottomRight: Radius.circular(8)),
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(8),
+              bottomRight: Radius.circular(8),
+            ),
             child: _showCode
                 ? widget.screenshotMode
-                    // 截图模式：不限制高度，不用 ScrollView，代码自动换行
-                    ? Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: HighlighterService.instance.buildHighlightView(
-                          text,
-                          language: 'mermaid',
-                          isDark: isDark,
-                          backgroundColor: Colors.transparent,
-                          padding: EdgeInsets.zero,
-                        ),
-                      )
-                    : ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 400),
-                        child: RawScrollbar(
-                          controller: _vController,
-                          thumbVisibility: false,
-                          thickness: 4,
-                          radius: const Radius.circular(2),
-                          thumbColor: thumbColor,
-                          child: SingleChildScrollView(
+                      // 截图模式：不限制高度，不用 ScrollView，代码自动换行
+                      ? Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: HighlighterService.instance.buildHighlightView(
+                            text,
+                            language: 'mermaid',
+                            isDark: isDark,
+                            backgroundColor: Colors.transparent,
+                            padding: EdgeInsets.zero,
+                          ),
+                        )
+                      : ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 400),
+                          child: RawScrollbar(
                             controller: _vController,
-                            child: RawScrollbar(
-                              controller: _hController,
-                              thumbVisibility: false,
-                              thickness: 4,
-                              thumbColor: thumbColor,
-                              child: SingleChildScrollView(
+                            thumbVisibility: false,
+                            thickness: 4,
+                            radius: const Radius.circular(2),
+                            thumbColor: thumbColor,
+                            child: SingleChildScrollView(
+                              controller: _vController,
+                              child: RawScrollbar(
                                 controller: _hController,
-                                scrollDirection: Axis.horizontal,
-                                child: HighlighterService.instance.buildHighlightView(
-                                  text,
-                                  language: 'mermaid',
-                                  isDark: isDark,
-                                  backgroundColor: Colors.transparent,
-                                  padding: const EdgeInsets.all(12),
+                                thumbVisibility: false,
+                                thickness: 4,
+                                thumbColor: thumbColor,
+                                child: SingleChildScrollView(
+                                  controller: _hController,
+                                  scrollDirection: Axis.horizontal,
+                                  child: HighlighterService.instance
+                                      .buildHighlightView(
+                                        text,
+                                        language: 'mermaid',
+                                        isDark: isDark,
+                                        backgroundColor: Colors.transparent,
+                                        padding: const EdgeInsets.all(12),
+                                      ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      )
+                        )
                 : _shouldLoad
-                    ? GestureDetector(
-                        onTap: () {
-                          final hdUrl = _buildMermaidInkUrl(text, isDark, width: 2000);
-                          ImageViewerPage.open(context, hdUrl, enableShare: true);
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: CachedNetworkImage(
-                            key: ValueKey('$imageUrl-$_retryCount'),
-                            imageUrl: imageUrl,
-                            cacheManager: ExternalImageCacheManager(),
-                            fit: BoxFit.contain,
-                            placeholder: (context, url) => _buildShimmerPlaceholder(theme, withMargin: false),
-                            errorWidget: (context, url, error) => Container(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.error_outline, color: theme.colorScheme.error),
-                                  const SizedBox(height: 8),
-                                  Text(S.current.codeBlock_chartLoadFailed, style: TextStyle(color: theme.colorScheme.error, fontSize: 12)),
-                                  const SizedBox(height: 8),
-                                  TextButton.icon(
-                                    onPressed: _retry,
-                                    icon: const Icon(Icons.refresh, size: 16),
-                                    label: Text(S.current.common_retry),
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                      minimumSize: Size.zero,
-                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    ),
-                                  ),
-                                ],
+                ? GestureDetector(
+                    onTap: () {
+                      final hdUrl = _buildMermaidInkUrl(
+                        text,
+                        isDark,
+                        width: 2000,
+                      );
+                      ImageViewerPage.open(context, hdUrl, enableShare: true);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: CachedNetworkImage(
+                        key: ValueKey('$imageUrl-$_retryCount'),
+                        imageUrl: imageUrl,
+                        cacheManager: ExternalImageCacheManager(),
+                        fit: BoxFit.contain,
+                        placeholder: (context, url) =>
+                            _buildShimmerPlaceholder(theme, withMargin: false),
+                        errorWidget: (context, url, error) => Container(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                color: theme.colorScheme.error,
                               ),
-                            ),
+                              const SizedBox(height: 8),
+                              Text(
+                                S.current.codeBlock_chartLoadFailed,
+                                style: TextStyle(
+                                  color: theme.colorScheme.error,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextButton.icon(
+                                onPressed: _retry,
+                                icon: const Icon(Icons.refresh, size: 16),
+                                label: Text(S.current.common_retry),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      )
-                    : VisibilityDetector(
-                        key: Key('mermaid-$_cacheKey'),
-                        onVisibilityChanged: (info) {
-                          if (!_shouldLoad && info.visibleFraction > 0.01) {
-                            _triggerLoad();
-                          }
-                        },
-                        child: _buildShimmerPlaceholder(theme),
                       ),
+                    ),
+                  )
+                : VisibilityDetector(
+                    key: Key('mermaid-$_cacheKey'),
+                    onVisibilityChanged: (info) {
+                      if (!_shouldLoad && info.visibleFraction > 0.01) {
+                        _triggerLoad();
+                      }
+                    },
+                    child: _buildShimmerPlaceholder(theme),
+                  ),
           ),
         ],
       ),

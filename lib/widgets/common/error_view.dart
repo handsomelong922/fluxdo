@@ -62,7 +62,7 @@ class ErrorView extends StatelessWidget {
             Text(
               title ?? errorInfo.title,
               style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 8),
@@ -113,10 +113,7 @@ class ErrorView extends StatelessWidget {
 
 /// 错误详情底部弹窗
 class ErrorDetailsSheet extends StatelessWidget {
-  const ErrorDetailsSheet({
-    super.key,
-    required this.details,
-  });
+  const ErrorDetailsSheet({super.key, required this.details});
 
   final String details;
 
@@ -154,7 +151,7 @@ class ErrorDetailsSheet extends StatelessWidget {
                 Text(
                   context.l10n.common_errorDetails,
                   style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const Spacer(),
@@ -163,7 +160,9 @@ class ErrorDetailsSheet extends StatelessWidget {
                   tooltip: context.l10n.common_copy,
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: details));
-                    ToastService.showSuccess(S.current.common_copiedToClipboard);
+                    ToastService.showSuccess(
+                      S.current.common_copiedToClipboard,
+                    );
                   },
                 ),
                 IconButton(

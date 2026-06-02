@@ -42,7 +42,9 @@ class _PreheatGateState extends State<PreheatGate> {
   void _readIconStyle() {
     SharedPreferences.getInstance().then((prefs) {
       final saved = prefs.getString('pref_app_icon');
-      final style = saved == 'modern' ? AppIconStyle.modern : AppIconStyle.classic;
+      final style = saved == 'modern'
+          ? AppIconStyle.modern
+          : AppIconStyle.classic;
       if (mounted && style != _iconStyle) {
         setState(() => _iconStyle = style);
       }
@@ -226,7 +228,9 @@ class _PreheatLoadingState extends State<_PreheatLoading>
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: colorScheme.primary.withValues(alpha: 0.15),
+                                color: colorScheme.primary.withValues(
+                                  alpha: 0.15,
+                                ),
                                 blurRadius: 40,
                                 spreadRadius: 0,
                               ),
@@ -239,9 +243,10 @@ class _PreheatLoadingState extends State<_PreheatLoading>
                               si: ScalableImageSource.fromSvg(
                                 DefaultAssetBundle.of(context),
                                 widget.iconStyle == AppIconStyle.modern
-                                    ? (Theme.of(context).brightness == Brightness.dark
-                                        ? 'assets/logo_modern.svg'
-                                        : 'assets/logo_modern_light.svg')
+                                    ? (Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? 'assets/logo_modern.svg'
+                                          : 'assets/logo_modern_light.svg')
                                     : 'assets/logo.svg',
                                 warnF: (_) {},
                               ),
@@ -257,12 +262,12 @@ class _PreheatLoadingState extends State<_PreheatLoading>
                   'FluxDO',
                   style: theme.textTheme.headlineMedium?.copyWith(
                     color: colorScheme.onSurface,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     letterSpacing: 1.2,
                   ),
                 ),
                 const SizedBox(height: 48),
-                 SizedBox(
+                SizedBox(
                   width: 24,
                   height: 24,
                   child: CircularProgressIndicator(
@@ -301,15 +306,15 @@ class _PreheatFailed extends StatelessWidget {
   const _PreheatFailed({super.key, required this.onRetry, this.error});
 
   void _openAbout(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AboutPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AboutPage()));
   }
 
   void _openNetworkSettings(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const NetworkSettingsPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const NetworkSettingsPage()));
   }
 
   Future<void> _confirmLogout(BuildContext context) async {
@@ -360,7 +365,9 @@ class _PreheatFailed extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final errorInfo = ErrorUtils.getErrorInfo(error);
     final buttonStyle = IconButton.styleFrom(
-      backgroundColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      backgroundColor: colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.5,
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
 
@@ -411,7 +418,9 @@ class _PreheatFailed extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: colorScheme.errorContainer.withValues(alpha: 0.3),
+                        color: colorScheme.errorContainer.withValues(
+                          alpha: 0.3,
+                        ),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -424,7 +433,7 @@ class _PreheatFailed extends StatelessWidget {
                     Text(
                       errorInfo.title,
                       style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                         color: colorScheme.onSurface,
                       ),
                     ),

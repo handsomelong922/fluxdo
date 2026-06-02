@@ -71,10 +71,10 @@ class ClipboardTopicLinkService {
       final uri = _parseUri(rawUrl);
       if (uri == null || !_isAllowedHost(uri.host)) continue;
       if (!_isSupportedTopicPath(uri.path)) continue;
-      if (DiscourseUrlParser.parseTopic(uri.path) == null) continue;
 
       final normalizedUri = _normalize(uri);
       final normalizedUrl = normalizedUri.toString();
+      if (DiscourseUrlParser.parseTopic(normalizedUrl) == null) continue;
       return ClipboardTopicLinkCandidate(
         uri: normalizedUri,
         normalizedUrl: normalizedUrl,
@@ -144,32 +144,42 @@ class ClipboardTopicLinkService {
 
   static bool _isSupportedTopicPath(String path) {
     final segments = Uri(path: path).pathSegments;
-    if (segments.isEmpty || segments.first.toLowerCase() != 't') {
+    if (segments.isEmpty) {
+      return false;
+    }
+
+    final marker = segments.first.toLowerCase();
+    if (marker == 'n') {
+      return segments.length >= 3 &&
+          !_isPositiveInt(segments[1]) &&
+          _isPositiveInt(segments[2]);
+    }
+    if (marker != 't') {
       return false;
     }
 
     if (segments.length == 2) {
-      return _isPositiveInt(segments[1]);
+      return _isPositiveInt(segments[1]) || !_looksLikeFile(segments[1]);
     }
 
     if (segments.length == 3) {
-      return (_isPositiveInt(segments[1]) && _isPositiveInt(segments[2])) ||
+      return (_isPositiveInt(segments[1]) &&
+              (_isPositiveInt(segments[2]) || segments[2] == 'last')) ||
           (!_isPositiveInt(segments[1]) && _isPositiveInt(segments[2]));
     }
 
-    if (segments.length == 4) {
-      return !_isPositiveInt(segments[1]) &&
-          _isPositiveInt(segments[2]) &&
-          _isPositiveInt(segments[3]);
-    }
-
-    return false;
+    return segments.length == 4 &&
+        !_isPositiveInt(segments[1]) &&
+        _isPositiveInt(segments[2]) &&
+        (_isPositiveInt(segments[3]) || segments[3] == 'last');
   }
 
   static bool _isPositiveInt(String value) {
     final parsed = int.tryParse(value);
     return parsed != null && parsed > 0;
   }
+
+  static bool _looksLikeFile(String value) => value.contains('.');
 
   static Uri _normalize(Uri uri) {
     final scheme = uri.scheme.toLowerCase();

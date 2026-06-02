@@ -170,6 +170,26 @@ Future<void> launchContentLink(
     return;
   }
 
+  // 2.1 Discourse 帖子短链接 /p/<post_id>，需要先反查 topic/post number。
+  final postShortLinkInfo = DiscourseUrlParser.parsePostShortLink(url);
+  if (postShortLinkInfo != null && isInternalUrlString(url)) {
+    try {
+      final post = await DiscourseService().getPost(postShortLinkInfo.postId);
+      if (!context.mounted) return;
+      if (post.topicId != null) {
+        onInternalLinkTap?.call(post.topicId!, null, post.postNumber);
+        if (onInternalLinkTap != null) return;
+      }
+    } catch (e) {
+      debugPrint('[LinkLauncher] 解析帖子短链接失败: $e');
+    }
+
+    final fullUrl = UrlHelper.resolveUrl(url);
+    if (!context.mounted) return;
+    WebViewPage.open(context, fullUrl);
+    return;
+  }
+
   // 3. 附件链接：优先使用内置下载，回退外部浏览器
   if (_isUploadLink(url) && isInternalUrlString(url)) {
     final fullUrl = UrlHelper.resolveUrl(url);

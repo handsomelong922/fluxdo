@@ -617,7 +617,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 Text(
                   context.l10n.search_recentSearches,
                   style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -1007,7 +1007,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         Text(
           title,
           style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(width: 8),
@@ -1058,7 +1058,7 @@ class _SearchUserCard extends StatelessWidget {
                     Text(
                       user.username,
                       style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                     if (user.name != null && user.name!.isNotEmpty)

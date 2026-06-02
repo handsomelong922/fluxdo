@@ -20,9 +20,10 @@ class SettingsRenderer extends ConsumerWidget {
       IntSliderModel m => _buildIntSlider(context, ref, theme, m),
       ActionModel m => _buildAction(context, ref, theme, m),
       CustomModel m => m.builder(context, ref),
-      PlatformConditionalModel m => m.shouldShow
-          ? SettingsRenderer(model: m.inner)
-          : const SizedBox.shrink(),
+      PlatformConditionalModel m =>
+        m.shouldShow
+            ? SettingsRenderer(model: m.inner)
+            : const SizedBox.shrink(),
     };
   }
 
@@ -148,7 +149,7 @@ class SettingsRenderer extends ConsumerWidget {
             child: Text(
               '$value$suffix',
               style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w500,
                 color: theme.colorScheme.primary,
               ),
               textAlign: TextAlign.end,
@@ -182,7 +183,10 @@ class SettingsRenderer extends ConsumerWidget {
               ),
             )
           : null,
-      trailing: Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
+      trailing: Icon(
+        Icons.chevron_right,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
       onTap: () => m.onTap(context, ref),
     );
   }

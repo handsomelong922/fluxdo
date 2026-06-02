@@ -5,7 +5,11 @@ class HolographicText extends StatefulWidget {
   final String text;
   final double fontSize;
 
-  const HolographicText({super.key, required this.text, required this.fontSize});
+  const HolographicText({
+    super.key,
+    required this.text,
+    required this.fontSize,
+  });
 
   @override
   State<HolographicText> createState() => _HolographicTextState();
@@ -75,7 +79,7 @@ class _HolographicTextState extends State<HolographicText>
         widget.text,
         style: TextStyle(
           fontSize: widget.fontSize,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w600,
         ),
         overflow: TextOverflow.ellipsis,
         maxLines: 1,

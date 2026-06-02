@@ -16,7 +16,8 @@ class ProfileStatsEditPage extends ConsumerStatefulWidget {
   const ProfileStatsEditPage({super.key});
 
   @override
-  ConsumerState<ProfileStatsEditPage> createState() => _ProfileStatsEditPageState();
+  ConsumerState<ProfileStatsEditPage> createState() =>
+      _ProfileStatsEditPageState();
 }
 
 class _ProfileStatsEditPageState extends ConsumerState<ProfileStatsEditPage> {
@@ -67,8 +68,8 @@ class _ProfileStatsEditPageState extends ConsumerState<ProfileStatsEditPage> {
             trailing: Text(
               '${config.enabledStats.length}',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -98,10 +99,13 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Row(
         children: [
-          Text(title, style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.onSurfaceVariant,
-          )),
+          Text(
+            title,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           if (trailing != null) ...[const Spacer(), trailing!],
         ],
       ),
@@ -114,7 +118,11 @@ class _PreviewSection extends ConsumerStatefulWidget {
   final ProfileStatsConfig config;
   final void Function(int oldIndex, int newIndex)? onReorder;
   final ScrollController? scrollController;
-  const _PreviewSection({required this.config, this.onReorder, this.scrollController});
+  const _PreviewSection({
+    required this.config,
+    this.onReorder,
+    this.scrollController,
+  });
 
   @override
   ConsumerState<_PreviewSection> createState() => _PreviewSectionState();
@@ -136,7 +144,8 @@ class _PreviewSectionState extends ConsumerState<_PreviewSection> {
     if (old.config.dataSource != widget.config.dataSource) {
       _debounce?.cancel();
       _debounce = Timer(const Duration(milliseconds: 300), () {
-        if (mounted) setState(() => _effectiveSource = widget.config.dataSource);
+        if (mounted)
+          setState(() => _effectiveSource = widget.config.dataSource);
       });
     }
   }
@@ -163,14 +172,24 @@ class _PreviewSectionState extends ConsumerState<_PreviewSection> {
           scrollController: widget.scrollController,
         ),
         if (isLoading)
-          const Positioned(right: 12, bottom: 8, child: LoadingSpinner(size: 16)),
+          const Positioned(
+            right: 12,
+            bottom: 8,
+            child: LoadingSpinner(size: 16),
+          ),
         if (hasError)
           Positioned(
-            right: 8, bottom: 6,
+            right: 8,
+            bottom: 6,
             child: Tooltip(
               message: S.current.profileStats_loadError,
-              child: Icon(Icons.error_outline_rounded, size: 16,
-                color: Theme.of(context).colorScheme.error.withValues(alpha: 0.6)),
+              child: Icon(
+                Icons.error_outline_rounded,
+                size: 16,
+                color: Theme.of(
+                  context,
+                ).colorScheme.error.withValues(alpha: 0.6),
+              ),
             ),
           ),
       ],
@@ -186,7 +205,10 @@ class _PreviewSectionState extends ConsumerState<_PreviewSection> {
     }
   }
 
-  Map<ProfileStatType, int> _resolveValues(WidgetRef ref, ProfileStatsConfig config) {
+  Map<ProfileStatType, int> _resolveValues(
+    WidgetRef ref,
+    ProfileStatsConfig config,
+  ) {
     switch (config.dataSource) {
       case StatsDataSource.summary:
         return _fromSummary(ref.watch(userSummaryProvider).value);
@@ -337,8 +359,11 @@ class _LayoutSettings extends ConsumerWidget {
               ),
             ),
             if (config.layoutMode == StatsLayoutMode.grid) ...[
-              Divider(height: 24, thickness: 0.5,
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
+              Divider(
+                height: 24,
+                thickness: 0.5,
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+              ),
               _SettingRow(
                 label: S.current.profileStats_columnsPerRow,
                 child: SegmentedButton<int>(
@@ -348,7 +373,8 @@ class _LayoutSettings extends ConsumerWidget {
                     ButtonSegment(value: 4, label: Text('4')),
                   ],
                   selected: {config.columnsPerRow},
-                  onSelectionChanged: (set) => notifier.setColumnsPerRow(set.first),
+                  onSelectionChanged: (set) =>
+                      notifier.setColumnsPerRow(set.first),
                   showSelectedIcon: false,
                   style: SegmentedButton.styleFrom(
                     visualDensity: VisualDensity.compact,
@@ -373,9 +399,14 @@ class _SettingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w500,
-        ))),
+        Expanded(
+          child: Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+          ),
+        ),
         child,
       ],
     );

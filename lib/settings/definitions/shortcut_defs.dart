@@ -86,14 +86,13 @@ class _ShortcutTile extends ConsumerWidget {
               color: theme.colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color:
-                    theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
               ),
             ),
             child: Text(
               ShortcutBinding.formatActivator(binding.activator),
               style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w500,
                 fontFamily: 'monospace',
               ),
             ),
@@ -111,7 +110,10 @@ class _ShortcutTile extends ConsumerWidget {
   }
 
   void _showRecordKeyDialog(
-      BuildContext context, WidgetRef ref, ShortcutBinding binding) {
+    BuildContext context,
+    WidgetRef ref,
+    ShortcutBinding binding,
+  ) {
     showAppDialog(
       context: context,
       builder: (dialogContext) =>
@@ -169,14 +171,14 @@ class _RecordKeyDialogState extends State<_RecordKeyDialog> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 24),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest
-                    .withValues(alpha: 0.5),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: _conflict != null
                       ? theme.colorScheme.error.withValues(alpha: 0.5)
-                      : theme.colorScheme.outlineVariant
-                          .withValues(alpha: 0.3),
+                      : theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
                   width: 2,
                 ),
               ),
@@ -186,7 +188,7 @@ class _RecordKeyDialogState extends State<_RecordKeyDialog> {
                       ? ShortcutBinding.formatActivator(_recorded!)
                       : l10n.shortcuts_recordKey,
                   style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     fontFamily: _recorded != null ? 'monospace' : null,
                     color: _recorded != null
                         ? theme.colorScheme.onSurface
@@ -200,13 +202,15 @@ class _RecordKeyDialogState extends State<_RecordKeyDialog> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded,
-                      color: theme.colorScheme.error, size: 18),
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: theme.colorScheme.error,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      l10n.shortcuts_conflict(
-                          _actionLabel(_conflict!, l10n)),
+                      l10n.shortcuts_conflict(_actionLabel(_conflict!, l10n)),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.error,
                       ),

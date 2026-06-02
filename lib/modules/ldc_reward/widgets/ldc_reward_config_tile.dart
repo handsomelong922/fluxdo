@@ -55,12 +55,14 @@ class LdcRewardConfigTile extends ConsumerWidget {
                     Text(
                       context.l10n.reward_title,
                       style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      isConfigured ? context.l10n.reward_configured : context.l10n.reward_notConfigured,
+                      isConfigured
+                          ? context.l10n.reward_configured
+                          : context.l10n.reward_notConfigured,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -82,7 +84,11 @@ class LdcRewardConfigTile extends ConsumerWidget {
     );
   }
 
-  void _showConfigDialog(BuildContext context, WidgetRef ref, bool isConfigured) {
+  void _showConfigDialog(
+    BuildContext context,
+    WidgetRef ref,
+    bool isConfigured,
+  ) {
     final clientIdController = TextEditingController();
     final clientSecretController = TextEditingController();
     final theme = Theme.of(context);
@@ -158,7 +164,9 @@ class LdcRewardConfigTile extends ConsumerWidget {
           FilledButton(
             onPressed: () {
               final clientId = sanitizeLdcCredential(clientIdController.text);
-              final clientSecret = sanitizeLdcCredential(clientSecretController.text);
+              final clientSecret = sanitizeLdcCredential(
+                clientSecretController.text,
+              );
               if (clientId.isEmpty || clientSecret.isEmpty) {
                 ToastService.showError(S.current.toast_credentialIncomplete);
                 return;

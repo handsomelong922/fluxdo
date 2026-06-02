@@ -4,10 +4,7 @@ import '../../models/category.dart';
 import '../../utils/dialog_utils.dart';
 import '../../../../../l10n/s.dart';
 
-enum TopicNotificationButtonStyle {
-  icon,
-  chip,
-}
+enum TopicNotificationButtonStyle { icon, chip }
 
 /// 显示订阅级别选择面板
 void showNotificationLevelSheet(
@@ -62,16 +59,17 @@ class TopicNotificationButton extends StatelessWidget {
 
   Widget _buildChip(BuildContext context) {
     final theme = Theme.of(context);
-    final isWatching = level == TopicNotificationLevel.watching || 
-                       level == TopicNotificationLevel.tracking;
-    
+    final isWatching =
+        level == TopicNotificationLevel.watching ||
+        level == TopicNotificationLevel.tracking;
+
     // 适配 AI 摘要按钮风格
-    final bgColor = isWatching 
-        ? theme.colorScheme.primaryContainer 
-        : theme.colorScheme.primaryContainer.withValues(alpha:0.3);
-    
-    final fgColor = isWatching 
-        ? theme.colorScheme.primary 
+    final bgColor = isWatching
+        ? theme.colorScheme.primaryContainer
+        : theme.colorScheme.primaryContainer.withValues(alpha: 0.3);
+
+    final fgColor = isWatching
+        ? theme.colorScheme.primary
         : theme.colorScheme.primary;
 
     return Material(
@@ -81,23 +79,24 @@ class TopicNotificationButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(8), // 统一圆角为 8
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // 统一 Padding
+          padding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8,
+          ), // 统一 Padding
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isWatching ? theme.colorScheme.primary : Colors.transparent,
+              color: isWatching
+                  ? theme.colorScheme.primary
+                  : Colors.transparent,
               width: 1,
             ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                getIcon(level),
-                size: 16,
-                color: fgColor,
-              ),
+              Icon(getIcon(level), size: 16, color: fgColor),
               const SizedBox(width: 6),
               Text(
                 level.label,
@@ -150,7 +149,7 @@ class _NotificationLevelSheet extends StatelessWidget {
             child: Text(
               S.current.topic_notificationSettings,
               style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -164,7 +163,7 @@ class _NotificationLevelSheet extends StatelessWidget {
               title: Text(
                 level.label,
                 style: TextStyle(
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                   color: isSelected ? theme.colorScheme.primary : null,
                 ),
               ),
@@ -222,7 +221,8 @@ class CategoryNotificationButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isMuted = level == CategoryNotificationLevel.muted;
-    final isWatching = level == CategoryNotificationLevel.watching ||
+    final isWatching =
+        level == CategoryNotificationLevel.watching ||
         level == CategoryNotificationLevel.tracking ||
         level == CategoryNotificationLevel.watchingFirstPost;
 
@@ -231,7 +231,9 @@ class CategoryNotificationButton extends StatelessWidget {
     final Color borderColor;
 
     if (isMuted) {
-      bgColor = theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5);
+      bgColor = theme.colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.5,
+      );
       fgColor = theme.colorScheme.onSurfaceVariant;
       borderColor = Colors.transparent;
     } else if (isWatching) {
@@ -319,7 +321,7 @@ class _CategoryNotificationLevelSheet extends StatelessWidget {
             child: Text(
               S.current.topic_notificationSettings,
               style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -337,7 +339,9 @@ class _CategoryNotificationLevelSheet extends StatelessWidget {
                     title: Text(
                       level.label,
                       style: TextStyle(
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                         color: isSelected ? theme.colorScheme.primary : null,
                       ),
                     ),

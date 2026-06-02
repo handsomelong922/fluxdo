@@ -198,7 +198,9 @@ class _EmojiStickerPanelState extends State<EmojiStickerPanel> {
                       theme: theme,
                       icon: _currentPage == 1
                           ? PhosphorIcons.smileyMelting(PhosphorIconsStyle.fill)
-                          : PhosphorIcons.smileyMelting(PhosphorIconsStyle.bold),
+                          : PhosphorIcons.smileyMelting(
+                              PhosphorIconsStyle.bold,
+                            ),
                       label: S.current.sticker_tab,
                       selected: _currentPage == 1,
                       width: buttonWidth,
@@ -247,7 +249,7 @@ class _EmojiStickerPanelState extends State<EmojiStickerPanel> {
                 label,
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight: selected ? FontWeight.w500 : FontWeight.normal,
                   color: selected
                       ? theme.colorScheme.primary
                       : theme.colorScheme.onSurfaceVariant,

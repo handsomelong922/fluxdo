@@ -57,21 +57,24 @@ Widget buildCalloutBlock({
       .replaceAll(RegExp(r'<code>.*?</code>', dotAll: true), '');
   final textOnly = withoutCodeBlocks.replaceAll(RegExp(r'<[^>]*>'), '').trim();
   // 如果有代码块，即使 textOnly 为空也算有内容
-  final hasCodeBlock = contentHtml.contains('<pre>') || contentHtml.contains('<code>');
+  final hasCodeBlock =
+      contentHtml.contains('<pre>') || contentHtml.contains('<code>');
   final hasContent = textOnly.isNotEmpty || hasCodeBlock;
 
   final titleStyle = theme.textTheme.titleSmall?.copyWith(
-    fontWeight: FontWeight.w600,
+    fontWeight: FontWeight.w500,
     color: config.color,
   );
 
   String? wrappedTitleHtml;
   if (titleHtml != null && titleHtml.isNotEmpty) {
-    final colorHex = config.color.toARGB32()
+    final colorHex = config.color
+        .toARGB32()
         .toRadixString(16)
         .padLeft(8, '0')
         .substring(2);
-    wrappedTitleHtml = '<span class="callout-title" style="color:#$colorHex">$titleHtml</span>';
+    wrappedTitleHtml =
+        '<span class="callout-title" style="color:#$colorHex">$titleHtml</span>';
   }
 
   Widget titleWidget;
@@ -89,9 +92,7 @@ Widget buildCalloutBlock({
     children: [
       Icon(config.icon, size: 18, color: config.color),
       const SizedBox(width: 8),
-      Expanded(
-        child: titleWidget,
-      ),
+      Expanded(child: titleWidget),
       if (foldable != null)
         Icon(
           Icons.expand_more,
@@ -131,12 +132,7 @@ Widget buildCalloutBlock({
     margin: const EdgeInsets.symmetric(vertical: 8),
     decoration: BoxDecoration(
       color: config.color.withValues(alpha: 0.1),
-      border: Border(
-        left: BorderSide(
-          color: config.color,
-          width: 4,
-        ),
-      ),
+      border: Border(left: BorderSide(color: config.color, width: 4)),
       borderRadius: const BorderRadius.only(
         topRight: Radius.circular(4),
         bottomRight: Radius.circular(4),

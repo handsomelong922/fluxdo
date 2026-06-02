@@ -457,7 +457,7 @@ class _LevelHeader extends StatelessWidget {
           Text(
             '审核等级',
             style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
             ),
           ),
           const Spacer(),
@@ -471,7 +471,7 @@ class _LevelHeader extends StatelessWidget {
               levelText,
               style: theme.textTheme.labelMedium?.copyWith(
                 color: Colors.white,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),

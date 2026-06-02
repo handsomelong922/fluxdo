@@ -900,7 +900,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                       color: total == 0
                           ? theme.colorScheme.onSurfaceVariant
                           : theme.colorScheme.primary,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -1820,7 +1820,7 @@ class _TopicMenuTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.labelLarge?.copyWith(
                 color: iconColor,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                fontWeight: selected ? FontWeight.w500 : FontWeight.w500,
               ),
             ),
           ),

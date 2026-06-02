@@ -32,8 +32,7 @@ class BottomNavSettingsPage extends ConsumerStatefulWidget {
       _BottomNavSettingsPageState();
 }
 
-class _BottomNavSettingsPageState
-    extends ConsumerState<BottomNavSettingsPage> {
+class _BottomNavSettingsPageState extends ConsumerState<BottomNavSettingsPage> {
   static const int _minCount = 2;
   static const int _maxCount = 5;
 
@@ -42,9 +41,7 @@ class _BottomNavSettingsPageState
   @override
   void initState() {
     super.initState();
-    _enabledIds = List<String>.from(
-      ref.read(preferencesProvider).bottomNavIds,
-    );
+    _enabledIds = List<String>.from(ref.read(preferencesProvider).bottomNavIds);
     _sanitize();
   }
 
@@ -102,9 +99,7 @@ class _BottomNavSettingsPageState
 
   Future<void> _addEntry(NavEntry entry) async {
     if (_enabledIds.length >= _maxCount) {
-      ToastService.showInfo(
-        S.current.bottomNav_editorMaxReached(_maxCount),
-      );
+      ToastService.showInfo(S.current.bottomNav_editorMaxReached(_maxCount));
       return;
     }
     setState(() => _enabledIds.add(entry.id));
@@ -114,9 +109,7 @@ class _BottomNavSettingsPageState
   Future<void> _removeEntry(NavEntry entry) async {
     if (entry.locked) return;
     if (_enabledIds.length <= _minCount) {
-      ToastService.showInfo(
-        S.current.bottomNav_editorMinReached(_minCount),
-      );
+      ToastService.showInfo(S.current.bottomNav_editorMinReached(_minCount));
       return;
     }
     setState(() => _enabledIds.remove(entry.id));
@@ -156,10 +149,11 @@ class _BottomNavSettingsPageState
 
     final all = NavEntryRegistry.buildAll();
     final byId = {for (final e in all) e.id: e};
-    final enabled =
-        _enabledIds.map((id) => byId[id]).whereType<NavEntry>().toList();
-    final available =
-        all.where((e) => !_enabledIds.contains(e.id)).toList();
+    final enabled = _enabledIds
+        .map((id) => byId[id])
+        .whereType<NavEntry>()
+        .toList();
+    final available = all.where((e) => !_enabledIds.contains(e.id)).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -203,15 +197,13 @@ class _BottomNavSettingsPageState
           const SizedBox(height: 20),
           _SectionHeader(
             title: l10n.bottomNav_editorAvailable,
-            subtitle:
-                available.isEmpty ? l10n.bottomNav_editorEmptyAvailable : null,
+            subtitle: available.isEmpty
+                ? l10n.bottomNav_editorEmptyAvailable
+                : null,
           ),
           if (available.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: Text(
                 l10n.bottomNav_editorEmptyAvailable,
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -228,21 +220,19 @@ class _BottomNavSettingsPageState
                     for (int i = 0; i < available.length; i++) ...[
                       _AvailableTile(
                         entry: available[i],
-                        canAdd: NavEntryRegistry.isAvailable(
-                              available[i],
-                              user,
-                            ) &&
+                        canAdd:
+                            NavEntryRegistry.isAvailable(available[i], user) &&
                             enabled.length < _maxCount,
-                        needsLogin:
-                            available[i].requiresLogin && user == null,
+                        needsLogin: available[i].requiresLogin && user == null,
                         onAdd: () => _addEntry(available[i]),
                       ),
                       if (i < available.length - 1)
                         Divider(
                           height: 1,
                           indent: 56,
-                          color: theme.colorScheme.outlineVariant
-                              .withValues(alpha: 0.3),
+                          color: theme.colorScheme.outlineVariant.withValues(
+                            alpha: 0.3,
+                          ),
                         ),
                     ],
                   ],
@@ -274,7 +264,7 @@ class _SectionHeader extends StatelessWidget {
           Text(
             title,
             style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               color: theme.colorScheme.primary,
             ),
           ),
@@ -441,8 +431,9 @@ class _PreviewItem extends StatelessWidget {
                       child: Icon(
                         Icons.lock_rounded,
                         size: 14,
-                        color: theme.colorScheme.onSurfaceVariant
-                            .withValues(alpha: 0.55),
+                        color: theme.colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.55,
+                        ),
                       ),
                     ),
                 ],
@@ -535,7 +526,7 @@ class _GestureGroup extends StatelessWidget {
               Text(
                 group.title,
                 style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
@@ -556,8 +547,9 @@ class _GestureGroup extends StatelessWidget {
                     Divider(
                       height: 1,
                       indent: 56,
-                      color: theme.colorScheme.outlineVariant
-                          .withValues(alpha: 0.3),
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.3,
+                      ),
                     ),
                 ],
               ],

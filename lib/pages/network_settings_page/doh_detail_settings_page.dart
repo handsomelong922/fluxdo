@@ -58,7 +58,9 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
                     ),
                     Divider(
                       height: 1,
-                      color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.2,
+                      ),
                     ),
                     SwitchListTile(
                       title: Text(context.l10n.dohDetail_ipv6Prefer),
@@ -69,21 +71,26 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
                     ),
                     Divider(
                       height: 1,
-                      color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.2,
+                      ),
                     ),
                     // Server IP
                     ListTile(
                       leading: const Icon(Icons.dns),
                       title: Text(context.l10n.dohDetail_serverIp),
                       subtitle: Text(
-                        settings.serverIp != null && settings.serverIp!.isNotEmpty
+                        settings.serverIp != null &&
+                                settings.serverIp!.isNotEmpty
                             ? settings.serverIp!
                             : context.l10n.common_notSet,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      trailing: settings.serverIp != null && settings.serverIp!.isNotEmpty
+                      trailing:
+                          settings.serverIp != null &&
+                              settings.serverIp!.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear, size: 20),
                               tooltip: context.l10n.common_clear,
@@ -119,12 +126,20 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
                                 ? const SizedBox(
                                     width: 14,
                                     height: 14,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : const Icon(Icons.speed, size: 16),
-                            label: Text(_testingAll ? context.l10n.dohDetail_testingSpeed : context.l10n.dohDetail_testAllSpeed),
+                            label: Text(
+                              _testingAll
+                                  ? context.l10n.dohDetail_testingSpeed
+                                  : context.l10n.dohDetail_testAllSpeed,
+                            ),
                             style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                               visualDensity: VisualDensity.compact,
                             ),
                           ),
@@ -133,7 +148,9 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
                             icon: const Icon(Icons.add, size: 16),
                             label: Text(context.l10n.common_add),
                             style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                               visualDensity: VisualDensity.compact,
                             ),
                           ),
@@ -159,7 +176,10 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
               ),
               const SizedBox(height: 24),
 
-              _buildSectionHeader(theme, context.l10n.dohDetail_dnsCacheSection),
+              _buildSectionHeader(
+                theme,
+                context.l10n.dohDetail_dnsCacheSection,
+              ),
               const SizedBox(height: 12),
               Card(
                 clipBehavior: Clip.antiAlias,
@@ -179,7 +199,7 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
   Widget _buildSectionHeader(ThemeData theme, String title) {
     return Text(
       title,
-      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w500),
     );
   }
 
@@ -212,24 +232,21 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
     );
   }
 
-  Widget _buildServerTile(ThemeData theme, DohServer server, NetworkSettings settings) {
+  Widget _buildServerTile(
+    ThemeData theme,
+    DohServer server,
+    NetworkSettings settings,
+  ) {
     final selected = server.url == settings.selectedServerUrl;
     final isTesting = _testingServers.contains(server.url);
     final latency = _latencies[server.url];
 
     return ListTile(
       contentPadding: const EdgeInsets.only(left: 8, right: 12),
-      leading: Radio<String>(
-        value: server.url,
-      ),
+      leading: Radio<String>(value: server.url),
       title: Row(
         children: [
-          Expanded(
-            child: Text(
-              server.name,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+          Expanded(child: Text(server.name, overflow: TextOverflow.ellipsis)),
           if (server.isCustom)
             Container(
               margin: const EdgeInsets.only(left: 8),
@@ -293,7 +310,11 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
               ),
             ),
           SwipeDismissiblePopupMenuButton<String>(
-            icon: Icon(Icons.more_vert, size: 20, color: theme.colorScheme.onSurfaceVariant),
+            icon: Icon(
+              Icons.more_vert,
+              size: 20,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             tooltip: S.current.common_more,
             padding: EdgeInsets.zero,
             onSelected: (value) {
@@ -330,8 +351,15 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
                 PopupMenuItem(
                   value: 'delete',
                   child: ListTile(
-                    leading: Icon(Icons.delete_outline, size: 20, color: theme.colorScheme.error),
-                    title: Text(S.current.common_delete, style: TextStyle(color: theme.colorScheme.error)),
+                    leading: Icon(
+                      Icons.delete_outline,
+                      size: 20,
+                      color: theme.colorScheme.error,
+                    ),
+                    title: Text(
+                      S.current.common_delete,
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -452,7 +480,11 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.delete_outline),
-                  label: Text(_dnsCacheBusy ? S.current.dohDetail_processing : S.current.dohDetail_clearCache),
+                  label: Text(
+                    _dnsCacheBusy
+                        ? S.current.dohDetail_processing
+                        : S.current.dohDetail_clearCache,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -466,7 +498,11 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.refresh),
-                  label: Text(_dnsCacheBusy ? S.current.dohDetail_processing : S.current.dohDetail_forceRefresh),
+                  label: Text(
+                    _dnsCacheBusy
+                        ? S.current.dohDetail_processing
+                        : S.current.dohDetail_forceRefresh,
+                  ),
                 ),
               ),
             ],
@@ -476,7 +512,10 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
     );
   }
 
-  Future<void> _showEchServerDialog(List<DohServer> servers, String? currentEch) async {
+  Future<void> _showEchServerDialog(
+    List<DohServer> servers,
+    String? currentEch,
+  ) async {
     final result = await showAppDialog<String?>(
       context: context,
       builder: (context) {
@@ -546,7 +585,9 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
       final count = await _service.forceRefreshDnsCache();
       if (mounted) {
         ToastService.showSuccess(
-          count > 0 ? S.current.dohDetail_dnsCacheRefreshed(count) : S.current.dohDetail_dnsCacheRefreshedSimple,
+          count > 0
+              ? S.current.dohDetail_dnsCacheRefreshed(count)
+              : S.current.dohDetail_dnsCacheRefreshedSimple,
         );
       }
     } catch (e) {
@@ -622,7 +663,9 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
                   ToastService.showError(S.current.dohDetail_urlMustHttps);
                   return;
                 }
-                final bootstrapIps = _parseBootstrapIps(bootstrapIpsController.text);
+                final bootstrapIps = _parseBootstrapIps(
+                  bootstrapIpsController.text,
+                );
                 Navigator.pop(
                   context,
                   DohServer(
@@ -709,7 +752,9 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
                   ToastService.showError(S.current.dohDetail_urlMustHttps);
                   return;
                 }
-                final bootstrapIps = _parseBootstrapIps(bootstrapIpsController.text);
+                final bootstrapIps = _parseBootstrapIps(
+                  bootstrapIpsController.text,
+                );
                 Navigator.pop(
                   context,
                   DohServer(
@@ -734,9 +779,7 @@ class _DohDetailSettingsPageState extends State<DohDetailSettingsPage> {
 
   Future<void> _showServerIpDialog() async {
     final settings = _service.current;
-    final controller = TextEditingController(
-      text: settings.serverIp ?? '',
-    );
+    final controller = TextEditingController(text: settings.serverIp ?? '');
 
     final result = await showAppDialog<String?>(
       context: context,

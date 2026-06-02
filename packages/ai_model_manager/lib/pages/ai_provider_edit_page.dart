@@ -370,7 +370,7 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
           children: [
             Text(AiL10n.current.basicConfig,
                 style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold)),
+                    ?.copyWith(fontWeight: FontWeight.w600)),
             const SizedBox(height: 16),
             // 名称
             TextField(
@@ -502,7 +502,7 @@ class _AiProviderEditPageState extends ConsumerState<AiProviderEditPage> {
                 Expanded(
                   child: Text(AiL10n.current.modelManagement,
                       style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.bold)),
+                          ?.copyWith(fontWeight: FontWeight.w600)),
                 ),
                 if (_models.isNotEmpty)
                   Text('$enabledCount/${_models.length}',

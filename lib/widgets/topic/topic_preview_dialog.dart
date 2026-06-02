@@ -85,10 +85,7 @@ class TopicPreviewDialog extends ConsumerStatefulWidget {
         );
         return ScaleTransition(
           scale: curvedAnimation,
-          child: FadeTransition(
-            opacity: animation,
-            child: child,
-          ),
+          child: FadeTransition(opacity: animation, child: child),
         );
       },
     );
@@ -110,7 +107,9 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
 
   Future<void> _loadFirstPost() async {
     try {
-      final cooked = await ref.read(discourseServiceProvider).getTopicFirstPostCooked(topic.id);
+      final cooked = await ref
+          .read(discourseServiceProvider)
+          .getTopicFirstPostCooked(topic.id);
       if (!mounted) return;
       setState(() {
         _firstPostCooked = cooked;
@@ -202,7 +201,13 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
                             // 分类和标签
                             if (category != null || topic.tags.isNotEmpty) ...[
                               const SizedBox(height: 12),
-                              _buildCategoryAndTags(context, theme, category, faIcon, logoUrl),
+                              _buildCategoryAndTags(
+                                context,
+                                theme,
+                                category,
+                                faIcon,
+                                logoUrl,
+                              ),
                             ],
 
                             // 主贴内容
@@ -250,7 +255,9 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
       );
     }
 
-    if (_firstPostCooked != null && _firstPostCooked!.isNotEmpty && !_loadFailed) {
+    if (_firstPostCooked != null &&
+        _firstPostCooked!.isNotEmpty &&
+        !_loadFailed) {
       // 加载成功：渲染主贴 HTML
       final contentFontScale = ref.watch(preferencesProvider).contentFontScale;
       return DiscourseHtmlContent(
@@ -258,7 +265,8 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
         compact: true,
         textStyle: theme.textTheme.bodyMedium?.copyWith(
           height: 1.5,
-          fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * contentFontScale,
+          fontSize:
+              (theme.textTheme.bodyMedium?.fontSize ?? 14) * contentFontScale,
         ),
         onInternalLinkTap: (topicId, topicSlug, postNumber) {
           Navigator.of(context).pop();
@@ -308,7 +316,8 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
         style: theme.textTheme.bodyMedium?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
           height: 1.6,
-          fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * contentFontScale,
+          fontSize:
+              (theme.textTheme.bodyMedium?.fontSize ?? 14) * contentFontScale,
         ),
         maxLines: 8,
         overflow: TextOverflow.ellipsis,
@@ -320,7 +329,7 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
     return Text.rich(
       TextSpan(
         style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w600,
           height: 1.3,
         ),
         children: [
@@ -353,18 +362,14 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
               alignment: PlaceholderAlignment.middle,
               child: Padding(
                 padding: const EdgeInsets.only(right: 6),
-                child: Icon(
-                  Icons.check_box,
-                  size: 20,
-                  color: Colors.green,
-                ),
+                child: Icon(Icons.check_box, size: 20, color: Colors.green),
               ),
             ),
           ...EmojiText.buildEmojiSpans(
             context,
             topic.title,
             theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
               height: 1.3,
             ),
           ),
@@ -387,11 +392,7 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
 
     return Row(
       children: [
-        SmartAvatar(
-          imageUrl: avatarUrl,
-          radius: 14,
-          fallbackText: username,
-        ),
+        SmartAvatar(imageUrl: avatarUrl, radius: 14, fallbackText: username),
         const SizedBox(width: 8),
         Flexible(
           child: Text(
@@ -443,16 +444,18 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
             onTap: () {
               Navigator.of(context).pop();
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => CategoryTopicsPage(category: category)),
+                MaterialPageRoute(
+                  builder: (_) => CategoryTopicsPage(category: category),
+                ),
               );
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: _parseColor(category.color).withValues(alpha:0.1),
+                color: _parseColor(category.color).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: _parseColor(category.color).withValues(alpha:0.3),
+                  color: _parseColor(category.color).withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -516,7 +519,9 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
             onTap: () {
               Navigator.of(context).pop();
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => TagTopicsPage(tagName: tag.name)),
+                MaterialPageRoute(
+                  builder: (_) => TagTopicsPage(tagName: tag.name),
+                ),
               );
             },
           ),
@@ -583,14 +588,18 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
               child: _buildStatItem(
                 context,
                 Icons.chat_bubble_outline_rounded,
-                S.current.topic_replyCount((topic.postsCount - 1).clamp(0, 999999)),
+                S.current.topic_replyCount(
+                  (topic.postsCount - 1).clamp(0, 999999),
+                ),
               ),
             ),
             Expanded(
               child: _buildStatItem(
                 context,
                 Icons.favorite_border_rounded,
-                S.current.topic_likeCount(NumberUtils.formatCount(topic.likeCount)),
+                S.current.topic_likeCount(
+                  NumberUtils.formatCount(topic.likeCount),
+                ),
               ),
             ),
           ],
@@ -625,16 +634,16 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
     );
   }
 
-  Widget _buildStatWidgetItem(BuildContext context, IconData icon, Widget child) {
+  Widget _buildStatWidgetItem(
+    BuildContext context,
+    IconData icon,
+    Widget child,
+  ) {
     final theme = Theme.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
         const SizedBox(width: 4),
         child,
       ],
@@ -646,11 +655,7 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
         const SizedBox(width: 4),
         Text(
           text,
@@ -669,7 +674,7 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
         color: theme.colorScheme.surfaceContainerLow,
         border: Border(
           top: BorderSide(
-            color: theme.colorScheme.outlineVariant.withValues(alpha:0.5),
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
           ),
         ),
       ),
@@ -731,21 +736,32 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (index > 0)
-                Divider(height: 0.5, thickness: 0.5, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
+                Divider(
+                  height: 0.5,
+                  thickness: 0.5,
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.4,
+                  ),
+                ),
               InkWell(
                 onTap: () {
                   Navigator.of(context).pop();
                   action.onTap();
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Row(
                     children: [
                       Icon(action.icon, size: 20, color: color),
                       const SizedBox(width: 12),
                       Text(
                         action.label,
-                        style: theme.textTheme.bodyMedium?.copyWith(color: color),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: color,
+                        ),
                       ),
                     ],
                   ),

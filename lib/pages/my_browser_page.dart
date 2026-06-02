@@ -27,16 +27,12 @@ class MyBrowserPage extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(context.l10n.myBrowser_title),
-      ),
+      appBar: AppBar(title: Text(context.l10n.myBrowser_title)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // 地址栏
-          _AddressBar(
-            onSubmit: (url) => _openUrl(context, url),
-          ),
+          _AddressBar(onSubmit: (url) => _openUrl(context, url)),
           const SizedBox(height: 24),
           // 功能入口
           Card(
@@ -54,7 +50,8 @@ class MyBrowserPage extends ConsumerWidget {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (_) => const _BookmarkListPage()),
+                      builder: (_) => const _BookmarkListPage(),
+                    ),
                   ),
                 ),
                 Padding(
@@ -62,7 +59,9 @@ class MyBrowserPage extends ConsumerWidget {
                   child: Divider(
                     height: 1,
                     thickness: 0.5,
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.2,
+                    ),
                   ),
                 ),
                 _EntryTile(
@@ -72,8 +71,7 @@ class MyBrowserPage extends ConsumerWidget {
                   subtitle: context.l10n.myBrowser_historyDesc,
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(
-                        builder: (_) => const _WebHistoryPage()),
+                    MaterialPageRoute(builder: (_) => const _WebHistoryPage()),
                   ),
                 ),
                 Padding(
@@ -81,7 +79,9 @@ class MyBrowserPage extends ConsumerWidget {
                   child: Divider(
                     height: 1,
                     thickness: 0.5,
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.2,
+                    ),
                   ),
                 ),
                 _EntryTile(
@@ -92,8 +92,7 @@ class MyBrowserPage extends ConsumerWidget {
                   showDivider: false,
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(
-                        builder: (_) => const DownloadListPage()),
+                    MaterialPageRoute(builder: (_) => const DownloadListPage()),
                   ),
                 ),
               ],
@@ -149,12 +148,17 @@ class _AddressBarState extends State<_AddressBar> {
           onPressed: () => _submit(),
         ),
         filled: true,
-        fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        fillColor: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.5,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(28),
           borderSide: BorderSide.none,
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 14,
+        ),
       ),
       onSubmitted: (_) => _submit(),
     );
@@ -265,10 +269,13 @@ class _BookmarkListPage extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.star_outline_rounded,
-                      size: 64,
-                      color: theme.colorScheme.onSurfaceVariant
-                          .withValues(alpha: 0.4)),
+                  Icon(
+                    Icons.star_outline_rounded,
+                    size: 64,
+                    color: theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: 0.4,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     context.l10n.myBrowser_empty,
@@ -287,7 +294,8 @@ class _BookmarkListPage extends ConsumerWidget {
                   final item = bookmarks[index];
                   return Padding(
                     padding: EdgeInsets.only(
-                        bottom: index < bookmarks.length - 1 ? 12 : 0),
+                      bottom: index < bookmarks.length - 1 ? 12 : 0,
+                    ),
                     child: SwipeActionCell(
                       key: ValueKey(item.url),
                       trailingActions: [
@@ -295,21 +303,22 @@ class _BookmarkListPage extends ConsumerWidget {
                           icon: Icons.edit_outlined,
                           color: Colors.blue,
                           label: S.current.myBrowser_edit,
-                          onPressed: () =>
-                              _showEditDialog(context, ref, item),
+                          onPressed: () => _showEditDialog(context, ref, item),
                         ),
                         SwipeAction(
                           icon: Icons.delete_outline,
                           color: Colors.red,
                           label: S.current.myBrowser_delete,
-                          onPressed: () =>
-                              _confirmDelete(context, ref, item),
+                          onPressed: () => _confirmDelete(context, ref, item),
                         ),
                       ],
                       child: _BookmarkCard(
                         item: item,
-                        onTap: () => WebViewPage.open(context, item.url,
-                            title: item.title),
+                        onTap: () => WebViewPage.open(
+                          context,
+                          item.url,
+                          title: item.title,
+                        ),
                       ),
                     ),
                   );
@@ -357,11 +366,12 @@ class _BookmarkListPage extends ConsumerWidget {
             onPressed: () {
               var url = urlController.text.trim();
               if (url.isEmpty) return;
-              if (!url.startsWith('http://') &&
-                  !url.startsWith('https://')) {
+              if (!url.startsWith('http://') && !url.startsWith('https://')) {
                 url = 'https://$url';
               }
-              ref.read(webBookmarkProvider.notifier).add(
+              ref
+                  .read(webBookmarkProvider.notifier)
+                  .add(
                     WebBookmark(
                       url: url,
                       title: titleController.text.trim(),
@@ -377,8 +387,7 @@ class _BookmarkListPage extends ConsumerWidget {
     );
   }
 
-  void _showEditDialog(
-      BuildContext context, WidgetRef ref, WebBookmark item) {
+  void _showEditDialog(BuildContext context, WidgetRef ref, WebBookmark item) {
     final titleController = TextEditingController(text: item.title);
 
     showAppDialog(
@@ -401,11 +410,13 @@ class _BookmarkListPage extends ConsumerWidget {
             onPressed: () {
               final notifier = ref.read(webBookmarkProvider.notifier);
               notifier.removeByUrl(item.url);
-              notifier.add(WebBookmark(
-                url: item.url,
-                title: titleController.text.trim(),
-                createdAt: item.createdAt,
-              ));
+              notifier.add(
+                WebBookmark(
+                  url: item.url,
+                  title: titleController.text.trim(),
+                  createdAt: item.createdAt,
+                ),
+              );
               Navigator.pop(ctx);
             },
             child: Text(S.current.common_confirm),
@@ -415,8 +426,7 @@ class _BookmarkListPage extends ConsumerWidget {
     );
   }
 
-  void _confirmDelete(
-      BuildContext context, WidgetRef ref, WebBookmark item) {
+  void _confirmDelete(BuildContext context, WidgetRef ref, WebBookmark item) {
     showAppDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -429,13 +439,12 @@ class _BookmarkListPage extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () {
-              ref
-                  .read(webBookmarkProvider.notifier)
-                  .removeByUrl(item.url);
+              ref.read(webBookmarkProvider.notifier).removeByUrl(item.url);
               Navigator.pop(ctx);
             },
             style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             child: Text(S.current.myBrowser_delete),
           ),
         ],
@@ -473,10 +482,13 @@ class _WebHistoryPage extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.history_rounded,
-                      size: 64,
-                      color: theme.colorScheme.onSurfaceVariant
-                          .withValues(alpha: 0.4)),
+                  Icon(
+                    Icons.history_rounded,
+                    size: 64,
+                    color: theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: 0.4,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     context.l10n.myBrowser_historyEmpty,
@@ -495,9 +507,12 @@ class _WebHistoryPage extends ConsumerWidget {
                   final item = history[index];
                   return Padding(
                     padding: EdgeInsets.only(
-                        bottom: index < history.length - 1 ? 12 : 0),
+                      bottom: index < history.length - 1 ? 12 : 0,
+                    ),
                     child: SwipeActionCell(
-                      key: ValueKey('${item.url}_${item.visitedAt.millisecondsSinceEpoch}'),
+                      key: ValueKey(
+                        '${item.url}_${item.visitedAt.millisecondsSinceEpoch}',
+                      ),
                       trailingActions: [
                         SwipeAction(
                           icon: Icons.delete_outline,
@@ -510,8 +525,11 @@ class _WebHistoryPage extends ConsumerWidget {
                       ],
                       child: _HistoryCard(
                         item: item,
-                        onTap: () => WebViewPage.open(context, item.url,
-                            title: item.title),
+                        onTap: () => WebViewPage.open(
+                          context,
+                          item.url,
+                          title: item.title,
+                        ),
                       ),
                     ),
                   );
@@ -538,7 +556,8 @@ class _WebHistoryPage extends ConsumerWidget {
               Navigator.pop(ctx);
             },
             style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             child: Text(S.current.myBrowser_clearHistory),
           ),
         ],
@@ -585,8 +604,9 @@ class _HistoryCard extends StatelessWidget {
                 children: [
                   Text(
                     item.title.isNotEmpty ? item.title : item.url,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -597,7 +617,8 @@ class _HistoryCard extends StatelessWidget {
                         child: Text(
                           host.isNotEmpty ? host : item.url,
                           style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant),
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -606,17 +627,20 @@ class _HistoryCard extends StatelessWidget {
                       Text(
                         TimeUtils.formatRelativeTime(item.visitedAt),
                         style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontSize: 11),
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 11,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded,
-                color: theme.colorScheme.outline.withValues(alpha: 0.4),
-                size: 20),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: theme.colorScheme.outline.withValues(alpha: 0.4),
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -662,8 +686,9 @@ class _BookmarkCard extends StatelessWidget {
                 children: [
                   Text(
                     item.title.isNotEmpty ? item.title : item.url,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -674,7 +699,8 @@ class _BookmarkCard extends StatelessWidget {
                         child: Text(
                           host.isNotEmpty ? host : item.url,
                           style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant),
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -683,17 +709,20 @@ class _BookmarkCard extends StatelessWidget {
                       Text(
                         TimeUtils.formatRelativeTime(item.createdAt),
                         style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontSize: 11),
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 11,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded,
-                color: theme.colorScheme.outline.withValues(alpha: 0.4),
-                size: 20),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: theme.colorScheme.outline.withValues(alpha: 0.4),
+              size: 20,
+            ),
           ],
         ),
       ),

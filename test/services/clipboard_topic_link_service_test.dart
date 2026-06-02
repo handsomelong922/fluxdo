@@ -23,6 +23,10 @@ void main() {
             'https://linux.do/t/topic-slug/123',
         'https://linux.do/t/topic-slug/123/5':
             'https://linux.do/t/topic-slug/123/5',
+        'https://linux.do/t/topic-slug/123/last':
+            'https://linux.do/t/topic-slug/123/last',
+        'https://linux.do/n/topic-slug/123/context/5':
+            'https://linux.do/n/topic-slug/123/context/5',
       };
 
       for (final entry in cases.entries) {
@@ -80,6 +84,8 @@ void main() {
         'https://linux.do/t/topic-slug',
         'https://linux.do/t/123/not-post-number',
         'https://linux.do/t/topic-slug/123/not-post-number',
+        'https://linux.do/t/123/posts',
+        'https://linux.do/t/topic-slug/123/posts',
       ];
 
       for (final text in invalidTexts) {

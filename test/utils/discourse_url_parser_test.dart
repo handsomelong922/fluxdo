@@ -41,5 +41,65 @@ void main() {
       expect(info?.slug, 'example-topic');
       expect(info?.postNumber, 9);
     });
+
+    test('parses id-only, last, base-path, and nested topic links', () {
+      expect(
+        DiscourseUrlParser.parseTopic(
+          'https://linux.do/t/2237130/9',
+        )?.postNumber,
+        9,
+      );
+      expect(
+        DiscourseUrlParser.parseTopic(
+          'https://linux.do/t/2237130/last',
+        )?.postNumber,
+        isNull,
+      );
+
+      final basePath = DiscourseUrlParser.parseTopic(
+        'https://example.com/forum/t/example-topic/2237130/9#post_7',
+      );
+      expect(basePath?.topicId, 2237130);
+      expect(basePath?.slug, 'example-topic');
+      expect(basePath?.postNumber, 9);
+
+      final nested = DiscourseUrlParser.parseTopic(
+        'https://linux.do/n/example-topic/2237130/context/12',
+      );
+      expect(nested?.topicId, 2237130);
+      expect(nested?.slug, 'example-topic');
+      expect(nested?.postNumber, 12);
+    });
+
+    test('does not treat topic API paths as topic links', () {
+      expect(
+        DiscourseUrlParser.parseTopic('https://linux.do/t/2237130/posts'),
+        isNull,
+      );
+      expect(
+        DiscourseUrlParser.parseTopic(
+          'https://linux.do/t/example-topic/2237130/posts',
+        ),
+        isNull,
+      );
+      expect(
+        DiscourseUrlParser.parseTopic(
+          'https://linux.do/n/example-topic/2237130/posts',
+        ),
+        isNull,
+      );
+    });
+
+    test('parses post short links separately', () {
+      final info = DiscourseUrlParser.parsePostShortLink(
+        'https://linux.do/p/987654/4242',
+      );
+
+      expect(info?.postId, 987654);
+      expect(
+        DiscourseUrlParser.parsePostShortLink('https://linux.do/p/987654/foo'),
+        isNull,
+      );
+    });
   });
 }

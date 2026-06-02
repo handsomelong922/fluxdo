@@ -71,20 +71,20 @@ class _SettingsGroupPageState extends ConsumerState<SettingsGroupPage> {
         children: [
           for (final group in groups)
             if (_hasVisibleItems(group)) ...[
-            _buildSectionHeader(theme, group.title, group.icon),
-            const SizedBox(height: 12),
-            if (group.wrapInCard)
-              Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: _buildGroupItems(theme, group),
-              )
-            else
-              _buildGroupItems(theme, group),
-            const SizedBox(height: 24),
-          ],
+              _buildSectionHeader(theme, group.title, group.icon),
+              const SizedBox(height: 12),
+              if (group.wrapInCard)
+                Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: _buildGroupItems(theme, group),
+                )
+              else
+                _buildGroupItems(theme, group),
+              const SizedBox(height: 24),
+            ],
         ],
       ),
     );
@@ -145,7 +145,7 @@ class _SettingsGroupPageState extends ConsumerState<SettingsGroupPage> {
         Text(
           title,
           style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],

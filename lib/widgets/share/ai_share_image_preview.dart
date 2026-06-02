@@ -110,8 +110,9 @@ class _AiShareImagePreviewState extends ConsumerState<AiShareImagePreview> {
   }
 
   ThemeData _buildThemeData(ThemeData currentTheme) {
-    final brightness =
-        _selectedTheme.isDark ? Brightness.dark : Brightness.light;
+    final brightness = _selectedTheme.isDark
+        ? Brightness.dark
+        : Brightness.light;
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
@@ -216,7 +217,9 @@ class _AiShareImagePreviewState extends ConsumerState<AiShareImagePreview> {
       // 上传到 Discourse
       final service = DiscourseService();
       final uploadResult = await service.uploadImage(tempFile.path);
-      final imageMarkdown = uploadResult.toMarkdown(alt: S.current.share_aiReplyAlt);
+      final imageMarkdown = uploadResult.toMarkdown(
+        alt: S.current.share_aiReplyAlt,
+      );
 
       if (mounted) {
         // 关闭预览页
@@ -257,8 +260,7 @@ class _AiShareImagePreviewState extends ConsumerState<AiShareImagePreview> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color:
-                  theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -274,10 +276,12 @@ class _AiShareImagePreviewState extends ConsumerState<AiShareImagePreview> {
                 ),
                 Expanded(
                   child: Text(
-                    widget.messages.length > 1 ? context.l10n.share_exportChatImage : context.l10n.share_exportImage,
+                    widget.messages.length > 1
+                        ? context.l10n.share_exportChatImage
+                        : context.l10n.share_exportImage,
                     style: const TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -326,8 +330,9 @@ class _AiShareImagePreviewState extends ConsumerState<AiShareImagePreview> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest
-                  .withValues(alpha: 0.5),
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.5,
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -347,15 +352,17 @@ class _AiShareImagePreviewState extends ConsumerState<AiShareImagePreview> {
                           border: Border.all(
                             color: isSelected
                                 ? theme.colorScheme.primary
-                                : theme.colorScheme.outline
-                                    .withValues(alpha: 0.3),
+                                : theme.colorScheme.outline.withValues(
+                                    alpha: 0.3,
+                                  ),
                             width: isSelected ? 2.5 : 1,
                           ),
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: theme.colorScheme.primary
-                                        .withValues(alpha: 0.3),
+                                    color: theme.colorScheme.primary.withValues(
+                                      alpha: 0.3,
+                                    ),
                                     blurRadius: 8,
                                   ),
                                 ]
@@ -365,8 +372,7 @@ class _AiShareImagePreviewState extends ConsumerState<AiShareImagePreview> {
                             ? Icon(
                                 Icons.check,
                                 size: 18,
-                                color:
-                                    t.isDark ? Colors.white : Colors.black87,
+                                color: t.isDark ? Colors.white : Colors.black87,
                               )
                             : null,
                       ),
@@ -378,8 +384,9 @@ class _AiShareImagePreviewState extends ConsumerState<AiShareImagePreview> {
                           color: isSelected
                               ? theme.colorScheme.primary
                               : theme.colorScheme.onSurfaceVariant,
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.normal,
+                          fontWeight: isSelected
+                              ? FontWeight.w500
+                              : FontWeight.normal,
                         ),
                       ),
                     ],
@@ -401,8 +408,9 @@ class _AiShareImagePreviewState extends ConsumerState<AiShareImagePreview> {
               color: theme.colorScheme.surface,
               border: Border(
                 top: BorderSide(
-                  color: theme.colorScheme.outlineVariant
-                      .withValues(alpha: 0.3),
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.3,
+                  ),
                 ),
               ),
             ),
@@ -421,13 +429,13 @@ class _AiShareImagePreviewState extends ConsumerState<AiShareImagePreview> {
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2),
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Icon(Icons.copy, size: 18),
                         label: Text(context.l10n.common_copy),
                         style: OutlinedButton.styleFrom(
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
                     ),
@@ -441,13 +449,13 @@ class _AiShareImagePreviewState extends ConsumerState<AiShareImagePreview> {
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2),
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Icon(Icons.save_alt, size: 18),
                         label: Text(context.l10n.common_save),
                         style: OutlinedButton.styleFrom(
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
                     ),
@@ -468,8 +476,7 @@ class _AiShareImagePreviewState extends ConsumerState<AiShareImagePreview> {
                             : const Icon(Icons.share, size: 18),
                         label: Text(context.l10n.common_share),
                         style: FilledButton.styleFrom(
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
                     ),
@@ -486,14 +493,16 @@ class _AiShareImagePreviewState extends ConsumerState<AiShareImagePreview> {
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.reply, size: 18),
-                      label: Text(_isReplying ? context.l10n.share_uploading : context.l10n.share_replyToTopic),
+                      label: Text(
+                        _isReplying
+                            ? context.l10n.share_uploading
+                            : context.l10n.share_replyToTopic,
+                      ),
                       style: FilledButton.styleFrom(
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),

@@ -12,43 +12,53 @@ class SocialOneboxBuilder {
     List<LinkCount>? linkCounts,
   }) {
     final url = extractUrl(element);
-    final clickCount = extractClickCountFromOnebox(element, linkCounts: linkCounts);
+    final clickCount = extractClickCountFromOnebox(
+      element,
+      linkCounts: linkCounts,
+    );
 
     // 提取用户信息
-    final displayName = element.querySelector('.display-name')?.text?.trim() ??
+    final displayName =
+        element.querySelector('.display-name')?.text?.trim() ??
         element.querySelector('h4')?.text?.trim() ??
         '';
-    final username = element.querySelector('.screen-name')?.text?.trim() ??
+    final username =
+        element.querySelector('.screen-name')?.text?.trim() ??
         element.querySelector('.username')?.text?.trim() ??
         _extractTwitterUsername(url);
 
     // 提取头像
-    final avatarElement = element.querySelector('img.twitter-avatar') ??
+    final avatarElement =
+        element.querySelector('img.twitter-avatar') ??
         element.querySelector('img');
     final avatarUrl = avatarElement?.attributes['src'] ?? '';
 
     // 提取推文内容
-    final contentElement = element.querySelector('.tweet-content') ??
+    final contentElement =
+        element.querySelector('.tweet-content') ??
         element.querySelector('.tweet') ??
         element.querySelector('blockquote') ??
         element.querySelector('p');
     final content = contentElement?.text?.trim() ?? '';
 
     // 提取时间
-    final timeElement = element.querySelector('time') ??
-        element.querySelector('.tweet-date');
+    final timeElement =
+        element.querySelector('time') ?? element.querySelector('.tweet-date');
     final time = timeElement?.text?.trim() ?? '';
 
     // 提取统计
-    final likesElement = element.querySelector('.likes') ??
+    final likesElement =
+        element.querySelector('.likes') ??
         element.querySelector('.favorite-count');
-    final retweetsElement = element.querySelector('.retweets') ??
+    final retweetsElement =
+        element.querySelector('.retweets') ??
         element.querySelector('.retweet-count');
     final likes = likesElement?.text?.trim();
     final retweets = retweetsElement?.text?.trim();
 
     // 提取图片
-    final imageElements = element.querySelectorAll('.tweet-image img') +
+    final imageElements =
+        element.querySelectorAll('.tweet-image img') +
         element.querySelectorAll('.media img');
     final images = imageElements
         .map((img) => img.attributes['src'] as String?)
@@ -64,11 +74,7 @@ class SocialOneboxBuilder {
           Row(
             children: [
               // 头像
-              OneboxAvatar(
-                imageUrl: avatarUrl,
-                size: 40,
-                borderRadius: 20,
-              ),
+              OneboxAvatar(imageUrl: avatarUrl, size: 40, borderRadius: 20),
               const SizedBox(width: 10),
               // 用户名
               Expanded(
@@ -79,7 +85,7 @@ class SocialOneboxBuilder {
                       Text(
                         displayName,
                         style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -108,7 +114,7 @@ class SocialOneboxBuilder {
                     '𝕏',
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                       color: theme.brightness == Brightness.dark
                           ? Colors.black
                           : Colors.white,
@@ -185,41 +191,48 @@ class SocialOneboxBuilder {
     List<LinkCount>? linkCounts,
   }) {
     final url = extractUrl(element);
-    final clickCount = extractClickCountFromOnebox(element, linkCounts: linkCounts);
+    final clickCount = extractClickCountFromOnebox(
+      element,
+      linkCounts: linkCounts,
+    );
 
     // 提取标题
     final h4Element = element.querySelector('h4');
     final h3Element = element.querySelector('h3');
-    final titleLink = h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
+    final titleLink =
+        h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
     final title = titleLink?.text ?? '';
 
     // 提取子版块
-    final subredditElement = element.querySelector('.subreddit') ??
+    final subredditElement =
+        element.querySelector('.subreddit') ??
         element.querySelector('.reddit-subreddit');
-    final subreddit = subredditElement?.text?.trim() ??
-        _extractSubreddit(url);
+    final subreddit = subredditElement?.text?.trim() ?? _extractSubreddit(url);
 
     // 提取作者
-    final authorElement = element.querySelector('.author') ??
+    final authorElement =
+        element.querySelector('.author') ??
         element.querySelector('.reddit-author');
     final author = authorElement?.text?.trim() ?? '';
 
     // 提取内容摘要
-    final contentElement = element.querySelector('.reddit-content') ??
-        element.querySelector('p');
+    final contentElement =
+        element.querySelector('.reddit-content') ?? element.querySelector('p');
     final content = contentElement?.text?.trim() ?? '';
 
     // 提取统计
-    final scoreElement = element.querySelector('.score') ??
+    final scoreElement =
+        element.querySelector('.score') ??
         element.querySelector('.reddit-score');
-    final commentsElement = element.querySelector('.comments') ??
+    final commentsElement =
+        element.querySelector('.comments') ??
         element.querySelector('.reddit-comments');
     final score = scoreElement?.text?.trim();
     final comments = commentsElement?.text?.trim();
 
     // 提取缩略图
-    final thumbnailElement = element.querySelector('.thumbnail') ??
-        element.querySelector('img');
+    final thumbnailElement =
+        element.querySelector('.thumbnail') ?? element.querySelector('img');
     final thumbnailUrl = thumbnailElement?.attributes['src'] ?? '';
 
     return OneboxContainer(
@@ -238,11 +251,7 @@ class SocialOneboxBuilder {
                   color: const Color(0xFFFF4500),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.reddit,
-                  size: 16,
-                  color: Colors.white,
-                ),
+                child: const Icon(Icons.reddit, size: 16, color: Colors.white),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -253,7 +262,7 @@ class SocialOneboxBuilder {
                       Text(
                         subreddit.startsWith('r/') ? subreddit : 'r/$subreddit',
                         style: theme.textTheme.labelMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     if (author.isNotEmpty)
@@ -277,7 +286,7 @@ class SocialOneboxBuilder {
                 child: Text(
                   title,
                   style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                   ),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
@@ -345,15 +354,20 @@ class SocialOneboxBuilder {
     List<LinkCount>? linkCounts,
   }) {
     final url = extractUrl(element);
-    final clickCount = extractClickCountFromOnebox(element, linkCounts: linkCounts);
+    final clickCount = extractClickCountFromOnebox(
+      element,
+      linkCounts: linkCounts,
+    );
 
     // 提取用户名
-    final usernameElement = element.querySelector('.instagram-username') ??
+    final usernameElement =
+        element.querySelector('.instagram-username') ??
         element.querySelector('.author');
     final username = usernameElement?.text?.trim() ?? '';
 
     // 提取描述
-    final captionElement = element.querySelector('.instagram-caption') ??
+    final captionElement =
+        element.querySelector('.instagram-caption') ??
         element.querySelector('p');
     final caption = captionElement?.text?.trim() ?? '';
 
@@ -396,7 +410,7 @@ class SocialOneboxBuilder {
                 child: Text(
                   username.startsWith('@') ? username : '@$username',
                   style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -435,9 +449,7 @@ class SocialOneboxBuilder {
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                OneboxClickCount(count: clickCount),
-              ],
+              children: [OneboxClickCount(count: clickCount)],
             ),
           ],
         ],
@@ -462,4 +474,3 @@ Future<void> _launchUrl(BuildContext context, String url) async {
   if (url.isEmpty) return;
   await launchContentLink(context, url);
 }
-

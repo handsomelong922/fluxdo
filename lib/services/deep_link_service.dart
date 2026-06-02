@@ -116,7 +116,7 @@ class DeepLinkService {
     }
 
     // 尝试匹配话题链接（带 ID）：/t/123、/t/123/5、/t/topic-slug/123 等
-    final topicInfo = DiscourseUrlParser.parseTopic(uri.path);
+    final topicInfo = DiscourseUrlParser.parseTopic(url);
     if (topicInfo != null) {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -126,6 +126,13 @@ class DeepLinkService {
           ),
         ),
       );
+      return;
+    }
+
+    // 尝试匹配帖子短链接：/p/12345
+    final postShortLinkInfo = DiscourseUrlParser.parsePostShortLink(url);
+    if (postShortLinkInfo != null) {
+      unawaited(_handlePostShortLink(context, postShortLinkInfo.postId, url));
       return;
     }
 
@@ -150,6 +157,34 @@ class DeepLinkService {
     }
 
     debugPrint('DeepLinkService: 未知链接类型 $url');
+  }
+
+  Future<void> _handlePostShortLink(
+    BuildContext context,
+    int postId,
+    String originalUrl,
+  ) async {
+    try {
+      final post = await DiscourseService().getPost(postId);
+      if (!context.mounted) return;
+      if (post.topicId == null) {
+        WebViewPage.open(context, originalUrl);
+        return;
+      }
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => TopicDetailPage(
+            topicId: post.topicId!,
+            scrollToPostNumber: post.postNumber,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('DeepLinkService: 帖子短链接解析失败 $originalUrl: $e');
+      if (context.mounted) {
+        WebViewPage.open(context, originalUrl);
+      }
+    }
   }
 
   /// 处理自定义 scheme

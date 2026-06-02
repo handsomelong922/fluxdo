@@ -601,6 +601,7 @@ class PostNotice {
 
 class Post {
   final int id;
+  final int? topicId;
   final String? name;
   final String username;
   final String avatarTemplate;
@@ -701,6 +702,7 @@ class Post {
 
   Post({
     required this.id,
+    this.topicId,
     this.name,
     required this.username,
     required this.avatarTemplate,
@@ -772,6 +774,7 @@ class Post {
   factory Post.fromJson(Map<String, dynamic> json) {
     return Post(
       id: json['id'] as int,
+      topicId: json['topic_id'] as int?,
       name: json['name'] as String?,
       username: json['username'] as String? ?? 'Unknown',
       avatarTemplate: json['avatar_template'] as String? ?? '',

@@ -129,7 +129,8 @@ class _DraggableFloatingPillState extends State<DraggableFloatingPill>
                     ),
                     BoxShadow(
                       color: colorScheme.primary.withValues(
-                          alpha: 0.1 + 0.3 * _breathingAnimation.value),
+                        alpha: 0.1 + 0.3 * _breathingAnimation.value,
+                      ),
                       blurRadius: 12 + 8 * _breathingAnimation.value,
                       spreadRadius: 2 + 4 * _breathingAnimation.value,
                     ),
@@ -171,12 +172,10 @@ class _DraggableFloatingPillState extends State<DraggableFloatingPill>
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: DefaultTextStyle(
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelLarge!
+                              style: Theme.of(context).textTheme.labelLarge!
                                   .copyWith(
                                     color: contentColor,
-                                    fontWeight: FontWeight.bold,
+                                    fontWeight: FontWeight.w600,
                                   ),
                               child: widget.child,
                             ),

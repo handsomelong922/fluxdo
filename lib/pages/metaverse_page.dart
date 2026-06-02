@@ -157,47 +157,45 @@ class _MetaversePageState extends ConsumerState<MetaversePage> {
 
     return Scaffold(
       body: CustomScrollView(
-              slivers: [
-                SliverAppBar.large(
-                  title: Text(context.l10n.metaverse_title),
-                  centerTitle: false,
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate(
-                      [
-                        // 服务列表标题
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 16, top: 8),
-                          child: Text(
-                            context.l10n.metaverse_myServices,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.onSurface,
-                            ),
-                          ),
-                        ),
-                        // LDC 服务卡片
-                        _buildLdcServiceItem(theme),
-                        const SizedBox(height: 16),
-                        // CDK 服务卡片
-                        _buildCdkServiceItem(theme),
-                        const SizedBox(height: 16),
-                        // LDC 打赏配置（仅在 LDC 已开启时显示）
-                        if (_ldcEnabled) ...[
-                          const LdcRewardConfigTile(),
-                          const SizedBox(height: 16),
-                        ],
-                        // 更多服务占位符
-                        _buildComingSoonItem(theme),
-                        const SizedBox(height: 100), // 底部留白
-                      ],
+        slivers: [
+          SliverAppBar.large(
+            title: Text(context.l10n.metaverse_title),
+            centerTitle: false,
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                // 服务列表标题
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16, top: 8),
+                  child: Text(
+                    context.l10n.metaverse_myServices,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                 ),
-              ],
+                // LDC 服务卡片
+                _buildLdcServiceItem(theme),
+                const SizedBox(height: 16),
+                // CDK 服务卡片
+                _buildCdkServiceItem(theme),
+                const SizedBox(height: 16),
+                // LDC 打赏配置（仅在 LDC 已开启时显示）
+                if (_ldcEnabled) ...[
+                  const LdcRewardConfigTile(),
+                  const SizedBox(height: 16),
+                ],
+                // 更多服务占位符
+                _buildComingSoonItem(theme),
+                const SizedBox(height: 100), // 底部留白
+              ]),
             ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -266,9 +264,7 @@ class _MetaversePageState extends ConsumerState<MetaversePage> {
     // 未开启状态：展示连接卡片
     return Card(
       color: theme.colorScheme.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: InkWell(
         onTap: _ldcProcessing ? null : () => _toggleLdc(true),
         borderRadius: BorderRadius.circular(24),
@@ -297,7 +293,7 @@ class _MetaversePageState extends ConsumerState<MetaversePage> {
                     Text(
                       context.l10n.metaverse_ldcService,
                       style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -320,7 +316,7 @@ class _MetaversePageState extends ConsumerState<MetaversePage> {
               else
                 FilledButton(
                   onPressed: () => _toggleLdc(true),
-                   style: FilledButton.styleFrom(
+                  style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     visualDensity: VisualDensity.compact,
                   ),
@@ -344,9 +340,7 @@ class _MetaversePageState extends ConsumerState<MetaversePage> {
     // 未开启状态：展示连接卡片
     return Card(
       color: theme.colorScheme.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: InkWell(
         onTap: _cdkProcessing ? null : () => _toggleCdk(true),
         borderRadius: BorderRadius.circular(24),
@@ -375,7 +369,7 @@ class _MetaversePageState extends ConsumerState<MetaversePage> {
                     Text(
                       context.l10n.metaverse_cdkService,
                       style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -398,7 +392,7 @@ class _MetaversePageState extends ConsumerState<MetaversePage> {
               else
                 FilledButton(
                   onPressed: () => _toggleCdk(true),
-                   style: FilledButton.styleFrom(
+                  style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     visualDensity: VisualDensity.compact,
                   ),
@@ -414,9 +408,7 @@ class _MetaversePageState extends ConsumerState<MetaversePage> {
   Widget _buildComingSoonItem(ThemeData theme) {
     return Card(
       color: theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         child: Center(

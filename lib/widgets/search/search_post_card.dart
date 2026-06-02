@@ -51,9 +51,7 @@ class SearchPostCard extends ConsumerWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
@@ -85,15 +83,17 @@ class SearchPostCard extends ConsumerWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: _buildTopicTitle(post, topic, theme),
-                        ),
+                        Expanded(child: _buildTopicTitle(post, topic, theme)),
                         if (post.isAiGenerated || post.postNumber > 1)
                           const SizedBox(width: 8),
                         if (post.isAiGenerated)
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
-                            child: Icon(Icons.auto_awesome, size: 14, color: theme.colorScheme.tertiary),
+                            child: Icon(
+                              Icons.auto_awesome,
+                              size: 14,
+                              color: theme.colorScheme.tertiary,
+                            ),
                           ),
                         if (post.postNumber > 1)
                           Container(
@@ -191,18 +191,26 @@ class SearchPostCard extends ConsumerWidget {
   }
 
   Widget _buildTopicTitle(
-      SearchPost post, SearchTopic? topic, ThemeData theme) {
+    SearchPost post,
+    SearchTopic? topic,
+    ThemeData theme,
+  ) {
     if (topic == null) return const SizedBox.shrink();
 
     final titleStyle = theme.textTheme.titleMedium?.copyWith(
-      fontWeight: FontWeight.w600,
+      fontWeight: FontWeight.w500,
       height: 1.3,
     );
 
     // 如果有高亮标题，使用高亮版本
     if (post.topicTitleHeadline != null &&
         post.topicTitleHeadline!.isNotEmpty) {
-      return _buildHighlightedTitle(post.topicTitleHeadline!, topic, theme, titleStyle);
+      return _buildHighlightedTitle(
+        post.topicTitleHeadline!,
+        topic,
+        theme,
+        titleStyle,
+      );
     }
 
     return Text.rich(
@@ -243,27 +251,43 @@ class SearchPostCard extends ConsumerWidget {
 
   /// 带状态图标的高亮标题
   Widget _buildHighlightedTitle(
-      String headline, SearchTopic topic, ThemeData theme, TextStyle? style) {
+    String headline,
+    SearchTopic topic,
+    ThemeData theme,
+    TextStyle? style,
+  ) {
     final spans = <InlineSpan>[];
 
     // 状态图标
     if (topic.closed) {
-      spans.add(WidgetSpan(
-        alignment: PlaceholderAlignment.middle,
-        child: Padding(
-          padding: const EdgeInsets.only(right: 4),
-          child: Icon(Icons.lock_outline, size: 16, color: theme.colorScheme.onSurfaceVariant),
+      spans.add(
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Icon(
+              Icons.lock_outline,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         ),
-      ));
+      );
     }
     if (topic.archived) {
-      spans.add(WidgetSpan(
-        alignment: PlaceholderAlignment.middle,
-        child: Padding(
-          padding: const EdgeInsets.only(right: 4),
-          child: Icon(Icons.archive_outlined, size: 16, color: theme.colorScheme.onSurfaceVariant),
+      spans.add(
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Icon(
+              Icons.archive_outlined,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         ),
-      ));
+      );
     }
 
     // 解析高亮文本
@@ -277,24 +301,34 @@ class SearchPostCard extends ConsumerWidget {
       int lastEnd = 0;
       for (final match in matches) {
         if (match.start > lastEnd) {
-          spans.add(TextSpan(
-            text: headline.substring(lastEnd, match.start).replaceAll(RegExp(r'<[^>]*>'), ''),
-          ));
+          spans.add(
+            TextSpan(
+              text: headline
+                  .substring(lastEnd, match.start)
+                  .replaceAll(RegExp(r'<[^>]*>'), ''),
+            ),
+          );
         }
-        spans.add(TextSpan(
-          text: match.group(1) ?? '',
-          style: TextStyle(
-            backgroundColor: theme.colorScheme.primaryContainer,
-            color: theme.colorScheme.onPrimaryContainer,
-            fontWeight: FontWeight.w600,
+        spans.add(
+          TextSpan(
+            text: match.group(1) ?? '',
+            style: TextStyle(
+              backgroundColor: theme.colorScheme.primaryContainer,
+              color: theme.colorScheme.onPrimaryContainer,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ));
+        );
         lastEnd = match.end;
       }
       if (lastEnd < headline.length) {
-        spans.add(TextSpan(
-          text: headline.substring(lastEnd).replaceAll(RegExp(r'<[^>]*>'), ''),
-        ));
+        spans.add(
+          TextSpan(
+            text: headline
+                .substring(lastEnd)
+                .replaceAll(RegExp(r'<[^>]*>'), ''),
+          ),
+        );
       }
     }
 
@@ -340,7 +374,7 @@ class SearchPostCard extends ConsumerWidget {
           style: TextStyle(
             backgroundColor: theme.colorScheme.primaryContainer,
             color: theme.colorScheme.onPrimaryContainer,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
           ),
         ),
       );

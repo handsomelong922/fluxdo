@@ -4,9 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../l10n/s.dart';
-import '../services/network/adapters/webview_http_adapter.dart';
 import '../services/network/cookie/boundary_sync_service.dart';
-import '../services/network/cookie/raw_set_cookie_queue.dart';
+import '../services/network/cookie/webview_cookie_priming.dart';
 import '../services/toast_service.dart';
 import '../services/webview_settings.dart';
 import '../services/windows_webview_environment_service.dart';
@@ -47,18 +46,15 @@ class _OAuthWebViewPageState extends State<OAuthWebViewPage> {
   double _progress = 0;
   bool _handledCallback = false;
   late final Uri _expectedCallbackUri;
-  Future<int>? _initialCookieFlushFuture;
+  Future<void>? _initialCookieFlushFuture;
 
   @override
   void initState() {
     super.initState();
     _expectedCallbackUri = Uri.parse(widget.callbackBaseUrl);
-    _initialCookieFlushFuture = () async {
-      await WebViewHttpAdapter().runStartupSessionCookieSelfCheckOnce(
-        reason: 'oauth_webview',
-      );
-      return RawSetCookieQueue.instance.flushToWebView();
-    }();
+    _initialCookieFlushFuture = WebViewCookiePriming.instance.prime(
+      widget.initialUrl,
+    );
   }
 
   @override

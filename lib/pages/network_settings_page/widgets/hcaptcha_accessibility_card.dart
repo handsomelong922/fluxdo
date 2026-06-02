@@ -40,14 +40,11 @@ class _HCaptchaAccessibilityCardState extends State<HCaptchaAccessibilityCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final enabled = _service.enabled;
-    final hasCookie =
-        _service.cookie != null && _service.cookie!.isNotEmpty;
+    final hasCookie = _service.cookie != null && _service.cookie!.isNotEmpty;
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         children: [
           SwitchListTile(
@@ -63,21 +60,15 @@ class _HCaptchaAccessibilityCardState extends State<HCaptchaAccessibilityCard> {
           if (enabled) ...[
             Divider(
               height: 1,
-              color:
-                  theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
             ),
             // Cookie 状态行
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
                   Icon(
-                    hasCookie
-                        ? Icons.check_circle_outline
-                        : Icons.info_outline,
+                    hasCookie ? Icons.check_circle_outline : Icons.info_outline,
                     size: 16,
                     color: hasCookie
                         ? theme.colorScheme.tertiary
@@ -92,7 +83,7 @@ class _HCaptchaAccessibilityCardState extends State<HCaptchaAccessibilityCard> {
                       color: hasCookie
                           ? theme.colorScheme.tertiary
                           : theme.colorScheme.onSurfaceVariant,
-                      fontWeight: hasCookie ? FontWeight.w600 : null,
+                      fontWeight: hasCookie ? FontWeight.w500 : null,
                     ),
                   ),
                 ],
@@ -100,15 +91,11 @@ class _HCaptchaAccessibilityCardState extends State<HCaptchaAccessibilityCard> {
             ),
             Divider(
               height: 1,
-              color:
-                  theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
             ),
             // 操作按钮行
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
                   _ActionButton(
@@ -141,9 +128,7 @@ class _HCaptchaAccessibilityCardState extends State<HCaptchaAccessibilityCard> {
 
   Future<void> _openWebView(BuildContext context) async {
     await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => const HCaptchaAccessibilityPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const HCaptchaAccessibilityPage()),
     );
   }
 
@@ -178,8 +163,7 @@ class _HCaptchaAccessibilityCardState extends State<HCaptchaAccessibilityCard> {
             child: Text(context.l10n.common_cancel),
           ),
           FilledButton(
-            onPressed: () =>
-                Navigator.of(context).pop(controller.text.trim()),
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
             child: Text(context.l10n.common_confirm),
           ),
         ],

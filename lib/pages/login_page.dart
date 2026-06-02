@@ -27,7 +27,7 @@ class LoginPage extends StatelessWidget {
                 'Linux.do',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 8),
@@ -61,9 +61,9 @@ class LoginPage extends StatelessWidget {
   }
 
   Future<void> _loginWithWebView(BuildContext context) async {
-    final result = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const WebViewLoginPage()),
-    );
+    final result = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const WebViewLoginPage()));
 
     if (result == true && context.mounted) {
       Navigator.of(context).pop(true);

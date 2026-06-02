@@ -83,9 +83,13 @@ class _PostReactionUsersSheetState extends State<PostReactionUsersSheet> {
       }
       return result;
     } else {
-      final group = _groups!.where((g) => g.id == _selectedReactionId).firstOrNull;
+      final group = _groups!
+          .where((g) => g.id == _selectedReactionId)
+          .firstOrNull;
       if (group == null) return [];
-      return group.users.map((u) => _DisplayUser(user: u, reactionId: group.id)).toList();
+      return group.users
+          .map((u) => _DisplayUser(user: u, reactionId: group.id))
+          .toList();
     }
   }
 
@@ -124,13 +128,15 @@ class _PostReactionUsersSheetState extends State<PostReactionUsersSheet> {
               padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
               child: Row(
                 children: [
-                  Icon(Icons.emoji_emotions_outlined,
-                      color: theme.colorScheme.primary),
+                  Icon(
+                    Icons.emoji_emotions_outlined,
+                    color: theme.colorScheme.primary,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     context.l10n.post_reactions,
                     style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const Spacer(),
@@ -154,26 +160,30 @@ class _PostReactionUsersSheetState extends State<PostReactionUsersSheet> {
                 padding: const EdgeInsets.all(32),
                 child: Column(
                   children: [
-                    Icon(Icons.error_outline,
-                        color: theme.colorScheme.error, size: 32),
+                    Icon(
+                      Icons.error_outline,
+                      color: theme.colorScheme.error,
+                      size: 32,
+                    ),
                     const SizedBox(height: 8),
-                    Text(_error!,
-                        style: TextStyle(color: theme.colorScheme.error)),
+                    Text(
+                      _error!,
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
                   ],
                 ),
               )
             else if (_groups == null || _groups!.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(32),
-                child: Text(context.l10n.post_noReactions,
-                    style: TextStyle(
-                        color: theme.colorScheme.onSurfaceVariant)),
+                child: Text(
+                  context.l10n.post_noReactions,
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                ),
               )
             else ...[
               // 用户列表
-              Flexible(
-                child: _buildUserList(theme),
-              ),
+              Flexible(child: _buildUserList(theme)),
 
               const Divider(height: 1),
 
@@ -201,14 +211,15 @@ class _PostReactionUsersSheetState extends State<PostReactionUsersSheet> {
             onTap: () => setState(() => _selectedReactionId = null),
           ),
           // 每个回应类型的标签
-          ..._groups!.map((group) => _buildTab(
-                theme: theme,
-                emojiId: group.id,
-                count: group.count,
-                isSelected: _selectedReactionId == group.id,
-                onTap: () =>
-                    setState(() => _selectedReactionId = group.id),
-              )),
+          ..._groups!.map(
+            (group) => _buildTab(
+              theme: theme,
+              emojiId: group.id,
+              count: group.count,
+              isSelected: _selectedReactionId == group.id,
+              onTap: () => setState(() => _selectedReactionId = group.id),
+            ),
+          ),
         ],
       ),
     );
@@ -231,8 +242,9 @@ class _PostReactionUsersSheetState extends State<PostReactionUsersSheet> {
           decoration: BoxDecoration(
             color: isSelected
                 ? theme.colorScheme.primaryContainer.withValues(alpha: 0.5)
-                : theme.colorScheme.surfaceContainerHighest
-                    .withValues(alpha: 0.3),
+                : theme.colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.3,
+                  ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isSelected
@@ -250,7 +262,7 @@ class _PostReactionUsersSheetState extends State<PostReactionUsersSheet> {
                     color: isSelected
                         ? theme.colorScheme.primary
                         : theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                   ),
                 )
               else if (emojiId != null)
@@ -258,7 +270,8 @@ class _PostReactionUsersSheetState extends State<PostReactionUsersSheet> {
                   image: emojiImageProvider(_getEmojiUrl(emojiId)),
                   width: 18,
                   height: 18,
-                  errorBuilder: (_, _, _) => const SizedBox(width: 18, height: 18),
+                  errorBuilder: (_, _, _) =>
+                      const SizedBox(width: 18, height: 18),
                 ),
               const SizedBox(width: 4),
               Text(
@@ -267,7 +280,7 @@ class _PostReactionUsersSheetState extends State<PostReactionUsersSheet> {
                   color: isSelected
                       ? theme.colorScheme.primary
                       : theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -283,8 +296,10 @@ class _PostReactionUsersSheetState extends State<PostReactionUsersSheet> {
     if (users.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(32),
-        child: Text(context.l10n.common_noData,
-            style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+        child: Text(
+          context.l10n.common_noData,
+          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+        ),
       );
     }
 
@@ -301,7 +316,9 @@ class _PostReactionUsersSheetState extends State<PostReactionUsersSheet> {
 
   Widget _buildUserItem(ThemeData theme, _DisplayUser item) {
     final user = item.user;
-    final displayName = user.name?.isNotEmpty == true ? user.name! : user.username;
+    final displayName = user.name?.isNotEmpty == true
+        ? user.name!
+        : user.username;
 
     return InkWell(
       onTap: () {
@@ -337,7 +354,8 @@ class _PostReactionUsersSheetState extends State<PostReactionUsersSheet> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (user.name?.isNotEmpty == true && user.name != user.username)
+                  if (user.name?.isNotEmpty == true &&
+                      user.name != user.username)
                     Text(
                       user.username,
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -355,7 +373,8 @@ class _PostReactionUsersSheetState extends State<PostReactionUsersSheet> {
                 image: emojiImageProvider(_getEmojiUrl(item.reactionId)),
                 width: 20,
                 height: 20,
-                errorBuilder: (_, _, _) => const SizedBox(width: 20, height: 20),
+                errorBuilder: (_, _, _) =>
+                    const SizedBox(width: 20, height: 20),
               ),
           ],
         ),

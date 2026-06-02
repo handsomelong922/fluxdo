@@ -57,7 +57,7 @@ class PostRepliesList extends StatelessWidget {
                 Text(
                   context.l10n.post_replyCount(replyCount),
                   style: theme.textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -70,9 +70,15 @@ class PostRepliesList extends StatelessWidget {
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainer.withValues(alpha: 0.4),
+                color: theme.colorScheme.surfaceContainer.withValues(
+                  alpha: 0.4,
+                ),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2)),
+                border: Border.all(
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.2,
+                  ),
+                ),
               ),
               child: Material(
                 color: Colors.transparent,
@@ -91,7 +97,10 @@ class PostRepliesList extends StatelessWidget {
                               ? discourseImageProvider(avatarUrl)
                               : null,
                           child: avatarUrl.isEmpty
-                              ? Text(reply.username[0].toUpperCase(), style: const TextStyle(fontSize: 10))
+                              ? Text(
+                                  reply.username[0].toUpperCase(),
+                                  style: const TextStyle(fontSize: 10),
+                                )
                               : null,
                         ),
                         const SizedBox(width: 10),
@@ -103,8 +112,14 @@ class PostRepliesList extends StatelessWidget {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      (reply.name != null && reply.name!.isNotEmpty) ? reply.name! : reply.username,
-                                      style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+                                      (reply.name != null &&
+                                              reply.name!.isNotEmpty)
+                                          ? reply.name!
+                                          : reply.username,
+                                      style: theme.textTheme.labelMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -120,7 +135,11 @@ class PostRepliesList extends StatelessWidget {
                               IgnorePointer(
                                 child: DiscourseHtmlContent(
                                   html: reply.cooked,
-                                  textStyle: theme.textTheme.bodySmall?.copyWith(fontSize: 13 * contentFontScale, height: 1.4),
+                                  textStyle: theme.textTheme.bodySmall
+                                      ?.copyWith(
+                                        fontSize: 13 * contentFontScale,
+                                        height: 1.4,
+                                      ),
                                   compact: true,
                                 ),
                               ),
@@ -146,7 +165,11 @@ class PostRepliesList extends StatelessWidget {
                     TextButton.icon(
                       onPressed: isLoadingReplies ? null : onLoadMore,
                       icon: isLoadingReplies
-                          ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2))
+                          ? const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                           : const Icon(Icons.refresh, size: 16),
                       label: Text(context.l10n.post_loadMoreReplies),
                       style: TextButton.styleFrom(
@@ -158,8 +181,17 @@ class PostRepliesList extends StatelessWidget {
                     onPressed: () {
                       showRepliesNotifier.value = false;
                     },
-                    icon: Icon(Icons.expand_less, size: 16, color: theme.colorScheme.onSurfaceVariant),
-                    label: Text(context.l10n.post_collapseReplies, style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+                    icon: Icon(
+                      Icons.expand_less,
+                      size: 16,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    label: Text(
+                      context.l10n.post_collapseReplies,
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     style: TextButton.styleFrom(
                       visualDensity: VisualDensity.compact,
                     ),

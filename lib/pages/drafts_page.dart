@@ -54,7 +54,8 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     final progress = raw < 0 ? 0.0 : raw;
     final current = ref.read(navScrollProgressProvider(NavEntryIds.drafts));
     final atZero = progress == 0 && current != 0;
-    final crossed = (progress >= navScrollIconThreshold) !=
+    final crossed =
+        (progress >= navScrollIconThreshold) !=
         (current >= navScrollIconThreshold);
     if (!atZero && !crossed && (progress - current).abs() < 4.0) return;
     ref.read(navScrollProgressProvider(NavEntryIds.drafts).notifier).state =
@@ -109,9 +110,16 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.drafts_outlined, size: 64, color: Colors.grey),
+                    const Icon(
+                      Icons.drafts_outlined,
+                      size: 64,
+                      color: Colors.grey,
+                    ),
                     const SizedBox(height: 16),
-                    Text(context.l10n.drafts_empty, style: const TextStyle(color: Colors.grey)),
+                    Text(
+                      context.l10n.drafts_empty,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
                   ],
                 ),
               );
@@ -180,7 +188,8 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
         }
       } else {
         // 话题回复草稿：topic_{topicId}
-        topicId = draft.topicId ?? int.tryParse(draftKey.replaceFirst('topic_', ''));
+        topicId =
+            draft.topicId ?? int.tryParse(draftKey.replaceFirst('topic_', ''));
       }
 
       if (topicId != null) {
@@ -221,7 +230,9 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
             content: Text(dialogContext.l10n.drafts_deleteContent),
             actions: [
               TextButton(
-                onPressed: isDeleting ? null : () => Navigator.pop(dialogContext, false),
+                onPressed: isDeleting
+                    ? null
+                    : () => Navigator.pop(dialogContext, false),
                 child: Text(dialogContext.l10n.common_cancel),
               ),
               FilledButton(
@@ -240,7 +251,9 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                         } catch (e) {
                           if (dialogContext.mounted) {
                             setState(() => isDeleting = false);
-                            ToastService.showError(S.current.drafts_deleteFailed(e.toString()));
+                            ToastService.showError(
+                              S.current.drafts_deleteFailed(e.toString()),
+                            );
                           }
                         }
                       },
@@ -323,7 +336,10 @@ class _DraftCard extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(6),
@@ -341,7 +357,7 @@ class _DraftCard extends StatelessWidget {
                           typeLabel,
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: theme.colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
@@ -375,7 +391,7 @@ class _DraftCard extends StatelessWidget {
               Text(
                 title,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,

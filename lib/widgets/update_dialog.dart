@@ -58,7 +58,7 @@ class UpdateDialog extends StatelessWidget {
                 color: colorScheme.primary.withValues(alpha: 0.05),
               ),
             ),
-            
+
             Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -75,9 +75,9 @@ class UpdateDialog extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
-                           Icons.auto_awesome, 
-                           color: colorScheme.onPrimaryContainer,
-                           size: 20,
+                          Icons.auto_awesome,
+                          color: colorScheme.onPrimaryContainer,
+                          size: 20,
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -87,28 +87,35 @@ class UpdateDialog extends StatelessWidget {
                           Text(
                             context.l10n.update_newVersionFound,
                             style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w600,
                               fontSize: 18,
                             ),
                           ),
                           const SizedBox(height: 2),
-                           Row(
-                              children: [
-                                _buildVersionText(context,
-                                    updateInfo.currentVersion, false),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6),
-                                  child: Icon(
-                                    Icons.arrow_right_alt_rounded,
-                                    size: 16,
-                                    color: colorScheme.outline,
-                                  ),
+                          Row(
+                            children: [
+                              _buildVersionText(
+                                context,
+                                updateInfo.currentVersion,
+                                false,
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
                                 ),
-                                _buildVersionText(context,
-                                    updateInfo.remoteVersion, true),
-                              ],
-                            ),
+                                child: Icon(
+                                  Icons.arrow_right_alt_rounded,
+                                  size: 16,
+                                  color: colorScheme.outline,
+                                ),
+                              ),
+                              _buildVersionText(
+                                context,
+                                updateInfo.remoteVersion,
+                                true,
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ],
@@ -118,16 +125,19 @@ class UpdateDialog extends StatelessWidget {
                 // Content
                 if (updateInfo.releaseNotes.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 8,
+                    ),
                     child: Text(
                       context.l10n.update_changelog,
                       style: theme.textTheme.labelMedium?.copyWith(
                         color: colorScheme.primary,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                
+
                 if (updateInfo.releaseNotes.isNotEmpty)
                   Container(
                     constraints: BoxConstraints(maxHeight: maxContentHeight),
@@ -148,7 +158,10 @@ class UpdateDialog extends StatelessWidget {
                           return null;
                         },
                         onTapUrl: (url) async {
-                           return await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                          return await launchUrl(
+                            Uri.parse(url),
+                            mode: LaunchMode.externalApplication,
+                          );
                         },
                       ),
                     ),
@@ -168,8 +181,10 @@ class UpdateDialog extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: Text(context.l10n.update_now,
-                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        child: Text(
+                          context.l10n.update_now,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -180,36 +195,52 @@ class UpdateDialog extends StatelessWidget {
                               onPressed: onIgnore,
                               style: TextButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                                foregroundColor: colorScheme.onSurfaceVariant.withValues(alpha:0.7),
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                foregroundColor: colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.7),
                                 minimumSize: Size.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              child: Text(context.l10n.update_dontRemind, style: const TextStyle(fontSize: 13)),
+                              child: Text(
+                                context.l10n.update_dontRemind,
+                                style: const TextStyle(fontSize: 13),
+                              ),
                             ),
                           if (onOpenReleasePage != null)
-                             TextButton(
+                            TextButton(
                               onPressed: onOpenReleasePage,
-                                style: TextButton.styleFrom(
+                              style: TextButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
                                 foregroundColor: colorScheme.primary,
-                                 minimumSize: Size.zero,
+                                minimumSize: Size.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              child: Text(context.l10n.common_viewDetails, style: const TextStyle(fontSize: 13)),
+                              child: Text(
+                                context.l10n.common_viewDetails,
+                                style: const TextStyle(fontSize: 13),
+                              ),
                             ),
                           const Spacer(),
                           TextButton(
                             onPressed: onCancel,
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
                               foregroundColor: colorScheme.onSurfaceVariant,
-                               minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            child: Text(context.l10n.common_later, style: const TextStyle(fontSize: 13)),
+                            child: Text(
+                              context.l10n.common_later,
+                              style: const TextStyle(fontSize: 13),
+                            ),
                           ),
                         ],
                       ),
@@ -229,14 +260,16 @@ class UpdateDialog extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-         color: isNew ? colorScheme.primary.withValues(alpha: 0.1) : colorScheme.surfaceContainerHighest,
-         borderRadius: BorderRadius.circular(4),
+        color: isNew
+            ? colorScheme.primary.withValues(alpha: 0.1)
+            : colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         'v$version',
         style: TextStyle(
           fontSize: 12,
-          fontWeight: isNew ? FontWeight.bold : FontWeight.normal,
+          fontWeight: isNew ? FontWeight.w600 : FontWeight.normal,
           color: isNew ? colorScheme.primary : colorScheme.onSurfaceVariant,
         ),
       ),

@@ -29,7 +29,9 @@ class _CategorySelectionSheetState extends State<CategorySelectionSheet> {
   @override
   void initState() {
     super.initState();
-    _availableCategories = widget.categories.where((c) => c.canCreateTopic).toList();
+    _availableCategories = widget.categories
+        .where((c) => c.canCreateTopic)
+        .toList();
   }
 
   @override
@@ -49,13 +51,14 @@ class _CategorySelectionSheetState extends State<CategorySelectionSheet> {
 
   List<_CategoryItem> _buildList() {
     final query = _searchQuery.toLowerCase();
-    
+
     if (query.isNotEmpty) {
       final matches = _availableCategories.where((c) {
-        return c.name.toLowerCase().contains(query) || 
-               (c.description != null && c.description!.toLowerCase().contains(query));
+        return c.name.toLowerCase().contains(query) ||
+            (c.description != null &&
+                c.description!.toLowerCase().contains(query));
       }).toList();
-      
+
       return matches.map((c) => _CategoryItem(category: c, depth: 0)).toList();
     }
 
@@ -101,7 +104,9 @@ class _CategorySelectionSheetState extends State<CategorySelectionSheet> {
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.5,
+                      ),
                       width: 0.5,
                     ),
                   ),
@@ -114,7 +119,9 @@ class _CategorySelectionSheetState extends State<CategorySelectionSheet> {
                       height: 4,
                       margin: const EdgeInsets.only(bottom: 12),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                        color: theme.colorScheme.outlineVariant.withValues(
+                          alpha: 0.5,
+                        ),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -125,7 +132,8 @@ class _CategorySelectionSheetState extends State<CategorySelectionSheet> {
                           child: Container(
                             height: 44,
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                              color: theme.colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.5),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: TextField(
@@ -135,23 +143,37 @@ class _CategorySelectionSheetState extends State<CategorySelectionSheet> {
                               style: const TextStyle(fontSize: 16),
                               decoration: InputDecoration(
                                 hintText: context.l10n.category_searchHint,
-                                hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                                hintStyle: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
                                 border: InputBorder.none,
                                 isDense: true,
-                                contentPadding: const EdgeInsets.only(left: 0, right: 12),
-                                prefixIcon: Icon(Icons.search, size: 20, color: theme.colorScheme.onSurface),
-                                suffixIcon: _searchQuery.isNotEmpty 
-                                  ? IconButton(
-                                      icon: const Icon(Icons.cancel, size: 18),
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                      onPressed: () {
-                                        _searchController.clear();
-                                        setState(() => _searchQuery = '');
-                                      },
-                                    )
-                                  : null,
+                                contentPadding: const EdgeInsets.only(
+                                  left: 0,
+                                  right: 12,
+                                ),
+                                prefixIcon: Icon(
+                                  Icons.search,
+                                  size: 20,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                                suffixIcon: _searchQuery.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(
+                                          Icons.cancel,
+                                          size: 18,
+                                        ),
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          setState(() => _searchQuery = '');
+                                        },
+                                      )
+                                    : null,
                               ),
-                              onChanged: (value) => setState(() => _searchQuery = value),
+                              onChanged: (value) =>
+                                  setState(() => _searchQuery = value),
                             ),
                           ),
                         ),
@@ -173,84 +195,117 @@ class _CategorySelectionSheetState extends State<CategorySelectionSheet> {
               // List
               Expanded(
                 child: items.isEmpty
-                  ? Center(
-                      child: Text(
-                        _searchQuery.isEmpty ? context.l10n.category_noCategories : context.l10n.category_noCategoriesFound,
-                        style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-                      ),
-                    )
-                  : ListView.builder(
-                      controller: scrollController,
-                      itemCount: items.length,
-                      padding: EdgeInsets.only(
-                        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-                      ),
-                      itemBuilder: (context, index) {
-                        final item = items[index];
-                        final cat = item.category;
-                        final isSelected = widget.selectedCategory?.id == cat.id;
+                    ? Center(
+                        child: Text(
+                          _searchQuery.isEmpty
+                              ? context.l10n.category_noCategories
+                              : context.l10n.category_noCategoriesFound,
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        itemCount: items.length,
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                        ),
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          final cat = item.category;
+                          final isSelected =
+                              widget.selectedCategory?.id == cat.id;
 
-                        // 查找父级以获取图标（如果当前没有）
-                        final parent = cat.parentCategoryId != null 
-                            ? widget.categories.firstWhere((c) => c.id == cat.parentCategoryId, orElse: () => cat)
-                            : null;
-                        
-                        return InkWell(
-                          onTap: () => Navigator.pop(context, cat),
-                          child: Container(
-                            padding: EdgeInsets.only(
-                              left: 16 + item.depth * 24.0,
-                              right: 16,
-                              top: 12,
-                              bottom: 12,
-                            ),
-                            color: isSelected ? theme.colorScheme.primaryContainer.withValues(alpha: 0.2) : null,
-                            child: Row(
-                              children: [
-                                _buildCategoryIcon(cat, parent),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          if (cat.readRestricted)
-                                            Padding(
-                                              padding: const EdgeInsets.only(right: 6),
-                                              child: Icon(Icons.lock, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                          // 查找父级以获取图标（如果当前没有）
+                          final parent = cat.parentCategoryId != null
+                              ? widget.categories.firstWhere(
+                                  (c) => c.id == cat.parentCategoryId,
+                                  orElse: () => cat,
+                                )
+                              : null;
+
+                          return InkWell(
+                            onTap: () => Navigator.pop(context, cat),
+                            child: Container(
+                              padding: EdgeInsets.only(
+                                left: 16 + item.depth * 24.0,
+                                right: 16,
+                                top: 12,
+                                bottom: 12,
+                              ),
+                              color: isSelected
+                                  ? theme.colorScheme.primaryContainer
+                                        .withValues(alpha: 0.2)
+                                  : null,
+                              child: Row(
+                                children: [
+                                  _buildCategoryIcon(cat, parent),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            if (cat.readRestricted)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  right: 6,
+                                                ),
+                                                child: Icon(
+                                                  Icons.lock,
+                                                  size: 14,
+                                                  color: theme
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
+                                              ),
+                                            Text(
+                                              cat.name,
+                                              style: theme.textTheme.titleSmall
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w600,
+                                                    color: _parseColor(
+                                                      cat.color,
+                                                    ),
+                                                  ),
                                             ),
-                                                                              Text(
-                                                                                cat.name,
-                                                                                style: theme.textTheme.titleSmall?.copyWith(
-                                                                                  fontWeight: FontWeight.bold,
-                                                                                  color: _parseColor(cat.color),
-                                                                                ),
-                                                                              ),
-                                                                            ],
-                                                                          ),                                      if (cat.description != null && cat.description!.isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(top: 4),
-                                          child: Text(
-                                            cat.description!,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: theme.textTheme.bodySmall?.copyWith(
-                                              color: theme.colorScheme.onSurfaceVariant,
+                                          ],
+                                        ),
+                                        if (cat.description != null &&
+                                            cat.description!.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 4,
+                                            ),
+                                            child: Text(
+                                              cat.description!,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                    color: theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
                                             ),
                                           ),
-                                        ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                if (isSelected)
-                                  Icon(Icons.check, color: theme.colorScheme.primary),
-                              ],
+                                  if (isSelected)
+                                    Icon(
+                                      Icons.check,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -263,7 +318,9 @@ class _CategorySelectionSheetState extends State<CategorySelectionSheet> {
     IconData? faIcon = FontAwesomeHelper.getIcon(category.icon);
     String? logoUrl = category.uploadedLogo;
 
-    if (faIcon == null && (logoUrl == null || logoUrl.isEmpty) && parent != null) {
+    if (faIcon == null &&
+        (logoUrl == null || logoUrl.isEmpty) &&
+        parent != null) {
       faIcon = FontAwesomeHelper.getIcon(parent.icon);
       logoUrl = parent.uploadedLogo;
     }
@@ -280,7 +337,8 @@ class _CategorySelectionSheetState extends State<CategorySelectionSheet> {
         child: Image(
           image: discourseImageProvider(fullUrl),
           fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) => _buildDot(category.color),
+          errorBuilder: (context, error, stackTrace) =>
+              _buildDot(category.color),
         ),
       );
     }

@@ -97,7 +97,10 @@ class PostSolutionBanner extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.green.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(4),
@@ -107,7 +110,7 @@ class PostSolutionBanner extends StatelessWidget {
                                 style: TextStyle(
                                   color: Colors.green.shade800,
                                   fontSize: 10,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w600,
                                   fontFamily: 'monospace',
                                 ),
                               ),

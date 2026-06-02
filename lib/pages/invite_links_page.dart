@@ -77,19 +77,18 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
   @override
   void initState() {
     super.initState();
-    _userSub = ref.listenManual<AsyncValue<User?>>(
-      currentUserProvider,
-      (_, next) {
-        final user = next.value;
-        if (user == null) return;
-        _applyCachedInvite(user.username);
-        if (!_hasRequestedInitialRefresh) {
-          _hasRequestedInitialRefresh = true;
-          Future.microtask(() => _loadPendingInvites(force: true));
-        }
-      },
-      fireImmediately: true,
-    );
+    _userSub = ref.listenManual<AsyncValue<User?>>(currentUserProvider, (
+      _,
+      next,
+    ) {
+      final user = next.value;
+      if (user == null) return;
+      _applyCachedInvite(user.username);
+      if (!_hasRequestedInitialRefresh) {
+        _hasRequestedInitialRefresh = true;
+        Future.microtask(() => _loadPendingInvites(force: true));
+      }
+    }, fireImmediately: true);
   }
 
   @override
@@ -281,7 +280,9 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
         await _loadPendingInvites(force: true);
       }
       ToastService.showSuccess(
-        resolved.inviteLink.trim().isNotEmpty ? S.current.invite_linkGenerated : S.current.invite_created,
+        resolved.inviteLink.trim().isNotEmpty
+            ? S.current.invite_linkGenerated
+            : S.current.invite_created,
       );
     } catch (error) {
       if (!mounted) return;
@@ -420,7 +421,8 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
       return _formatWaitDuration(retrySeconds);
     }
 
-    final resetValue = headers.value('x-ratelimit-reset') ??
+    final resetValue =
+        headers.value('x-ratelimit-reset') ??
         headers.value('ratelimit-reset') ??
         headers.value('x-rate-limit-reset') ??
         headers.value('X-RateLimit-Reset');
@@ -436,6 +438,7 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
     }
     return null;
   }
+
   String? _extractWaitTextFromData(dynamic data) {
     if (data is Map) {
       final errors = data['errors'];
@@ -535,7 +538,7 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
             Text(
               context.l10n.invite_createLink,
               style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 8),
@@ -551,7 +554,11 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
               onPressed: () =>
                   setState(() => _showAdvancedOptions = !_showAdvancedOptions),
               style: TextButton.styleFrom(padding: EdgeInsets.zero),
-              child: Text(_showAdvancedOptions ? context.l10n.invite_collapseOptions : context.l10n.invite_expandOptions),
+              child: Text(
+                _showAdvancedOptions
+                    ? context.l10n.invite_collapseOptions
+                    : context.l10n.invite_expandOptions,
+              ),
             ),
             if (!_showAdvancedOptions) ...[
               const SizedBox(height: 12),
@@ -566,7 +573,11 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.link_rounded),
-                  label: Text(_isSubmitting ? context.l10n.invite_creating : context.l10n.invite_createLink),
+                  label: Text(
+                    _isSubmitting
+                        ? context.l10n.invite_creating
+                        : context.l10n.invite_createLink,
+                  ),
                 ),
               ),
             ],
@@ -587,7 +598,7 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
             Text(
               context.l10n.invite_inviteMembers,
               style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 16),
@@ -614,7 +625,7 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
             Text(
               context.l10n.invite_maxRedemptions,
               style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w500,
               ),
             ),
             const SizedBox(height: 8),
@@ -623,7 +634,7 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
             Text(
               context.l10n.invite_expiryTime,
               style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w500,
               ),
             ),
             const SizedBox(height: 12),
@@ -652,7 +663,11 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.link_rounded),
-                label: Text(_isSubmitting ? context.l10n.invite_creating : context.l10n.invite_createLink),
+                label: Text(
+                  _isSubmitting
+                      ? context.l10n.invite_creating
+                      : context.l10n.invite_createLink,
+                ),
               ),
             ),
           ],
@@ -674,7 +689,7 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
             context.l10n.invite_fixed,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -695,7 +710,7 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
             Text(
               context.l10n.invite_latestResult,
               style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 12),
@@ -720,14 +735,17 @@ class _InviteLinksPageState extends ConsumerState<InviteLinksPage> {
               children: [
                 _MetaChip(
                   icon: Icons.repeat_rounded,
-                  label:
-                      context.l10n.invite_usableCount(invite.invite?.maxRedemptionsAllowed ?? _maxRedemptionsAllowed),
+                  label: context.l10n.invite_usableCount(
+                    invite.invite?.maxRedemptionsAllowed ??
+                        _maxRedemptionsAllowed,
+                  ),
                 ),
                 if (invite.invite?.expiresAt != null)
                   _MetaChip(
                     icon: Icons.schedule_rounded,
-                    label:
-                        context.l10n.invite_expiryDate(TimeUtils.formatDetailTime(invite.invite!.expiresAt)),
+                    label: context.l10n.invite_expiryDate(
+                      TimeUtils.formatDetailTime(invite.invite!.expiresAt),
+                    ),
                   )
                 else
                   _MetaChip(
@@ -804,7 +822,7 @@ class _MetaChip extends StatelessWidget {
             label,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],

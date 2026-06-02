@@ -13,11 +13,7 @@ class TopicVoteButton extends ConsumerStatefulWidget {
   final TopicDetail topic;
   final void Function(int voteCount, bool userVoted)? onVoteChanged;
 
-  const TopicVoteButton({
-    super.key,
-    required this.topic,
-    this.onVoteChanged,
-  });
+  const TopicVoteButton({super.key, required this.topic, this.onVoteChanged});
 
   @override
   ConsumerState<TopicVoteButton> createState() => _TopicVoteButtonState();
@@ -38,7 +34,7 @@ class _TopicVoteButtonState extends ConsumerState<TopicVoteButton> {
   @override
   void didUpdateWidget(TopicVoteButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.topic.id != widget.topic.id || 
+    if (oldWidget.topic.id != widget.topic.id ||
         oldWidget.topic.userVoted != widget.topic.userVoted ||
         oldWidget.topic.voteCount != widget.topic.voteCount) {
       _userVoted = widget.topic.userVoted;
@@ -78,7 +74,7 @@ class _TopicVoteButtonState extends ConsumerState<TopicVoteButton> {
             _voteCount = response.voteCount;
             _isLoading = false;
           });
-          
+
           widget.onVoteChanged?.call(response.voteCount, false);
 
           ToastService.showSuccess(S.current.vote_cancelled);
@@ -92,7 +88,7 @@ class _TopicVoteButtonState extends ConsumerState<TopicVoteButton> {
             _voteCount = response.voteCount;
             _isLoading = false;
           });
-          
+
           widget.onVoteChanged?.call(response.voteCount, true);
 
           // 显示投票成功提示
@@ -154,10 +150,10 @@ class _TopicVoteButtonState extends ConsumerState<TopicVoteButton> {
             boxShadow: _userVoted
                 ? [
                     BoxShadow(
-                      color: theme.colorScheme.primary.withValues(alpha:0.2),
+                      color: theme.colorScheme.primary.withValues(alpha: 0.2),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
-                    )
+                    ),
                   ]
                 : null,
           ),
@@ -192,7 +188,7 @@ class _TopicVoteButtonState extends ConsumerState<TopicVoteButton> {
                   color: _userVoted
                       ? theme.colorScheme.onPrimary
                       : theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600,
                   fontSize: 14,
                 ),
               ),
@@ -200,11 +196,14 @@ class _TopicVoteButtonState extends ConsumerState<TopicVoteButton> {
                 const SizedBox(width: 6),
                 Container(
                   constraints: const BoxConstraints(minWidth: 20),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: _userVoted
-                        ? theme.colorScheme.onPrimary.withValues(alpha:0.2)
-                        : theme.colorScheme.primary.withValues(alpha:0.1),
+                        ? theme.colorScheme.onPrimary.withValues(alpha: 0.2)
+                        : theme.colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   alignment: Alignment.center,
@@ -215,7 +214,7 @@ class _TopicVoteButtonState extends ConsumerState<TopicVoteButton> {
                           ? theme.colorScheme.onPrimary
                           : theme.colorScheme.primary,
                       fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),

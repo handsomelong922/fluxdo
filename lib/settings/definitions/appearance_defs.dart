@@ -613,7 +613,7 @@ Widget _buildIconOption(
             color: isSelected
                 ? theme.colorScheme.primary
                 : theme.colorScheme.onSurfaceVariant,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
           ),
         ),
       ],
@@ -696,7 +696,7 @@ class _ThemeModeCard extends StatelessWidget {
                     style: currentTheme.textTheme.labelSmall?.copyWith(
                       color: isSelected ? cs.primary : cs.onSurfaceVariant,
                       fontWeight: isSelected
-                          ? FontWeight.w600
+                          ? FontWeight.w500
                           : FontWeight.normal,
                     ),
                   ),
@@ -1238,7 +1238,7 @@ class _ThemeColorSectionState extends ConsumerState<_ThemeColorSection> {
                                         .textTheme
                                         .titleMedium
                                         ?.copyWith(
-                                          fontWeight: FontWeight.w600,
+                                          fontWeight: FontWeight.w500,
                                           color: Theme.of(
                                             context,
                                           ).colorScheme.onSurfaceVariant,
@@ -1252,7 +1252,7 @@ class _ThemeColorSectionState extends ConsumerState<_ThemeColorSection> {
                                           .textTheme
                                           .titleMedium
                                           ?.copyWith(
-                                            fontWeight: FontWeight.w600,
+                                            fontWeight: FontWeight.w500,
                                             fontFamily: 'monospace',
                                           ),
                                       decoration: const InputDecoration(
@@ -1475,7 +1475,7 @@ class _VariantChip extends StatelessWidget {
                 label,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: isSelected ? scheme.primary : cs.onSurfaceVariant,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 1,
@@ -1730,7 +1730,7 @@ class _GradientSlider extends StatelessWidget {
           child: Text(
             label,
             style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
@@ -1759,7 +1759,7 @@ class _GradientSlider extends StatelessWidget {
           child: Text(
             '${(value * 100).round()}%',
             style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               color: theme.colorScheme.primary,
             ),
             textAlign: TextAlign.end,

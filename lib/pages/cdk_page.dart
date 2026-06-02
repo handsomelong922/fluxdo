@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/cdk_oauth_service.dart';
-import '../services/network/cookie/raw_set_cookie_queue.dart';
+import '../services/network/cookie/webview_cookie_priming.dart';
 import '../services/toast_service.dart';
 import '../services/webview_settings.dart';
 import '../services/windows_webview_environment_service.dart';
@@ -188,7 +188,6 @@ class _CdkPageState extends State<CdkPage> {
                     onWebViewCreated: (controller) async {
                       _controller = controller;
                       if (io.Platform.isWindows && widget.url.isNotEmpty) {
-                        await RawSetCookieQueue.instance.flushToWebView();
                         await controller.loadUrl(
                           urlRequest: URLRequest(url: WebUri(widget.url)),
                         );
@@ -291,8 +290,9 @@ class _CdkPageState extends State<CdkPage> {
   }
 
   Future<void> _seedAndBarrier() async {
-    if (io.Platform.isWindows) return;
-    await RawSetCookieQueue.instance.flushToWebView();
+    if (widget.url.isNotEmpty) {
+      await WebViewCookiePriming.instance.prime(widget.url);
+    }
     try {
       final authorized = await CdkOAuthService().authorizeSilently().timeout(
         const Duration(seconds: 5),
@@ -305,7 +305,9 @@ class _CdkPageState extends State<CdkPage> {
     } catch (e) {
       debugPrint('[CdkPage] 静默授权跳过: $e');
     }
-    await RawSetCookieQueue.instance.flushToWebView();
+    if (widget.url.isNotEmpty) {
+      await WebViewCookiePriming.instance.prime(widget.url);
+    }
   }
 
   Future<void> _handleBackNavigation() async {

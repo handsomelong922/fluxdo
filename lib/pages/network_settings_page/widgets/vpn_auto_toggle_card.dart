@@ -44,10 +44,15 @@ class VpnAutoToggleCard extends StatelessWidget {
               if (enabled) ...[
                 Divider(
                   height: 1,
-                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.2,
+                  ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Row(
                     children: [
                       Icon(
@@ -59,12 +64,14 @@ class VpnAutoToggleCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        vpnActive ? context.l10n.vpnToggle_connected : context.l10n.vpnToggle_disconnected,
+                        vpnActive
+                            ? context.l10n.vpnToggle_connected
+                            : context.l10n.vpnToggle_disconnected,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: vpnActive
                               ? theme.colorScheme.tertiary
                               : theme.colorScheme.onSurfaceVariant,
-                          fontWeight: vpnActive ? FontWeight.w600 : null,
+                          fontWeight: vpnActive ? FontWeight.w500 : null,
                         ),
                       ),
                     ],
@@ -73,10 +80,15 @@ class VpnAutoToggleCard extends StatelessWidget {
                 if (hasSuppressed) ...[
                   Divider(
                     height: 1,
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.2,
+                    ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -88,7 +100,10 @@ class VpnAutoToggleCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _buildSuppressedText(dohSuppressed, proxySuppressed),
+                            _buildSuppressedText(
+                              dohSuppressed,
+                              proxySuppressed,
+                            ),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.primary,
                             ),

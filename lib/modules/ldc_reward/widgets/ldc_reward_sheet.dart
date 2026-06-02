@@ -99,7 +99,10 @@ class _LdcRewardSheetState extends ConsumerState<_LdcRewardSheet> {
       builder: (ctx) => AlertDialog(
         title: Text(context.l10n.reward_confirmTitle),
         content: Text(
-          context.l10n.reward_confirmMessage(target.name ?? target.username, amount.toInt()),
+          context.l10n.reward_confirmMessage(
+            target.name ?? target.username,
+            amount.toInt(),
+          ),
         ),
         actions: [
           TextButton(
@@ -163,7 +166,12 @@ class _LdcRewardSheetState extends ConsumerState<_LdcRewardSheet> {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
-      margin: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 16 + bottomInset),
+      margin: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: 16 + bottomInset,
+      ),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
@@ -179,7 +187,7 @@ class _LdcRewardSheetState extends ConsumerState<_LdcRewardSheet> {
               child: Text(
                 context.l10n.reward_sheetTitle,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -201,7 +209,7 @@ class _LdcRewardSheetState extends ConsumerState<_LdcRewardSheet> {
                         Text(
                           target.name!,
                           style: theme.textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       Text(
@@ -218,7 +226,10 @@ class _LdcRewardSheetState extends ConsumerState<_LdcRewardSheet> {
             const SizedBox(height: 20),
 
             // 快捷金额
-            Text(context.l10n.reward_selectAmount, style: theme.textTheme.labelLarge),
+            Text(
+              context.l10n.reward_selectAmount,
+              style: theme.textTheme.labelLarge,
+            ),
             const SizedBox(height: 8),
             Row(
               children: _quickAmounts.map((amount) {
@@ -236,7 +247,7 @@ class _LdcRewardSheetState extends ConsumerState<_LdcRewardSheet> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: isSelected ? FontWeight.bold : null,
+                            fontWeight: isSelected ? FontWeight.w600 : null,
                           ),
                         ),
                       ),
@@ -255,7 +266,9 @@ class _LdcRewardSheetState extends ConsumerState<_LdcRewardSheet> {
             TextField(
               controller: _amountController,
               onChanged: _onCustomAmountChanged,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
               ],
@@ -298,7 +311,9 @@ class _LdcRewardSheetState extends ConsumerState<_LdcRewardSheet> {
                       )
                     : Text(
                         _isAmountValid
-                            ? context.l10n.reward_submitWithAmount(_currentAmount!.toInt())
+                            ? context.l10n.reward_submitWithAmount(
+                                _currentAmount!.toInt(),
+                              )
                             : context.l10n.reward_selectOrInputAmount,
                       ),
               ),

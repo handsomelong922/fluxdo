@@ -45,13 +45,16 @@ class _ShortcutHelpDialog extends StatelessWidget {
               // 标题（固定）
               Row(
                 children: [
-                  Icon(Icons.keyboard_rounded,
-                      color: theme.colorScheme.primary, size: 24),
+                  Icon(
+                    Icons.keyboard_rounded,
+                    color: theme.colorScheme.primary,
+                    size: 24,
+                  ),
                   const SizedBox(width: 12),
                   Text(
                     l10n.settings_shortcuts,
                     style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const Spacer(),
@@ -74,10 +77,17 @@ class _ShortcutHelpDialog extends StatelessWidget {
                   children: [
                     for (final entry in groups.entries) ...[
                       _buildCategoryHeader(
-                          theme, _categoryLabel(entry.key, l10n)),
+                        theme,
+                        _categoryLabel(entry.key, l10n),
+                      ),
                       const SizedBox(height: 8),
-                      ...entry.value.map((b) => _buildShortcutRow(
-                          theme, _actionLabel(b.action, l10n), b)),
+                      ...entry.value.map(
+                        (b) => _buildShortcutRow(
+                          theme,
+                          _actionLabel(b.action, l10n),
+                          b,
+                        ),
+                      ),
                       const SizedBox(height: 16),
                     ],
                   ],
@@ -104,23 +114,21 @@ class _ShortcutHelpDialog extends StatelessWidget {
       label,
       style: theme.textTheme.titleSmall?.copyWith(
         color: theme.colorScheme.primary,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500,
       ),
     );
   }
 
   Widget _buildShortcutRow(
-      ThemeData theme, String label, ShortcutBinding binding) {
+    ThemeData theme,
+    String label,
+    ShortcutBinding binding,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
+          Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
           _KeyChip(
             label: ShortcutBinding.formatActivator(binding.activator),
             theme: theme,

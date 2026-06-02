@@ -8,15 +8,12 @@ import 'package:flutter/foundation.dart';
 import '../../auth_session.dart';
 import '../../log/log_writer.dart';
 import 'cookie_jar_service.dart';
-import 'raw_set_cookie_queue.dart';
+import 'session_cookie_sentinel.dart';
 
 /// App-specific CookieManager.
 /// Avoids saving Set-Cookie into redirect target domains by default.
 class AppCookieManager extends Interceptor {
-  AppCookieManager(
-    this.cookieJar, {
-    this.saveRedirectedCookies = false,
-  });
+  AppCookieManager(this.cookieJar, {this.saveRedirectedCookies = false});
 
   /// The cookie jar used to load and save cookies.
   final CookieJar cookieJar;
@@ -26,6 +23,33 @@ class AppCookieManager extends Interceptor {
   final bool saveRedirectedCookies;
 
   static final _setCookieReg = RegExp('(?<=)(,)(?=[^;]+?=)');
+
+  // v0.4.0 路径分流标记
+  // 路径 A (纯 Dio): 默认, jar 是权威源, 写 jar 后 sweep 同步到 WV
+  // 路径 B (WebViewHttpAdapter): WV 是权威源, 跳过 critical 的 jar 写入,
+  //                              sweep 后从 WV 反向同步到 jar
+  // 设计依据: docs/cookie-sync-design-v0.4.0.md §5.5
+  static const String _viaExtraKey = '_via';
+  static const String _viaAdapter = 'wv-adapter';
+
+  /// 标记请求来自 WebViewHttpAdapter (路径 B)。
+  /// 由 WebViewHttpAdapter.fetch 入口调用。
+  static void markAsWebViewAdapter(RequestOptions options) {
+    options.extra[_viaExtraKey] = _viaAdapter;
+  }
+
+  /// 判定 cookie 的 sweep 意图。
+  /// 服务器下发 value=del / 空值 / 已过期时按 [SweepIntent.delete] 处理。
+  static SweepIntent _intentForCookie(Cookie cookie) {
+    if (cookie.value == 'del' || cookie.value.isEmpty) {
+      return SweepIntent.delete;
+    }
+    final expires = cookie.expires;
+    if (expires != null && expires.isBefore(DateTime.now())) {
+      return SweepIntent.delete;
+    }
+    return SweepIntent.ensureUnique;
+  }
 
   /// Select cookies for a request.
   /// Cookies with longer paths are listed before cookies with shorter paths.
@@ -86,8 +110,9 @@ class AppCookieManager extends Interceptor {
         candidate.domain?.replaceFirst(RegExp(r'^\.'), '').length ?? 0;
     final existingDomainLength =
         existing.domain?.replaceFirst(RegExp(r'^\.'), '').length ?? 0;
-    final domainLengthDiff =
-        candidateDomainLength.compareTo(existingDomainLength);
+    final domainLengthDiff = candidateDomainLength.compareTo(
+      existingDomainLength,
+    );
     if (domainLengthDiff != 0) return domainLengthDiff;
 
     final candidateValueLength = candidate.value.length;
@@ -96,10 +121,10 @@ class AppCookieManager extends Interceptor {
   }
 
   static int _cookiePriorityScore(Cookie cookie, String requestHost) {
-    final normalizedDomain = cookie.domain
-        ?.trim()
-        .toLowerCase()
-        .replaceFirst(RegExp(r'^\.'), '');
+    final normalizedDomain = cookie.domain?.trim().toLowerCase().replaceFirst(
+      RegExp(r'^\.'),
+      '',
+    );
 
     if (normalizedDomain == null || normalizedDomain.isEmpty) {
       return 10000;
@@ -117,7 +142,9 @@ class AppCookieManager extends Interceptor {
     if (options.extra['isCfChallengePlatform'] == true) {
       return true;
     }
-    return options.uri.path.toLowerCase().contains('/cdn-cgi/challenge-platform/');
+    return options.uri.path.toLowerCase().contains(
+      '/cdn-cgi/challenge-platform/',
+    );
   }
 
   static bool _isCloudflareCookieName(String name) {
@@ -134,8 +161,9 @@ class AppCookieManager extends Interceptor {
   ) async {
     try {
       final cookies = await loadCookies(options);
-      options.headers[HttpHeaders.cookieHeader] =
-          cookies.isNotEmpty ? cookies : null;
+      options.headers[HttpHeaders.cookieHeader] = cookies.isNotEmpty
+          ? cookies
+          : null;
       handler.next(options);
     } catch (e, s) {
       handler.reject(
@@ -223,13 +251,13 @@ class AppCookieManager extends Interceptor {
     }
     final requestCookies = _isCfChallengePlatformRequest(options)
         ? savedCookies
-            .where((cookie) => _isCloudflareCookieName(cookie.name))
-            .toList(growable: false)
+              .where((cookie) => _isCloudflareCookieName(cookie.name))
+              .toList(growable: false)
         : savedCookies;
 
     if (_isCfChallengePlatformRequest(options)) {
-      final cookieNames = requestCookies.map((cookie) => cookie.name).toSet().toList()
-        ..sort();
+      final cookieNames =
+          requestCookies.map((cookie) => cookie.name).toSet().toList()..sort();
       debugPrint(
         '[CookieManager] isolated CF request cookies: '
         'uri=${options.uri.host}${options.uri.path}, names=$cookieNames',
@@ -239,10 +267,16 @@ class AppCookieManager extends Interceptor {
     // 诊断：记录 _t cookie 的 host-only/domain 变体
     final tCookies = requestCookies.where((c) => c.name == '_t').toList();
     if (tCookies.length > 1) {
-      final hostOnly = tCookies.where((c) => c.domain == null).map((c) => c.value.length);
-      final domain = tCookies.where((c) => c.domain != null).map((c) => '${c.domain}:${c.value.length}');
-      debugPrint('[CookieManager] _t 多副本: hostOnly=$hostOnly, domain=$domain, '
-          'uri=${options.uri.host}${options.uri.path}');
+      final hostOnly = tCookies
+          .where((c) => c.domain == null)
+          .map((c) => c.value.length);
+      final domain = tCookies
+          .where((c) => c.domain != null)
+          .map((c) => '${c.domain}:${c.value.length}');
+      debugPrint(
+        '[CookieManager] _t 多副本: hostOnly=$hostOnly, domain=$domain, '
+        'uri=${options.uri.host}${options.uri.path}',
+      );
       LogWriter.instance.write({
         'timestamp': DateTime.now().toIso8601String(),
         'level': 'warning',
@@ -267,8 +301,7 @@ class AppCookieManager extends Interceptor {
     final selectedCookies = _selectCookies(requestCookies, options.uri);
     final cookies = selectedCookies
         .map(
-          (cookie) =>
-              '${cookie.name}=${CookieValueCodec.decode(cookie.value)}',
+          (cookie) => '${cookie.name}=${CookieValueCodec.decode(cookie.value)}',
         )
         .join('; ');
     if (tCookies.isNotEmpty) {
@@ -396,10 +429,11 @@ class AppCookieManager extends Interceptor {
         continue;
       }
 
-      final isSessionCookie = cookie.name == '_t' || cookie.name == '_forum_session';
+      final isSessionCookie =
+          cookie.name == '_t' || cookie.name == '_forum_session';
       if (isSessionCookie) {
-        final isExpired = cookie.expires != null &&
-            cookie.expires!.isBefore(DateTime.now());
+        final isExpired =
+            cookie.expires != null && cookie.expires!.isBefore(DateTime.now());
         final isDeletion =
             cookie.value == 'del' || cookie.value.isEmpty || isExpired;
         final uri = response.requestOptions.uri;
@@ -411,21 +445,26 @@ class AppCookieManager extends Interceptor {
         if (isDeletion) {
           final statusCode = response.statusCode ?? 0;
           final hasLoggedOutHeader =
-              response.headers.value('discourse-logged-out')?.isNotEmpty == true;
+              response.headers.value('discourse-logged-out')?.isNotEmpty ==
+              true;
           final responseBody = response.data;
           final hasNotLoggedInError =
-              responseBody is Map && responseBody['error_type'] == 'not_logged_in';
+              responseBody is Map &&
+              responseBody['error_type'] == 'not_logged_in';
 
           if (statusCode < 400 && hasLoggedOutHeader && !hasNotLoggedInError) {
-            debugPrint('[CookieManager] ${cookie.name} DEL(blocked/mixed-signal) '
-                'from ${response.requestOptions.method} ${uri.host}${uri.path} '
-                '(status=$statusCode)');
+            debugPrint(
+              '[CookieManager] ${cookie.name} DEL(blocked/mixed-signal) '
+              'from ${response.requestOptions.method} ${uri.host}${uri.path} '
+              '(status=$statusCode)',
+            );
             LogWriter.instance.write({
               'timestamp': DateTime.now().toIso8601String(),
               'level': 'warning',
               'type': 'cookie_change',
               'event': 'token_cookie_delete_blocked_mixed_signal',
-              'message': '${cookie.name} 删除被拦截（$statusCode + discourse-logged-out 矛盾信号）',
+              'message':
+                  '${cookie.name} 删除被拦截（$statusCode + discourse-logged-out 矛盾信号）',
               'statusCode': statusCode,
               'method': response.requestOptions.method,
               'url': uri.path,
@@ -435,16 +474,20 @@ class AppCookieManager extends Interceptor {
           }
         }
 
-        debugPrint('[CookieManager] ${cookie.name} ${isDeletion ? "DEL" : "SET"} '
-            'from ${response.requestOptions.method} ${uri.host}${uri.path} '
-            '(status=${response.statusCode}, len=${cookie.value.length}, '
-            'domain=${cookie.domain}, hasLoggedIn=${response.requestOptions.headers['Discourse-Logged-In']})');
+        debugPrint(
+          '[CookieManager] ${cookie.name} ${isDeletion ? "DEL" : "SET"} '
+          'from ${response.requestOptions.method} ${uri.host}${uri.path} '
+          '(status=${response.statusCode}, len=${cookie.value.length}, '
+          'domain=${cookie.domain}, hasLoggedIn=${response.requestOptions.headers['Discourse-Logged-In']})',
+        );
         LogWriter.instance.write({
           'timestamp': DateTime.now().toIso8601String(),
           'level': isDeletion ? 'warning' : 'info',
           'type': 'cookie_change',
           'event': isDeletion ? 'token_cookie_deleted' : 'token_cookie_updated',
-          'message': isDeletion ? '${cookie.name} cookie 被删除' : '${cookie.name} cookie 被更新',
+          'message': isDeletion
+              ? '${cookie.name} cookie 被删除'
+              : '${cookie.name} cookie 被更新',
           'valueLength': cookie.value.length,
           'isExpired': isExpired,
           'method': response.requestOptions.method,
@@ -452,8 +495,11 @@ class AppCookieManager extends Interceptor {
           'fullUrl': uri.toString(),
           'statusCode': response.statusCode,
           'cookieDomain': cookie.domain,
-          'hasLoggedInHeader': response.requestOptions.headers['Discourse-Logged-In'] == 'true',
-          'hasLoggedOutHeader': response.headers.value('discourse-logged-out')?.isNotEmpty == true,
+          'hasLoggedInHeader':
+              response.requestOptions.headers['Discourse-Logged-In'] == 'true',
+          'hasLoggedOutHeader':
+              response.headers.value('discourse-logged-out')?.isNotEmpty ==
+              true,
         });
       }
       filteredCookies.add(cookie);
@@ -466,32 +512,65 @@ class AppCookieManager extends Interceptor {
     final enhancedJar = cookieJar is EnhancedPersistCookieJar
         ? cookieJar as EnhancedPersistCookieJar
         : null;
-    if (enhancedJar != null) {
-      await enhancedJar.saveFromSetCookieHeaders(
-        resolvedUri,
-        filteredSetCookieHeaders,
-      );
-    } else {
-      await cookieJar.saveFromResponse(
-        resolvedUri,
-        filteredCookies,
-      );
+
+    // 路径判别 (v0.4.0):
+    // - 路径 A (默认): 全部写 jar, 后续 sweep 同步到 WV
+    // - 路径 B (WebViewHttpAdapter): critical cookies 跳过 jar 写入,
+    //   后续 sweep 从 WV 反向同步到 jar (WV 已自写)
+    final isPathB = response.requestOptions.extra[_viaExtraKey] == _viaAdapter;
+    final criticalNames = SessionCookieSentinel.criticalCookieNames;
+
+    final cookiesToSaveToJar = <Cookie>[];
+    final headersToSaveToJar = <String>[];
+    final criticalCookiesForSweep = <Cookie>[];
+    for (var i = 0; i < filteredCookies.length; i++) {
+      final cookie = filteredCookies[i];
+      final isCritical = criticalNames.contains(cookie.name);
+      if (isCritical) {
+        criticalCookiesForSweep.add(cookie);
+      }
+      // 路径 B 时跳过 critical cookies 的 jar 写入 (sweep 反向同步)
+      if (isPathB && isCritical) continue;
+      cookiesToSaveToJar.add(cookie);
+      headersToSaveToJar.add(filteredSetCookieHeaders[i]);
+    }
+
+    if (cookiesToSaveToJar.isNotEmpty) {
+      if (enhancedJar != null) {
+        await enhancedJar.saveFromSetCookieHeaders(
+          resolvedUri,
+          headersToSaveToJar,
+        );
+      } else {
+        await cookieJar.saveFromResponse(resolvedUri, cookiesToSaveToJar);
+      }
     }
 
     if (hasAuthSessionToken) {
       debugPrint(
         '[CookieManager] auth.session-token primary save uri: '
-        '${resolvedUri.toString()}',
+        '${resolvedUri.toString()} (pathB=$isPathB)',
       );
     }
 
-    // 将原始 Set-Cookie 头逐条入队，供后续处理使用
-    for (final rawHeader in filteredSetCookieHeaders) {
-      RawSetCookieQueue.instance.enqueue(resolvedUri.toString(), rawHeader);
+    // 对每条 critical cookie 同步触发 sweep:
+    // - 路径 A: sweep 内部从 jar 读 winner 写 WV (保证两端一致)
+    // - 路径 B: sweep 内部从 WV 读 winner 反向写 jar (WV 已自写)
+    // 同步等所有 sweep 完成,保证 next handler 时两端一致
+    if (criticalCookiesForSweep.isNotEmpty) {
+      final sweepFutures = criticalCookiesForSweep.map((cookie) {
+        return SessionCookieSentinel.instance.sweep(
+          resolvedUri.toString(),
+          cookie.name,
+          intent: _intentForCookie(cookie),
+        );
+      }).toList();
+      await Future.wait(sweepFutures);
     }
 
     // Optionally save cookies for redirected locations.
-    final allowRedirectSave = response.requestOptions.extra['allowRedirectSetCookie'] == true;
+    final allowRedirectSave =
+        response.requestOptions.extra['allowRedirectSetCookie'] == true;
     if (!(saveRedirectedCookies || allowRedirectSave)) {
       return;
     }
@@ -502,23 +581,17 @@ class AppCookieManager extends Interceptor {
     if (redirected && locations.isNotEmpty) {
       final baseUri = response.realUri;
       await Future.wait(
-        locations.map(
-          (location) async {
-            final redirectUri = baseUri.resolve(location);
-            if (hasAuthSessionToken) {
-              debugPrint(
-                '[CookieManager] auth.session-token redirect save uri: '
-                '${redirectUri.toString()}',
-              );
-            }
-            await cookieJar.saveFromResponse(
-              redirectUri,
-              filteredCookies,
+        locations.map((location) async {
+          final redirectUri = baseUri.resolve(location);
+          if (hasAuthSessionToken) {
+            debugPrint(
+              '[CookieManager] auth.session-token redirect save uri: '
+              '${redirectUri.toString()}',
             );
-          },
-        ),
+          }
+          await cookieJar.saveFromResponse(redirectUri, filteredCookies);
+        }),
       );
     }
   }
-
 }

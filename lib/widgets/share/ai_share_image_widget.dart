@@ -88,12 +88,14 @@ class AiShareImageWidget extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (messages.length > 1)
-                    _buildMessageRoleLabel(message, textColor, secondaryTextColor),
-                  if (messages.length > 1)
-                    const SizedBox(height: 6),
+                    _buildMessageRoleLabel(
+                      message,
+                      textColor,
+                      secondaryTextColor,
+                    ),
+                  if (messages.length > 1) const SizedBox(height: 6),
                   _buildContent(context, message, cardColor, textColor),
-                  if (index < messages.length - 1)
-                    const SizedBox(height: 12),
+                  if (index < messages.length - 1) const SizedBox(height: 12),
                 ],
               );
             }),
@@ -131,7 +133,7 @@ class AiShareImageWidget extends StatelessWidget {
           'LINUX DO',
           style: TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w600,
             color: textColor.withValues(alpha: 0.8),
           ),
         ),
@@ -156,7 +158,7 @@ class AiShareImageWidget extends StatelessWidget {
   Widget _buildTitle(BuildContext context, Color textColor) {
     final titleStyle = TextStyle(
       fontSize: 16,
-      fontWeight: FontWeight.bold,
+      fontWeight: FontWeight.w600,
       color: textColor.withValues(alpha: 0.9),
       height: 1.4,
     );
@@ -188,7 +190,7 @@ class AiShareImageWidget extends StatelessWidget {
           isUser ? S.current.share_aiQuestion : S.current.share_aiReply,
           style: TextStyle(
             fontSize: 12,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
             color: secondaryTextColor,
           ),
         ),
@@ -285,27 +287,17 @@ class AiShareImageWidget extends StatelessWidget {
         // 生成标识
         Row(
           children: [
-            Icon(
-              Icons.auto_awesome,
-              size: 12,
-              color: secondaryTextColor,
-            ),
+            Icon(Icons.auto_awesome, size: 12, color: secondaryTextColor),
             const SizedBox(width: 4),
             Text(
               S.current.share_generatedByAi,
-              style: TextStyle(
-                fontSize: 11,
-                color: secondaryTextColor,
-              ),
+              style: TextStyle(fontSize: 11, color: secondaryTextColor),
             ),
             if (time.isNotEmpty) ...[
               const Spacer(),
               Text(
                 time,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: secondaryTextColor,
-                ),
+                style: TextStyle(fontSize: 11, color: secondaryTextColor),
               ),
             ],
           ],
@@ -314,19 +306,12 @@ class AiShareImageWidget extends StatelessWidget {
         // 链接
         Row(
           children: [
-            Icon(
-              Icons.link,
-              size: 12,
-              color: secondaryTextColor,
-            ),
+            Icon(Icons.link, size: 12, color: secondaryTextColor),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
                 url,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: secondaryTextColor,
-                ),
+                style: TextStyle(fontSize: 10, color: secondaryTextColor),
                 overflow: TextOverflow.ellipsis,
               ),
             ),

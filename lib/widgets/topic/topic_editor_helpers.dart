@@ -62,7 +62,9 @@ class SmartListHandler {
     final prevLine = currentText.substring(prevLineStart, selection.start - 1);
 
     // 检测无序列表
-    final unorderedMatch = RegExp(r'^(\s*)([-*+])\s+(.*)$').firstMatch(prevLine);
+    final unorderedMatch = RegExp(
+      r'^(\s*)([-*+])\s+(.*)$',
+    ).firstMatch(prevLine);
     if (unorderedMatch != null) {
       final indent = unorderedMatch.group(1)!;
       final marker = unorderedMatch.group(2)!;
@@ -70,7 +72,11 @@ class SmartListHandler {
 
       if (content.isEmpty) {
         // 空列表项，移除列表标记
-        final newText = currentText.replaceRange(prevLineStart, selection.start, '\n');
+        final newText = currentText.replaceRange(
+          prevLineStart,
+          selection.start,
+          '\n',
+        );
         _previousText = newText;
         controller.value = TextEditingValue(
           text: newText,
@@ -79,11 +85,17 @@ class SmartListHandler {
       } else {
         // 非空列表项，添加新的列表标记
         final prefix = '$indent$marker ';
-        final newText = currentText.replaceRange(selection.start, selection.start, prefix);
+        final newText = currentText.replaceRange(
+          selection.start,
+          selection.start,
+          prefix,
+        );
         _previousText = newText;
         controller.value = TextEditingValue(
           text: newText,
-          selection: TextSelection.collapsed(offset: selection.start + prefix.length),
+          selection: TextSelection.collapsed(
+            offset: selection.start + prefix.length,
+          ),
         );
       }
       return true;
@@ -98,7 +110,11 @@ class SmartListHandler {
 
       if (content.isEmpty) {
         // 空列表项，移除列表标记
-        final newText = currentText.replaceRange(prevLineStart, selection.start, '\n');
+        final newText = currentText.replaceRange(
+          prevLineStart,
+          selection.start,
+          '\n',
+        );
         _previousText = newText;
         controller.value = TextEditingValue(
           text: newText,
@@ -107,11 +123,17 @@ class SmartListHandler {
       } else {
         // 非空列表项，添加新的列表标记（数字递增）
         final prefix = '$indent${number + 1}. ';
-        final newText = currentText.replaceRange(selection.start, selection.start, prefix);
+        final newText = currentText.replaceRange(
+          selection.start,
+          selection.start,
+          prefix,
+        );
         _previousText = newText;
         controller.value = TextEditingValue(
           text: newText,
-          selection: TextSelection.collapsed(offset: selection.start + prefix.length),
+          selection: TextSelection.collapsed(
+            offset: selection.start + prefix.length,
+          ),
         );
       }
       return true;
@@ -138,7 +160,10 @@ class PanguSpacingHandler {
 
   /// 自动应用 Pangu 空格（在文本变化时调用）
   /// 返回 true 如果已处理
-  bool autoApply(TextEditingController controller, void Function(String) updatePreviousText) {
+  bool autoApply(
+    TextEditingController controller,
+    void Function(String) updatePreviousText,
+  ) {
     if (_isApplying) return false;
 
     final currentText = controller.text;
@@ -147,7 +172,8 @@ class PanguSpacingHandler {
     if (currentText.isEmpty || !selection.isValid) return false;
 
     // 如果正在输入法组合中，不处理
-    if (controller.value.composing.isValid && !controller.value.composing.isCollapsed) {
+    if (controller.value.composing.isValid &&
+        !controller.value.composing.isCollapsed) {
       return false;
     }
 
@@ -170,14 +196,18 @@ class PanguSpacingHandler {
   }
 
   /// 手动应用 Pangu 空格
-  void manualApply(TextEditingController controller, void Function(String) updatePreviousText) {
+  void manualApply(
+    TextEditingController controller,
+    void Function(String) updatePreviousText,
+  ) {
     if (_isApplying) return;
 
     final currentText = controller.text;
     final selection = controller.selection;
 
     if (currentText.isEmpty || !selection.isValid) return;
-    if (controller.value.composing.isValid && !controller.value.composing.isCollapsed) {
+    if (controller.value.composing.isValid &&
+        !controller.value.composing.isCollapsed) {
       return;
     }
 
@@ -217,10 +247,7 @@ Widget buildColorDot(Color color) {
   return Container(
     width: 8,
     height: 8,
-    decoration: BoxDecoration(
-      color: color,
-      shape: BoxShape.circle,
-    ),
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
   );
 }
 
@@ -274,7 +301,11 @@ class CategoryTrigger extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.category_outlined, size: 18, color: theme.colorScheme.onSurfaceVariant),
+                Icon(
+                  Icons.category_outlined,
+                  size: 18,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   S.current.topic_selectCategory,
@@ -284,7 +315,11 @@ class CategoryTrigger extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
-                Icon(Icons.arrow_drop_down, size: 18, color: theme.colorScheme.onSurfaceVariant),
+                Icon(
+                  Icons.arrow_drop_down,
+                  size: 18,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ],
             ),
           ),
@@ -306,10 +341,7 @@ class CategoryTrigger extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: color.withValues(alpha: 0.3),
-              width: 1,
-            ),
+            border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -333,7 +365,7 @@ class CategoryTrigger extends StatelessWidget {
                 category!.name,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(width: 4),
@@ -365,7 +397,10 @@ class TagsArea extends StatelessWidget {
     required this.onTagsChanged,
   });
 
-  Future<void> _showPicker(BuildContext context, List<String> availableTags) async {
+  Future<void> _showPicker(
+    BuildContext context,
+    List<String> availableTags,
+  ) async {
     final minTags = selectedCategory?.minimumRequiredTags ?? 0;
     final result = await showAppBottomSheet<List<String>>(
       context: context,
@@ -397,7 +432,8 @@ class TagsArea extends StatelessWidget {
     List<String> availableTags = allTags;
     if (selectedCategory != null) {
       final category = selectedCategory!;
-      if (category.allowedTags.isNotEmpty || category.allowedTagGroups.isNotEmpty) {
+      if (category.allowedTags.isNotEmpty ||
+          category.allowedTagGroups.isNotEmpty) {
         availableTags = allTags.where((tag) {
           if (category.allowedTags.contains(tag)) return true;
           if (category.allowGlobalTags) return true;
@@ -410,11 +446,14 @@ class TagsArea extends StatelessWidget {
     final missingRequirements = <String>[];
     bool isGroupsSatisfied = true;
 
-    if (selectedCategory != null && selectedCategory!.requiredTagGroups.isNotEmpty) {
+    if (selectedCategory != null &&
+        selectedCategory!.requiredTagGroups.isNotEmpty) {
       if (selectedTags.isEmpty) {
         for (final req in selectedCategory!.requiredTagGroups) {
           isGroupsSatisfied = false;
-          missingRequirements.add(S.current.topic_tagGroupRequirement(req.name, req.minCount));
+          missingRequirements.add(
+            S.current.topic_tagGroupRequirement(req.name, req.minCount),
+          );
         }
       }
     }
@@ -426,35 +465,48 @@ class TagsArea extends StatelessWidget {
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        ...selectedTags.map((tag) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: theme.colorScheme.outline.withValues(alpha: 0.1),
+        ...selectedTags.map(
+          (tag) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.3,
+              ),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.1),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.tag,
+                  size: 14,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  tag,
+                  style: theme.textTheme.bodyMedium?.copyWith(fontSize: 13),
+                ),
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: () {
+                    final newTags = List<String>.from(selectedTags)
+                      ..remove(tag);
+                    onTagsChanged(newTags);
+                  },
+                  child: Icon(
+                    Icons.close,
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.tag, size: 14, color: theme.colorScheme.onSurfaceVariant),
-              const SizedBox(width: 4),
-              Text(
-                tag,
-                style: theme.textTheme.bodyMedium?.copyWith(fontSize: 13),
-              ),
-              const SizedBox(width: 4),
-              GestureDetector(
-                onTap: () {
-                  final newTags = List<String>.from(selectedTags)..remove(tag);
-                  onTagsChanged(newTags);
-                },
-                child: Icon(Icons.close, size: 14, color: theme.colorScheme.onSurfaceVariant),
-              ),
-            ],
-          ),
-        )),
+        ),
 
         // 添加/编辑标签按钮
         Material(
@@ -471,7 +523,9 @@ class TagsArea extends StatelessWidget {
                       : theme.colorScheme.error.withValues(alpha: 0.5),
                   style: BorderStyle.solid,
                 ),
-                color: isSatisfied ? null : theme.colorScheme.errorContainer.withValues(alpha: 0.1),
+                color: isSatisfied
+                    ? null
+                    : theme.colorScheme.errorContainer.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Row(
@@ -480,12 +534,18 @@ class TagsArea extends StatelessWidget {
                   Icon(
                     selectedTags.isEmpty ? Icons.add : Icons.edit_outlined,
                     size: 16,
-                    color: isSatisfied ? theme.colorScheme.primary : theme.colorScheme.error,
+                    color: isSatisfied
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.error,
                   ),
                   if (selectedTags.isEmpty || !isSatisfied) ...[
                     const SizedBox(width: 4),
                     Text(
-                      _getButtonText(minTags, currentCount, missingRequirements),
+                      _getButtonText(
+                        minTags,
+                        currentCount,
+                        missingRequirements,
+                      ),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: isSatisfied
                             ? theme.colorScheme.primary
@@ -503,7 +563,11 @@ class TagsArea extends StatelessWidget {
     );
   }
 
-  String _getButtonText(int minTags, int currentCount, List<String> missingReqs) {
+  String _getButtonText(
+    int minTags,
+    int currentCount,
+    List<String> missingReqs,
+  ) {
     if (missingReqs.isNotEmpty) {
       return missingReqs.first;
     }
@@ -533,20 +597,25 @@ class PreviewTagsList extends StatelessWidget {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: tags.map((t) => TagBadge(
-        name: t,
-        size: const BadgeSize(
-          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          radius: 6,
-          iconSize: 12,
-          fontSize: 13,
-        ),
-        backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        textStyle: theme.textTheme.bodyMedium?.copyWith(
-          fontSize: 13,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      )).toList(),
+      children: tags
+          .map(
+            (t) => TagBadge(
+              name: t,
+              size: const BadgeSize(
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                radius: 6,
+                iconSize: 12,
+                fontSize: 13,
+              ),
+              backgroundColor: theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.3),
+              textStyle: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 13,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 }

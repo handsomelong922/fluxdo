@@ -70,8 +70,9 @@ class _CategoryShortcutItem extends ConsumerWidget {
     final categoryColor = _parseColor(category.color, colorScheme.primary);
     final activeCategoryId = ref.watch(activeSidebarCategoryIdProvider);
     final isSelected = activeCategoryId == category.id;
-    final backgroundColor =
-        isSelected ? colorScheme.secondaryContainer : Colors.transparent;
+    final backgroundColor = isSelected
+        ? colorScheme.secondaryContainer
+        : Colors.transparent;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -99,7 +100,7 @@ class _CategoryShortcutItem extends ConsumerWidget {
                                 ? colorScheme.onSecondaryContainer
                                 : colorScheme.onSurfaceVariant,
                             fontWeight: isSelected
-                                ? FontWeight.w600
+                                ? FontWeight.w500
                                 : FontWeight.normal,
                           ),
                         ),

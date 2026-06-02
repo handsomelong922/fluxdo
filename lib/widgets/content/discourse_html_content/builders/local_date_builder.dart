@@ -140,34 +140,32 @@ class _LocalDateChipState extends State<_LocalDateChip> {
     });
   }
 
-  bool get _isPast =>
-      DateTime.now().isAfter(widget.opts.localTime);
+  bool get _isPast => DateTime.now().isAfter(widget.opts.localTime);
 
   String _buildDisplay(BuildContext context) {
     if (widget.opts.countdown) {
       return _formatCountdown(widget.opts.localTime);
     }
     // Discourse 默认 format：有 time 用 LLL，否则 LL
-    final fmt = widget.opts.format ??
-        (widget.opts.hasTime ? 'LLL' : 'LL');
-    return _formatByMomentToken(widget.opts.localTime, fmt,
-        chinese: _isChineseLocale(context));
+    final fmt = widget.opts.format ?? (widget.opts.hasTime ? 'LLL' : 'LL');
+    return _formatByMomentToken(
+      widget.opts.localTime,
+      fmt,
+      chinese: _isChineseLocale(context),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     if (!TickerMode.of(context)) {
       _timer?.cancel();
-    } else if (widget.opts.countdown &&
-        (_timer == null || !_timer!.isActive)) {
+    } else if (widget.opts.countdown && (_timer == null || !_timer!.isActive)) {
       _scheduleCountdownTick();
     }
 
     final theme = Theme.of(context);
     final past = _isPast;
-    final color = past
-        ? theme.colorScheme.outline
-        : theme.colorScheme.primary;
+    final color = past ? theme.colorScheme.outline : theme.colorScheme.primary;
     final fontSize = widget.baseFontSize;
 
     return GestureDetector(
@@ -249,8 +247,9 @@ class _LocalDatePopover extends StatelessWidget {
                   Divider(
                     height: 10,
                     thickness: 0.5,
-                    color: theme.colorScheme.outlineVariant
-                        .withValues(alpha: 0.4),
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.4,
+                    ),
                   ),
               ],
             ],
@@ -276,17 +275,14 @@ class _LocalDatePopover extends StatelessWidget {
           Text(
             entry.label,
             style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               color: entry.isLocal
                   ? theme.colorScheme.primary
                   : theme.colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            entry.formatted,
-            style: theme.textTheme.bodySmall,
-          ),
+          Text(entry.formatted, style: theme.textTheme.bodySmall),
         ],
       ),
     );
@@ -307,11 +303,13 @@ class _LocalDatePopover extends StatelessWidget {
       if (converted == null) return;
       added.add(tz);
       final fmt = opts.hasTime ? 'LLLL' : 'LL';
-      list.add(_TimezoneEntry(
-        label: _zoneShortLabel(tz),
-        formatted: _formatByMomentToken(converted, fmt, chinese: chinese),
-        isLocal: isLocal,
-      ));
+      list.add(
+        _TimezoneEntry(
+          label: _zoneShortLabel(tz),
+          formatted: _formatByMomentToken(converted, fmt, chinese: chinese),
+          isLocal: isLocal,
+        ),
+      );
     }
 
     // 本地时区排第一
@@ -357,10 +355,7 @@ class _DashedUnderline extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomPaint(
       foregroundPainter: _DashedLinePainter(color: color),
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 1),
-        child: child,
-      ),
+      child: Padding(padding: const EdgeInsets.only(bottom: 1), child: child),
     );
   }
 }
@@ -380,11 +375,7 @@ class _DashedLinePainter extends CustomPainter {
     double x = 0;
     final y = size.height - 0.5;
     while (x < size.width) {
-      canvas.drawLine(
-        Offset(x, y),
-        Offset(x + dashWidth, y),
-        paint,
-      );
+      canvas.drawLine(Offset(x, y), Offset(x + dashWidth, y), paint);
       x += dashWidth + dashSpace;
     }
   }

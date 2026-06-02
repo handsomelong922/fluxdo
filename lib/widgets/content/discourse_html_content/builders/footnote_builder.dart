@@ -19,7 +19,7 @@ Widget buildFootnoteRef({
   if (!footnoteText.startsWith('[')) {
     footnoteText = '[$footnoteText]';
   }
-  
+
   // 从完整 HTML 中提取脚注内容
   String? footnoteContent;
   if (href.startsWith('#')) {
@@ -31,10 +31,16 @@ Widget buildFootnoteRef({
     );
     final match = footnoteRegex.firstMatch(fullHtml);
     if (match != null) {
-      footnoteContent = match.group(1)?.replaceAll(
-        RegExp(r'<a[^>]*class="[^"]*footnote-backref[^"]*"[^>]*>[\s\S]*?</a>', caseSensitive: false),
-        '',
-      ).trim();
+      footnoteContent = match
+          .group(1)
+          ?.replaceAll(
+            RegExp(
+              r'<a[^>]*class="[^"]*footnote-backref[^"]*"[^>]*>[\s\S]*?</a>',
+              caseSensitive: false,
+            ),
+            '',
+          )
+          .trim();
       if (footnoteContent != null) {
         footnoteContent = footnoteContent
             .replaceAll(RegExp(r'^<p>\s*'), '')
@@ -66,7 +72,7 @@ class _FootnoteRefWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return GestureDetector(
       onTap: () {
         if (footnoteContent != null && footnoteContent!.isNotEmpty) {
@@ -102,7 +108,7 @@ class _FootnoteRefWidget extends StatelessWidget {
             style: TextStyle(
               color: theme.colorScheme.primary,
               fontSize: 11,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
               height: 1,
             ),
           ),
@@ -117,17 +123,14 @@ class _FootnotePopoverContent extends StatelessWidget {
   final String content;
   final List<String>? galleryImages;
 
-  const _FootnotePopoverContent({
-    required this.content,
-    this.galleryImages,
-  });
+  const _FootnotePopoverContent({required this.content, this.galleryImages});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
-    
+
     return ConstrainedBox(
       constraints: BoxConstraints(
         maxHeight: screenHeight * 0.3,
@@ -139,9 +142,7 @@ class _FootnotePopoverContent extends StatelessWidget {
           html: content,
           compact: true,
           galleryImages: galleryImages,
-          textStyle: theme.textTheme.bodyMedium?.copyWith(
-            height: 1.5,
-          ),
+          textStyle: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
         ),
       ),
     );

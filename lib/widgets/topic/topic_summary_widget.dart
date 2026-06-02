@@ -270,7 +270,7 @@ class _TopicSummaryWidgetState extends ConsumerState<TopicSummaryWidget> {
               Text(
                 S.current.topic_aiSummary,
                 style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                   color: theme.colorScheme.primary,
                 ),
               ),

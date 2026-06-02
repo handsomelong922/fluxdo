@@ -111,8 +111,11 @@ class _PostActionBarState extends State<PostActionBar> {
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         color: showReplies
-                            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
-                            : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                            ? theme.colorScheme.primaryContainer.withValues(
+                                alpha: 0.3,
+                              )
+                            : theme.colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
                           color: showReplies
@@ -144,12 +147,14 @@ class _PostActionBarState extends State<PostActionBar> {
                                 color: showReplies
                                     ? theme.colorScheme.primary
                                     : theme.colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                             const SizedBox(width: 4),
                             Icon(
-                              showReplies ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                              showReplies
+                                  ? Icons.keyboard_arrow_up
+                                  : Icons.keyboard_arrow_down,
                               size: 18,
                               color: showReplies
                                   ? theme.colorScheme.primary
@@ -182,7 +187,9 @@ class _PostActionBarState extends State<PostActionBar> {
                   height: 36,
                   width: 36,
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.3,
+                    ),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -206,7 +213,9 @@ class _PostActionBarState extends State<PostActionBar> {
                 height: 36,
                 width: 36,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.3,
+                  ),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -228,7 +237,9 @@ class _PostActionBarState extends State<PostActionBar> {
             height: 36,
             width: 36,
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.3,
+              ),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -265,7 +276,9 @@ class _PostActionBarState extends State<PostActionBar> {
           if (widget.reactions.isNotEmpty)
             GestureDetector(
               onTap: () => widget.onShowReactionUsers(null),
-              onLongPress: widget.isOwnPost ? null : widget.onShowReactionPicker,
+              onLongPress: widget.isOwnPost
+                  ? null
+                  : widget.onShowReactionPicker,
               behavior: HitTestBehavior.opaque,
               child: Container(
                 height: 36,
@@ -274,23 +287,35 @@ class _PostActionBarState extends State<PostActionBar> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (!(widget.reactions.length == 1 && widget.reactions.first.id == 'heart'))
-                      ...widget.reactions.take(3).map((reaction) => GestureDetector(
-                        onTap: () => widget.onShowReactionUsers(reaction.id),
-                        behavior: HitTestBehavior.opaque,
-                        child: Container(
-                          height: 36,
-                          padding: const EdgeInsets.symmetric(horizontal: 2),
-                          alignment: Alignment.center,
-                          child: Image(
-                            image: emojiImageProvider(_getEmojiUrl(reaction.id)),
-                            width: 16,
-                            height: 16,
-                            errorBuilder: (_, _, _) => const SizedBox(width: 16, height: 16),
+                    if (!(widget.reactions.length == 1 &&
+                        widget.reactions.first.id == 'heart'))
+                      ...widget.reactions
+                          .take(3)
+                          .map(
+                            (reaction) => GestureDetector(
+                              onTap: () =>
+                                  widget.onShowReactionUsers(reaction.id),
+                              behavior: HitTestBehavior.opaque,
+                              child: Container(
+                                height: 36,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 2,
+                                ),
+                                alignment: Alignment.center,
+                                child: Image(
+                                  image: emojiImageProvider(
+                                    _getEmojiUrl(reaction.id),
+                                  ),
+                                  width: 16,
+                                  height: 16,
+                                  errorBuilder: (_, _, _) =>
+                                      const SizedBox(width: 16, height: 16),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      )),
-                    if (!(widget.reactions.length == 1 && widget.reactions.first.id == 'heart'))
+                    if (!(widget.reactions.length == 1 &&
+                        widget.reactions.first.id == 'heart'))
                       const SizedBox(width: 4),
                     Text(
                       '${widget.reactions.fold(0, (sum, r) => sum + r.count)}',
@@ -298,7 +323,7 @@ class _PostActionBarState extends State<PostActionBar> {
                         color: widget.currentUserReaction != null
                             ? theme.colorScheme.primary
                             : theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -309,7 +334,9 @@ class _PostActionBarState extends State<PostActionBar> {
 
           // 右侧区域：点赞/回应图标 → 点赞/取消
           GestureDetector(
-            onTap: widget.isOwnPost ? null : (widget.isLiking ? null : widget.onToggleLike),
+            onTap: widget.isOwnPost
+                ? null
+                : (widget.isLiking ? null : widget.onToggleLike),
             onLongPress: widget.isOwnPost ? null : widget.onShowReactionPicker,
             behavior: HitTestBehavior.opaque,
             child: Container(
@@ -321,10 +348,13 @@ class _PostActionBarState extends State<PostActionBar> {
               alignment: Alignment.center,
               child: widget.currentUserReaction != null
                   ? Image(
-                      image: emojiImageProvider(_getEmojiUrl(widget.currentUserReaction!.id)),
+                      image: emojiImageProvider(
+                        _getEmojiUrl(widget.currentUserReaction!.id),
+                      ),
                       width: 20,
                       height: 20,
-                      errorBuilder: (_, _, _) => const Icon(Icons.favorite, size: 20),
+                      errorBuilder: (_, _, _) =>
+                          const Icon(Icons.favorite, size: 20),
                     )
                   : Icon(
                       Icons.favorite_border,

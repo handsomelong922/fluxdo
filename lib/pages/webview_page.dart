@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../utils/link_launcher.dart';
 import '../services/toast_service.dart';
 import '../services/app_link_service.dart';
-import '../services/network/cookie/raw_set_cookie_queue.dart';
+import '../services/network/cookie/webview_cookie_priming.dart';
 import '../services/webview_settings.dart';
 import '../services/windows_webview_environment_service.dart';
 import '../widgets/common/app_link_confirm_dialog.dart';
@@ -59,7 +59,6 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
   /// 对话框期间用静态截图盖住 WebView，避免 BackdropFilter 对
   /// hybrid composition（Android）/HWND（Windows）实时回读造成卡顿。
   Uint8List? _webViewSnapshot;
-
 
   @override
   void initState() {
@@ -242,19 +241,19 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
                       Offstage(
                         offstage: _webViewSnapshot != null,
                         child: WebViewSettings.wrapWithScrollFix(
-                      InAppWebView(
+                          InAppWebView(
                             webViewEnvironment: windowsWebViewEnvironment,
                             // Windows：不自动加载 URL，先在 onWebViewCreated 中写入 cookie
                             initialUrlRequest:
-                                (!io.Platform.isWindows && widget.url.isNotEmpty)
+                                (!io.Platform.isWindows &&
+                                    widget.url.isNotEmpty)
                                 ? URLRequest(url: WebUri(widget.url))
                                 : null,
                             initialSettings: WebViewSettings.visible
                               ..useShouldOverrideUrlLoading = true,
                             initialUserScripts:
                                 WebViewSettings.ios15PolyfillScripts,
-                            shouldOverrideUrlLoading:
-                                _shouldOverrideUrlLoading,
+                            shouldOverrideUrlLoading: _shouldOverrideUrlLoading,
                             onReceivedServerTrustAuthRequest: (_, challenge) =>
                                 WebViewSettings.handleServerTrustAuthRequest(
                                   challenge,
@@ -263,19 +262,20 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
                               _controller = controller;
                               if (io.Platform.isWindows &&
                                   widget.url.isNotEmpty) {
-                                await RawSetCookieQueue.instance
-                                    .flushToWebView();
                                 await controller.loadUrl(
-                                  urlRequest:
-                                      URLRequest(url: WebUri(widget.url)),
+                                  urlRequest: URLRequest(
+                                    url: WebUri(widget.url),
+                                  ),
                                 );
                               }
                               // Android: 启用 WebAuthn/PassKey 支持
                               if (io.Platform.isAndroid) {
-                                WidgetsBinding.instance
-                                    .addPostFrameCallback((_) {
-                                  const MethodChannel('com.fluxdo/webauthn')
-                                      .invokeMethod('enableWebAuthentication');
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  const MethodChannel(
+                                    'com.fluxdo/webauthn',
+                                  ).invokeMethod('enableWebAuthentication');
                                 });
                               }
                             },
@@ -293,8 +293,8 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
                               await WebViewSettings.injectScrollFix(controller);
                               final title = await controller.getTitle();
                               final canGoBack = await controller.canGoBack();
-                              final canGoForward =
-                                  await controller.canGoForward();
+                              final canGoForward = await controller
+                                  .canGoForward();
                               final urlString = url?.toString();
                               setState(() {
                                 _currentUrl = urlString ?? '';
@@ -318,10 +318,10 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
                             },
                             onUpdateVisitedHistory:
                                 (controller, url, isReload) async {
-                                  final canGoBack =
-                                      await controller.canGoBack();
-                                  final canGoForward =
-                                      await controller.canGoForward();
+                                  final canGoBack = await controller
+                                      .canGoBack();
+                                  final canGoForward = await controller
+                                      .canGoForward();
                                   final urlString = url?.toString();
                                   setState(() {
                                     _currentUrl = urlString ?? '';
@@ -422,8 +422,8 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
   }
 
   Future<void> _seedAndBarrier() async {
-    if (io.Platform.isWindows) return; // Windows 在 onWebViewCreated 中处理
-    await RawSetCookieQueue.instance.flushToWebView();
+    if (widget.url.isEmpty) return;
+    await WebViewCookiePriming.instance.prime(widget.url);
   }
 
   void _handleMenuAction(String action) {

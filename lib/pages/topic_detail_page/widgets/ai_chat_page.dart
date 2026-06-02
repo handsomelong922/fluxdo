@@ -375,7 +375,7 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
                                 context.l10n.ai_title,
                                 style: TextStyle(
                                   fontSize: 18,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -809,7 +809,7 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
             const SizedBox(width: 4),
             Text(
               context.l10n.ai_selectedCount(_selectedMessageIds.length),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
           ],
         ),
@@ -1133,7 +1133,7 @@ class _SessionHistorySheetState extends State<_SessionHistorySheet> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: isCurrent
-                            ? FontWeight.w600
+                            ? FontWeight.w500
                             : FontWeight.normal,
                         color: isCurrent ? theme.colorScheme.primary : null,
                       ),

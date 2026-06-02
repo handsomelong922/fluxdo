@@ -223,9 +223,10 @@ class _AppLinkBannerState extends State<_AppLinkBanner>
       begin: const Offset(0, -1),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _fadeAnimation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
     widget.onControllerCreated(_controller);
   }
 
@@ -288,16 +289,20 @@ class _AppLinkBannerState extends State<_AppLinkBanner>
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                context.l10n.appLink_continueVisitConfirm(widget.displayName),
+                                context.l10n.appLink_continueVisitConfirm(
+                                  widget.displayName,
+                                ),
                                 style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w500,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                context.l10n.appLink_openAppConfirm(widget.displayName),
+                                context.l10n.appLink_openAppConfirm(
+                                  widget.displayName,
+                                ),
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: colorScheme.onSurfaceVariant,
                                 ),

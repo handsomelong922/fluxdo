@@ -62,8 +62,7 @@ Widget? buildTable({
 
   if (rows.isEmpty) return null;
 
-  final columnCount =
-      rows.map((r) => r.length).reduce((a, b) => a > b ? a : b);
+  final columnCount = rows.map((r) => r.length).reduce((a, b) => a > b ? a : b);
   if (columnCount == 0) return null;
 
   // 截图模式保持原有逻辑（需要完整渲染不裁剪）
@@ -100,8 +99,7 @@ Widget? buildTable({
   Widget bodyWidget;
   if (bodyRows.length > _kVirtualizeThreshold) {
     // 大表格：行虚拟化
-    final maxHeight =
-        MediaQuery.of(context).size.height * 0.5;
+    final maxHeight = MediaQuery.of(context).size.height * 0.5;
     final estimatedHeight = bodyRows.length * _kEstimatedRowHeight;
     bodyWidget = SizedBox(
       height: math.min(estimatedHeight, maxHeight),
@@ -200,10 +198,7 @@ Widget _buildScreenshotTable({
   final tableWidget = Container(
     margin: const EdgeInsets.symmetric(vertical: 8),
     decoration: BoxDecoration(
-      border: Border.all(
-        color: theme.colorScheme.outlineVariant,
-        width: 1,
-      ),
+      border: Border.all(color: theme.colorScheme.outlineVariant, width: 1),
       borderRadius: BorderRadius.circular(8),
     ),
     child: ClipRRect(
@@ -275,7 +270,7 @@ List<double> _computeColumnWidths(
       if (text.isEmpty) continue;
 
       final style = row[col].isHeader
-          ? baseStyle.copyWith(fontWeight: FontWeight.bold)
+          ? baseStyle.copyWith(fontWeight: FontWeight.w600)
           : baseStyle;
 
       final painter = TextPainter(
@@ -312,9 +307,7 @@ Widget _buildFixedRow({
   return Container(
     decoration: BoxDecoration(
       color: isHeader ? theme.colorScheme.surfaceContainerHighest : null,
-      border: Border(
-        bottom: BorderSide(color: borderColor, width: 1),
-      ),
+      border: Border(bottom: BorderSide(color: borderColor, width: 1)),
     ),
     child: Row(
       children: List.generate(columnCount, (colIndex) {
@@ -330,9 +323,7 @@ Widget _buildFixedRow({
               : null,
           padding: _kCellPadding,
           child: cell != null
-              ? _buildCellContent(
-                  context, theme, cell, galleryImages,
-                )
+              ? _buildCellContent(context, theme, cell, galleryImages)
               : const SizedBox.shrink(),
         );
       }),
@@ -355,7 +346,7 @@ Widget _buildCellContent(
     return Text(
       text,
       style: cellData.isHeader
-          ? const TextStyle(fontWeight: FontWeight.bold)
+          ? const TextStyle(fontWeight: FontWeight.w600)
           : null,
     );
   }
@@ -416,10 +407,12 @@ List<_TableCellData> _parseRow(dynamic tr, {required bool isHeader}) {
   final cells = <_TableCellData>[];
   for (final child in tr.children) {
     if (child.localName == 'th' || child.localName == 'td') {
-      cells.add(_TableCellData(
-        element: child,
-        isHeader: child.localName == 'th' || isHeader,
-      ));
+      cells.add(
+        _TableCellData(
+          element: child,
+          isHeader: child.localName == 'th' || isHeader,
+        ),
+      );
     }
   }
   return cells;
@@ -430,8 +423,5 @@ class _TableCellData {
   final dynamic element;
   final bool isHeader;
 
-  _TableCellData({
-    required this.element,
-    required this.isHeader,
-  });
+  _TableCellData({required this.element, required this.isHeader});
 }

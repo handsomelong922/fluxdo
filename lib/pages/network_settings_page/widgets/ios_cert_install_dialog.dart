@@ -37,8 +37,9 @@ class _IosCertInstallSheetState extends State<_IosCertInstallSheet> {
   bool _installing = false;
   bool _regenerating = false;
 
-  static const _browserChannel =
-      MethodChannel('com.github.lingyan000.fluxdo/browser');
+  static const _browserChannel = MethodChannel(
+    'com.github.lingyan000.fluxdo/browser',
+  );
 
   Future<void> _downloadProfile() async {
     setState(() => _installing = true);
@@ -78,8 +79,9 @@ class _IosCertInstallSheetState extends State<_IosCertInstallSheet> {
 
   Future<void> _openSettings() async {
     try {
-      await _browserChannel
-          .invokeMethod('launchAppLink', {'url': 'App-prefs:'});
+      await _browserChannel.invokeMethod('launchAppLink', {
+        'url': 'App-prefs:',
+      });
     } catch (_) {}
   }
 
@@ -123,7 +125,7 @@ class _IosCertInstallSheetState extends State<_IosCertInstallSheet> {
                 Text(
                   l10n.dohSettings_certDialogTitle,
                   style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const Spacer(),
@@ -206,24 +208,26 @@ class _IosCertInstallSheetState extends State<_IosCertInstallSheet> {
                     color: isDone
                         ? theme.colorScheme.primary
                         : isActive
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.surfaceContainerHighest,
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.surfaceContainerHighest,
                     border: isActive && !isDone
-                        ? Border.all(
-                            color: theme.colorScheme.primary, width: 2)
+                        ? Border.all(color: theme.colorScheme.primary, width: 2)
                         : null,
                   ),
                   alignment: Alignment.center,
                   child: isDone
-                      ? Icon(Icons.check,
-                          size: 16, color: theme.colorScheme.onPrimary)
+                      ? Icon(
+                          Icons.check,
+                          size: 16,
+                          color: theme.colorScheme.onPrimary,
+                        )
                       : Text(
                           '${step + 1}',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: isActive
                                 ? theme.colorScheme.onPrimary
                                 : theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                 ),
@@ -234,7 +238,7 @@ class _IosCertInstallSheetState extends State<_IosCertInstallSheet> {
                     color: isActive || isDone
                         ? theme.colorScheme.primary
                         : theme.colorScheme.onSurfaceVariant,
-                    fontWeight: isActive ? FontWeight.bold : null,
+                    fontWeight: isActive ? FontWeight.w600 : null,
                   ),
                 ),
               ],
@@ -277,7 +281,11 @@ class _IosCertInstallSheetState extends State<_IosCertInstallSheet> {
             icon: _installing
                 ? const _MiniSpinner()
                 : const Icon(Icons.download, size: 18),
-            label: Text(_installing ? l10n.dohSettings_certPreparing : l10n.dohSettings_certDownloadProfile),
+            label: Text(
+              _installing
+                  ? l10n.dohSettings_certPreparing
+                  : l10n.dohSettings_certDownloadProfile,
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -291,7 +299,10 @@ class _IosCertInstallSheetState extends State<_IosCertInstallSheet> {
                 : const Icon(Icons.refresh, size: 16),
             label: Text(
               l10n.dohSettings_certRegenerate,
-              style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ),
@@ -363,8 +374,11 @@ class _IosCertInstallSheetState extends State<_IosCertInstallSheet> {
     );
   }
 
-  Widget _infoCard(ThemeData theme,
-      {required IconData icon, required String text}) {
+  Widget _infoCard(
+    ThemeData theme, {
+    required IconData icon,
+    required String text,
+  }) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(

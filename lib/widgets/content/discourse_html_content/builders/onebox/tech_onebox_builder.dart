@@ -12,35 +12,43 @@ class TechOneboxBuilder {
     List<LinkCount>? linkCounts,
   }) {
     final url = extractUrl(element);
-    final clickCount = extractClickCountFromOnebox(element, linkCounts: linkCounts);
+    final clickCount = extractClickCountFromOnebox(
+      element,
+      linkCounts: linkCounts,
+    );
 
     // 提取标题
     final h4Element = element.querySelector('h4');
     final h3Element = element.querySelector('h3');
-    final titleLink = h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
+    final titleLink =
+        h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
     final title = titleLink?.text ?? '';
 
     // 提取描述/摘要
-    final descElement = element.querySelector('p') ??
+    final descElement =
+        element.querySelector('p') ??
         element.querySelector('.question-summary');
     final description = descElement?.text ?? '';
 
     // 提取投票数
-    final voteElement = element.querySelector('.vote-count') ??
-        element.querySelector('.votes');
+    final voteElement =
+        element.querySelector('.vote-count') ?? element.querySelector('.votes');
     final votes = voteElement?.text?.trim() ?? '';
 
     // 提取答案数
-    final answerElement = element.querySelector('.answer-count') ??
+    final answerElement =
+        element.querySelector('.answer-count') ??
         element.querySelector('.answers');
     final answers = answerElement?.text?.trim() ?? '';
 
     // 检查是否已有被接受的答案
-    final hasAccepted = element.querySelector('.accepted-answer') != null ||
+    final hasAccepted =
+        element.querySelector('.accepted-answer') != null ||
         element.classes?.contains('accepted') == true;
 
     // 提取标签
-    final tagElements = element.querySelectorAll('.tag') +
+    final tagElements =
+        element.querySelectorAll('.tag') +
         element.querySelectorAll('.post-tag');
     final tags = tagElements
         .map((tag) => tag.text?.trim())
@@ -49,8 +57,8 @@ class TechOneboxBuilder {
         .toList();
 
     // 提取提问者和时间
-    final userElement = element.querySelector('.user-info') ??
-        element.querySelector('.author');
+    final userElement =
+        element.querySelector('.user-info') ?? element.querySelector('.author');
     final userInfo = userElement?.text?.trim() ?? '';
 
     // 判断是 Stack Overflow 还是其他 SE 站点
@@ -92,7 +100,9 @@ class TechOneboxBuilder {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: isStackOverflow
                             ? const Color(0xFFf48024)
@@ -104,7 +114,7 @@ class TechOneboxBuilder {
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
@@ -118,7 +128,7 @@ class TechOneboxBuilder {
                 Text(
                   title,
                   style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     color: const Color(0xFF0077cc),
                   ),
                   maxLines: 2,
@@ -145,7 +155,9 @@ class TechOneboxBuilder {
                     children: tags.take(5).map((tag) {
                       return Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFe1ecf4),
                           borderRadius: BorderRadius.circular(4),
@@ -188,36 +200,41 @@ class TechOneboxBuilder {
     List<LinkCount>? linkCounts,
   }) {
     final url = extractUrl(element);
-    final clickCount = extractClickCountFromOnebox(element, linkCounts: linkCounts);
+    final clickCount = extractClickCountFromOnebox(
+      element,
+      linkCounts: linkCounts,
+    );
 
     // 提取标题
     final h4Element = element.querySelector('h4');
     final h3Element = element.querySelector('h3');
-    final titleLink = h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
+    final titleLink =
+        h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
     final title = titleLink?.text ?? '';
 
     // 提取来源 URL
-    final sourceElement = element.querySelector('.source') ??
-        element.querySelector('.hn-source');
+    final sourceElement =
+        element.querySelector('.source') ?? element.querySelector('.hn-source');
     final source = sourceElement?.text?.trim() ?? '';
 
     // 提取分数
-    final scoreElement = element.querySelector('.score') ??
-        element.querySelector('.hn-score');
+    final scoreElement =
+        element.querySelector('.score') ?? element.querySelector('.hn-score');
     final score = scoreElement?.text?.trim() ?? '';
 
     // 提取评论数
-    final commentsElement = element.querySelector('.comments') ??
+    final commentsElement =
+        element.querySelector('.comments') ??
         element.querySelector('.hn-comments');
     final comments = commentsElement?.text?.trim() ?? '';
 
     // 提取作者和时间
-    final authorElement = element.querySelector('.author') ??
-        element.querySelector('.hn-author');
+    final authorElement =
+        element.querySelector('.author') ?? element.querySelector('.hn-author');
     final author = authorElement?.text?.trim() ?? '';
 
-    final timeElement = element.querySelector('time') ??
-        element.querySelector('.hn-time');
+    final timeElement =
+        element.querySelector('time') ?? element.querySelector('.hn-time');
     final time = timeElement?.text?.trim() ?? '';
 
     return OneboxContainer(
@@ -241,7 +258,7 @@ class TechOneboxBuilder {
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 14,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -269,7 +286,7 @@ class TechOneboxBuilder {
           Text(
             title,
             style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -322,26 +339,31 @@ class TechOneboxBuilder {
   }) {
     final url = extractUrl(element);
     final isDark = theme.brightness == Brightness.dark;
-    final clickCount = extractClickCountFromOnebox(element, linkCounts: linkCounts);
+    final clickCount = extractClickCountFromOnebox(
+      element,
+      linkCounts: linkCounts,
+    );
 
     // 提取标题
     final h4Element = element.querySelector('h4');
     final h3Element = element.querySelector('h3');
-    final titleLink = h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
-    final title = (titleLink?.text ?? '').isEmpty ? 'Untitled' : titleLink!.text;
+    final titleLink =
+        h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
+    final title = (titleLink?.text ?? '').isEmpty
+        ? 'Untitled'
+        : titleLink!.text;
 
     // 提取代码预览
-    final codeElement = element.querySelector('pre') ??
-        element.querySelector('code');
+    final codeElement =
+        element.querySelector('pre') ?? element.querySelector('code');
     final codeText = codeElement?.text ?? '';
 
     // 提取语言
-    final langElement = element.querySelector('.syntax') ??
-        element.querySelector('.language');
+    final langElement =
+        element.querySelector('.syntax') ?? element.querySelector('.language');
     final language = langElement?.text?.trim() ?? '';
 
-    final bgColor =
-        isDark ? const Color(0xff1e1e1e) : const Color(0xfff5f5f5);
+    final bgColor = isDark ? const Color(0xff1e1e1e) : const Color(0xfff5f5f5);
     final borderColor = theme.colorScheme.outlineVariant.withValues(alpha: 0.3);
 
     return Container(
@@ -362,8 +384,9 @@ class TechOneboxBuilder {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: const Color(0xFF02589D),
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(7)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(7),
+                ),
               ),
               child: Row(
                 children: [
@@ -378,7 +401,7 @@ class TechOneboxBuilder {
                       title,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -386,7 +409,9 @@ class TechOneboxBuilder {
                   if (clickCount != null && clickCount.isNotEmpty) ...[
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
@@ -405,7 +430,7 @@ class TechOneboxBuilder {
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 10,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
@@ -416,7 +441,9 @@ class TechOneboxBuilder {
                   if (language.isNotEmpty)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
@@ -426,7 +453,7 @@ class TechOneboxBuilder {
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
@@ -502,7 +529,7 @@ class _StatBox extends StatelessWidget {
             value,
             style: TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
               color: textColor,
             ),
           ),
@@ -525,4 +552,3 @@ Future<void> _launchUrl(BuildContext context, String url) async {
   if (url.isEmpty) return;
   await launchContentLink(context, url);
 }
-

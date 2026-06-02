@@ -59,11 +59,12 @@ class _PostFlagSheetState extends State<PostFlagSheet> {
     if (mounted) {
       setState(() {
         if (types != null && types.isNotEmpty) {
-          _flagTypes = types
-              .map((t) => FlagType.fromJson(t))
-              .where((f) => f.isFlag && f.enabled && f.appliesToPost)
-              .toList()
-            ..sort((a, b) => a.position.compareTo(b.position));
+          _flagTypes =
+              types
+                  .map((t) => FlagType.fromJson(t))
+                  .where((f) => f.isFlag && f.enabled && f.appliesToPost)
+                  .toList()
+                ..sort((a, b) => a.position.compareTo(b.position));
         } else {
           _flagTypes = FlagType.defaultTypes;
         }
@@ -88,7 +89,9 @@ class _PostFlagSheetState extends State<PostFlagSheet> {
       await widget.service.flagPost(
         widget.postId,
         _selectedType!.id,
-        message: _messageController.text.isNotEmpty ? _messageController.text : null,
+        message: _messageController.text.isNotEmpty
+            ? _messageController.text
+            : null,
       );
 
       if (mounted) {
@@ -97,7 +100,9 @@ class _PostFlagSheetState extends State<PostFlagSheet> {
       }
     } catch (e) {
       if (mounted) {
-        final message = e is Exception ? e.toString().replaceFirst('Exception: ', '') : S.current.post_flagFailed;
+        final message = e is Exception
+            ? e.toString().replaceFirst('Exception: ', '')
+            : S.current.post_flagFailed;
         ToastService.showError(message);
       }
     } finally {
@@ -134,7 +139,7 @@ class _PostFlagSheetState extends State<PostFlagSheet> {
                   Text(
                     context.l10n.post_flagTitle,
                     style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const Spacer(),
@@ -166,18 +171,27 @@ class _PostFlagSheetState extends State<PostFlagSheet> {
                       // 向用户发送消息分组
                       if (_notifyUserTypes.isNotEmpty) ...[
                         _buildSectionHeader(
-                          context.l10n.post_flagMessageUser(widget.postUsername),
+                          context.l10n.post_flagMessageUser(
+                            widget.postUsername,
+                          ),
                           theme,
                         ),
-                        ..._notifyUserTypes.map((type) => _buildFlagOption(type, theme)),
+                        ..._notifyUserTypes.map(
+                          (type) => _buildFlagOption(type, theme),
+                        ),
                         const SizedBox(height: 16),
                         Divider(color: theme.colorScheme.outlineVariant),
                         const SizedBox(height: 16),
                       ],
                       // 私下通知管理人员分组
                       if (_moderatorTypes.isNotEmpty) ...[
-                        _buildSectionHeader(context.l10n.post_flagNotifyModerators, theme),
-                        ..._moderatorTypes.map((type) => _buildFlagOption(type, theme)),
+                        _buildSectionHeader(
+                          context.l10n.post_flagNotifyModerators,
+                          theme,
+                        ),
+                        ..._moderatorTypes.map(
+                          (type) => _buildFlagOption(type, theme),
+                        ),
                       ],
                     ],
 
@@ -207,7 +221,10 @@ class _PostFlagSheetState extends State<PostFlagSheet> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _selectedType == null || _isSubmitting || _isLoading ? null : _submitFlag,
+                  onPressed:
+                      _selectedType == null || _isSubmitting || _isLoading
+                      ? null
+                      : _submitFlag,
                   child: _isSubmitting
                       ? const SizedBox(
                           width: 20,
@@ -230,7 +247,7 @@ class _PostFlagSheetState extends State<PostFlagSheet> {
       child: Text(
         title,
         style: theme.textTheme.titleSmall?.copyWith(
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -249,12 +266,12 @@ class _PostFlagSheetState extends State<PostFlagSheet> {
         decoration: BoxDecoration(
           color: isSelected
               ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
-              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              : theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.3,
+                ),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected
-                ? theme.colorScheme.primary
-                : Colors.transparent,
+            color: isSelected ? theme.colorScheme.primary : Colors.transparent,
           ),
         ),
         child: Row(
@@ -268,9 +285,7 @@ class _PostFlagSheetState extends State<PostFlagSheet> {
                   : theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: 12),
-            Expanded(
-              child: _buildDescriptionText(description, theme),
-            ),
+            Expanded(child: _buildDescriptionText(description, theme)),
           ],
         ),
       ),

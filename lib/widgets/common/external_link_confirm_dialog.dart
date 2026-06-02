@@ -17,10 +17,8 @@ Future<bool?> showExternalLinkConfirmDialog(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (context) => _ExternalLinkConfirmSheet(
-      url: url,
-      riskLevel: riskLevel,
-    ),
+    builder: (context) =>
+        _ExternalLinkConfirmSheet(url: url, riskLevel: riskLevel),
   );
 }
 
@@ -38,10 +36,7 @@ class _ExternalLinkConfirmSheet extends StatelessWidget {
   final String url;
   final LinkRiskLevel riskLevel;
 
-  const _ExternalLinkConfirmSheet({
-    required this.url,
-    required this.riskLevel,
-  });
+  const _ExternalLinkConfirmSheet({required this.url, required this.riskLevel});
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +70,7 @@ class _ExternalLinkConfirmSheet extends StatelessWidget {
               Text(
                 config.title,
                 style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 8),
@@ -113,7 +108,7 @@ class _ExternalLinkConfirmSheet extends StatelessWidget {
                           child: Text(
                             urlInfo.host,
                             style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w500,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -337,13 +332,17 @@ class _LinkBlockedSheet extends StatelessWidget {
                   color: Colors.red.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.block_rounded, color: Colors.red, size: 28),
+                child: const Icon(
+                  Icons.block_rounded,
+                  color: Colors.red,
+                  size: 28,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
                 context.l10n.externalLink_blocked,
                 style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 8),
@@ -364,9 +363,7 @@ class _LinkBlockedSheet extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.red.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.red.withValues(alpha: 0.15),
-                  ),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.15)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,

@@ -7,6 +7,13 @@ class TopicLinkInfo {
   const TopicLinkInfo({required this.topicId, this.slug, this.postNumber});
 }
 
+/// 帖子短链接解析结果（Discourse `/p/<post_id>`）
+class PostShortLinkInfo {
+  final int postId;
+
+  const PostShortLinkInfo({required this.postId});
+}
+
 /// 用户链接解析结果
 class UserLinkInfo {
   final String username;
@@ -16,25 +23,6 @@ class UserLinkInfo {
 
 class DiscourseUrlParser {
   DiscourseUrlParser._();
-
-  /// 纯数字 ID 格式：/t/12345 或 /t/12345/1
-  /// 必须优先匹配，否则 /t/12345/1 中的 12345 会被误当作 slug
-  static final _topicIdOnlyRegex = RegExp(
-    r'/t/(\d+)(?:/(\d+))?(?:[/?#]|$)',
-    caseSensitive: false,
-  );
-
-  /// 带 slug 格式：/t/topic-slug/12345 或 /t/topic-slug/12345/1
-  static final _topicWithSlugRegex = RegExp(
-    r'/t/([^/]+)/(\d+)(?:/(\d+))?',
-    caseSensitive: false,
-  );
-
-  /// 仅含 slug 格式：/t/some-slug（slug 不能以数字开头）
-  static final _topicSlugOnlyRegex = RegExp(
-    r'/t/([^/\d][^/?#]*)$',
-    caseSensitive: false,
-  );
 
   /// 用户链接格式：/u/username
   static final _userRegex = RegExp(r'/u/([^/?#]+)', caseSensitive: false);
@@ -51,32 +39,17 @@ class DiscourseUrlParser {
   /// - `/t/12345/1` → topicId=12345, postNumber=1
   /// - `/t/topic-slug/12345` → topicId=12345, slug=topic-slug
   /// - `/t/topic-slug/12345/1` → topicId=12345, slug=topic-slug, postNumber=1
+  /// - `/t/topic-slug/12345/last` → topicId=12345
+  /// - `/n/topic-slug/12345/1` → topicId=12345, slug=topic-slug, postNumber=1
   static TopicLinkInfo? parseTopic(String url) {
-    // 优先匹配纯数字 ID 格式
-    final idOnlyMatch = _topicIdOnlyRegex.firstMatch(url);
-    if (idOnlyMatch != null) {
-      return TopicLinkInfo(
-        topicId: int.parse(idOnlyMatch.group(1)!),
-        postNumber:
-            int.tryParse(idOnlyMatch.group(2) ?? '') ??
-            _parsePostNumberFromFragment(url),
-      );
-    }
+    final segments = _pathSegments(url);
+    final topicIndex = _lastIndexOfAny(segments, const {'t', 'n'});
+    if (topicIndex < 0 || topicIndex + 1 >= segments.length) return null;
 
-    // 匹配带 slug 格式
-    final withSlugMatch = _topicWithSlugRegex.firstMatch(url);
-    if (withSlugMatch != null) {
-      final slugStr = withSlugMatch.group(1)!;
-      return TopicLinkInfo(
-        topicId: int.parse(withSlugMatch.group(2)!),
-        slug: slugStr != 'topic' ? slugStr : null,
-        postNumber:
-            int.tryParse(withSlugMatch.group(3) ?? '') ??
-            _parsePostNumberFromFragment(url),
-      );
-    }
-
-    return null;
+    final marker = segments[topicIndex].toLowerCase();
+    return marker == 'n'
+        ? _parseNestedTopic(segments, topicIndex, url)
+        : _parseRegularTopic(segments, topicIndex, url);
   }
 
   /// 解析仅含 slug 的话题链接（/t/some-slug），返回 slug 或 null
@@ -84,8 +57,33 @@ class DiscourseUrlParser {
   /// 注意：此方法仅匹配没有数字 ID 的 slug 链接，
   /// 带 ID 的链接应使用 [parseTopic]。
   static String? parseTopicSlug(String url) {
-    final match = _topicSlugOnlyRegex.firstMatch(url);
-    return match?.group(1);
+    final segments = _pathSegments(url);
+    final topicIndex = _lastIndexOfAny(segments, const {'t'});
+    if (topicIndex < 0 || topicIndex + 1 >= segments.length) return null;
+
+    final remaining = segments.sublist(topicIndex + 1);
+    if (remaining.length != 1) return null;
+    final slug = remaining.first;
+    if (slug.isEmpty || int.tryParse(slug) != null || _hasExtension(slug)) {
+      return null;
+    }
+    return slug;
+  }
+
+  /// 解析 Discourse 帖子短链接 `/p/<post_id>`。
+  static PostShortLinkInfo? parsePostShortLink(String url) {
+    final segments = _pathSegments(url);
+    final postIndex = _lastIndexOfAny(segments, const {'p'});
+    if (postIndex < 0 || postIndex + 1 >= segments.length) return null;
+
+    final remaining = segments.sublist(postIndex + 1);
+    if (remaining.length > 2) return null;
+    final postId = int.tryParse(segments[postIndex + 1]);
+    if (postId == null || postId <= 0) return null;
+    if (remaining.length == 2 && int.tryParse(remaining[1]) == null) {
+      return null;
+    }
+    return PostShortLinkInfo(postId: postId);
   }
 
   /// 解析用户链接，返回 [UserLinkInfo] 或 null
@@ -111,4 +109,127 @@ class DiscourseUrlParser {
     final match = _postFragmentRegex.firstMatch(fragment);
     return match == null ? null : int.tryParse(match.group(1)!);
   }
+
+  static TopicLinkInfo? _parseRegularTopic(
+    List<String> segments,
+    int topicIndex,
+    String url,
+  ) {
+    final remaining = segments.sublist(topicIndex + 1);
+    if (remaining.isEmpty) return null;
+
+    final first = remaining[0];
+    final directTopicId = int.tryParse(first);
+    if (directTopicId != null) {
+      if (remaining.length > 2) return null;
+      final postSegment = remaining.length == 2 ? remaining[1] : null;
+      final postNumber = _parsePostNumberSegment(postSegment);
+      if (postSegment != null && postNumber == null && postSegment != 'last') {
+        return null;
+      }
+      return TopicLinkInfo(
+        topicId: directTopicId,
+        postNumber: postNumber ?? _parsePostNumberFromFragment(url),
+      );
+    }
+
+    if (remaining.length < 2) return null;
+    final topicId = int.tryParse(remaining[1]);
+    if (topicId == null) return null;
+
+    if (remaining.length > 3) return null;
+    final postSegment = remaining.length == 3 ? remaining[2] : null;
+    final postNumber = _parsePostNumberSegment(postSegment);
+    final isKnownTopicAction =
+        postSegment == null ||
+        postSegment == 'last' ||
+        postSegment == 'summary' ||
+        postSegment == 'print' ||
+        postSegment == 'wordpress';
+    if (postSegment != null && postNumber == null && !isKnownTopicAction) {
+      return null;
+    }
+
+    return TopicLinkInfo(
+      topicId: topicId,
+      slug: _normalizeSlug(first),
+      postNumber: postNumber ?? _parsePostNumberFromFragment(url),
+    );
+  }
+
+  static TopicLinkInfo? _parseNestedTopic(
+    List<String> segments,
+    int topicIndex,
+    String url,
+  ) {
+    final remaining = segments.sublist(topicIndex + 1);
+    if (remaining.length < 2) return null;
+
+    final slug = remaining[0];
+    final topicId = int.tryParse(remaining[1]);
+    if (topicId == null) return null;
+    if (remaining.length > 4) return null;
+
+    int? postNumber;
+    if (remaining.length >= 3) {
+      postNumber = _parsePostNumberSegment(remaining[2]);
+      if (postNumber == null &&
+          remaining.length >= 4 &&
+          (remaining[2] == 'context' || remaining[2] == 'children')) {
+        postNumber = _parsePostNumberSegment(remaining[3]);
+      }
+      final hasValidNestedTail =
+          postNumber != null ||
+          remaining[2] == 'last' ||
+          (remaining.length == 4 &&
+              (remaining[2] == 'context' || remaining[2] == 'children') &&
+              _parsePostNumberSegment(remaining[3]) != null);
+      if (!hasValidNestedTail) return null;
+    }
+
+    return TopicLinkInfo(
+      topicId: topicId,
+      slug: _normalizeSlug(slug),
+      postNumber: postNumber ?? _parsePostNumberFromFragment(url),
+    );
+  }
+
+  static List<String> _pathSegments(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri != null) {
+      return uri.pathSegments
+          .map(Uri.decodeComponent)
+          .where((segment) => segment.isNotEmpty)
+          .toList(growable: false);
+    }
+
+    return url
+        .split('?')
+        .first
+        .split('#')
+        .first
+        .split('/')
+        .where((segment) => segment.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  static int _lastIndexOfAny(List<String> segments, Set<String> markers) {
+    for (var i = segments.length - 1; i >= 0; i--) {
+      if (markers.contains(segments[i].toLowerCase())) return i;
+    }
+    return -1;
+  }
+
+  static int? _parsePostNumberSegment(String? segment) {
+    if (segment == null || segment == 'last') return null;
+    if (_hasExtension(segment)) return null;
+    final postNumber = int.tryParse(segment);
+    return postNumber != null && postNumber > 0 ? postNumber : null;
+  }
+
+  static String? _normalizeSlug(String slug) {
+    return slug == 'topic' ? null : slug;
+  }
+
+  static bool _hasExtension(String segment) => segment.contains('.');
 }

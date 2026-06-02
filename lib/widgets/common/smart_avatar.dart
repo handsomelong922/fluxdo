@@ -52,7 +52,8 @@ class _SmartAvatarState extends State<SmartAvatar> {
     final theme = Theme.of(context);
     // 默认透明背景，只有在需要 fallback 时才用主题色
     final bgColor = widget.backgroundColor ?? Colors.transparent;
-    final fgColor = widget.foregroundColor ?? theme.colorScheme.onPrimaryContainer;
+    final fgColor =
+        widget.foregroundColor ?? theme.colorScheme.onPrimaryContainer;
 
     // 计算边框宽度，边框包含在 radius 内部
     double borderWidth = 0;
@@ -107,10 +108,7 @@ class _SmartAvatarState extends State<SmartAvatar> {
     Widget avatar = Container(
       width: innerRadius * 2,
       height: innerRadius * 2,
-      decoration: BoxDecoration(
-        color: bgColor,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
       clipBehavior: Clip.antiAlias,
       child: child,
     );
@@ -152,18 +150,14 @@ class _SmartAvatarState extends State<SmartAvatar> {
           widget.fallbackText![0].toUpperCase(),
           style: TextStyle(
             color: fgColor,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w600,
             fontSize: radius * 0.8,
           ),
         ),
       );
     }
     return Center(
-      child: Icon(
-        Icons.person,
-        size: radius,
-        color: fgColor,
-      ),
+      child: Icon(Icons.person, size: radius, color: fgColor),
     );
   }
 }

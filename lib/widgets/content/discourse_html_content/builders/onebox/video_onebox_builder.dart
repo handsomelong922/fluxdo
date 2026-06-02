@@ -13,12 +13,16 @@ class VideoOneboxBuilder {
     List<LinkCount>? linkCounts,
   }) {
     final url = extractUrl(element);
-    final clickCount = extractClickCountFromOnebox(element, linkCounts: linkCounts);
+    final clickCount = extractClickCountFromOnebox(
+      element,
+      linkCounts: linkCounts,
+    );
 
     // 提取标题
     final h4Element = element.querySelector('h4');
     final h3Element = element.querySelector('h3');
-    final titleLink = h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
+    final titleLink =
+        h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
     final title = titleLink?.text ?? '';
 
     // 提取视频 ID 和缩略图
@@ -28,8 +32,8 @@ class VideoOneboxBuilder {
         : (element.querySelector('img')?.attributes['src'] ?? '');
 
     // 提取频道信息
-    final channelElement = element.querySelector('.channel') ??
-        element.querySelector('.author');
+    final channelElement =
+        element.querySelector('.channel') ?? element.querySelector('.author');
     final channel = channelElement?.text?.trim() ?? '';
 
     // 提取描述
@@ -37,12 +41,14 @@ class VideoOneboxBuilder {
     final description = descElement?.text ?? '';
 
     // 提取时长
-    final durationElement = element.querySelector('.duration') ??
+    final durationElement =
+        element.querySelector('.duration') ??
         element.querySelector('.video-duration');
     final duration = durationElement?.text?.trim() ?? '';
 
     // 提取观看数
-    final viewsElement = element.querySelector('.views') ??
+    final viewsElement =
+        element.querySelector('.views') ??
         element.querySelector('.video-views');
     final views = viewsElement?.text?.trim() ?? '';
 
@@ -60,8 +66,9 @@ class VideoOneboxBuilder {
               AspectRatio(
                 aspectRatio: 16 / 9,
                 child: ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(7)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(7),
+                  ),
                   child: thumbnailUrl.isNotEmpty
                       ? Image(
                           image: discourseImageProvider(thumbnailUrl),
@@ -111,8 +118,10 @@ class VideoOneboxBuilder {
                   right: 8,
                   bottom: 8,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
@@ -140,7 +149,7 @@ class VideoOneboxBuilder {
                   Text(
                     title,
                     style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -207,12 +216,16 @@ class VideoOneboxBuilder {
     List<LinkCount>? linkCounts,
   }) {
     final url = extractUrl(element);
-    final clickCount = extractClickCountFromOnebox(element, linkCounts: linkCounts);
+    final clickCount = extractClickCountFromOnebox(
+      element,
+      linkCounts: linkCounts,
+    );
 
     // 提取标题
     final h4Element = element.querySelector('h4');
     final h3Element = element.querySelector('h3');
-    final titleLink = h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
+    final titleLink =
+        h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
     final title = titleLink?.text ?? '';
 
     // 提取缩略图
@@ -241,8 +254,9 @@ class VideoOneboxBuilder {
               AspectRatio(
                 aspectRatio: 16 / 9,
                 child: ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(7)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(7),
+                  ),
                   child: thumbnailUrl.isNotEmpty
                       ? Image(
                           image: discourseImageProvider(thumbnailUrl),
@@ -299,7 +313,7 @@ class VideoOneboxBuilder {
                   Text(
                     title,
                     style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -365,12 +379,16 @@ class VideoOneboxBuilder {
     List<LinkCount>? linkCounts,
   }) {
     final url = extractUrl(element);
-    final clickCount = extractClickCountFromOnebox(element, linkCounts: linkCounts);
+    final clickCount = extractClickCountFromOnebox(
+      element,
+      linkCounts: linkCounts,
+    );
 
     // 提取标题
     final h4Element = element.querySelector('h4');
     final h3Element = element.querySelector('h3');
-    final titleLink = h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
+    final titleLink =
+        h4Element?.querySelector('a') ?? h3Element?.querySelector('a');
     final title = titleLink?.text ?? '';
 
     // 提取缩略图
@@ -395,8 +413,9 @@ class VideoOneboxBuilder {
               AspectRatio(
                 aspectRatio: 16 / 9,
                 child: ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(7)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(7),
+                  ),
                   child: thumbnailUrl.isNotEmpty
                       ? Image(
                           image: discourseImageProvider(thumbnailUrl),
@@ -453,7 +472,9 @@ class VideoOneboxBuilder {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF625DF5),
                         borderRadius: BorderRadius.circular(4),
@@ -463,7 +484,7 @@ class VideoOneboxBuilder {
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
@@ -478,7 +499,7 @@ class VideoOneboxBuilder {
                   Text(
                     title,
                     style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -528,4 +549,3 @@ Future<void> _launchUrl(BuildContext context, String url) async {
   if (url.isEmpty) return;
   await launchContentLink(context, url);
 }
-

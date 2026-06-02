@@ -14,7 +14,18 @@ Widget buildPoll({
 }) {
   final pollTitle = _extractPollTitle(element);
   final pollName = element.attributes['data-poll-name'] ?? 'poll';
-  final poll = post.polls?.firstWhere((p) => p.name == pollName, orElse: () => Poll(id: 0, name: pollName, type: 'regular', status: 'open', results: 'always', options: [], voters: 0));
+  final poll = post.polls?.firstWhere(
+    (p) => p.name == pollName,
+    orElse: () => Poll(
+      id: 0,
+      name: pollName,
+      type: 'regular',
+      status: 'open',
+      results: 'always',
+      options: [],
+      voters: 0,
+    ),
+  );
 
   if (poll == null || poll.options.isEmpty) {
     return const SizedBox.shrink();
@@ -40,7 +51,9 @@ Widget buildPoll({
 }
 
 String? _extractPollTitle(dynamic element) {
-  final attributeTitle = element.attributes['data-poll-question'] ?? element.attributes['data-poll-title'];
+  final attributeTitle =
+      element.attributes['data-poll-question'] ??
+      element.attributes['data-poll-title'];
   if (attributeTitle is String && attributeTitle.trim().isNotEmpty) {
     return attributeTitle.trim();
   }
@@ -244,14 +257,11 @@ class _PollWidgetState extends State<_PollWidget> {
               child: Text(
                 widget.title!,
                 style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
-          if (_showResults)
-            _buildResults(theme)
-          else
-            _buildOptions(theme),
+          if (_showResults) _buildResults(theme) else _buildOptions(theme),
 
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -321,26 +331,32 @@ class _PollWidgetState extends State<_PollWidget> {
                 // 切换显示模式按钮
                 if (_showResults && _poll.voters > 0)
                   TextButton(
-                    onPressed: () => setState(() => _showPercentage = !_showPercentage),
+                    onPressed: () =>
+                        setState(() => _showPercentage = !_showPercentage),
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       minimumSize: const Size(0, 32),
                     ),
                     child: Text(
-                      _showPercentage ? S.current.poll_count : S.current.poll_percentage,
+                      _showPercentage
+                          ? S.current.poll_count
+                          : S.current.poll_percentage,
                       style: theme.textTheme.bodySmall,
                     ),
                   ),
                 // 投票/查看结果切换按钮 - 当 results 为 always 或者用户已投票时显示
                 if (!isClosed && (hasVoted || _poll.results == 'always'))
                   TextButton(
-                    onPressed: () => setState(() => _showResults = !_showResults),
+                    onPressed: () =>
+                        setState(() => _showResults = !_showResults),
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       minimumSize: const Size(0, 32),
                     ),
                     child: Text(
-                      _showResults ? S.current.poll_vote : S.current.poll_viewResults,
+                      _showResults
+                          ? S.current.poll_vote
+                          : S.current.poll_viewResults,
                       style: theme.textTheme.bodySmall,
                     ),
                   ),
@@ -384,17 +400,23 @@ class _PollWidgetState extends State<_PollWidget> {
                 // 单选/多选图标
                 Icon(
                   _isMultiple
-                      ? (isUserVoted ? Icons.check_box : Icons.check_box_outline_blank)
-                      : (isUserVoted ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                      ? (isUserVoted
+                            ? Icons.check_box
+                            : Icons.check_box_outline_blank)
+                      : (isUserVoted
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked),
                   size: 20,
-                  color: isUserVoted ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+                  color: isUserVoted
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     option.html.replaceAll(RegExp(r'<[^>]*>'), ''),
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: isUserVoted ? FontWeight.w600 : null,
+                      fontWeight: isUserVoted ? FontWeight.w500 : null,
                     ),
                   ),
                 ),
@@ -415,7 +437,9 @@ class _PollWidgetState extends State<_PollWidget> {
       separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final option = _poll.options[index];
-        final percentage = _poll.voters > 0 ? (option.votes / _poll.voters * 100) : 0.0;
+        final percentage = _poll.voters > 0
+            ? (option.votes / _poll.voters * 100)
+            : 0.0;
         final isUserVoted = _userVotes.contains(option.id);
 
         return Container(
@@ -451,7 +475,7 @@ class _PollWidgetState extends State<_PollWidget> {
                           child: Text(
                             option.html.replaceAll(RegExp(r'<[^>]*>'), ''),
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: isUserVoted ? FontWeight.w600 : null,
+                              fontWeight: isUserVoted ? FontWeight.w500 : null,
                             ),
                           ),
                         ),
@@ -465,7 +489,7 @@ class _PollWidgetState extends State<_PollWidget> {
                         : '${option.votes}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
@@ -478,7 +502,9 @@ class _PollWidgetState extends State<_PollWidget> {
                   minHeight: 4,
                   backgroundColor: theme.colorScheme.surfaceContainerHighest,
                   valueColor: AlwaysStoppedAnimation(
-                    isUserVoted ? theme.colorScheme.primary : theme.colorScheme.primary.withValues(alpha: 0.6),
+                    isUserVoted
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.primary.withValues(alpha: 0.6),
                   ),
                 ),
               ),

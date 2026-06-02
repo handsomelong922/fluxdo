@@ -9,7 +9,6 @@ import '../navigation/page_transition_preferences.dart';
 import '../navigation/nav_action_bus.dart';
 import '../services/network/request_scheduler_config.dart';
 import '../services/cf_clearance_refresh_service.dart';
-import '../services/network/cookie/android_cdp_feature.dart';
 import 'theme_provider.dart';
 
 class AppPreferences {
@@ -35,9 +34,6 @@ class AppPreferences {
 
   /// 崩溃日志上报（仅 Android）
   final bool crashlytics;
-
-  /// Android 原生 CDP Cookie 同步
-  final bool androidNativeCdp;
 
   /// 竖屏锁定
   final bool portraitLock;
@@ -116,7 +112,6 @@ class AppPreferences {
     required this.autoFillLogin,
     required this.clipboardTopicLinkDetection,
     required this.crashlytics,
-    required this.androidNativeCdp,
     required this.portraitLock,
     required this.hideBarOnScroll,
     required this.preferStaticAvatars,
@@ -152,7 +147,6 @@ class AppPreferences {
     bool? autoFillLogin,
     bool? clipboardTopicLinkDetection,
     bool? crashlytics,
-    bool? androidNativeCdp,
     bool? portraitLock,
     bool? hideBarOnScroll,
     bool? preferStaticAvatars,
@@ -189,7 +183,6 @@ class AppPreferences {
       clipboardTopicLinkDetection:
           clipboardTopicLinkDetection ?? this.clipboardTopicLinkDetection,
       crashlytics: crashlytics ?? this.crashlytics,
-      androidNativeCdp: androidNativeCdp ?? this.androidNativeCdp,
       portraitLock: portraitLock ?? this.portraitLock,
       hideBarOnScroll: hideBarOnScroll ?? this.hideBarOnScroll,
       preferStaticAvatars: preferStaticAvatars ?? this.preferStaticAvatars,
@@ -236,7 +229,6 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _clipboardTopicLinkDetectionKey =
       'pref_clipboard_topic_link_detection';
   static const String _crashlyticsKey = 'pref_crashlytics';
-  static const String _androidNativeCdpKey = AndroidCdpFeature.prefKey;
   static const String _portraitLockKey = 'pref_portrait_lock';
   static const String _hideBarOnScrollKey = 'pref_hide_bar_on_scroll';
   static const String _preferStaticAvatarsKey = 'pref_prefer_static_avatars';
@@ -287,7 +279,6 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           clipboardTopicLinkDetection:
               _prefs.getBool(_clipboardTopicLinkDetectionKey) ?? false,
           crashlytics: _prefs.getBool(_crashlyticsKey) ?? true,
-          androidNativeCdp: _prefs.getBool(_androidNativeCdpKey) ?? false,
           portraitLock: _prefs.getBool(_portraitLockKey) ?? false,
           hideBarOnScroll: _prefs.getBool(_hideBarOnScrollKey) ?? true,
           preferStaticAvatars: _prefs.getBool(_preferStaticAvatarsKey) ?? false,
@@ -390,11 +381,6 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
         'enabled': enabled,
       });
     }
-  }
-
-  Future<void> setAndroidNativeCdp(bool enabled) async {
-    state = state.copyWith(androidNativeCdp: enabled);
-    await AndroidCdpFeature.setEnabled(enabled);
   }
 
   Future<void> setPortraitLock(bool enabled) async {

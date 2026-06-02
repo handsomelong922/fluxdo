@@ -15,8 +15,7 @@ import '../services/preloaded_data_service.dart';
 import '../services/network/cookie/boundary_sync_service.dart';
 import '../services/network/cookie/cookie_jar_service.dart';
 import '../services/network/cookie/csrf_token_service.dart';
-import '../services/network/cookie/raw_set_cookie_queue.dart';
-import '../services/network/adapters/webview_http_adapter.dart';
+import '../services/network/cookie/webview_cookie_priming.dart';
 import '../services/toast_service.dart';
 import '../services/hcaptcha_accessibility_service.dart';
 import '../services/webview_settings.dart';
@@ -59,7 +58,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   String _url = AppConstants.baseUrl;
   double _progress = 0;
   String? _savedUsername;
-  Future<int>? _initialCookieFlushFuture;
+  Future<void>? _initialCookieFlushFuture;
 
   /// 对话框期间用静态截图盖住 WebView，避免 BackdropFilter 对
   /// hybrid composition 实时回读造成的卡顿。
@@ -69,12 +68,10 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   void initState() {
     super.initState();
     _navigationDecider = WebViewLoginNavigationDecider(baseUri: _baseUri);
-    _initialCookieFlushFuture = () async {
-      await WebViewHttpAdapter().runStartupSessionCookieSelfCheckOnce(
-        reason: 'login_page',
-      );
-      return RawSetCookieQueue.instance.flushToWebView();
-    }();
+    // v0.4.0: WV cookie 重灌，取代 RawSetCookieQueue.flush + 启动自检。
+    _initialCookieFlushFuture = WebViewCookiePriming.instance.prime(
+      AppConstants.baseUrl,
+    );
     HCaptchaAccessibilityService().syncToWebView();
     _loadSavedUsername();
   }

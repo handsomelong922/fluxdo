@@ -17,7 +17,8 @@ class OnboardingPage extends StatefulWidget {
   State<OnboardingPage> createState() => _OnboardingPageState();
 }
 
-class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStateMixin {
+class _OnboardingPageState extends State<OnboardingPage>
+    with TickerProviderStateMixin {
   late AnimationController _entryAnimationController;
   final List<Animation<double>> _fadeAnimations = [];
   final List<Animation<Offset>> _slideAnimations = [];
@@ -38,19 +39,25 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
   void _setupEntryAnimations() {
     _entryAnimationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500), // Slightly slower for elegance
+      duration: const Duration(
+        milliseconds: 1500,
+      ), // Slightly slower for elegance
     );
 
     // Staggered animations
     for (int i = 0; i < 5; i++) {
       final start = i * 0.12;
       final end = start + 0.6;
-      
+
       _fadeAnimations.add(
         Tween<double>(begin: 0.0, end: 1.0).animate(
           CurvedAnimation(
             parent: _entryAnimationController,
-            curve: Interval(start, end > 1.0 ? 1.0 : end, curve: Curves.easeOut),
+            curve: Interval(
+              start,
+              end > 1.0 ? 1.0 : end,
+              curve: Curves.easeOut,
+            ),
           ),
         ),
       );
@@ -59,7 +66,11 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
         Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(
           CurvedAnimation(
             parent: _entryAnimationController,
-            curve: Interval(start, end > 1.0 ? 1.0 : end, curve: Curves.easeOutCubic),
+            curve: Interval(
+              start,
+              end > 1.0 ? 1.0 : end,
+              curve: Curves.easeOutCubic,
+            ),
           ),
         ),
       );
@@ -82,7 +93,7 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
         children: [
           // 1. Ambient Background (Aurora Effect)
           const _AmbientBackground(),
-          
+
           // 2. Content
           SafeArea(
             child: Stack(
@@ -107,8 +118,12 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
           icon: const Icon(Icons.network_check_rounded),
           tooltip: context.l10n.onboarding_networkSettings,
           style: IconButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.surface.withValues(alpha:0.3),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.surface.withValues(alpha: 0.3),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
           onPressed: () => Navigator.push(
             context,
@@ -121,7 +136,7 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
 
   Widget _buildMainContent(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -129,16 +144,16 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Spacer(flex: 3),
-            
+
             // Logo - Floating without background
             _AnimatedEntry(
               fadeAnimation: _fadeAnimations[0],
               slideAnimation: _slideAnimations[0],
               child: const _FloatingLogo(),
             ),
-            
+
             const SizedBox(height: 48),
-            
+
             // Title - Clean and Premium
             _AnimatedEntry(
               fadeAnimation: _fadeAnimations[1],
@@ -153,9 +168,9 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Slogan - Elegant Typography
             _AnimatedEntry(
               fadeAnimation: _fadeAnimations[2],
@@ -164,52 +179,55 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
                 context.l10n.onboarding_slogan,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha:0.8),
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.8,
+                  ),
                   letterSpacing: 2.0,
                   fontWeight: FontWeight.w400,
                   height: 1.5,
                 ),
               ),
             ),
-            
+
             const Spacer(flex: 4),
-            
+
             // Login Button - Modern Pill Shape
             _AnimatedEntry(
               fadeAnimation: _fadeAnimations[3],
               slideAnimation: _slideAnimations[3],
               child: FilledButton(
                 onPressed: () => _navigateToLogin(context),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 56),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                  elevation: 0,
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: theme.colorScheme.onPrimary,
-                ).copyWith(
-                  shadowColor: MaterialStateProperty.all(
-                    theme.colorScheme.primary.withValues(alpha:0.4),
-                  ),
-                  elevation: MaterialStateProperty.resolveWith((states) {
-                    if (states.contains(MaterialState.pressed)) return 2;
-                    return 8; // Soft glow shadow
-                  }),
-                ),
+                style:
+                    FilledButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 56),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                      elevation: 0,
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: theme.colorScheme.onPrimary,
+                    ).copyWith(
+                      shadowColor: MaterialStateProperty.all(
+                        theme.colorScheme.primary.withValues(alpha: 0.4),
+                      ),
+                      elevation: MaterialStateProperty.resolveWith((states) {
+                        if (states.contains(MaterialState.pressed)) return 2;
+                        return 8; // Soft glow shadow
+                      }),
+                    ),
                 child: Text(
                   context.l10n.common_login,
                   style: const TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     letterSpacing: 1.0,
                   ),
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Guest Button - Subtle
             _AnimatedEntry(
               fadeAnimation: _fadeAnimations[4],
@@ -233,7 +251,7 @@ class _OnboardingPageState extends State<OnboardingPage> with TickerProviderStat
                 ),
               ),
             ),
-            
+
             const Spacer(),
           ],
         ),
@@ -272,10 +290,7 @@ class _AnimatedEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return FadeTransition(
       opacity: fadeAnimation,
-      child: SlideTransition(
-        position: slideAnimation,
-        child: child,
-      ),
+      child: SlideTransition(position: slideAnimation, child: child),
     );
   }
 }
@@ -287,7 +302,8 @@ class _FloatingLogo extends StatefulWidget {
   State<_FloatingLogo> createState() => _FloatingLogoState();
 }
 
-class _FloatingLogoState extends State<_FloatingLogo> with SingleTickerProviderStateMixin {
+class _FloatingLogoState extends State<_FloatingLogo>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
@@ -334,9 +350,9 @@ class _FloatingLogoState extends State<_FloatingLogo> with SingleTickerProviderS
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: isDark 
-                      ? theme.colorScheme.primary.withValues(alpha:0.3)
-                      : theme.colorScheme.primary.withValues(alpha:0.2),
+                  color: isDark
+                      ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                      : theme.colorScheme.primary.withValues(alpha: 0.2),
                   blurRadius: 60,
                   spreadRadius: 20,
                 ),
@@ -367,7 +383,8 @@ class _AmbientBackground extends StatefulWidget {
   State<_AmbientBackground> createState() => _AmbientBackgroundState();
 }
 
-class _AmbientBackgroundState extends State<_AmbientBackground> with SingleTickerProviderStateMixin {
+class _AmbientBackgroundState extends State<_AmbientBackground>
+    with SingleTickerProviderStateMixin {
   // Simple rotation for the blobs
   late AnimationController _controller;
 
@@ -390,7 +407,7 @@ class _AmbientBackgroundState extends State<_AmbientBackground> with SingleTicke
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     // Define ambient colors
     final primary = theme.colorScheme.primary;
     final secondary = theme.colorScheme.secondary;
@@ -405,31 +422,29 @@ class _AmbientBackgroundState extends State<_AmbientBackground> with SingleTicke
             top: -100,
             left: -100,
             child: _AnimatedBlob(
-              color: primary.withValues(alpha:isDark ? 0.15 : 0.08),
+              color: primary.withValues(alpha: isDark ? 0.15 : 0.08),
               size: 400,
               controller: _controller,
               offset: 0,
             ),
           ),
-          
+
           // Bottom Right Blob
           Positioned(
             bottom: -100,
             right: -100,
             child: _AnimatedBlob(
-              color: secondary.withValues(alpha:isDark ? 0.15 : 0.08),
+              color: secondary.withValues(alpha: isDark ? 0.15 : 0.08),
               size: 350,
               controller: _controller,
               offset: math.pi, // Opposite phase
             ),
           ),
-          
+
           // Noise/Texture overlay (Optional - using simple opacity layer for depth)
           if (isDark)
             Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha:0.2),
-              ),
+              child: Container(color: Colors.black.withValues(alpha: 0.2)),
             ),
         ],
       ),
@@ -459,7 +474,7 @@ class _AnimatedBlob extends StatelessWidget {
         final angle = controller.value * 2 * math.pi + offset;
         final x = 30 * math.cos(angle);
         final y = 30 * math.sin(angle);
-        
+
         return Transform.translate(
           offset: Offset(x, y),
           child: Container(
@@ -469,11 +484,7 @@ class _AnimatedBlob extends StatelessWidget {
               shape: BoxShape.circle,
               color: color,
               boxShadow: [
-                BoxShadow(
-                  color: color,
-                  blurRadius: 100,
-                  spreadRadius: 50,
-                ),
+                BoxShadow(color: color, blurRadius: 100, spreadRadius: 50),
               ],
             ),
           ),
