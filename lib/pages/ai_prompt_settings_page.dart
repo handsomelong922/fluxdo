@@ -19,6 +19,7 @@ class _AiPromptSettingsPageState extends ConsumerState<AiPromptSettingsPage> {
   late final TextEditingController _summaryAllRepliesController;
   late final TextEditingController _generateReplyController;
   late final TextEditingController _generateTitleController;
+  late final TextEditingController _searchAssistantController;
 
   @override
   void initState() {
@@ -36,6 +37,9 @@ class _AiPromptSettingsPageState extends ConsumerState<AiPromptSettingsPage> {
     _generateTitleController = TextEditingController(
       text: state.generateTitlePrompt,
     );
+    _searchAssistantController = TextEditingController(
+      text: state.searchAssistantPrompt,
+    );
   }
 
   @override
@@ -44,6 +48,7 @@ class _AiPromptSettingsPageState extends ConsumerState<AiPromptSettingsPage> {
     _summaryAllRepliesController.dispose();
     _generateReplyController.dispose();
     _generateTitleController.dispose();
+    _searchAssistantController.dispose();
     super.dispose();
   }
 
@@ -55,12 +60,15 @@ class _AiPromptSettingsPageState extends ConsumerState<AiPromptSettingsPage> {
 
   String _defaultGenerateTitlePrompt() => AiL10n.current.titleGenerationPrompt;
 
+  String _defaultSearchAssistantPrompt() => defaultSearchAiAssistantPrompt();
+
   void _saveAll() {
     final notifier = ref.read(aiPromptSettingsProvider.notifier);
     notifier.setSummaryTopicPrompt(_summaryTopicController.text);
     notifier.setSummaryAllRepliesPrompt(_summaryAllRepliesController.text);
     notifier.setGenerateReplyPrompt(_generateReplyController.text);
     notifier.setGenerateTitlePrompt(_generateTitleController.text);
+    notifier.setSearchAssistantPrompt(_searchAssistantController.text);
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -176,6 +184,13 @@ class _AiPromptSettingsPageState extends ConsumerState<AiPromptSettingsPage> {
             controller: _generateTitleController,
             defaultValue: _defaultGenerateTitlePrompt(),
             description: '用于 AI 助手会话标题自动生成。',
+          ),
+          const SizedBox(height: 12),
+          _buildPromptCard(
+            title: 'AI 搜索助手 prompt',
+            controller: _searchAssistantController,
+            defaultValue: _defaultSearchAssistantPrompt(),
+            description: '用于搜索结果页顶部的 AI 搜索助手，控制回答结构、引用格式和 Markdown 排版。',
           ),
           const SizedBox(height: 16),
           FilledButton.icon(

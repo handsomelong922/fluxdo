@@ -10,6 +10,8 @@ class AiChatMessageItem extends StatelessWidget {
   final VoidCallback? onRetry;
   final VoidCallback? onShareAsImage;
   final VoidCallback? onCopyText;
+  final void Function(int topicId, String? topicSlug, int? postNumber)?
+  onInternalLinkTap;
 
   /// 多选模式相关
   final bool selectionMode;
@@ -22,6 +24,7 @@ class AiChatMessageItem extends StatelessWidget {
     this.onRetry,
     this.onShareAsImage,
     this.onCopyText,
+    this.onInternalLinkTap,
     this.selectionMode = false,
     this.isSelected = false,
     this.onSelectionToggle,
@@ -151,6 +154,7 @@ class AiChatMessageItem extends StatelessWidget {
               if (message.content.isNotEmpty)
                 MarkdownBody(
                   data: '${message.content}${isStreaming ? ' ▊' : ''}',
+                  onInternalLinkTap: onInternalLinkTap,
                 ),
               if (message.content.isEmpty && isStreaming)
                 _buildStreamingIndicator(context),

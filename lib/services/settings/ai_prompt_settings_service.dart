@@ -9,17 +9,22 @@ String defaultSummaryAllRepliesPrompt() => '请总结这个话题中全部回帖
 String defaultGenerateReplyPrompt() =>
     '请基于当前话题内容生成一条适合直接发布的中文回复，语气自然、观点明确，并尽量给出有价值的信息。';
 
+String defaultSearchAiAssistantPrompt() =>
+    '请先给出直接结论，再列出相关帖子。引用帖子时使用标准 Markdown 链接格式，例如 [标题 #楼层](https://linux.do/t/slug/id/postNumber)。请使用标准 Markdown 排版加粗、列表和链接，不要把星号、下划线或链接标记当作普通文本展示。';
+
 class AiPromptSettingsState {
   final String summaryTopicPrompt;
   final String summaryAllRepliesPrompt;
   final String generateReplyPrompt;
   final String generateTitlePrompt;
+  final String searchAssistantPrompt;
 
   const AiPromptSettingsState({
     this.summaryTopicPrompt = '',
     this.summaryAllRepliesPrompt = '',
     this.generateReplyPrompt = '',
     this.generateTitlePrompt = '',
+    this.searchAssistantPrompt = '',
   });
 
   AiPromptSettingsState copyWith({
@@ -27,6 +32,7 @@ class AiPromptSettingsState {
     String? summaryAllRepliesPrompt,
     String? generateReplyPrompt,
     String? generateTitlePrompt,
+    String? searchAssistantPrompt,
   }) {
     return AiPromptSettingsState(
       summaryTopicPrompt: summaryTopicPrompt ?? this.summaryTopicPrompt,
@@ -34,6 +40,8 @@ class AiPromptSettingsState {
           summaryAllRepliesPrompt ?? this.summaryAllRepliesPrompt,
       generateReplyPrompt: generateReplyPrompt ?? this.generateReplyPrompt,
       generateTitlePrompt: generateTitlePrompt ?? this.generateTitlePrompt,
+      searchAssistantPrompt:
+          searchAssistantPrompt ?? this.searchAssistantPrompt,
     );
   }
 }
@@ -45,6 +53,7 @@ class AiPromptSettingsNotifier extends StateNotifier<AiPromptSettingsState> {
       'custom_ai_prompt_summary_all_replies';
   static const String generateReplyKey = 'custom_ai_prompt_generate_reply';
   static const String generateTitleKey = 'custom_ai_prompt_generate_title';
+  static const String searchAssistantKey = 'custom_ai_prompt_search_assistant';
 
   final SharedPreferences _prefs;
 
@@ -56,6 +65,7 @@ class AiPromptSettingsNotifier extends StateNotifier<AiPromptSettingsState> {
       summaryAllRepliesPrompt: prefs.getString(summaryAllRepliesKey) ?? '',
       generateReplyPrompt: prefs.getString(generateReplyKey) ?? '',
       generateTitlePrompt: prefs.getString(generateTitleKey) ?? '',
+      searchAssistantPrompt: prefs.getString(searchAssistantKey) ?? '',
     );
   }
 
@@ -92,6 +102,15 @@ class AiPromptSettingsNotifier extends StateNotifier<AiPromptSettingsState> {
       key: generateTitleKey,
       value: normalized,
       update: () => state = state.copyWith(generateTitlePrompt: normalized),
+    );
+  }
+
+  void setSearchAssistantPrompt(String value) {
+    final normalized = value.trim();
+    _setString(
+      key: searchAssistantKey,
+      value: normalized,
+      update: () => state = state.copyWith(searchAssistantPrompt: normalized),
     );
   }
 

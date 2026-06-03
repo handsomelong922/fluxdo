@@ -740,7 +740,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       }
       return ListView(
         controller: _scrollController,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
         children: [
           SearchAiChatCard(
             query: _stripOrderFromQuery(_currentQuery),
@@ -843,7 +843,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               Expanded(
                 child: ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
                   itemCount:
                       aiChatCardCount +
                       _allPosts.length +

@@ -170,7 +170,7 @@ List<SettingsSearchResult> buildSearchIndex(BuildContext context) {
       model: ActionModel(
         id: 'custom_ai_prompt_settings',
         title: 'AI 提示词配置',
-        subtitle: '配置 AI 总结、回复和标题生成 prompt',
+        subtitle: '配置 AI 总结、回复、标题生成和搜索助手 prompt',
         icon: Icons.smart_toy_rounded,
         onTap: (context, ref) {},
       ),

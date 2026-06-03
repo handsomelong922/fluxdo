@@ -72,7 +72,7 @@ part 'actions/_filter_actions.dart';
 const double _topicDetailToolbarHeight = 48.0;
 const double _topicFloatingButtonSize = 44.0;
 const double _topicActionMenuWidth = 128.0;
-const double _topicTopContentGap = 4.8;
+const double _topicTopContentGap = 3.6;
 
 @visibleForTesting
 bool shouldShowTopicTimelineProgress({
@@ -248,7 +248,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _isNestedView = resolveInitialNestedView(
       initialNestedView: widget.initialNestedView,
       restoredNestedView: _restoredReadingState?.nestedView,
-      preferenceNestedView: ref.read(preferencesProvider).defaultNestedTopicView,
+      preferenceNestedView: ref
+          .read(preferencesProvider)
+          .defaultNestedTopicView,
     );
     _pendingNestedRestorePostNumber = resolveInitialPendingNestedPostNumber(
       isNestedView: _isNestedView,

@@ -258,6 +258,7 @@ void main() {
             apiKey: 'secret',
             searchQuery: 'flutter',
             userMessage: '帮我找相关帖子',
+            searchAssistantPrompt: '请优先按相关度排序。',
             history: [
               AiChatMessage(
                 id: 'm1',
@@ -272,6 +273,8 @@ void main() {
       expect(chunks.join(), '回答');
       expect(capturedSystemPrompt, contains('当前搜索词：flutter'));
       expect(capturedSystemPrompt, contains('不能编造'));
+      expect(capturedSystemPrompt, contains('标准 Markdown'));
+      expect(capturedSystemPrompt, contains('请优先按相关度排序。'));
       expect(capturedMessages?.first['content'], contains('论坛检索上下文'));
       expect(capturedMessages?.first['cache'], 'true');
       expect(capturedMessages?.last['content'], '帮我找相关帖子');
