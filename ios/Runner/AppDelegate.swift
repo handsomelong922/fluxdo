@@ -152,6 +152,13 @@ import workmanager_apple
         name: "com.fluxdo/raw_cookie",
         binaryMessenger: controller.binaryMessenger
       )
+
+      let cookieObserverChannel = FlutterMethodChannel(
+        name: "com.fluxdo/cookie_observer",
+        binaryMessenger: controller.binaryMessenger
+      )
+      CookieStoreObserverHandler.shared.attach(channel: cookieObserverChannel)
+
       rawCookieChannel.setMethodCallHandler { (call, result) in
         switch call.method {
         case "setRawCookie":
@@ -170,7 +177,9 @@ import workmanager_apple
           }
           HTTPCookieStorage.shared.setCookie(cookie)
           let store = WKWebsiteDataStore.default().httpCookieStore
+          CookieStoreObserverHandler.shared.beginInternalWrite()
           store.setCookie(cookie) {
+            CookieStoreObserverHandler.shared.endInternalWrite()
             result(true)
           }
 
@@ -393,6 +402,25 @@ import workmanager_apple
   // - WKHTTPCookieStore.delete completion 在 main queue 回调
   // - HTTPCookie.domain 对 host-only cookie 仍返回 host (无前导点)
 
+  private static func sameSiteString(_ cookie: HTTPCookie) -> String? {
+    if #available(iOS 13.0, *) {
+      guard let policy = cookie.sameSitePolicy else { return nil }
+      switch policy {
+      case .sameSiteLax:
+        return "Lax"
+      case .sameSiteStrict:
+        return "Strict"
+      default:
+        let raw = policy.rawValue.lowercased()
+        if raw.contains("none") { return "None" }
+        if raw.contains("lax") { return "Lax" }
+        if raw.contains("strict") { return "Strict" }
+        return nil
+      }
+    }
+    return nil
+  }
+
   /// domain 匹配规则 (用于 Sentinel 枚举/删除变体)
   ///
   /// - candidate 为 nil 表示 host-only 候选, 要求 cookie.domain == host
@@ -432,6 +460,7 @@ import workmanager_apple
         return domainMatch && pathMatch
       }
 
+      CookieStoreObserverHandler.shared.beginInternalWrite()
       let group = DispatchGroup()
       let countLock = NSLock()
       var deletedCount = 0
@@ -461,6 +490,7 @@ import workmanager_apple
       }
 
       group.notify(queue: .main) {
+        CookieStoreObserverHandler.shared.endInternalWrite()
         result(deletedCount)
       }
     }
@@ -488,6 +518,7 @@ import workmanager_apple
         return
       }
 
+      CookieStoreObserverHandler.shared.beginInternalWrite()
       let group = DispatchGroup()
       group.enter()
       store.delete(cookie) {
@@ -506,6 +537,7 @@ import workmanager_apple
       }
 
       group.notify(queue: .main) {
+        CookieStoreObserverHandler.shared.endInternalWrite()
         result(true)
       }
     }
@@ -535,6 +567,7 @@ import workmanager_apple
           "isSecure": cookie.isSecure,
           "isHttpOnly": cookie.isHTTPOnly,
           "expiresMillis": cookie.expiresDate.map { Int($0.timeIntervalSince1970 * 1000) },
+          "sameSite": AppDelegate.sameSiteString(cookie),
         ]
       }
 
@@ -672,6 +705,50 @@ import workmanager_apple
           self.window?.rootViewController?.presentedViewController?.dismiss(animated: true)
         }
       }
+    }
+  }
+}
+
+// MARK: - Cookie Store Observer
+
+class CookieStoreObserverHandler: NSObject, WKHTTPCookieStoreObserver {
+  static let shared = CookieStoreObserverHandler()
+
+  private var channel: FlutterMethodChannel?
+  private let lock = NSLock()
+  private var internalWriteCount = 0
+  private var attached = false
+
+  func attach(channel: FlutterMethodChannel) {
+    self.channel = channel
+    if attached { return }
+    attached = true
+    DispatchQueue.main.async {
+      let store = WKWebsiteDataStore.default().httpCookieStore
+      store.add(self)
+    }
+  }
+
+  func beginInternalWrite() {
+    lock.lock()
+    internalWriteCount += 1
+    lock.unlock()
+  }
+
+  func endInternalWrite() {
+    lock.lock()
+    internalWriteCount = max(0, internalWriteCount - 1)
+    lock.unlock()
+  }
+
+  func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
+    lock.lock()
+    let isInternal = internalWriteCount > 0
+    lock.unlock()
+    if isInternal { return }
+
+    DispatchQueue.main.async { [weak self] in
+      self?.channel?.invokeMethod("onCookiesChanged", arguments: nil)
     }
   }
 }

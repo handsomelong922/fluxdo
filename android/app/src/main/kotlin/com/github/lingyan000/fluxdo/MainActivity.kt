@@ -245,6 +245,7 @@ class MainActivity : FlutterActivity() {
                                     "isSecure" to null,
                                     "isHttpOnly" to null,
                                     "expiresMillis" to null,
+                                    "sameSite" to null,
                                 )
                             }
                             result.success(infos)

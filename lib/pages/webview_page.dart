@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../utils/link_launcher.dart';
 import '../services/toast_service.dart';
 import '../services/app_link_service.dart';
+import '../services/network/cookie/cookie_store_observer.dart';
 import '../services/network/cookie/webview_cookie_priming.dart';
 import '../services/webview_settings.dart';
 import '../services/windows_webview_environment_service.dart';
@@ -290,6 +291,8 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
                             },
                             onLoadStop: (controller, url) async {
                               setState(() => _isLoading = false);
+                              CookieStoreObserver.instance
+                                  .notifyExternalChange();
                               await WebViewSettings.injectScrollFix(controller);
                               final title = await controller.getTitle();
                               final canGoBack = await controller.canGoBack();

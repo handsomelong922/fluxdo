@@ -78,20 +78,13 @@ class SessionCookieSentinel {
 
   /// 对指定 url 的 cookie name 执行 sweep。
   ///
-  /// 详见 §5.1 接口契约。
+  /// 详见 §5.1 接口契约。接受任意 name，配合 Priming / AppCookieManager
+  /// 全量同步使用；[criticalCookieNames] 仅保留给 UI 标记与日志重点。
   Future<SweepResult> sweep(
     String url,
     String name, {
     SweepIntent intent = SweepIntent.ensureUnique,
   }) async {
-    if (!criticalCookieNames.contains(name)) {
-      throw ArgumentError.value(
-        name,
-        'name',
-        'Cookie name not in criticalCookieNames',
-      );
-    }
-
     final entryGen = _auth.generation;
     final lock = _locks.putIfAbsent(name, () => Lock());
 
@@ -116,42 +109,67 @@ class SessionCookieSentinel {
     }
   }
 
-  /// 对所有 critical names 并发执行 sweep。
+  /// 对当前 url 适用的所有 cookie name 并发执行 sweep。
+  ///
+  /// name 集合 = jar 中适用 cookie 的 name ∪ WV 中已有 cookie 的 name。
   Future<List<SweepResult>> sweepAll(String url) async {
-    final futures = criticalCookieNames.map((name) => sweep(url, name));
+    final uri = Uri.parse(url);
+    final names = <String>{};
+    try {
+      final jarCookies = await _jar.loadCanonicalCookiesForRequest(uri);
+      names.addAll(jarCookies.map((c) => c.name));
+    } catch (e) {
+      debugPrint('[Sentinel] sweepAll jar lookup failed: $e');
+    }
+    try {
+      final wvCookies = await _writer.getAllCookieInfos(url);
+      names.addAll(wvCookies.map((c) => c.name));
+    } catch (e) {
+      debugPrint('[Sentinel] sweepAll wv lookup failed: $e');
+    }
+    if (names.isEmpty) return const [];
+    final futures = names.map((name) => sweep(url, name));
     return await Future.wait(futures);
   }
 
-  /// 触发 Nuclear Reset：清空 WV 所有 critical cookies + 从 jar 重灌 + 校验。
+  /// 触发 Nuclear Reset：清空 WV 中 url 适用域下所有 cookie + 从 jar 重灌 + 校验。
   Future<NuclearResetResult> nuclearReset(String url) async {
     final stopwatch = Stopwatch()..start();
     Duration? primingDuration;
     try {
-      // 1. 清空 WV 中所有 critical names 的变体
-      for (final name in criticalCookieNames) {
+      final uri = Uri.parse(url);
+      final jarCookies = await _jar.loadCanonicalCookiesForRequest(uri);
+
+      // 1. 清空 WV: jar+WV 联合 name set 的所有 variant
+      final namesToNuke = <String>{};
+      namesToNuke.addAll(jarCookies.map((c) => c.name));
+      try {
+        final wvCookies = await _writer.getAllCookieInfos(url);
+        namesToNuke.addAll(wvCookies.map((c) => c.name));
+      } catch (e) {
+        debugPrint('[Sentinel] nuclearReset wv lookup failed: $e');
+      }
+      for (final name in namesToNuke) {
         await _executeDelete(url, name);
       }
 
-      // 2. 从 jar 重灌（避免循环依赖 Priming，这里直接走 RawCookieWriter）
+      // 2. 从 jar 全量重灌（避免循环依赖 Priming，这里直接走 RawCookieWriter）
       final primingStart = stopwatch.elapsed;
-      final uri = Uri.parse(url);
-      final jarCookies = await _jar.loadCanonicalCookiesForRequest(uri);
-      for (final cookie in jarCookies.where(
-        (c) => criticalCookieNames.contains(c.name),
-      )) {
+      for (final cookie in jarCookies) {
         if (cookie.value.isEmpty) continue;
         if (cookie.expiresAt != null &&
             cookie.expiresAt!.isBefore(DateTime.now())) {
           continue;
         }
-        await _writer.setRawCookie(url, _buildRawHeader(cookie));
+        await _writer.setRawCookie(url, cookie.toSetCookieHeader());
       }
       primingDuration = stopwatch.elapsed - primingStart;
 
-      // 3. 校验：所有 critical names 变体数 ≤ 1
+      // 3. 校验：每个 jar cookie 在 WV 中变体数 ≤ 1
       var allOk = true;
-      for (final name in criticalCookieNames) {
-        final count = await _writer.countCookiesByName(url, name);
+      for (final cookie in jarCookies) {
+        if (cookie.value.isEmpty) continue;
+        final count = await _writer.countCookiesByName(url, cookie.name);
         if (count > 1) {
           allOk = false;
           break;
@@ -354,7 +372,7 @@ class SessionCookieSentinel {
     await _executeDelete(url, name);
 
     if (winnerResult != null) {
-      await _writeWinnerToWebView(url, winnerResult.cookieInfo);
+      await _writeWinnerToWebView(url, winnerResult);
     }
 
     final after = await _writer.countCookiesByName(url, name);
@@ -363,7 +381,7 @@ class SessionCookieSentinel {
 
       // 反向同步 jar（仅当 winner 来自 webview，避免覆写 jar 的最新值）
       if (winnerResult != null && winnerResult.source == 'webview') {
-        await _syncWinnerToJar(url, winnerResult.cookieInfo);
+        await _syncWinnerToJar(url, winnerResult);
       }
 
       final result = SweepResult(
@@ -434,8 +452,10 @@ class SessionCookieSentinel {
 
   /// 从多个变体中选择 winner。
   ///
-  /// 规则按优先级（设计文档 §5.1.1）：
-  /// 1. 与 jar.canonical value 一致 → 胜（最强信号）
+  /// 规则按优先级：
+  /// 1. 与 jar.canonical value 一致且 variants 数 == 1 → 胜
+  /// 1b. 与 jar.canonical value 一致且 variants > 1 → 选非 jar match
+  ///     的 WebView 新值，避免 CF 新 token 被旧 jar 值覆盖形成验证循环。
   /// 2. value 非空 > 空
   /// 3. 未过期 > 已过期
   /// 4. host-only > domain cookie（字段可用时）
@@ -464,7 +484,32 @@ class SessionCookieSentinel {
         (v) => v.value == jarValue || v.value == jarValueDecoded,
       );
       if (jarMatch != null) {
-        return _WinnerInfo(cookieInfo: jarMatch, source: 'jar');
+        if (variants.length == 1) {
+          return _WinnerInfo(
+            cookieInfo: jarMatch,
+            source: 'jar',
+            canonical: jarCookie,
+          );
+        }
+
+        final others = variants
+            .where((v) => v.value != jarValue && v.value != jarValueDecoded)
+            .toList(growable: false);
+        if (others.isNotEmpty) {
+          final sorted = [...others];
+          sorted.sort((a, b) => _compareCookieVariants(a, b));
+          return _WinnerInfo(
+            cookieInfo: sorted.first,
+            source: 'webview',
+            canonical: jarCookie,
+          );
+        }
+
+        return _WinnerInfo(
+          cookieInfo: jarMatch,
+          source: 'jar',
+          canonical: jarCookie,
+        );
       }
     }
 
@@ -501,10 +546,39 @@ class SessionCookieSentinel {
     return b.value.length.compareTo(a.value.length);
   }
 
-  /// 将 winner 重写到 WV（规范 host-only 形式）。
-  Future<void> _writeWinnerToWebView(String url, CookieFullInfo winner) async {
+  /// 将 winner 重写到 WV。
+  ///
+  /// 有 jar canonical 时，用 canonical 的 domain/path/SameSite 等元字段；
+  /// winner 来自 WebView 且 value 更新时，仅替换 value。
+  Future<void> _writeWinnerToWebView(
+    String url,
+    _WinnerInfo winnerResult,
+  ) async {
+    final canonical = winnerResult.canonical;
+    if (canonical != null) {
+      final winnerValue = winnerResult.cookieInfo.value;
+      await _writer.setRawCookie(
+        url,
+        _buildCanonicalHeader(canonical, value: winnerValue),
+      );
+      return;
+    }
+
+    final winner = winnerResult.cookieInfo;
     final uri = Uri.parse(url);
     final attrs = <String>['${winner.name}=${winner.value}'];
+    final winnerDomain = winner.domain;
+    if (winnerDomain != null && winnerDomain.isNotEmpty) {
+      final normalizedWinnerDomain =
+          (winnerDomain.startsWith('.')
+                  ? winnerDomain.substring(1)
+                  : winnerDomain)
+              .toLowerCase();
+      final host = uri.host.toLowerCase();
+      if (winnerDomain.startsWith('.') || normalizedWinnerDomain != host) {
+        attrs.add('Domain=$winnerDomain');
+      }
+    }
     attrs.add('Path=${winner.path ?? _pathDefault}');
     if (uri.scheme == 'https' || (winner.isSecure ?? true)) {
       attrs.add('Secure');
@@ -519,38 +593,88 @@ class SessionCookieSentinel {
       );
       attrs.add('Expires=${_formatHttpDate(date)}');
     }
+    final sameSite = winner.sameSite;
+    if (sameSite != null && sameSite.isNotEmpty) {
+      attrs.add('SameSite=$sameSite');
+    }
     await _writer.setRawCookie(url, attrs.join('; '));
   }
 
-  /// 从 CanonicalCookie 构造规范 Set-Cookie 头。
-  String _buildRawHeader(CanonicalCookie cookie) {
-    final attrs = <String>['${cookie.name}=${cookie.value}'];
+  /// 从 jar canonical 字段构造 Set-Cookie，允许替换 value。
+  ///
+  /// 不直接用 `canonical.copyWith(value).toSetCookieHeader()`，因为
+  /// CanonicalCookie 在带 rawSetCookie 时会优先返回原始头，可能保留旧 value。
+  String _buildCanonicalHeader(CanonicalCookie cookie, {String? value}) {
+    final attrs = <String>['${cookie.name}=${value ?? cookie.value}'];
+    if (!cookie.hostOnly &&
+        cookie.domain != null &&
+        cookie.domain!.isNotEmpty) {
+      attrs.add('Domain=${cookie.domain}');
+    }
     attrs.add('Path=${cookie.path.isEmpty ? _pathDefault : cookie.path}');
-    if (cookie.secure) attrs.add('Secure');
-    if (cookie.httpOnly) attrs.add('HttpOnly');
     if (cookie.expiresAt != null) {
       attrs.add('Expires=${_formatHttpDate(cookie.expiresAt!)}');
     }
+    if (cookie.maxAge != null) {
+      attrs.add('Max-Age=${cookie.maxAge}');
+    }
+    if (cookie.secure) attrs.add('Secure');
+    if (cookie.httpOnly) attrs.add('HttpOnly');
+    switch (cookie.sameSite) {
+      case CookieSameSite.lax:
+        attrs.add('SameSite=Lax');
+      case CookieSameSite.strict:
+        attrs.add('SameSite=Strict');
+      case CookieSameSite.none:
+        attrs.add('SameSite=None');
+      case CookieSameSite.unspecified:
+        break;
+    }
+    if (cookie.partitioned) attrs.add('Partitioned');
     return attrs.join('; ');
   }
 
   /// 反向同步 winner 到 jar（路径 B 场景）。
-  Future<void> _syncWinnerToJar(String url, CookieFullInfo winner) async {
+  Future<void> _syncWinnerToJar(String url, _WinnerInfo winnerResult) async {
     try {
+      final uri = Uri.parse(url);
+      final host = uri.host.toLowerCase();
+      final winner = winnerResult.cookieInfo;
+      final canonical = winnerResult.canonical;
+
+      String? domainToWrite;
+      final canonicalDomain = canonical?.domain;
+      if (canonical != null &&
+          !canonical.hostOnly &&
+          canonicalDomain != null &&
+          canonicalDomain.isNotEmpty) {
+        domainToWrite = canonicalDomain;
+      } else if (winner.domain != null && winner.domain!.isNotEmpty) {
+        final winnerDomain = winner.domain!;
+        final normalized =
+            (winnerDomain.startsWith('.')
+                    ? winnerDomain.substring(1)
+                    : winnerDomain)
+                .toLowerCase();
+        if (winnerDomain.startsWith('.') || normalized != host) {
+          domainToWrite = winnerDomain;
+        }
+      }
+
       await _jar.setCookie(
         winner.name,
         winner.value,
         url: url,
-        path: winner.path ?? _pathDefault,
+        domain: domainToWrite,
+        path: winner.path ?? canonical?.path ?? _pathDefault,
         expires: winner.expiresMillis != null
             ? DateTime.fromMillisecondsSinceEpoch(
                 winner.expiresMillis!,
                 isUtc: true,
               )
-            : null,
-        secure: winner.isSecure ?? true,
-        httpOnly: winner.isHttpOnly ?? true,
-        // 不传 domain → host-only（规范形式）
+            : canonical?.expiresAt,
+        secure: winner.isSecure ?? canonical?.secure ?? true,
+        httpOnly: winner.isHttpOnly ?? canonical?.httpOnly ?? true,
       );
     } catch (e) {
       debugPrint('[Sentinel] _syncWinnerToJar failed: $e');
@@ -813,9 +937,10 @@ class CookieSweepException implements Exception {
       '${cause != null ? ' (caused by $cause)' : ''}';
 }
 
-/// 内部：winner 信息（cookie + 来源）。
+/// 内部：winner 信息（cookie + 来源 + 可选 jar canonical）。
 class _WinnerInfo {
-  _WinnerInfo({required this.cookieInfo, required this.source});
+  _WinnerInfo({required this.cookieInfo, required this.source, this.canonical});
   final CookieFullInfo cookieInfo;
   final String source;
+  final CanonicalCookie? canonical;
 }

@@ -19,6 +19,7 @@ class CookieFullInfo {
     this.isSecure,
     this.isHttpOnly,
     this.expiresMillis,
+    this.sameSite,
   });
 
   final String name;
@@ -38,6 +39,10 @@ class CookieFullInfo {
   /// null 表示 session cookie 或 Android 旧设备无法获取。
   final int? expiresMillis;
 
+  /// cookie 的 SameSite 属性 ("Lax" / "Strict" / "None")。
+  /// null 表示未设置或平台无法获取。
+  final String? sameSite;
+
   /// 是否为 host-only cookie（[domain] 缺失则视为 host-only）。
   ///
   /// 注意：在 Android 旧设备上，[domain] 可能因为 API 限制而为 null，
@@ -54,6 +59,7 @@ class CookieFullInfo {
       isSecure: cookie.isSecure,
       isHttpOnly: cookie.isHttpOnly,
       expiresMillis: cookie.expiresDate,
+      sameSite: cookie.sameSite?.toNativeValue(),
     );
   }
 
@@ -74,6 +80,7 @@ class CookieFullInfo {
   String toString() {
     return 'CookieFullInfo(name=$name, valueLength=${value.length}, '
         'domain=$domain, path=$path, hostOnly=$isHostOnly, '
-        'secure=$isSecure, httpOnly=$isHttpOnly, expires=$expiresMillis)';
+        'secure=$isSecure, httpOnly=$isHttpOnly, expires=$expiresMillis, '
+        'sameSite=$sameSite)';
   }
 }

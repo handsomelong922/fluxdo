@@ -30,12 +30,15 @@ class CookieJarService {
   bool _initialized = false;
   late final PlatformCookieStrategy _strategy;
 
-  /// 可配置的关键 cookie 名集合
+  /// Discourse 论坛登录 session。
   static const Set<String> sessionCookieNames = {'_t', '_forum_session'};
 
+  /// 仍用于 UI 强调、日志重点和 Path B 反向同步边界；核心同步路径已转为
+  /// 基于 jar/WV 当前适用 cookie 的全量 sweep。
   static Set<String> criticalCookieNames = {
     ...sessionCookieNames,
     'cf_clearance',
+    'linux_do_credit_session_id',
   };
 
   CookieManager get webViewCookieManager =>

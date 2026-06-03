@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import 'cookie_jar_service.dart';
 import 'cookie_logger.dart';
+import 'cookie_store_observer.dart';
 import 'raw_cookie_writer.dart';
 import 'session_cookie_sentinel.dart';
 
@@ -46,8 +47,6 @@ class WebViewCookiePriming {
   // ---------------------------------------------------------------------------
   // 内部状态
   // ---------------------------------------------------------------------------
-
-  static const String _pathDefault = '/';
 
   bool _isPrimed = false;
 
@@ -114,32 +113,25 @@ class WebViewCookiePriming {
   Future<void> _primeInternal(String url) async {
     final stopwatch = Stopwatch()..start();
     CookieLogger.priming(event: 'invoked', url: url, isPrimed: _isPrimed);
+    CookieStoreObserver.instance.registerUrl(url);
     try {
       // 1. 确保 jar 已初始化（兜底，调用方应该已经初始化）
       if (!_jar.isInitialized) {
         await _jar.initialize();
       }
 
-      // 2. 从 jar 读 critical cookies
+      // 2. 从 jar 读当前 url 适用的所有 cookie。
       final uri = Uri.parse(url);
       final jarCookies = await _jar.loadCanonicalCookiesForRequest(uri);
-      final critical = jarCookies
-          .where(
-            (c) => SessionCookieSentinel.criticalCookieNames.contains(c.name),
-          )
-          .toList(growable: false);
 
-      // 3. 总是重灌:
-      // 不再走"快速检查"的 fast path - 因为 countCookiesByName 只检查数量,
-      // 无法保证 WV 中 cookie 的 value 与 jar 一致 (例如升级场景下 WV 中可能
-      // 残留旧值的 cookie, fast path 会误判为"已就绪"跳过重灌)。
-      //
-      // 直接从 jar 重灌一遍写入 WV 是确定性同步, 代价小 (3 次 setRawCookie)。
+      // 3. per-cookie 严格 "先 nuke 后写" 流程，保证写入后 each name
+      // 恰好 1 条，并保留 jar canonical 的 Domain/SameSite 等字段。
       var injected = 0;
       var attempted = 0;
       var skippedEmpty = 0;
       var skippedExpired = 0;
-      for (final cookie in critical) {
+      final mismatched = <String, int>{};
+      for (final cookie in jarCookies) {
         if (cookie.value.isEmpty) {
           skippedEmpty++;
           continue;
@@ -149,25 +141,38 @@ class WebViewCookiePriming {
           continue;
         }
         attempted++;
-        final ok = await _writer.setRawCookie(url, _buildRawHeader(cookie));
+
+        await _sentinel.sweep(url, cookie.name, intent: SweepIntent.delete);
+        final ok = await _writer.setRawCookie(url, cookie.toSetCookieHeader());
         if (ok) injected++;
+
+        final postCount = await _writer.countCookiesByName(url, cookie.name);
+        final isOk = postCount == 1;
+        if (!isOk) mismatched[cookie.name] = postCount;
         debugPrint(
-          '[Priming] setRawCookie ${cookie.name} '
-          '(host-only, len=${cookie.value.length}) → $ok',
+          '[Priming] ${cookie.name} '
+          '(hostOnly=${cookie.hostOnly}, domain=${cookie.domain}, '
+          'len=${cookie.value.length}) write=$ok postCount=$postCount '
+          '${isOk ? "ok" : "expected=1"}',
         );
+
+        if (!isOk) {
+          final all = await _writer.getAllCookieInfos(url);
+          final variants = all.where((c) => c.name == cookie.name).toList();
+          debugPrint('[Priming] ${cookie.name} variants in WV ($postCount):');
+          for (var i = 0; i < variants.length; i++) {
+            debugPrint('  [$i] ${variants[i]}');
+          }
+        }
       }
 
-      // 4. sweep 兜底 (清理可能残留的多变体)
-      await _sentinel.sweepAll(url);
-
-      // 5. verify: 回读检查 WV 是否真有 critical cookies
-      // 不阻塞流程, 但日志能暴露"setRawCookie 返回 true 但 WV 实际看不到"问题。
+      // 4. verify: 回读检查 WV 是否真有 jar cookies。
       var verified = 0;
       final missingNames = <String>[];
-      for (final cookie in critical) {
+      for (final cookie in jarCookies) {
         if (cookie.value.isEmpty || _isExpired(cookie)) continue;
         final count = await _writer.countCookiesByName(url, cookie.name);
-        if (count > 0) {
+        if (count >= 1) {
           verified++;
         } else {
           missingNames.add(cookie.name);
@@ -175,21 +180,21 @@ class WebViewCookiePriming {
       }
 
       _isPrimed = true;
-      final verifyMismatch = attempted > 0 && verified < attempted;
+      final hasMismatch = mismatched.isNotEmpty || missingNames.isNotEmpty;
       debugPrint(
         '[Priming] WV primed for $url: '
         'injected=$injected/$attempted, verified=$verified/$attempted '
-        '(critical=${critical.length}, '
+        '(jarTotal=${jarCookies.length}, '
         'skippedEmpty=$skippedEmpty, skippedExpired=$skippedExpired)'
-        '${verifyMismatch ? ", MISSING in WV: $missingNames" : ""}',
+        '${hasMismatch ? ", MISSING=$missingNames, COUNT_MISMATCH=$mismatched" : ""}',
       );
       CookieLogger.priming(
-        event: verifyMismatch ? 'failed' : 'completed',
+        event: hasMismatch ? 'failed' : 'completed',
         url: url,
         cookiesInjected: injected,
         durationMs: stopwatch.elapsedMilliseconds,
-        reason: verifyMismatch
-            ? 'verify mismatch: missing=$missingNames '
+        reason: hasMismatch
+            ? 'missing=$missingNames count_mismatch=$mismatched '
                   'verified=$verified/$attempted'
             : null,
       );
@@ -209,45 +214,6 @@ class WebViewCookiePriming {
   bool _isExpired(CanonicalCookie cookie) {
     final expiresAt = cookie.expiresAt;
     return expiresAt != null && expiresAt.isBefore(DateTime.now());
-  }
-
-  /// 从 [CanonicalCookie] 构造规范 Set-Cookie 头（host-only）。
-  String _buildRawHeader(CanonicalCookie cookie) {
-    final attrs = <String>['${cookie.name}=${cookie.value}'];
-    attrs.add('Path=${cookie.path.isEmpty ? _pathDefault : cookie.path}');
-    if (cookie.secure) attrs.add('Secure');
-    if (cookie.httpOnly) attrs.add('HttpOnly');
-    if (cookie.expiresAt != null) {
-      attrs.add('Expires=${_formatHttpDate(cookie.expiresAt!)}');
-    }
-    return attrs.join('; ');
-  }
-
-  /// RFC 1123 HTTP-date 格式。
-  String _formatHttpDate(DateTime date) {
-    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final utc = date.toUtc();
-    return '${weekdays[utc.weekday - 1]}, '
-        '${utc.day.toString().padLeft(2, '0')} '
-        '${months[utc.month - 1]} '
-        '${utc.year} '
-        '${utc.hour.toString().padLeft(2, '0')}:'
-        '${utc.minute.toString().padLeft(2, '0')}:'
-        '${utc.second.toString().padLeft(2, '0')} GMT';
   }
 }
 

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'cookie_full_info.dart';
+import 'raw_cookie_writer_fallback.dart';
 
 /// 通过原生平台通道写入 / 读取 / 删除 WebView cookie store。
 ///
@@ -18,10 +19,13 @@ class RawCookieWriter {
 
   static const _channel = MethodChannel('com.fluxdo/raw_cookie');
 
-  /// 是否支持当前平台。
-  /// Windows 走 CDP 不需要平台通道；Linux WPE 暂无原生通道实现。
-  bool get isSupported =>
+  bool get _hasNativeChannel =>
       io.Platform.isAndroid || io.Platform.isIOS || io.Platform.isMacOS;
+
+  bool get _hasDartFallback => io.Platform.isWindows || io.Platform.isLinux;
+
+  /// 是否支持当前平台。
+  bool get isSupported => _hasNativeChannel || _hasDartFallback;
 
   /// 通过原始 Set-Cookie 头字符串写入 cookie。
   ///
@@ -31,8 +35,11 @@ class RawCookieWriter {
   /// 各平台实现：
   /// - Android: `CookieManager.setCookie(url, rawSetCookie)`
   /// - iOS/macOS: `HTTPCookie.cookies(withResponseHeaderFields:for:)` → `WKHTTPCookieStore.setCookie`
-  /// - Linux: `soup_cookie_jar_set_cookie(jar, uri, rawSetCookie)`
+  /// - Windows/Linux: Dart fallback 通过 flutter_inappwebview CookieManager 写入
   Future<bool> setRawCookie(String url, String rawSetCookie) async {
+    if (_hasDartFallback) {
+      return RawCookieWriterFallback.instance.setRawCookie(url, rawSetCookie);
+    }
     try {
       final result = await _channel.invokeMethod<bool>('setRawCookie', {
         'url': url,
@@ -80,6 +87,14 @@ class RawCookieWriter {
     required List<String?> domainCandidates,
     required List<String> pathCandidates,
   }) async {
+    if (_hasDartFallback) {
+      return RawCookieWriterFallback.instance.nukeAllVariants(
+        url: url,
+        name: name,
+        domainCandidates: domainCandidates,
+        pathCandidates: pathCandidates,
+      );
+    }
     try {
       final result = await _channel.invokeMethod<int>('nukeAllVariants', {
         'url': url,
@@ -109,6 +124,14 @@ class RawCookieWriter {
     required String? domain,
     required String path,
   }) async {
+    if (_hasDartFallback) {
+      return RawCookieWriterFallback.instance.deleteExactCookie(
+        url: url,
+        name: name,
+        domain: domain,
+        path: path,
+      );
+    }
     try {
       final result = await _channel.invokeMethod<bool>('deleteExactCookie', {
         'url': url,
@@ -135,6 +158,9 @@ class RawCookieWriter {
   ///
   /// 验证项：V12（flutter_inappwebview Android getCookies 实际行为）。
   Future<List<CookieFullInfo>> getAllCookieInfos(String url) async {
+    if (_hasDartFallback) {
+      return RawCookieWriterFallback.instance.getAllCookieInfos(url);
+    }
     try {
       final raw = await _channel.invokeListMethod<Map<dynamic, dynamic>>(
         'getAllCookieInfos',
@@ -152,6 +178,7 @@ class RawCookieWriter {
               isSecure: map['isSecure'] as bool?,
               isHttpOnly: map['isHttpOnly'] as bool?,
               expiresMillis: map['expiresMillis'] as int?,
+              sameSite: map['sameSite'] as String?,
             );
           })
           .toList(growable: false);
@@ -171,6 +198,9 @@ class RawCookieWriter {
   ///
   /// 比 [getAllCookieInfos] 更轻量，仅返回数量不返回内容。
   Future<int> countCookiesByName(String url, String name) async {
+    if (_hasDartFallback) {
+      return RawCookieWriterFallback.instance.countCookiesByName(url, name);
+    }
     try {
       final result = await _channel.invokeMethod<int>('countCookiesByName', {
         'url': url,

@@ -519,16 +519,11 @@ class AppCookieManager extends Interceptor {
     //   后续 sweep 从 WV 反向同步到 jar (WV 已自写)
     final isPathB = response.requestOptions.extra[_viaExtraKey] == _viaAdapter;
     final criticalNames = SessionCookieSentinel.criticalCookieNames;
-
     final cookiesToSaveToJar = <Cookie>[];
     final headersToSaveToJar = <String>[];
-    final criticalCookiesForSweep = <Cookie>[];
     for (var i = 0; i < filteredCookies.length; i++) {
       final cookie = filteredCookies[i];
       final isCritical = criticalNames.contains(cookie.name);
-      if (isCritical) {
-        criticalCookiesForSweep.add(cookie);
-      }
       // 路径 B 时跳过 critical cookies 的 jar 写入 (sweep 反向同步)
       if (isPathB && isCritical) continue;
       cookiesToSaveToJar.add(cookie);
@@ -553,12 +548,13 @@ class AppCookieManager extends Interceptor {
       );
     }
 
-    // 对每条 critical cookie 同步触发 sweep:
+    // 对响应里的所有 cookie 同步触发 sweep:
     // - 路径 A: sweep 内部从 jar 读 winner 写 WV (保证两端一致)
     // - 路径 B: sweep 内部从 WV 读 winner 反向写 jar (WV 已自写)
+    // 全量 sweep 避免漏掉 LDC/CDK 等新增业务 cookie。
     // 同步等所有 sweep 完成,保证 next handler 时两端一致
-    if (criticalCookiesForSweep.isNotEmpty) {
-      final sweepFutures = criticalCookiesForSweep.map((cookie) {
+    if (filteredCookies.isNotEmpty) {
+      final sweepFutures = filteredCookies.map((cookie) {
         return SessionCookieSentinel.instance.sweep(
           resolvedUri.toString(),
           cookie.name,
