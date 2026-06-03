@@ -73,7 +73,7 @@ class TopicDetailHeader extends ConsumerWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         border: Border(

@@ -10,8 +10,9 @@ class TopicBottomBar extends StatelessWidget {
   final VoidCallback? onShare;
   final VoidCallback? onShareAsImage;
   final VoidCallback? onExport;
-  final VoidCallback? onOpenInBrowser;
+  final VoidCallback? onBookmark;
   final bool hasSummary;
+  final bool isBookmarked;
   final bool isSummaryMode;
   final bool isAuthorOnlyMode;
   final bool isTopLevelMode;
@@ -28,8 +29,9 @@ class TopicBottomBar extends StatelessWidget {
     this.onShare,
     this.onShareAsImage,
     this.onExport,
-    this.onOpenInBrowser,
+    this.onBookmark,
     this.hasSummary = false,
+    this.isBookmarked = false,
     this.isSummaryMode = false,
     this.isAuthorOnlyMode = false,
     this.isTopLevelMode = false,
@@ -90,11 +92,17 @@ class TopicBottomBar extends StatelessWidget {
                     _buildFilterMenuButton(context, theme),
                   // 分享菜单
                   _buildShareMenu(context, theme),
-                  // 在浏览器打开
+                  // 添加/编辑书签
                   IconButton(
-                    onPressed: onOpenInBrowser,
-                    icon: const Icon(Icons.language),
-                    tooltip: context.l10n.topicDetail_openInBrowser,
+                    onPressed: onBookmark,
+                    icon: Icon(
+                      isBookmarked
+                          ? Icons.bookmark_rounded
+                          : Icons.bookmark_border_rounded,
+                    ),
+                    tooltip: isBookmarked
+                        ? context.l10n.topicDetail_editBookmark
+                        : context.l10n.common_addBookmark,
                   ),
                   const SizedBox(width: 6),
                 ],

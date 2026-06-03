@@ -72,7 +72,7 @@ part 'actions/_filter_actions.dart';
 const double _topicDetailToolbarHeight = 48.0;
 const double _topicFloatingButtonSize = 44.0;
 const double _topicActionMenuWidth = 128.0;
-const double _topicTopContentGap = 8.0;
+const double _topicTopContentGap = 6.0;
 
 @visibleForTesting
 bool shouldShowTopicTimelineProgress({
@@ -80,6 +80,44 @@ bool shouldShowTopicTimelineProgress({
   required bool isTopLevelMode,
 }) {
   return !isNestedView && !isTopLevelMode;
+}
+
+@visibleForTesting
+bool shouldBlockForFlatJumpTarget({
+  required bool isNestedView,
+  required int? jumpTargetPostNumber,
+  required bool hasLoadedPosts,
+  required int? firstLoadedPostNumber,
+  required int? lastLoadedPostNumber,
+}) {
+  final target = jumpTargetPostNumber;
+  if (isNestedView || target == null || target <= 0) return false;
+  if (!hasLoadedPosts ||
+      firstLoadedPostNumber == null ||
+      lastLoadedPostNumber == null) {
+    return true;
+  }
+  return target < firstLoadedPostNumber || target > lastLoadedPostNumber;
+}
+
+@visibleForTesting
+int? resolveInitialPendingNestedPostNumber({
+  required bool isNestedView,
+  required int? scrollToPostNumber,
+  required bool restoredNestedView,
+  required int? restoredPostNumber,
+}) {
+  if (!isNestedView) return null;
+
+  final explicitTarget = _validPostNumber(scrollToPostNumber);
+  if (explicitTarget != null) return explicitTarget;
+
+  if (!restoredNestedView) return null;
+  return _validPostNumber(restoredPostNumber);
+}
+
+int? _validPostNumber(int? postNumber) {
+  return postNumber != null && postNumber > 0 ? postNumber : null;
 }
 
 /// 话题详情页面
@@ -184,6 +222,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   bool _isScreenTrackRunning = false;
   TopicReadingState? _restoredReadingState;
   int? _pendingNestedRestorePostNumber;
+  int? _lastPrimedNestedTargetPostNumber;
   int? _lastUnreachableJumpTarget;
 
   @override
@@ -197,9 +236,12 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _isNestedView =
         _restoredReadingState?.nestedView ??
         ref.read(preferencesProvider).defaultNestedTopicView;
-    if (_restoredReadingState?.nestedView == true) {
-      _pendingNestedRestorePostNumber = _restoredReadingState!.postNumber;
-    }
+    _pendingNestedRestorePostNumber = resolveInitialPendingNestedPostNumber(
+      isNestedView: _isNestedView,
+      scrollToPostNumber: widget.scrollToPostNumber,
+      restoredNestedView: _restoredReadingState?.nestedView == true,
+      restoredPostNumber: _restoredReadingState?.postNumber,
+    );
 
     _expandController = AnimationController(
       vsync: this,
@@ -695,22 +737,17 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           label: context.l10n.topicDetail_editTopic,
         ),
       item(
-        value: 'bookmark',
-        icon: detail.bookmarked
-            ? Icons.bookmark_rounded
-            : Icons.bookmark_border_rounded,
-        label: detail.bookmarked
-            ? context.l10n.topicDetail_editBookmark
-            : context.l10n.common_addBookmark,
-        selected: detail.bookmarked,
-      ),
-      item(
         value: 'read_later',
         icon: isInReadLater ? Icons.layers_rounded : Icons.layers_outlined,
         label: isInReadLater
             ? context.l10n.topicDetail_removeFromReadLater
             : context.l10n.topicDetail_addToReadLater,
         selected: isInReadLater,
+      ),
+      item(
+        value: 'open_in_browser',
+        icon: Icons.language_rounded,
+        label: context.l10n.topicDetail_openInBrowser,
       ),
       item(
         value: 'subscribe',
@@ -748,10 +785,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       );
     } else if (value == 'edit_topic') {
       _handleEditTopic();
-    } else if (value == 'bookmark') {
-      _handleBookmark(notifier);
     } else if (value == 'read_later') {
       _handleReadLater();
+    } else if (value == 'open_in_browser') {
+      _openInBrowser();
     } else if (value == 'toggle_nested_view') {
       _setNestedView(!_isNestedView);
     } else if (value == 'reading_settings') {
@@ -1279,12 +1316,14 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final jumpTarget = _controller.jumpTargetPostNumber;
     if (jumpTarget != null && detail != null) {
       final posts = detail.postStream.posts;
-      // 检查目标帖子是否在当前加载的范围内
-      final hasTarget =
-          posts.isNotEmpty &&
-          posts.first.postNumber <= jumpTarget &&
-          posts.last.postNumber >= jumpTarget;
-      if (!hasTarget) {
+      final shouldBlock = shouldBlockForFlatJumpTarget(
+        isNestedView: _isNestedView,
+        jumpTargetPostNumber: jumpTarget,
+        hasLoadedPosts: posts.isNotEmpty,
+        firstLoadedPostNumber: posts.isEmpty ? null : posts.first.postNumber,
+        lastLoadedPostNumber: posts.isEmpty ? null : posts.last.postNumber,
+      );
+      if (shouldBlock) {
         if (!detailAsync.isLoading) {
           _scheduleUnreachableJumpFallback(jumpTarget);
         }
@@ -1310,6 +1349,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         ],
       );
     } else if (detail != null) {
+      if (_isNestedView && _pendingNestedRestorePostNumber != null) {
+        _maybePrimeNestedTargetAncestors(detail);
+      }
       // 正常内容构建 (保持原有逻辑，但简化提取)
       content = _buildPostListContent(
         context,
@@ -1351,7 +1393,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                     onShare: _shareTopic,
                     onShareAsImage: _shareAsImage,
                     onExport: _showExportSheet,
-                    onOpenInBrowser: _openInBrowser,
+                    onBookmark: () => _handleBookmark(notifier),
                     onReply: () => _handleReply(null),
                     onProgressTap: () => _showTimelineSheet(detail),
                     showProgress: shouldShowTopicTimelineProgress(
@@ -1547,6 +1589,14 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                   ),
                 );
                 _controller.updateCurrentPostNumber(pendingPostNumber);
+                _controller.clearJumpTarget();
+                if (!_controller.isPositioned) {
+                  _controller.markPositioned();
+                }
+                if (!_controller.skipNextJumpHighlight) {
+                  _controller.triggerHighlight(pendingPostNumber);
+                }
+                _controller.skipNextJumpHighlight = false;
                 ref
                         .read(
                           detailScrollPositionProvider(widget.topicId).notifier,
@@ -1577,7 +1627,14 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
                 _pendingNestedRestorePostNumber = null;
-                _controller.triggerHighlight(pendingPostNumber);
+                _controller.clearJumpTarget();
+                if (!_controller.isPositioned) {
+                  _controller.markPositioned();
+                }
+                if (!_controller.skipNextJumpHighlight) {
+                  _controller.triggerHighlight(pendingPostNumber);
+                }
+                _controller.skipNextJumpHighlight = false;
               });
             }
           },
@@ -1695,6 +1752,71 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         _controller.markPositioned();
       }
       setState(() {});
+    });
+  }
+
+  void _maybePrimeNestedTargetAncestors(TopicDetail detail) {
+    final targetPostNumber = _pendingNestedRestorePostNumber;
+    if (targetPostNumber == null ||
+        targetPostNumber == _lastPrimedNestedTargetPostNumber) {
+      return;
+    }
+    _lastPrimedNestedTargetPostNumber = targetPostNumber;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_isNestedView ||
+          _pendingNestedRestorePostNumber != targetPostNumber) {
+        return;
+      }
+      unawaited(_expandNestedTargetAncestors(detail, targetPostNumber));
+    });
+  }
+
+  Future<void> _expandNestedTargetAncestors(
+    TopicDetail detail,
+    int targetPostNumber,
+  ) async {
+    final loadedPostsByNumber = <int, Post>{
+      for (final post in detail.postStream.posts) post.postNumber: post,
+    };
+    final ancestors = <int>{};
+    final seen = <int>{};
+    final service = DiscourseService();
+
+    var currentPostNumber = targetPostNumber;
+    while (currentPostNumber > 0 && seen.add(currentPostNumber)) {
+      Post? post = loadedPostsByNumber[currentPostNumber];
+      if (post == null) {
+        try {
+          post = await service.getPostByNumber(
+            widget.topicId,
+            currentPostNumber,
+          );
+        } catch (_) {
+          break;
+        }
+      }
+
+      final parentPostNumber = post.replyToPostNumber;
+      if (parentPostNumber <= 1) break;
+      ancestors.add(parentPostNumber);
+      currentPostNumber = parentPostNumber;
+    }
+
+    if (!mounted ||
+        !_isNestedView ||
+        _pendingNestedRestorePostNumber != targetPostNumber ||
+        ancestors.isEmpty ||
+        ancestors.difference(_nestedExpandedPostNumbers).isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _nestedExpandedPostNumbers = {
+        ..._nestedExpandedPostNumbers,
+        ...ancestors,
+      };
     });
   }
 }

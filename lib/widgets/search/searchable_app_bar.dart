@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../l10n/s.dart';
 
+const double _searchableAppBarHeight = 52.0;
+
 /// 可搜索的 AppBar
 /// 支持正常模式（显示标题）和搜索模式（显示输入框）之间的切换
 class SearchableAppBar extends StatefulWidget implements PreferredSizeWidget {
@@ -60,7 +62,7 @@ class SearchableAppBar extends StatefulWidget implements PreferredSizeWidget {
   State<SearchableAppBar> createState() => _SearchableAppBarState();
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(_searchableAppBarHeight);
 }
 
 class _SearchableAppBarState extends State<SearchableAppBar>
@@ -135,17 +137,18 @@ class _SearchableAppBarState extends State<SearchableAppBar>
     final theme = Theme.of(context);
 
     return AppBar(
+      toolbarHeight: _searchableAppBarHeight,
       leading: widget.isSearchMode
           ? IconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: widget.onCloseSearch,
             )
           : (widget.onBackPressed != null
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: widget.onBackPressed,
-                )
-              : null),
+                ? IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: widget.onBackPressed,
+                  )
+                : null),
       titleSpacing: widget.isSearchMode ? 0 : null,
       title: AnimatedBuilder(
         animation: _animation,
@@ -164,7 +167,9 @@ class _SearchableAppBarState extends State<SearchableAppBar>
               textAlignVertical: TextAlignVertical.center,
               style: theme.textTheme.bodyLarge,
               decoration: InputDecoration(
-                hintText: widget.searchHint.isEmpty ? context.l10n.common_searchHint : widget.searchHint,
+                hintText: widget.searchHint.isEmpty
+                    ? context.l10n.common_searchHint
+                    : widget.searchHint,
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
@@ -189,8 +194,7 @@ class _SearchableAppBarState extends State<SearchableAppBar>
                 onPressed: () => _handleSubmit(_searchController.text),
                 tooltip: context.l10n.common_search,
               ),
-              if (widget.showFilterButton)
-                _buildFilterButton(theme),
+              if (widget.showFilterButton) _buildFilterButton(theme),
             ]
           : [
               IconButton(
@@ -198,8 +202,7 @@ class _SearchableAppBarState extends State<SearchableAppBar>
                 onPressed: widget.onSearchPressed,
                 tooltip: context.l10n.common_search,
               ),
-              if (widget.showFilterButton)
-                _buildFilterButton(theme),
+              if (widget.showFilterButton) _buildFilterButton(theme),
             ],
     );
   }

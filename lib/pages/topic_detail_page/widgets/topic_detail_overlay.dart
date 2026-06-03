@@ -18,7 +18,7 @@ class TopicDetailOverlay extends StatelessWidget {
   final VoidCallback onShare;
   final VoidCallback? onShareAsImage;
   final VoidCallback? onExport;
-  final VoidCallback onOpenInBrowser;
+  final VoidCallback onBookmark;
   final VoidCallback onReply;
   final VoidCallback onProgressTap;
   final bool showProgress;
@@ -42,7 +42,7 @@ class TopicDetailOverlay extends StatelessWidget {
     required this.onShare,
     this.onShareAsImage,
     this.onExport,
-    required this.onOpenInBrowser,
+    required this.onBookmark,
     required this.onReply,
     required this.onProgressTap,
     this.showProgress = true,
@@ -99,8 +99,9 @@ class TopicDetailOverlay extends StatelessWidget {
                 onShare: onShare,
                 onShareAsImage: onShareAsImage,
                 onExport: onExport,
-                onOpenInBrowser: onOpenInBrowser,
+                onBookmark: onBookmark,
                 hasSummary: detail.hasSummary,
+                isBookmarked: detail.bookmarked,
                 isSummaryMode: isSummaryMode,
                 isAuthorOnlyMode: isAuthorOnlyMode,
                 isTopLevelMode: isTopLevelMode,
