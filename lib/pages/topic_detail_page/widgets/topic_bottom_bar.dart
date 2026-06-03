@@ -11,6 +11,7 @@ class TopicBottomBar extends StatelessWidget {
   final VoidCallback? onShareAsImage;
   final VoidCallback? onExport;
   final VoidCallback? onBookmark;
+  final VoidCallback? onBookmarkLongPress;
   final bool hasSummary;
   final bool isBookmarked;
   final bool isSummaryMode;
@@ -30,6 +31,7 @@ class TopicBottomBar extends StatelessWidget {
     this.onShareAsImage,
     this.onExport,
     this.onBookmark,
+    this.onBookmarkLongPress,
     this.hasSummary = false,
     this.isBookmarked = false,
     this.isSummaryMode = false,
@@ -93,20 +95,36 @@ class TopicBottomBar extends StatelessWidget {
                   // 分享菜单
                   _buildShareMenu(context, theme),
                   // 添加/编辑书签
-                  IconButton(
-                    onPressed: onBookmark,
-                    icon: Icon(
-                      isBookmarked
-                          ? Icons.bookmark_rounded
-                          : Icons.bookmark_border_rounded,
-                    ),
-                    tooltip: isBookmarked
-                        ? context.l10n.topicDetail_editBookmark
-                        : context.l10n.common_addBookmark,
-                  ),
+                  _buildBookmarkButton(context, theme),
                   const SizedBox(width: 6),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookmarkButton(BuildContext context, ThemeData theme) {
+    final label = isBookmarked
+        ? context.l10n.topicDetail_editBookmark
+        : context.l10n.common_addBookmark;
+    return Semantics(
+      button: true,
+      label: label,
+      child: SizedBox.square(
+        dimension: 48,
+        child: InkResponse(
+          onTap: onBookmark,
+          onLongPress: onBookmarkLongPress,
+          radius: 24,
+          child: Center(
+            child: Icon(
+              isBookmarked
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_border_rounded,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ),

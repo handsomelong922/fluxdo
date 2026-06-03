@@ -149,7 +149,21 @@ extension _UserActions on _TopicDetailPageState {
     }
   }
 
-  Future<void> _handleBookmark(TopicDetailNotifier notifier) async {
+  Future<void> _quickAddTopicBookmark(TopicDetailNotifier notifier) async {
+    final detail = ref.read(topicDetailProvider(_params)).value;
+    if (detail == null || detail.bookmarked || _isTopicBookmarking) return;
+
+    _isTopicBookmarking = true;
+    try {
+      await notifier.addTopicBookmark();
+    } catch (_) {
+      // 快速收藏按用户要求保持静默，不打断阅读。
+    } finally {
+      _isTopicBookmarking = false;
+    }
+  }
+
+  Future<void> _handleBookmarkOptions(TopicDetailNotifier notifier) async {
     final detail = ref.read(topicDetailProvider(_params)).value;
     if (detail == null) return;
 

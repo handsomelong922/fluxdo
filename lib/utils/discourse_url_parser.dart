@@ -1,10 +1,18 @@
+import 'url_parse_utils.dart';
+
 /// 话题链接解析结果
 class TopicLinkInfo {
   final int topicId;
   final String? slug;
   final int? postNumber;
+  final bool isNestedRoute;
 
-  const TopicLinkInfo({required this.topicId, this.slug, this.postNumber});
+  const TopicLinkInfo({
+    required this.topicId,
+    this.slug,
+    this.postNumber,
+    this.isNestedRoute = false,
+  });
 }
 
 /// 帖子短链接解析结果（Discourse `/p/<post_id>`）
@@ -101,7 +109,7 @@ class DiscourseUrlParser {
   }
 
   static int? _parsePostNumberFromFragment(String url) {
-    final uri = Uri.tryParse(url);
+    final uri = UrlParseUtils.tryParseLenient(url);
     final fragment = uri?.fragment;
     if (fragment == null || fragment.isEmpty) {
       return null;
@@ -191,11 +199,12 @@ class DiscourseUrlParser {
       topicId: topicId,
       slug: _normalizeSlug(slug),
       postNumber: postNumber ?? _parsePostNumberFromFragment(url),
+      isNestedRoute: true,
     );
   }
 
   static List<String> _pathSegments(String url) {
-    final uri = Uri.tryParse(url);
+    final uri = UrlParseUtils.tryParseLenient(url);
     if (uri != null) {
       return uri.pathSegments
           .map(Uri.decodeComponent)

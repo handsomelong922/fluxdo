@@ -32,6 +32,25 @@ void main() {
       expect(info?.postNumber, isNull);
     });
 
+    test('ignores referral query parameters with spaces', () {
+      final info = DiscourseUrlParser.parseTopic(
+        'https://linux.do/t/topic/2293666?u = bbrother',
+      );
+
+      expect(info?.topicId, 2293666);
+      expect(info?.slug, isNull);
+      expect(info?.postNumber, isNull);
+    });
+
+    test('uses post fragment when malformed referral query is present', () {
+      final info = DiscourseUrlParser.parseTopic(
+        'https://linux.do/t/topic/2293666?u = bbrother#post_8',
+      );
+
+      expect(info?.topicId, 2293666);
+      expect(info?.postNumber, 8);
+    });
+
     test('keeps explicit post number when referral query is present', () {
       final info = DiscourseUrlParser.parseTopic(
         'https://linux.do/t/example-topic/2237130/9?u=4242',
@@ -69,6 +88,7 @@ void main() {
       expect(nested?.topicId, 2237130);
       expect(nested?.slug, 'example-topic');
       expect(nested?.postNumber, 12);
+      expect(nested?.isNestedRoute, isTrue);
     });
 
     test('does not treat topic API paths as topic links', () {

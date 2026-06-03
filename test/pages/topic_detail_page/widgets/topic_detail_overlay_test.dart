@@ -62,6 +62,7 @@ Widget _buildApp({required bool showProgress}) {
         onScrollToTop: () {},
         onShare: () {},
         onBookmark: () {},
+        onBookmarkLongPress: () {},
         onReply: () {},
         onProgressTap: () {},
         showProgress: showProgress,

@@ -7,6 +7,7 @@ import '../services/preloaded_data_service.dart';
 import '../widgets/common/smart_avatar.dart';
 import '../widgets/common/loading_spinner.dart';
 import '../widgets/search/search_filter_panel.dart';
+import '../widgets/search/search_ai_chat_card.dart';
 import '../widgets/search/search_post_card.dart';
 import '../widgets/search/search_preview_dialog.dart';
 import '../providers/preferences_provider.dart';
@@ -44,6 +45,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   bool _hasError = false;
   bool _isLoadMoreFailed = false;
   bool _isRefreshingResults = false;
+  bool _isInitialSearchLoading = false;
   String _errorMessage = '';
 
   // 最近搜索记录
@@ -159,6 +161,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         _hasMoreUsers = false;
         _hasError = false;
         _isLoadMoreFailed = false;
+        _isInitialSearchLoading = false;
       });
       _performSearch();
     }
@@ -178,6 +181,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _isRefreshingResults = _allPosts.isNotEmpty || _allUsers.isNotEmpty;
       _hasError = false;
       _isLoadMoreFailed = false;
+      _isInitialSearchLoading = _allPosts.isEmpty && _allUsers.isEmpty;
       if (clearAiPosts) {
         _aiPosts = [];
         _isSearchingAi = false;
@@ -203,6 +207,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _allPosts = [];
       _aiPosts = [];
       _allUsers = [];
+      _isInitialSearchLoading = false;
     });
     if (_currentQuery.isNotEmpty) {
       _performSearch();
@@ -348,6 +353,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _isLoadMoreFailed = false;
       if (!isLoadMore) {
         _isLoadingMore = false;
+        _isInitialSearchLoading = true;
       }
     });
 
@@ -391,6 +397,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         _hasMorePosts = result.hasMorePosts;
         _hasMoreUsers = result.hasMoreUsers;
         _isLoadingMore = false;
+        _isInitialSearchLoading = false;
         _isRefreshingResults = false;
         _rebuildDisplayPosts();
       });
@@ -407,6 +414,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           _hasError = true;
           _errorMessage = e.toString();
         }
+        _isInitialSearchLoading = false;
       });
     }
   }
@@ -434,6 +442,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _hasMorePosts = false;
       _hasMoreUsers = false;
       _currentPage = 1;
+      _isInitialSearchLoading = false;
     });
     _focusNode.requestFocus();
   }
@@ -446,6 +455,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _allPosts = [];
       _aiPosts = [];
       _allUsers = [];
+      _isInitialSearchLoading = false;
     });
     if (_currentQuery.isNotEmpty) {
       _performSearch();
@@ -462,6 +472,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _allPosts = [];
       _aiPosts = [];
       _allUsers = [];
+      _isInitialSearchLoading = false;
     });
     if (_currentQuery.isNotEmpty) {
       _performSearch();
@@ -476,6 +487,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _allPosts = [];
       _aiPosts = [];
       _allUsers = [];
+      _isInitialSearchLoading = false;
     });
     if (_currentQuery.isNotEmpty) {
       _performSearch();
@@ -490,6 +502,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _allPosts = [];
       _aiPosts = [];
       _allUsers = [];
+      _isInitialSearchLoading = false;
     });
     if (_currentQuery.isNotEmpty) {
       _performSearch();
@@ -504,6 +517,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _allPosts = [];
       _aiPosts = [];
       _allUsers = [];
+      _isInitialSearchLoading = false;
     });
     if (_currentQuery.isNotEmpty) {
       _performSearch();
@@ -721,11 +735,27 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
 
     if (_allPosts.isEmpty && _allUsers.isEmpty && !_isLoadingMore) {
-      if (_currentPage == 1) {
+      if (_isInitialSearchLoading) {
         return const Center(child: LoadingSpinner());
       }
-      return _buildNoResults();
+      return ListView(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(16),
+        children: [
+          SearchAiChatCard(
+            query: _stripOrderFromQuery(_currentQuery),
+            visiblePosts: const [],
+          ),
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.42,
+            child: _buildNoResults(),
+          ),
+        ],
+      );
     }
+
+    final showAiChatCard = _currentQuery.trim().isNotEmpty;
+    final aiChatCardCount = showAiChatCard ? 1 : 0;
 
     return Column(
       children: [
@@ -815,13 +845,23 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
                   itemCount:
+                      aiChatCardCount +
                       _allPosts.length +
                       (_allUsers.isNotEmpty ? _allUsers.length + 1 : 0) +
                       (_isLoadingMore || _isLoadMoreFailed ? 1 : 0),
                   itemBuilder: (context, index) {
+                    if (showAiChatCard && index == 0) {
+                      return SearchAiChatCard(
+                        query: _stripOrderFromQuery(_currentQuery),
+                        visiblePosts: _allPosts,
+                      );
+                    }
+
+                    final resultIndex = index - aiChatCardCount;
+
                     // 帖子结果（标准 + AI 混合）
-                    if (index < _allPosts.length) {
-                      final searchPost = _allPosts[index];
+                    if (resultIndex < _allPosts.length) {
+                      final searchPost = _allPosts[resultIndex];
                       final enableLongPress = ref
                           .watch(preferencesProvider)
                           .longPressPreview;
@@ -867,7 +907,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
                     // 用户标题
                     final userStartIndex = _allPosts.length;
-                    if (_allUsers.isNotEmpty && index == userStartIndex) {
+                    if (_allUsers.isNotEmpty && resultIndex == userStartIndex) {
                       return Padding(
                         padding: const EdgeInsets.only(top: 16, bottom: 8),
                         child: _buildSectionHeader(
@@ -879,8 +919,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     }
 
                     // 用户结果
-                    if (_allUsers.isNotEmpty && index > userStartIndex) {
-                      final userIndex = index - userStartIndex - 1;
+                    if (_allUsers.isNotEmpty && resultIndex > userStartIndex) {
+                      final userIndex = resultIndex - userStartIndex - 1;
                       if (userIndex < _allUsers.length) {
                         return _SearchUserCard(
                           user: _allUsers[userIndex],

@@ -570,6 +570,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
               topicSlug: topicSlug,
               postNumber: postNumber,
               onJumpToPost: widget.onJumpToPost,
+              initialNestedView: true,
             );
           },
         ),

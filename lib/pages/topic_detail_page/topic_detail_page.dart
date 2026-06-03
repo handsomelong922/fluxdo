@@ -72,7 +72,7 @@ part 'actions/_filter_actions.dart';
 const double _topicDetailToolbarHeight = 48.0;
 const double _topicFloatingButtonSize = 44.0;
 const double _topicActionMenuWidth = 128.0;
-const double _topicTopContentGap = 6.0;
+const double _topicTopContentGap = 4.8;
 
 @visibleForTesting
 bool shouldShowTopicTimelineProgress({
@@ -116,6 +116,15 @@ int? resolveInitialPendingNestedPostNumber({
   return _validPostNumber(restoredPostNumber);
 }
 
+@visibleForTesting
+bool resolveInitialNestedView({
+  required bool? initialNestedView,
+  required bool? restoredNestedView,
+  required bool preferenceNestedView,
+}) {
+  return initialNestedView ?? restoredNestedView ?? preferenceNestedView;
+}
+
 int? _validPostNumber(int? postNumber) {
   return postNumber != null && postNumber > 0 ? postNumber : null;
 }
@@ -134,6 +143,7 @@ class TopicDetailPage extends ConsumerStatefulWidget {
   final bool autoOpenAiChat; // 自动打开 AI 聊天面板
   final String? initialSessionId; // AI 聊天初始会话 ID
   final String? highlightBoostUsername; // 高亮指定用户的 boost（从 boost 通知跳转时使用）
+  final bool? initialNestedView; // 外部链接可指定初始树形/普通视图
 
   const TopicDetailPage({
     super.key,
@@ -149,6 +159,7 @@ class TopicDetailPage extends ConsumerStatefulWidget {
     this.autoOpenAiChat = false,
     this.initialSessionId,
     this.highlightBoostUsername,
+    this.initialNestedView,
   });
 
   @override
@@ -196,6 +207,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   final ValueNotifier<bool> _isAtTopNotifier = ValueNotifier<bool>(true);
   bool _isSwitchingMode = false; // 切换热门回复模式
   late bool _isNestedView; // 嵌套视图模式
+  bool _isTopicBookmarking = false;
   Map<int, int> _nestedPostNumberToScrollIndex = const {};
   Set<int> _nestedExpandedPostNumbers = const <int>{};
   // 搜索相关
@@ -233,9 +245,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _restoredReadingState = _canRestoreReadingState
         ? ref.read(topicReadingStateServiceProvider).getState(widget.topicId)
         : null;
-    _isNestedView =
-        _restoredReadingState?.nestedView ??
-        ref.read(preferencesProvider).defaultNestedTopicView;
+    _isNestedView = resolveInitialNestedView(
+      initialNestedView: widget.initialNestedView,
+      restoredNestedView: _restoredReadingState?.nestedView,
+      preferenceNestedView: ref.read(preferencesProvider).defaultNestedTopicView,
+    );
     _pendingNestedRestorePostNumber = resolveInitialPendingNestedPostNumber(
       isNestedView: _isNestedView,
       scrollToPostNumber: widget.scrollToPostNumber,
@@ -1393,7 +1407,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                     onShare: _shareTopic,
                     onShareAsImage: _shareAsImage,
                     onExport: _showExportSheet,
-                    onBookmark: () => _handleBookmark(notifier),
+                    onBookmark: () => _quickAddTopicBookmark(notifier),
+                    onBookmarkLongPress: () => _handleBookmarkOptions(notifier),
                     onReply: () => _handleReply(null),
                     onProgressTap: () => _showTimelineSheet(detail),
                     showProgress: shouldShowTopicTimelineProgress(

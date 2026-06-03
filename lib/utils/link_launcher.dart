@@ -36,7 +36,7 @@ bool isInternalUrl(Uri uri) {
 /// 检查 URL 是否属于站点内部链接（字符串版本，支持相对路径）
 bool isInternalUrlString(String url) {
   if (url.startsWith('/')) return true;
-  final uri = Uri.tryParse(url);
+  final uri = UrlHelper.tryParseLenient(url);
   if (uri == null) return false;
   return isInternalUrl(uri);
 }
@@ -48,7 +48,9 @@ bool _isUploadLink(String url) {
 }
 
 bool isCdkUrlString(String url) {
-  final uri = Uri.tryParse(url.startsWith('//') ? 'https:$url' : url);
+  final uri = UrlHelper.tryParseLenient(
+    url.startsWith('//') ? 'https:$url' : url,
+  );
   return uri != null && uri.host.toLowerCase() == 'cdk.linux.do';
 }
 
@@ -58,7 +60,7 @@ bool isCdkUrlString(String url) {
 /// 如果启用了链接安全检查，会根据链接风险等级显示确认对话框
 Future<void> launchExternalLink(BuildContext context, String url) async {
   if (url.isEmpty) return;
-  final uri = Uri.tryParse(url);
+  final uri = UrlHelper.tryParseLenient(url);
   if (uri == null) return;
 
   if (isCdkUrlString(url) && (uri.scheme == 'http' || uri.scheme == 'https')) {
@@ -196,7 +198,7 @@ Future<void> launchContentLink(
     if (onDownloadAttachment != null) {
       onDownloadAttachment(fullUrl);
     } else {
-      final uri = Uri.tryParse(fullUrl);
+      final uri = UrlHelper.tryParseLenient(fullUrl);
       if (uri != null && await canLaunchUrl(uri)) {
         if (!context.mounted) return;
         await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -207,7 +209,7 @@ Future<void> launchContentLink(
 
   // 4. Email 链接
   if (url.startsWith('mailto:')) {
-    final uri = Uri.tryParse(url);
+    final uri = UrlHelper.tryParseLenient(url);
     if (uri != null && await canLaunchUrl(uri)) {
       if (!context.mounted) return;
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -233,7 +235,7 @@ Future<void> launchContentLink(
 /// 在 Android 上通过原生代码排除自己的应用，直接用外部浏览器打开，
 /// 避免被应用的 intent-filter 拦截导致链接又回到应用本身。
 Future<bool> launchInExternalBrowser(String url) async {
-  final uri = Uri.tryParse(url);
+  final uri = UrlHelper.tryParseLenient(url);
   if (uri == null) return false;
 
   if (Platform.isAndroid) {

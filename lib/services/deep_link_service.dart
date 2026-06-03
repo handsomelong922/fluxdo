@@ -123,6 +123,7 @@ class DeepLinkService {
           builder: (_) => TopicDetailPage(
             topicId: topicInfo.topicId,
             scrollToPostNumber: topicInfo.postNumber,
+            initialNestedView: topicInfo.isNestedRoute ? true : null,
           ),
         ),
       );

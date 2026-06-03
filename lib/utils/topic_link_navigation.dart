@@ -10,6 +10,7 @@ void openInternalTopicLink(
   required int? postNumber,
   required void Function(int postNumber)? onJumpToPost,
   bool preserveCurrentTopic = true,
+  bool? initialNestedView,
 }) {
   if (preserveCurrentTopic &&
       targetTopicId == currentTopicId &&
@@ -25,6 +26,7 @@ void openInternalTopicLink(
         topicId: targetTopicId,
         initialTitle: topicSlug,
         scrollToPostNumber: postNumber,
+        initialNestedView: initialNestedView,
       ),
     ),
   );

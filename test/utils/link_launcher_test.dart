@@ -2,6 +2,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/utils/link_launcher.dart';
 
 void main() {
+  group('isInternalUrlString', () {
+    test('accepts linux.do topic links with malformed referral spacing', () {
+      expect(
+        isInternalUrlString('https://linux.do/t/topic/2293666?u = bbrother'),
+        isTrue,
+      );
+    });
+  });
+
   group('isCdkUrlString', () {
     test('recognizes cdk.linux.do http variants', () {
       expect(isCdkUrlString('https://cdk.linux.do'), isTrue);

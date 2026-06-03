@@ -1,5 +1,6 @@
 import '../constants.dart';
 import '../services/preloaded_data_service.dart';
+import 'url_parse_utils.dart';
 
 class UrlHelper {
   static String? _debugBaseUriOverride;
@@ -26,7 +27,7 @@ class UrlHelper {
     }
 
     if (url == '/') {
-      return '$_origin${_baseUriOrSlash}';
+      return '$_origin$_baseUriOrSlash';
     }
 
     return url;
@@ -52,7 +53,7 @@ class UrlHelper {
     }
 
     if (url == '/') {
-      return '${_cdnUrl ?? _origin}${_baseUriOrSlash}';
+      return '${_cdnUrl ?? _origin}$_baseUriOrSlash';
     }
 
     return url;
@@ -88,11 +89,19 @@ class UrlHelper {
       return url == prefix || url.startsWith('$prefix/');
     }
 
-    final uri = Uri.tryParse(url);
+    final uri = tryParseLenient(url);
     if (uri == null) return false;
 
     final path = uri.path.isEmpty ? '/' : uri.path;
     return path == prefix || path.startsWith('$prefix/');
+  }
+
+  static Uri? tryParseLenient(String url) {
+    return UrlParseUtils.tryParseLenient(url);
+  }
+
+  static String normalizeUrlForParsing(String url) {
+    return UrlParseUtils.normalizeUrlForParsing(url);
   }
 
   static String _withPrefix(String url) {

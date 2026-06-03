@@ -40,6 +40,9 @@ class TopicCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isUnread = topic.unseen || topic.unread > 0;
+    final unreadTitleColor = theme.brightness == Brightness.light
+        ? Colors.black
+        : theme.colorScheme.onSurface;
     // 依赖头像策略开关，确保切换“优先静态头像”后卡片立即重建。
     ref.watch(preferencesProvider.select((p) => p.preferStaticAvatars));
     final hideTopicListAvatars = ref.watch(
@@ -128,7 +131,7 @@ class TopicCard extends ConsumerWidget {
                                           fontWeight: FontWeight.w500,
                                           height: 1.3,
                                           color: isUnread
-                                              ? theme.colorScheme.onSurface
+                                              ? unreadTitleColor
                                               : theme
                                                     .colorScheme
                                                     .onSurfaceVariant,
@@ -146,7 +149,7 @@ class TopicCard extends ConsumerWidget {
                                               Icons.lock_outline,
                                               size: 16,
                                               color: isUnread
-                                                  ? theme.colorScheme.onSurface
+                                                  ? unreadTitleColor
                                                   : theme
                                                         .colorScheme
                                                         .onSurfaceVariant,
@@ -190,7 +193,7 @@ class TopicCard extends ConsumerWidget {
                                           fontWeight: FontWeight.w500,
                                           height: 1.3,
                                           color: isUnread
-                                              ? theme.colorScheme.onSurface
+                                              ? unreadTitleColor
                                               : theme
                                                     .colorScheme
                                                     .onSurfaceVariant,
@@ -439,6 +442,9 @@ class CompactTopicCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isUnread = topic.unseen || topic.unread > 0;
+    final unreadTitleColor = theme.brightness == Brightness.light
+        ? Colors.black
+        : theme.colorScheme.onSurface;
 
     // 获取分类信息
     final categoryMap = ref.watch(categoryMapProvider).value;
@@ -516,7 +522,7 @@ class CompactTopicCard extends ConsumerWidget {
                     style: theme.textTheme.labelMedium?.copyWith(
                       fontWeight: isUnread ? FontWeight.w500 : FontWeight.w400,
                       color: isUnread
-                          ? theme.colorScheme.onSurface
+                          ? unreadTitleColor
                           : theme.colorScheme.onSurfaceVariant,
                     ),
                     children: [
@@ -529,7 +535,7 @@ class CompactTopicCard extends ConsumerWidget {
                               Icons.lock_outline,
                               size: 12,
                               color: isUnread
-                                  ? theme.colorScheme.onSurface
+                                  ? unreadTitleColor
                                   : theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
@@ -566,7 +572,7 @@ class CompactTopicCard extends ConsumerWidget {
                               ? FontWeight.w500
                               : FontWeight.w400,
                           color: isUnread
-                              ? theme.colorScheme.onSurface
+                              ? unreadTitleColor
                               : theme.colorScheme.onSurfaceVariant,
                         ),
                       ),

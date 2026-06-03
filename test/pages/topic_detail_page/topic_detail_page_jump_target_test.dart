@@ -52,5 +52,16 @@ void main() {
         128,
       );
     });
+
+    test('explicit nested view from link overrides saved and default state', () {
+      expect(
+        resolveInitialNestedView(
+          initialNestedView: true,
+          restoredNestedView: false,
+          preferenceNestedView: false,
+        ),
+        isTrue,
+      );
+    });
   });
 }
