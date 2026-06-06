@@ -273,41 +273,45 @@ class _IframeWidgetState extends State<IframeWidget> with RouteAware {
           Offstage(
             offstage: _routeOverlayed,
             child: InAppWebView(
-            webViewEnvironment: windowsWebViewEnvironment,
-            initialUrlRequest: URLRequest(
-              url: WebUri(attrs.fullUrl),
-              headers: {'Referer': AppConstants.baseUrl},
-            ),
-            initialSettings: _buildSettings(attrs),
-            onReceivedServerTrustAuthRequest: (_, challenge) =>
-                WebViewSettings.handleServerTrustAuthRequest(challenge),
-            // 允许 WebView 接收水平滑动手势
-            gestureRecognizers: {
-              Factory<HorizontalDragGestureRecognizer>(
-                () => HorizontalDragGestureRecognizer(),
+              webViewEnvironment: windowsWebViewEnvironment,
+              initialUrlRequest: URLRequest(
+                url: WebUri(attrs.fullUrl),
+                headers: {'Referer': AppConstants.baseUrl},
               ),
-            },
-            onEnterFullscreen: (controller) {
-              _lockLayout();
-            },
-            onExitFullscreen: (controller) {
-              _unlockLayoutIfNeeded();
-            },
-            onLoadStart: (controller, url) {
-              if (mounted) {
-                setState(() {
-                  _isLoaded = false;
-                  _hasError = false;
-                });
-              }
-            },
-            onLoadStop: (controller, url) async {
-              if (mounted) {
-                setState(() => _isLoaded = true);
-              }
-              // 注入 viewport meta 标签，确保内容正确缩放
-              await controller.evaluateJavascript(
-                source: '''
+              initialSettings: _buildSettings(attrs),
+              initialUserScripts: WebViewSettings.compatPolyfillScripts,
+              onWebViewCreated: (controller) {
+                WebViewSettings.registerJsErrorReporter(controller);
+              },
+              onReceivedServerTrustAuthRequest: (_, challenge) =>
+                  WebViewSettings.handleServerTrustAuthRequest(challenge),
+              // 允许 WebView 接收水平滑动手势
+              gestureRecognizers: {
+                Factory<HorizontalDragGestureRecognizer>(
+                  () => HorizontalDragGestureRecognizer(),
+                ),
+              },
+              onEnterFullscreen: (controller) {
+                _lockLayout();
+              },
+              onExitFullscreen: (controller) {
+                _unlockLayoutIfNeeded();
+              },
+              onLoadStart: (controller, url) {
+                if (mounted) {
+                  setState(() {
+                    _isLoaded = false;
+                    _hasError = false;
+                  });
+                }
+              },
+              onLoadStop: (controller, url) async {
+                if (mounted) {
+                  setState(() => _isLoaded = true);
+                }
+                // 注入 viewport meta 标签，确保内容正确缩放
+                await controller.evaluateJavascript(
+                  source: '''
                     (function() {
                       var meta = document.querySelector('meta[name="viewport"]');
                       if (!meta) {
@@ -318,35 +322,35 @@ class _IframeWidgetState extends State<IframeWidget> with RouteAware {
                       meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
                     })();
                   ''',
-              );
-            },
-            onReceivedError: (controller, request, error) {
-              // 只有主框架加载失败才显示错误
-              // 忽略子资源（JS、图片、视频海报等）的加载错误
-              if (mounted && request.isForMainFrame == true) {
-                setState(() => _hasError = true);
-              }
-            },
-            // 拦截用户点击的链接，使用 WebViewPage 打开
-            shouldOverrideUrlLoading: (controller, navigationAction) async {
-              // 只拦截用户主动点击的链接
-              if (navigationAction.navigationType !=
-                  NavigationType.LINK_ACTIVATED) {
-                return NavigationActionPolicy.ALLOW;
-              }
+                );
+              },
+              onReceivedError: (controller, request, error) {
+                // 只有主框架加载失败才显示错误
+                // 忽略子资源（JS、图片、视频海报等）的加载错误
+                if (mounted && request.isForMainFrame == true) {
+                  setState(() => _hasError = true);
+                }
+              },
+              // 拦截用户点击的链接，使用 WebViewPage 打开
+              shouldOverrideUrlLoading: (controller, navigationAction) async {
+                // 只拦截用户主动点击的链接
+                if (navigationAction.navigationType !=
+                    NavigationType.LINK_ACTIVATED) {
+                  return NavigationActionPolicy.ALLOW;
+                }
 
-              final url = navigationAction.request.url?.toString();
-              if (url == null) {
-                return NavigationActionPolicy.ALLOW;
-              }
+                final url = navigationAction.request.url?.toString();
+                if (url == null) {
+                  return NavigationActionPolicy.ALLOW;
+                }
 
-              // 使用 WebViewPage 打开
-              if (mounted) {
-                WebViewPage.open(context, url);
-              }
-              return NavigationActionPolicy.CANCEL;
-            },
-          ),
+                // 使用 WebViewPage 打开
+                if (mounted) {
+                  WebViewPage.open(context, url);
+                }
+                return NavigationActionPolicy.CANCEL;
+              },
+            ),
           ),
           // 加载指示器
           if (!_isLoaded && !_hasError)

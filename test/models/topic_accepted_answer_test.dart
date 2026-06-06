@@ -15,6 +15,54 @@ void main() {
       expect(detail.acceptedAnswerPostNumber, 5);
     });
 
+    test('parses multiple accepted_answers entries', () {
+      final detail = TopicDetail.fromJson(
+        _topicJson(
+          acceptedAnswers: [
+            {'post_number': 7, 'username': 'second'},
+            {'post_number': 5, 'username': 'first'},
+          ],
+          posts: [
+            _post(id: 101, postNumber: 1),
+            _post(id: 105, postNumber: 5, username: 'first'),
+            _post(id: 107, postNumber: 7, username: 'second'),
+          ],
+        ),
+      );
+
+      expect(detail.hasAcceptedAnswer, isTrue);
+      expect(detail.acceptedAnswerPostNumber, 5);
+      expect(detail.acceptedAnswerPostNumbers, [5, 7]);
+      expect(detail.acceptedAnswers.map((answer) => answer.username), [
+        'first',
+        'second',
+      ]);
+    });
+
+    test('uses accepted_answers_post_info metadata', () {
+      final detail = TopicDetail.fromJson(
+        _topicJson(
+          acceptedAnswersPostInfo: [
+            {
+              'post_number': 5,
+              'username': 'answerer',
+              'name': 'Answer User',
+              'excerpt': '<p>accepted</p>',
+            },
+          ],
+          posts: [
+            _post(id: 101, postNumber: 1),
+            _post(id: 105, postNumber: 5, username: 'fallback'),
+          ],
+        ),
+      );
+
+      expect(detail.acceptedAnswerPostNumbers, [5]);
+      expect(detail.acceptedAnswers.single.username, 'answerer');
+      expect(detail.acceptedAnswers.single.name, 'Answer User');
+      expect(detail.acceptedAnswers.single.excerpt, '<p>accepted</p>');
+    });
+
     test('maps topic-level accepted_answer post id to post number', () {
       final detail = TopicDetail.fromJson(
         _topicJson(
@@ -58,6 +106,8 @@ void main() {
 
 Map<String, dynamic> _topicJson({
   Object? acceptedAnswer,
+  List<Object?>? acceptedAnswers,
+  List<Object?>? acceptedAnswersPostInfo,
   bool hasAcceptedAnswer = false,
   required List<Map<String, dynamic>> posts,
 }) {
@@ -76,18 +126,25 @@ Map<String, dynamic> _topicJson({
   if (acceptedAnswer != null) {
     json['accepted_answer'] = acceptedAnswer;
   }
+  if (acceptedAnswers != null) {
+    json['accepted_answers'] = acceptedAnswers;
+  }
+  if (acceptedAnswersPostInfo != null) {
+    json['accepted_answers_post_info'] = acceptedAnswersPostInfo;
+  }
   return json;
 }
 
 Map<String, dynamic> _post({
   required int id,
   required int postNumber,
+  String username = 'tester',
   bool acceptedAnswer = false,
 }) {
   return {
     'id': id,
     'post_number': postNumber,
-    'username': 'tester',
+    'username': username,
     'cooked': '<p>answer</p>',
     'accepted_answer': acceptedAnswer,
   };

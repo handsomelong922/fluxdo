@@ -1369,90 +1369,225 @@ class PostStream {
   }
 }
 
+/// 单个被采纳答案的展示数据。
+class AcceptedAnswer {
+  final int postNumber;
+  final String username;
+  final String? name;
+  final String? avatarTemplate;
+  final String? excerpt;
+  final DateTime? createdAt;
+  final String? accepterUsername;
+  final String? accepterName;
+
+  const AcceptedAnswer({
+    required this.postNumber,
+    required this.username,
+    this.name,
+    this.avatarTemplate,
+    this.excerpt,
+    this.createdAt,
+    this.accepterUsername,
+    this.accepterName,
+  });
+
+  factory AcceptedAnswer.fromPost(
+    Post post, {
+    String? accepterUsername,
+    String? accepterName,
+  }) {
+    return AcceptedAnswer(
+      postNumber: post.postNumber,
+      username: post.username,
+      name: post.name,
+      avatarTemplate: post.avatarTemplate,
+      excerpt: post.cooked,
+      createdAt: post.createdAt,
+      accepterUsername: accepterUsername,
+      accepterName: accepterName,
+    );
+  }
+}
+
+int? _asInt(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value);
+  return null;
+}
+
+int? _intFrom(Map<String, dynamic> source, List<String> keys) {
+  for (final key in keys) {
+    final value = _asInt(source[key]);
+    if (value != null) return value;
+  }
+  return null;
+}
+
+Post? _postByNumber(PostStream postStream, int postNumber) {
+  return postStream.posts.where((p) => p.postNumber == postNumber).firstOrNull;
+}
+
+int? _postNumberForPostId(PostStream postStream, int? postId) {
+  if (postId == null) return null;
+  for (final post in postStream.posts) {
+    if (post.id == postId) return post.postNumber;
+  }
+  final streamIndex = postStream.stream.indexOf(postId);
+  if (streamIndex >= 0) return streamIndex + 1;
+  return null;
+}
+
+int? _resolveAcceptedAnswerPostNumberFromData(
+  dynamic data,
+  PostStream postStream,
+) {
+  if (data is Map<String, dynamic>) {
+    final postNumber = _intFrom(data, const [
+      'post_number',
+      'accepted_answer_post_number',
+      'answer_post_number',
+    ]);
+    if (postNumber != null) return postNumber;
+
+    return _postNumberForPostId(
+      postStream,
+      _intFrom(data, const [
+        'post_id',
+        'accepted_answer_post_id',
+        'answer_post_id',
+        'id',
+      ]),
+    );
+  }
+
+  final rawIdOrNumber = _asInt(data);
+  if (rawIdOrNumber == null) return null;
+
+  final postNumberFromId = _postNumberForPostId(postStream, rawIdOrNumber);
+  if (postNumberFromId != null) return postNumberFromId;
+
+  for (final post in postStream.posts) {
+    if (post.postNumber == rawIdOrNumber) return post.postNumber;
+  }
+  return null;
+}
+
+AcceptedAnswer _acceptedAnswerFromData(
+  dynamic data,
+  PostStream postStream, {
+  required int postNumber,
+}) {
+  final source = data is Map<String, dynamic>
+      ? data
+      : const <String, dynamic>{};
+  final post = _postByNumber(postStream, postNumber);
+  return AcceptedAnswer(
+    postNumber: postNumber,
+    username: (source['username'] as String?) ?? post?.username ?? '',
+    name: (source['name'] as String?) ?? post?.name,
+    avatarTemplate:
+        (source['avatar_template'] as String?) ?? post?.avatarTemplate,
+    excerpt:
+        (source['excerpt'] as String?) ??
+        (source['cooked'] as String?) ??
+        post?.cooked,
+    createdAt:
+        TimeUtils.parseUtcTime(source['created_at'] as String?) ??
+        post?.createdAt,
+    accepterUsername: source['accepter_username'] as String?,
+    accepterName: source['accepter_name'] as String?,
+  );
+}
+
+@visibleForTesting
+List<AcceptedAnswer> resolveAcceptedAnswers(
+  Map<String, dynamic> json,
+  PostStream postStream,
+) {
+  final acceptedAnswers = <int, AcceptedAnswer>{};
+
+  void addFromData(dynamic data) {
+    final postNumber = _resolveAcceptedAnswerPostNumberFromData(
+      data,
+      postStream,
+    );
+    if (postNumber == null) return;
+    acceptedAnswers[postNumber] = _acceptedAnswerFromData(
+      data,
+      postStream,
+      postNumber: postNumber,
+    );
+  }
+
+  final acceptedAnswersList = json['accepted_answers'];
+  if (acceptedAnswersList is List) {
+    for (final answer in acceptedAnswersList) {
+      addFromData(answer);
+    }
+  }
+
+  final acceptedAnswersPostInfo = json['accepted_answers_post_info'];
+  if (acceptedAnswersPostInfo is List) {
+    for (final answer in acceptedAnswersPostInfo) {
+      addFromData(answer);
+    }
+  }
+
+  if (acceptedAnswers.isEmpty) {
+    addFromData(json['accepted_answer']);
+  }
+
+  if (acceptedAnswers.isEmpty) {
+    final directPostNumber = _intFrom(json, const [
+      'accepted_answer_post_number',
+      'answer_post_number',
+      'solved_post_number',
+    ]);
+    if (directPostNumber != null) {
+      acceptedAnswers[directPostNumber] = _acceptedAnswerFromData(
+        null,
+        postStream,
+        postNumber: directPostNumber,
+      );
+    }
+  }
+
+  if (acceptedAnswers.isEmpty) {
+    final directPostId = _intFrom(json, const [
+      'accepted_answer_post_id',
+      'accepted_answer_id',
+      'answer_post_id',
+      'solved_post_id',
+    ]);
+    final fromPostId = _postNumberForPostId(postStream, directPostId);
+    if (fromPostId != null) {
+      acceptedAnswers[fromPostId] = _acceptedAnswerFromData(
+        null,
+        postStream,
+        postNumber: fromPostId,
+      );
+    }
+  }
+
+  if (acceptedAnswers.isEmpty &&
+      (json['has_accepted_answer'] as bool? ?? false)) {
+    for (final post in postStream.posts.where((p) => p.acceptedAnswer)) {
+      acceptedAnswers[post.postNumber] = AcceptedAnswer.fromPost(post);
+    }
+  }
+
+  final sorted = acceptedAnswers.values.toList()
+    ..sort((a, b) => a.postNumber.compareTo(b.postNumber));
+  return sorted;
+}
+
 @visibleForTesting
 int? resolveAcceptedAnswerPostNumber(
   Map<String, dynamic> json,
   PostStream postStream,
 ) {
-  int? resolvePostId(int? postId) {
-    if (postId == null) return null;
-    for (final post in postStream.posts) {
-      if (post.id == postId) return post.postNumber;
-    }
-    final streamIndex = postStream.stream.indexOf(postId);
-    if (streamIndex >= 0) return streamIndex + 1;
-    return null;
-  }
-
-  int? asInt(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    if (value is String) return int.tryParse(value);
-    return null;
-  }
-
-  int? intFrom(Map<String, dynamic> source, List<String> keys) {
-    for (final key in keys) {
-      final value = asInt(source[key]);
-      if (value != null) return value;
-    }
-    return null;
-  }
-
-  int? resolveAcceptedAnswerData(dynamic data) {
-    if (data is Map<String, dynamic>) {
-      final postNumber = intFrom(data, const [
-        'post_number',
-        'accepted_answer_post_number',
-        'answer_post_number',
-      ]);
-      if (postNumber != null) return postNumber;
-
-      return resolvePostId(
-        intFrom(data, const [
-          'post_id',
-          'accepted_answer_post_id',
-          'answer_post_id',
-          'id',
-        ]),
-      );
-    }
-
-    final rawIdOrNumber = asInt(data);
-    if (rawIdOrNumber == null) return null;
-
-    final postNumberFromId = resolvePostId(rawIdOrNumber);
-    if (postNumberFromId != null) return postNumberFromId;
-
-    for (final post in postStream.posts) {
-      if (post.postNumber == rawIdOrNumber) return post.postNumber;
-    }
-    return null;
-  }
-
-  final fromAcceptedAnswer = resolveAcceptedAnswerData(json['accepted_answer']);
-  if (fromAcceptedAnswer != null) return fromAcceptedAnswer;
-
-  final directPostNumber = intFrom(json, const [
-    'accepted_answer_post_number',
-    'answer_post_number',
-    'solved_post_number',
-  ]);
-  if (directPostNumber != null) return directPostNumber;
-
-  final directPostId = intFrom(json, const [
-    'accepted_answer_post_id',
-    'accepted_answer_id',
-    'answer_post_id',
-    'solved_post_id',
-  ]);
-  final fromPostId = resolvePostId(directPostId);
-  if (fromPostId != null) return fromPostId;
-
-  final acceptedPost = postStream.posts
-      .where((p) => p.acceptedAnswer)
-      .firstOrNull;
-  return acceptedPost?.postNumber;
+  return resolveAcceptedAnswers(json, postStream).firstOrNull?.postNumber;
 }
 
 /// 话题详情模型
@@ -1503,8 +1638,15 @@ class TopicDetail {
   final DateTime? bookmarkReminderAt; // 书签提醒时间
 
   // 已解决问题相关
-  final bool hasAcceptedAnswer; // 话题是否有被接受的答案
-  final int? acceptedAnswerPostNumber; // 被接受答案的帖子编号
+  final List<AcceptedAnswer> acceptedAnswers; // 被接受答案列表
+  final bool _hasAcceptedAnswerFallback;
+
+  bool get hasAcceptedAnswer =>
+      acceptedAnswers.isNotEmpty || _hasAcceptedAnswerFallback;
+  int? get acceptedAnswerPostNumber => acceptedAnswers.firstOrNull?.postNumber;
+  List<int> get acceptedAnswerPostNumbers => acceptedAnswers
+      .map((answer) => answer.postNumber)
+      .toList(growable: false);
 
   /// 是否为私信
   bool get isPrivateMessage => archetype == 'private_message';
@@ -1538,9 +1680,19 @@ class TopicDetail {
     this.bookmarkId,
     this.bookmarkName,
     this.bookmarkReminderAt,
-    this.hasAcceptedAnswer = false,
-    this.acceptedAnswerPostNumber,
-  });
+    bool hasAcceptedAnswer = false,
+    int? acceptedAnswerPostNumber,
+    List<AcceptedAnswer> acceptedAnswers = const [],
+  }) : acceptedAnswers =
+           acceptedAnswers.isNotEmpty || acceptedAnswerPostNumber == null
+           ? List.unmodifiable(acceptedAnswers)
+           : List.unmodifiable([
+               AcceptedAnswer(
+                 postNumber: acceptedAnswerPostNumber,
+                 username: '',
+               ),
+             ]),
+       _hasAcceptedAnswerFallback = hasAcceptedAnswer;
 
   factory TopicDetail.fromJson(Map<String, dynamic> json) {
     var postStream = PostStream.fromJson(
@@ -1553,13 +1705,10 @@ class TopicDetail {
             as List<dynamic>?;
     PostStream.injectBadges(postStream.posts, json, rawPosts);
 
-    final acceptedAnswerPostNumber = resolveAcceptedAnswerPostNumber(
-      json,
-      postStream,
-    );
+    final acceptedAnswers = resolveAcceptedAnswers(json, postStream);
     final acceptedAnswerData = json['accepted_answer'];
     final hasAcceptedAnswer =
-        acceptedAnswerPostNumber != null ||
+        acceptedAnswers.isNotEmpty ||
         (acceptedAnswerData != null && acceptedAnswerData != false) ||
         (json['has_accepted_answer'] as bool? ?? false);
 
@@ -1658,7 +1807,7 @@ class TopicDetail {
       bookmarkName: topicBookmarkName,
       bookmarkReminderAt: topicBookmarkReminderAt,
       hasAcceptedAnswer: hasAcceptedAnswer,
-      acceptedAnswerPostNumber: acceptedAnswerPostNumber,
+      acceptedAnswers: acceptedAnswers,
     );
   }
 
@@ -1697,7 +1846,24 @@ class TopicDetail {
     bool clearBookmarkReminderAt = false,
     bool? hasAcceptedAnswer,
     int? acceptedAnswerPostNumber,
+    List<AcceptedAnswer>? acceptedAnswers,
   }) {
+    final nextAcceptedAnswers =
+        acceptedAnswers ??
+        (acceptedAnswerPostNumber == null
+            ? this.acceptedAnswers
+            : [
+                AcceptedAnswer(
+                  postNumber: acceptedAnswerPostNumber,
+                  username: '',
+                ),
+              ]);
+    final nextHasAcceptedAnswer =
+        hasAcceptedAnswer ??
+        (acceptedAnswers != null || acceptedAnswerPostNumber != null
+            ? nextAcceptedAnswers.isNotEmpty
+            : this.hasAcceptedAnswer);
+
     return TopicDetail(
       id: id ?? this.id,
       title: title ?? this.title,
@@ -1731,9 +1897,8 @@ class TopicDetail {
       bookmarkReminderAt: clearBookmarkReminderAt
           ? null
           : (bookmarkReminderAt ?? this.bookmarkReminderAt),
-      hasAcceptedAnswer: hasAcceptedAnswer ?? this.hasAcceptedAnswer,
-      acceptedAnswerPostNumber:
-          acceptedAnswerPostNumber ?? this.acceptedAnswerPostNumber,
+      hasAcceptedAnswer: nextHasAcceptedAnswer,
+      acceptedAnswers: nextAcceptedAnswers,
     );
   }
 }

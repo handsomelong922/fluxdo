@@ -120,6 +120,7 @@ flutter:
     - assets/logo_modern_light.svg
     - assets/images/
     - assets/certs/
+    - assets/polyfill/
 
   fonts:
     - family: MiSans

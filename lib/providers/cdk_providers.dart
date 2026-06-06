@@ -6,14 +6,17 @@ import '../services/cdk_oauth_service.dart';
 import '../services/network/exceptions/oauth_exception.dart';
 import 'core_providers.dart';
 
-final cdkUserInfoProvider = AsyncNotifierProvider<CdkUserInfoNotifier, CdkUserInfo?>(() {
-  return CdkUserInfoNotifier();
-});
+final cdkUserInfoProvider =
+    AsyncNotifierProvider<CdkUserInfoNotifier, CdkUserInfo?>(() {
+      return CdkUserInfoNotifier();
+    });
 
 class CdkUserInfoNotifier extends AsyncNotifier<CdkUserInfo?> {
   static const String _cacheKey = 'cdk_user_info';
   static const String _cdkEnabledKey = 'cdk_enabled';
   static const String _cacheUserKey = 'cdk_user_info_username';
+
+  Future<CdkUserInfo?>? _inFlightFetch;
 
   @override
   Future<CdkUserInfo?> build() async {
@@ -36,7 +39,9 @@ class CdkUserInfoNotifier extends AsyncNotifier<CdkUserInfo?> {
         if (cachedUser != null && cachedUser != currentUser.username) {
           await _clearCache(prefs);
         } else {
-          cachedInfo = CdkUserInfo.fromJson(jsonDecode(cached) as Map<String, dynamic>);
+          cachedInfo = CdkUserInfo.fromJson(
+            jsonDecode(cached) as Map<String, dynamic>,
+          );
         }
       } catch (_) {
         // 缓存损坏，忽略
@@ -55,7 +60,13 @@ class CdkUserInfoNotifier extends AsyncNotifier<CdkUserInfo?> {
     }
   }
 
-  Future<CdkUserInfo?> _fetchUserInfo() async {
+  Future<CdkUserInfo?> _fetchUserInfo() {
+    return _inFlightFetch ??= _doFetchUserInfo().whenComplete(
+      () => _inFlightFetch = null,
+    );
+  }
+
+  Future<CdkUserInfo?> _doFetchUserInfo() async {
     final prefs = await SharedPreferences.getInstance();
     final enabled = prefs.getBool(_cdkEnabledKey) ?? false;
 

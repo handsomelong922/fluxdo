@@ -1039,12 +1039,17 @@ class _CfChallengePageState extends State<CfChallengePage> {
                                     AppConstants.webViewUserAgentOverride,
                                 mediaPlaybackRequiresUserGesture: false,
                               ),
+                              initialUserScripts:
+                                  WebViewSettings.compatPolyfillScripts,
                               onReceivedServerTrustAuthRequest: (_, challenge) =>
                                   WebViewSettings.handleServerTrustAuthRequest(
                                     challenge,
                                   ),
                               onWebViewCreated: (controller) {
                                 _controller = controller;
+                                WebViewSettings.registerJsErrorReporter(
+                                  controller,
+                                );
                                 // 注册 JS Handler，challenge-platform 响应到达时触发
                                 controller.addJavaScriptHandler(
                                   handlerName: 'onChallengeComplete',

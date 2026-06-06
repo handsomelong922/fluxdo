@@ -6874,6 +6874,18 @@ abstract class AppLocalizations {
   /// **'查看最佳答案'**
   String get post_viewBestAnswer;
 
+  /// No description provided for @post_solutionsCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 解决方案'**
+  String post_solutionsCount(int count);
+
+  /// No description provided for @post_readMore.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读更多'**
+  String get post_readMore;
+
   /// No description provided for @post_viewHiddenInfo.
   ///
   /// In zh, this message translates to:
@@ -8553,18 +8565,6 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'高级'**
   String get preferences_advanced;
-
-  /// No description provided for @preferences_androidNativeCdp.
-  ///
-  /// In zh, this message translates to:
-  /// **'WebView Cookie 同步'**
-  String get preferences_androidNativeCdp;
-
-  /// No description provided for @preferences_androidNativeCdpDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'优先使用原生 CDP；异常时可关闭并回退兼容模式。'**
-  String get preferences_androidNativeCdpDesc;
 
   /// No description provided for @preferences_anonymousShare.
   ///

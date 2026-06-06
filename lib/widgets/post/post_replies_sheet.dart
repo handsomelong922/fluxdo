@@ -531,7 +531,7 @@ class _PostRepliesSheetContentState
             post: post,
             topicId: widget.topicId,
             topicHasAcceptedAnswer: false,
-            acceptedAnswerPostNumber: null,
+            acceptedAnswers: const [],
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
             onReply: _isLoggedIn ? () => _handleReply(post) : null,
             onReplyWithInitialContent: _isLoggedIn

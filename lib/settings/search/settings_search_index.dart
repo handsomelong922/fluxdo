@@ -4,7 +4,6 @@ import '../../l10n/s.dart';
 import '../../pages/appearance_page.dart';
 import '../../pages/bottom_nav_settings_page.dart';
 import '../../pages/data_management_page.dart';
-import '../../pages/ai_prompt_settings_page.dart'; // CUSTOM: AI Prompt Settings
 import '../../pages/network_settings_page/network_settings_page.dart';
 import '../../pages/preferences_page.dart';
 import '../../pages/reading_settings_page.dart';
@@ -165,19 +164,6 @@ List<SettingsSearchResult> buildSearchIndex(BuildContext context) {
       categoryIcon: Icons.person_off_rounded,
       categoryColor: Colors.red,
       pageBuilder: ({highlightId}) => const UserFilterPage(),
-    ),
-    SettingsSearchResult(
-      model: ActionModel(
-        id: 'custom_ai_prompt_settings',
-        title: 'AI 提示词配置',
-        subtitle: '配置 AI 总结、回复、标题生成和搜索助手 prompt',
-        icon: Icons.smart_toy_rounded,
-        onTap: (context, ref) {},
-      ),
-      categoryName: '自定义功能',
-      categoryIcon: Icons.smart_toy_rounded,
-      categoryColor: Colors.cyan,
-      pageBuilder: ({highlightId}) => const AiPromptSettingsPage(),
     ),
   ];
 }

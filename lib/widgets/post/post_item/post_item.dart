@@ -30,7 +30,7 @@ class PostItem extends ConsumerStatefulWidget {
   final bool highlight;
   final bool isTopicOwner;
   final bool topicHasAcceptedAnswer;
-  final int? acceptedAnswerPostNumber;
+  final List<AcceptedAnswer> acceptedAnswers;
   final String? dateSeparatorLabel;
   final String? bottomDateSeparatorLabel;
   final void Function(String selectedText, Post post)? onQuoteSelection;
@@ -60,7 +60,7 @@ class PostItem extends ConsumerStatefulWidget {
     this.highlightBoostUsername,
     this.isTopicOwner = false,
     this.topicHasAcceptedAnswer = false,
-    this.acceptedAnswerPostNumber,
+    this.acceptedAnswers = const [],
     this.dateSeparatorLabel,
     this.bottomDateSeparatorLabel,
     this.onQuoteSelection,
@@ -93,14 +93,16 @@ class _PostItemState extends ConsumerState<PostItem> {
   void didUpdateWidget(PostItem oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.post != widget.post ||
-        oldWidget.acceptedAnswerPostNumber != widget.acceptedAnswerPostNumber) {
+        oldWidget.acceptedAnswers != widget.acceptedAnswers) {
       _acceptedAnswer = _isAcceptedAnswer(widget);
     }
   }
 
   bool _isAcceptedAnswer(PostItem candidate) {
     return candidate.post.acceptedAnswer ||
-        candidate.post.postNumber == candidate.acceptedAnswerPostNumber;
+        candidate.acceptedAnswers.any(
+          (answer) => answer.postNumber == candidate.post.postNumber,
+        );
   }
 
   @override
@@ -262,7 +264,7 @@ class _PostItemState extends ConsumerState<PostItem> {
                 post: post,
                 topicId: widget.topicId,
                 topicHasAcceptedAnswer: widget.topicHasAcceptedAnswer,
-                acceptedAnswerPostNumber: widget.acceptedAnswerPostNumber,
+                acceptedAnswers: widget.acceptedAnswers,
                 padding: const EdgeInsets.only(top: 12),
                 highlightBoostUsername: widget.highlightBoostUsername,
                 onReply: widget.onReply,

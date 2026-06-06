@@ -6,14 +6,17 @@ import '../services/ldc_oauth_service.dart';
 import '../services/network/exceptions/oauth_exception.dart';
 import 'core_providers.dart';
 
-final ldcUserInfoProvider = AsyncNotifierProvider<LdcUserInfoNotifier, LdcUserInfo?>(() {
-  return LdcUserInfoNotifier();
-});
+final ldcUserInfoProvider =
+    AsyncNotifierProvider<LdcUserInfoNotifier, LdcUserInfo?>(() {
+      return LdcUserInfoNotifier();
+    });
 
 class LdcUserInfoNotifier extends AsyncNotifier<LdcUserInfo?> {
   static const String _cacheKey = 'ldc_user_info';
   static const String _ldcEnabledKey = 'ldc_enabled';
   static const String _cacheUserKey = 'ldc_user_info_username';
+
+  Future<LdcUserInfo?>? _inFlightFetch;
 
   @override
   Future<LdcUserInfo?> build() async {
@@ -36,7 +39,9 @@ class LdcUserInfoNotifier extends AsyncNotifier<LdcUserInfo?> {
         if (cachedUser != null && cachedUser != currentUser.username) {
           await _clearCache(prefs);
         } else {
-          cachedInfo = LdcUserInfo.fromJson(jsonDecode(cached) as Map<String, dynamic>);
+          cachedInfo = LdcUserInfo.fromJson(
+            jsonDecode(cached) as Map<String, dynamic>,
+          );
         }
       } catch (_) {
         // 缓存损坏，忽略
@@ -55,7 +60,13 @@ class LdcUserInfoNotifier extends AsyncNotifier<LdcUserInfo?> {
     }
   }
 
-  Future<LdcUserInfo?> _fetchUserInfo() async {
+  Future<LdcUserInfo?> _fetchUserInfo() {
+    return _inFlightFetch ??= _doFetchUserInfo().whenComplete(
+      () => _inFlightFetch = null,
+    );
+  }
+
+  Future<LdcUserInfo?> _doFetchUserInfo() async {
     final prefs = await SharedPreferences.getInstance();
     final enabled = prefs.getBool(_ldcEnabledKey) ?? false;
 
@@ -66,7 +77,9 @@ class LdcUserInfoNotifier extends AsyncNotifier<LdcUserInfo?> {
     final gamificationScore = currentUser.gamificationScore;
 
     final service = LdcOAuthService();
-    final userInfo = await service.getUserInfo(gamificationScore: gamificationScore);
+    final userInfo = await service.getUserInfo(
+      gamificationScore: gamificationScore,
+    );
 
     if (userInfo != null) {
       await prefs.setString(_cacheKey, jsonEncode(userInfo.toJson()));

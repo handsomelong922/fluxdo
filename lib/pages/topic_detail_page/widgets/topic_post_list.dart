@@ -722,7 +722,7 @@ class _TopicPostListState extends State<TopicPostList> {
           highlightBoostUsername: boostUsername,
           isTopicOwner: detail.createdBy?.username == post.username,
           topicHasAcceptedAnswer: detail.hasAcceptedAnswer,
-          acceptedAnswerPostNumber: detail.acceptedAnswerPostNumber,
+          acceptedAnswers: detail.acceptedAnswers,
           dateSeparatorLabel: dateSeparatorLabel,
           bottomDateSeparatorLabel: bottomDateSeparatorLabel,
           onLike: () => ToastService.showInfo(S.current.ai_likeInDev),
@@ -787,7 +787,7 @@ class _TopicPostListState extends State<TopicPostList> {
           highlight: highlight,
           highlightBoostUsername: boostUsername,
           topicHasAcceptedAnswer: detail.hasAcceptedAnswer,
-          acceptedAnswerPostNumber: detail.acceptedAnswerPostNumber,
+          acceptedAnswers: detail.acceptedAnswers,
           bottomDateSeparatorLabel: bottomDateSeparatorLabel,
           onReply: isLoggedIn
               ? () => onReply(post.postNumber == 1 ? null : post)

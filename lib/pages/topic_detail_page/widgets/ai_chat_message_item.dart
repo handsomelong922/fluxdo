@@ -87,11 +87,11 @@ class AiChatMessageItem extends StatelessWidget {
         constraints: BoxConstraints(
           maxWidth: inSelectionMode
               ? double.infinity
-              : MediaQuery.of(context).size.width * 0.78,
+              : MediaQuery.of(context).size.width * 0.86,
         ),
         margin: inSelectionMode
             ? const EdgeInsets.only(top: 4, bottom: 4)
-            : const EdgeInsets.only(left: 48, right: 16, top: 4, bottom: 4),
+            : const EdgeInsets.only(left: 28, right: 8, top: 4, bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: theme.colorScheme.primaryContainer,
@@ -122,6 +122,7 @@ class AiChatMessageItem extends StatelessWidget {
     final isCompleted = message.status == MessageStatus.completed;
     final hasContent = message.content.isNotEmpty;
     final showActions = isCompleted && hasContent && !inSelectionMode;
+    final markdownContent = _displayMarkdownContent(isStreaming: isStreaming);
 
     return Align(
       alignment: Alignment.centerLeft,
@@ -129,12 +130,12 @@ class AiChatMessageItem extends StatelessWidget {
         constraints: BoxConstraints(
           maxWidth: inSelectionMode
               ? double.infinity
-              : MediaQuery.of(context).size.width * 0.85,
+              : MediaQuery.of(context).size.width * 0.96,
         ),
         margin: inSelectionMode
             ? const EdgeInsets.only(top: 4, bottom: 4)
-            : const EdgeInsets.only(left: 16, right: 48, top: 4, bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            : const EdgeInsets.only(left: 8, right: 8, top: 4, bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerLow,
           borderRadius: const BorderRadius.only(
@@ -153,7 +154,7 @@ class AiChatMessageItem extends StatelessWidget {
             ] else ...[
               if (message.content.isNotEmpty)
                 MarkdownBody(
-                  data: '${message.content}${isStreaming ? ' ▊' : ''}',
+                  data: markdownContent,
                   onInternalLinkTap: onInternalLinkTap,
                 ),
               if (message.content.isEmpty && isStreaming)
@@ -176,6 +177,64 @@ class AiChatMessageItem extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _displayMarkdownContent({required bool isStreaming}) {
+    final content = _stripWrappingMarkdownFence(
+      message.content,
+      allowOpenFence: isStreaming,
+    );
+    return isStreaming ? '$content ▊' : content;
+  }
+
+  String _stripWrappingMarkdownFence(
+    String raw, {
+    required bool allowOpenFence,
+  }) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return raw;
+
+    final closedFence = RegExp(
+      r'^```([^\r\n`]*)\r?\n([\s\S]*?)\r?\n```\s*$',
+      caseSensitive: false,
+    ).firstMatch(trimmed);
+    if (closedFence != null) {
+      final language = closedFence.group(1)?.trim().toLowerCase() ?? '';
+      final body = closedFence.group(2) ?? '';
+      if (_shouldUnwrapFence(language, body)) {
+        return body.trim();
+      }
+    }
+
+    if (allowOpenFence) {
+      final openFence = RegExp(
+        r'^```([^\r\n`]*)\r?\n([\s\S]*)$',
+        caseSensitive: false,
+      ).firstMatch(trimmed);
+      if (openFence != null && !trimmed.endsWith('```')) {
+        final language = openFence.group(1)?.trim().toLowerCase() ?? '';
+        final body = openFence.group(2) ?? '';
+        if (_shouldUnwrapFence(language, body)) {
+          return body.trimRight();
+        }
+      }
+    }
+
+    return raw;
+  }
+
+  bool _shouldUnwrapFence(String language, String body) {
+    if (language == 'markdown' || language == 'md') {
+      return true;
+    }
+    if (language.isNotEmpty) return false;
+    return _looksLikeMarkdownDocument(body);
+  }
+
+  bool _looksLikeMarkdownDocument(String body) {
+    return RegExp(
+      r'(^|\n)\s{0,3}(#{1,6}\s|\*{1,2}[^*\n]+\*{1,2}|[-*+]\s+|\d+\.\s+|>\s+)',
+    ).hasMatch(body);
   }
 
   Widget _buildStreamingIndicator(BuildContext context) {

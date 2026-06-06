@@ -11,6 +11,8 @@ import '../models/ldc_user_info.dart';
 
 class LdcOAuthService {
   static const String baseUrl = 'https://credit.linux.do';
+  static const Duration _stepGap = Duration(milliseconds: 400);
+
   late final Dio _dio;
 
   LdcOAuthService() {
@@ -80,6 +82,7 @@ class LdcOAuthService {
 
   Future<bool> authorizeSilently() async {
     final authUrl = await _loadAuthUrl();
+    await Future.delayed(_stepGap);
     final response = await _loadAuthPage(authUrl);
 
     if (await _tryCallbackFromLocation(response.headers.value('location'))) {
@@ -97,6 +100,7 @@ class LdcOAuthService {
 
   Future<bool> authorize(BuildContext context) async {
     final authUrl = await _loadAuthUrl();
+    await Future.delayed(_stepGap);
     final response = await _loadAuthPage(authUrl);
 
     if (await _tryCallbackFromLocation(response.headers.value('location'))) {
@@ -120,6 +124,7 @@ class LdcOAuthService {
       if (callbackResult == null) {
         return false;
       }
+      await Future.delayed(_stepGap);
       await callback(callbackResult.code, callbackResult.state);
       return true;
     }
@@ -185,6 +190,7 @@ class LdcOAuthService {
     if (code == null || state == null) {
       return false;
     }
+    await Future.delayed(_stepGap);
     await callback(code, state);
     return true;
   }
@@ -193,6 +199,7 @@ class LdcOAuthService {
     final approveUri = Uri.parse(
       'https://connect.linux.do',
     ).resolve(approveLink);
+    await Future.delayed(_stepGap);
     final approveResponse = await _dio.get(
       approveUri.toString(),
       options: Options(
@@ -219,6 +226,7 @@ class LdcOAuthService {
       throw Exception(S.current.oauth_missingParams);
     }
 
+    await Future.delayed(_stepGap);
     await callback(code, state);
   }
 }

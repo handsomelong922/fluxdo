@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/search_result.dart';
-import '../../pages/ai_prompt_settings_page.dart';
+import '../../pages/ai_model_service_page.dart';
 import '../../pages/topic_detail_page/topic_detail_page.dart';
 import '../../providers/search_ai_chat_provider.dart';
 import '../../services/settings/ai_prompt_settings_service.dart';
@@ -125,10 +125,10 @@ class _SearchAiChatCardState extends ConsumerState<SearchAiChatCard> {
     );
   }
 
-  void _openPromptSettings() {
+  void _openAiModelService() {
     Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => const AiPromptSettingsPage()));
+    ).push(MaterialPageRoute(builder: (_) => const AiModelServicePage()));
   }
 
   @override
@@ -207,8 +207,8 @@ class _SearchAiChatCardState extends ConsumerState<SearchAiChatCard> {
           ),
           IconButton(
             icon: const Icon(Icons.tune_rounded, size: 18),
-            tooltip: '搜索助手提示词',
-            onPressed: _openPromptSettings,
+            tooltip: 'AI 模型与提示词',
+            onPressed: _openAiModelService,
             visualDensity: VisualDensity.compact,
           ),
           if (state.messages.isNotEmpty) ...[
@@ -262,7 +262,7 @@ class _SearchAiChatCardState extends ConsumerState<SearchAiChatCard> {
           TextButton(
             onPressed: () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AiProvidersPage()),
+                MaterialPageRoute(builder: (_) => const AiModelServicePage()),
               );
             },
             child: const Text('去配置'),

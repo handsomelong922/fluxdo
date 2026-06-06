@@ -282,8 +282,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                     topicId: widget.topicId,
                     isTopicOwner: true,
                     topicHasAcceptedAnswer: widget.detail.hasAcceptedAnswer,
-                    acceptedAnswerPostNumber:
-                        widget.detail.acceptedAnswerPostNumber,
+                    acceptedAnswers: widget.detail.acceptedAnswers,
                     searchHighlightQuery: widget.searchHighlightQuery,
                     onReply: widget.isLoggedIn
                         ? () => widget.onReply(null)

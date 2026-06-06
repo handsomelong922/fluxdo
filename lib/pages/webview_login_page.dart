@@ -188,7 +188,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                         ),
                       ),
                       initialSettings: WebViewSettings.login,
-                      initialUserScripts: WebViewSettings.ios15PolyfillScripts,
+                      initialUserScripts: WebViewSettings.compatPolyfillScripts,
                       shouldOverrideUrlLoading: _shouldOverrideUrlLoading,
                       onCreateWindow: _handleCreateWindow,
                       onReceivedServerTrustAuthRequest: (_, challenge) =>
@@ -197,6 +197,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                           ),
                       onWebViewCreated: (controller) {
                         _controller = controller;
+                        WebViewSettings.registerJsErrorReporter(controller);
                         // 注册 JS Handler，用于在登录按钮点击时接收凭证
                         controller.addJavaScriptHandler(
                           handlerName: 'onLoginCredentials',

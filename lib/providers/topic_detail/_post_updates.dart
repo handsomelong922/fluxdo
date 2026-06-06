@@ -158,10 +158,17 @@ extension PostUpdateMethods on TopicDetailNotifier {
     );
   }
 
-  /// 更新帖子的解决方案状态
+  /// 更新帖子的解决方案状态。
+  ///
+  /// 单解决方案模式会清空其他已采纳答案；多解决方案模式只切换当前帖子。
   void updatePostSolution(int postId, bool accepted) {
     final currentDetail = state.value;
     if (currentDetail == null) return;
+
+    final allowMultiple =
+        PreloadedDataService()
+            .siteSettingsSync?['solved_allow_multiple_solutions'] ==
+        true;
 
     final currentPosts = currentDetail.postStream.posts;
     final newPosts = currentPosts.map((post) {
@@ -170,17 +177,18 @@ extension PostUpdateMethods on TopicDetailNotifier {
           acceptedAnswer: accepted,
           canUnacceptAnswer: accepted,
         );
-      } else if (accepted && post.acceptedAnswer) {
+      } else if (accepted && !allowMultiple && post.acceptedAnswer) {
         return post.copyWith(acceptedAnswer: false, canUnacceptAnswer: false);
       }
       return post;
     }).toList();
 
-    int? acceptedPostNumber;
-    if (accepted) {
-      final acceptedPost = newPosts.firstWhere((p) => p.id == postId);
-      acceptedPostNumber = acceptedPost.postNumber;
-    }
+    final acceptedAnswers =
+        newPosts
+            .where((post) => post.acceptedAnswer)
+            .map((post) => AcceptedAnswer.fromPost(post))
+            .toList()
+          ..sort((a, b) => a.postNumber.compareTo(b.postNumber));
 
     state = AsyncValue.data(
       currentDetail.copyWith(
@@ -189,8 +197,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
           stream: currentDetail.postStream.stream,
           gaps: currentDetail.postStream.gaps,
         ),
-        hasAcceptedAnswer: accepted,
-        acceptedAnswerPostNumber: acceptedPostNumber,
+        acceptedAnswers: acceptedAnswers,
       ),
     );
   }
@@ -375,8 +382,9 @@ extension PostUpdateMethods on TopicDetailNotifier {
   /// 添加话题书签
   Future<int> addTopicBookmark() async {
     final currentDetail = state.value;
-    if (currentDetail == null)
+    if (currentDetail == null) {
       throw Exception(S.current.error_topicDetailEmpty);
+    }
 
     final service = ref.read(discourseServiceProvider);
     final newBookmarkId = await service.bookmarkTopic(currentDetail.id);
@@ -446,7 +454,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
   void removeBoostFromPost(int postId, int boostId) {
     _updatePostById(postId, (post) {
       final currentBoosts = List<Boost>.from(post.boosts ?? []);
-      final removed = currentBoosts.removeWhere((b) => b.id == boostId);
+      currentBoosts.removeWhere((b) => b.id == boostId);
       // 删除后可能恢复 canBoost，但这取决于是否是自己的 boost
       // 由于 MessageBus 不携带这个信息，保守处理不改变 canBoost
       return post.copyWith(boosts: currentBoosts);
@@ -475,8 +483,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
           tags: newDetail.tags,
           categoryId: newDetail.categoryId,
           notificationLevel: newDetail.notificationLevel,
-          hasAcceptedAnswer: newDetail.hasAcceptedAnswer,
-          acceptedAnswerPostNumber: newDetail.acceptedAnswerPostNumber,
+          acceptedAnswers: newDetail.acceptedAnswers,
           canEdit: newDetail.canEdit,
           bookmarked: newDetail.bookmarked,
           bookmarkId: newDetail.bookmarkId,

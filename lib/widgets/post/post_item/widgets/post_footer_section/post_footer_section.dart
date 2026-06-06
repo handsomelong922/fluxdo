@@ -43,7 +43,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
   final Post post;
   final int topicId;
   final bool topicHasAcceptedAnswer;
-  final int? acceptedAnswerPostNumber;
+  final List<AcceptedAnswer> acceptedAnswers;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onReply;
   final void Function(String initialContent)? onReplyWithInitialContent;
@@ -79,7 +79,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
     required this.post,
     required this.topicId,
     required this.topicHasAcceptedAnswer,
-    required this.acceptedAnswerPostNumber,
+    this.acceptedAnswers = const [],
     required this.padding,
     required this.onReply,
     this.onReplyWithInitialContent,
@@ -385,9 +385,9 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
           ),
           if (widget.post.postNumber == 1 &&
               widget.topicHasAcceptedAnswer &&
-              widget.acceptedAnswerPostNumber != null)
+              widget.acceptedAnswers.isNotEmpty)
             PostSolutionBanner(
-              acceptedAnswerPostNumber: widget.acceptedAnswerPostNumber,
+              acceptedAnswers: widget.acceptedAnswers,
               onJumpToPost: widget.onJumpToPost,
             ),
           const SizedBox(height: 12),

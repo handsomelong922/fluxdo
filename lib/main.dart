@@ -61,6 +61,7 @@ import 'services/download_service.dart';
 import 'services/migration_service.dart';
 import 'services/navigation/app_route_observer.dart';
 import 'services/window_state_service.dart';
+import 'services/webview_settings.dart';
 import 'services/windows_webview_environment_service.dart';
 import 'services/metaverse_auto_auth_service.dart';
 import 'models/user.dart';
@@ -154,6 +155,7 @@ Future<void> main() async {
     CsrfTokenService().init(),
     BackgroundNotificationService().initialize(),
     TimeUtils.initialize(),
+    WebViewSettings.preloadPolyfill(),
   ];
   // 桌面平台初始化 window_manager 和 flutter_acrylic
   if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {

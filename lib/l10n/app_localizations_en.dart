@@ -3742,6 +3742,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get post_viewBestAnswer => 'View best answer';
 
   @override
+  String post_solutionsCount(int count) {
+    return '$count solutions';
+  }
+
+  @override
+  String get post_readMore => 'Read more';
+
+  @override
   String get post_viewHiddenInfo => 'View hidden info';
 
   @override
@@ -4689,13 +4697,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get preferences_advanced => 'Advanced';
-
-  @override
-  String get preferences_androidNativeCdp => 'WebView cookie sync';
-
-  @override
-  String get preferences_androidNativeCdpDesc =>
-      'Uses native CDP first. Disable to fall back to compatibility mode.';
 
   @override
   String get preferences_anonymousShare => 'Anonymous share';

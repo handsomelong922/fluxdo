@@ -4,7 +4,7 @@ import '../../../widgets/topic/topic_progress.dart';
 import 'topic_bottom_bar.dart';
 
 const topicDetailBarAnimationDuration = Duration(milliseconds: 200);
-const topicDetailBarAnimationCurve = Curves.linear;
+const topicDetailBarAnimationCurve = Curves.easeOutCubic;
 
 /// 话题详情页浮层
 /// 包含进度栏、底部操作栏和悬浮回复按钮
@@ -64,77 +64,118 @@ class TopicDetailOverlay extends StatelessWidget {
     final progressPercent = totalCount > 1
         ? (currentStreamIndex - 1) / (totalCount - 1)
         : 0.0;
+    const progressVisibleBottom = 96.0;
+    final progressHiddenBottom = 24.0 + bottomPadding;
+    final progressHiddenOffsetY = progressVisibleBottom - progressHiddenBottom;
+
+    const bottomBarVisibleBottom = 8.0;
+    const bottomBarHiddenBottom = -88.0;
+    const bottomBarHiddenOffsetY =
+        bottomBarVisibleBottom - bottomBarHiddenBottom;
+
+    final fabVisibleBottom = bottomPadding + (80 - bottomPadding - 56) / 2;
+    final fabHiddenBottom = 16.0 + bottomPadding;
+    final fabHiddenOffsetY = fabVisibleBottom - fabHiddenBottom;
 
     return Stack(
       children: [
         // 固定的进度栏
         if (showProgress)
-          AnimatedPositioned(
+          Positioned(
             key: const ValueKey('progress_bar'),
-            duration: topicDetailBarAnimationDuration,
-            curve: topicDetailBarAnimationCurve,
-            bottom: showBottomBar ? 96 : 24 + bottomPadding,
+            bottom: progressVisibleBottom,
             left: 0,
             right: 0,
-            child: Center(
-              child: TopicProgress(
-                currentIndex: currentStreamIndex,
-                totalCount: totalCount,
-                progressPercent: progressPercent,
-                onTap: onProgressTap,
+            child: _PaintOffsetTransition(
+              offsetY: showBottomBar ? 0 : progressHiddenOffsetY,
+              child: Center(
+                child: TopicProgress(
+                  currentIndex: currentStreamIndex,
+                  totalCount: totalCount,
+                  progressPercent: progressPercent,
+                  onTap: onProgressTap,
+                ),
               ),
             ),
           ),
         // 底部操作栏
-        AnimatedPositioned(
+        Positioned(
           key: const ValueKey('bottom_bar'),
-          duration: topicDetailBarAnimationDuration,
-          curve: topicDetailBarAnimationCurve,
           left: 16,
           right: 16,
-          bottom: showBottomBar ? 8 : -88,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 360),
-              child: TopicBottomBar(
-                onScrollToTop: onScrollToTop,
-                onShare: onShare,
-                onShareAsImage: onShareAsImage,
-                onExport: onExport,
-                onBookmark: onBookmark,
-                onBookmarkLongPress: onBookmarkLongPress,
-                hasSummary: detail.hasSummary,
-                isBookmarked: detail.bookmarked,
-                isSummaryMode: isSummaryMode,
-                isAuthorOnlyMode: isAuthorOnlyMode,
-                isTopLevelMode: isTopLevelMode,
-                isLoading: isLoading,
-                isPrivateMessage: detail.isPrivateMessage,
-                onShowTopReplies: onShowTopReplies,
-                onShowAuthorOnly: onShowAuthorOnly,
-                onShowTopLevelReplies: onShowTopLevelReplies,
-                onCancelFilter: onCancelFilter,
+          bottom: bottomBarVisibleBottom,
+          child: IgnorePointer(
+            ignoring: !showBottomBar,
+            child: _PaintOffsetTransition(
+              offsetY: showBottomBar ? 0 : bottomBarHiddenOffsetY,
+              child: AnimatedOpacity(
+                opacity: showBottomBar ? 1 : 0,
+                duration: topicDetailBarAnimationDuration,
+                curve: topicDetailBarAnimationCurve,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 360),
+                    child: TopicBottomBar(
+                      onScrollToTop: onScrollToTop,
+                      onShare: onShare,
+                      onShareAsImage: onShareAsImage,
+                      onExport: onExport,
+                      onBookmark: onBookmark,
+                      onBookmarkLongPress: onBookmarkLongPress,
+                      hasSummary: detail.hasSummary,
+                      isBookmarked: detail.bookmarked,
+                      isSummaryMode: isSummaryMode,
+                      isAuthorOnlyMode: isAuthorOnlyMode,
+                      isTopLevelMode: isTopLevelMode,
+                      isLoading: isLoading,
+                      isPrivateMessage: detail.isPrivateMessage,
+                      onShowTopReplies: onShowTopReplies,
+                      onShowAuthorOnly: onShowAuthorOnly,
+                      onShowTopLevelReplies: onShowTopLevelReplies,
+                      onCancelFilter: onCancelFilter,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
         ),
         // 悬浮回复按钮
         if (isLoggedIn)
-          AnimatedPositioned(
+          Positioned(
             key: const ValueKey('fab_reply'),
-            duration: topicDetailBarAnimationDuration,
-            curve: topicDetailBarAnimationCurve,
             right: 16,
-            bottom: showBottomBar
-                ? bottomPadding + (80 - bottomPadding - 56) / 2
-                : 16 + bottomPadding,
-            child: FloatingActionButton(
-              heroTag: 'replyTopic',
-              onPressed: onReply,
-              child: const Icon(Icons.reply),
+            bottom: fabVisibleBottom,
+            child: _PaintOffsetTransition(
+              offsetY: showBottomBar ? 0 : fabHiddenOffsetY,
+              child: FloatingActionButton(
+                heroTag: 'replyTopic',
+                onPressed: onReply,
+                child: const Icon(Icons.reply),
+              ),
             ),
           ),
       ],
+    );
+  }
+}
+
+class _PaintOffsetTransition extends StatelessWidget {
+  const _PaintOffsetTransition({required this.offsetY, required this.child});
+
+  final double offsetY;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: offsetY),
+      duration: topicDetailBarAnimationDuration,
+      curve: topicDetailBarAnimationCurve,
+      builder: (context, value, child) {
+        return Transform.translate(offset: Offset(0, value), child: child);
+      },
+      child: child,
     );
   }
 }

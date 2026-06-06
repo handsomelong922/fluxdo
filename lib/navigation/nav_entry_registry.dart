@@ -8,6 +8,7 @@ import '../pages/browsing_history_page.dart';
 import '../pages/drafts_page.dart';
 import '../pages/private_messages_page.dart';
 import '../pages/profile_page.dart';
+import '../pages/settings_page.dart';
 import '../pages/topics_screen.dart';
 import '../providers/discourse_providers.dart';
 import '../widgets/common/smart_avatar.dart';
@@ -51,6 +52,19 @@ class NavEntryRegistry {
             _profileIcon(ctx, ref, selected: true),
       ),
       NavEntry(
+        id: NavEntryIds.settings,
+        kind: NavEntryKind.action,
+        iconData: Icons.settings_outlined,
+        selectedIconData: Icons.settings_rounded,
+        label: (ctx) => ctx.l10n.settings_title,
+        onAction: (ctx, ref) => Navigator.of(ctx).push(
+          MaterialPageRoute(
+            settings: const RouteSettings(name: 'settings'),
+            builder: (_) => const SettingsPage(),
+          ),
+        ),
+      ),
+      NavEntry(
         id: NavEntryIds.bookmarks,
         kind: NavEntryKind.page,
         iconData: Icons.bookmark_outline_rounded,
@@ -65,8 +79,7 @@ class NavEntryRegistry {
         iconData: Icons.history_rounded,
         selectedIconData: Icons.history_rounded,
         label: (ctx) => ctx.l10n.nav_history,
-        pageBuilder: (ctx, isActive) =>
-            BrowsingHistoryPage(isActive: isActive),
+        pageBuilder: (ctx, isActive) => BrowsingHistoryPage(isActive: isActive),
         requiresLogin: true,
       ),
       NavEntry(
@@ -84,8 +97,7 @@ class NavEntryRegistry {
         iconData: Icons.mail_outline_rounded,
         selectedIconData: Icons.mail_rounded,
         label: (ctx) => ctx.l10n.nav_messages,
-        pageBuilder: (ctx, isActive) =>
-            PrivateMessagesPage(isActive: isActive),
+        pageBuilder: (ctx, isActive) => PrivateMessagesPage(isActive: isActive),
         requiresLogin: true,
       ),
       NavEntry(

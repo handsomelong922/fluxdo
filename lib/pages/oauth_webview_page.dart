@@ -173,12 +173,13 @@ class _OAuthWebViewPageState extends State<OAuthWebViewPage> {
                     ),
                     initialSettings: WebViewSettings.visible
                       ..useShouldOverrideUrlLoading = true,
-                    initialUserScripts: WebViewSettings.ios15PolyfillScripts,
+                    initialUserScripts: WebViewSettings.compatPolyfillScripts,
                     shouldOverrideUrlLoading: _shouldOverrideUrlLoading,
                     onReceivedServerTrustAuthRequest: (_, challenge) =>
                         WebViewSettings.handleServerTrustAuthRequest(challenge),
                     onWebViewCreated: (controller) {
                       _controller = controller;
+                      WebViewSettings.registerJsErrorReporter(controller);
                     },
                     onLoadStart: (controller, url) async {
                       if (mounted) {

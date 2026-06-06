@@ -17,6 +17,7 @@ import 'my_badges_page.dart';
 import 'user_profile_page.dart';
 import 'trust_level_requirements_page.dart';
 import 'settings_page.dart';
+import 'ai_model_service_page.dart';
 import '../widgets/common/loading_spinner.dart';
 import '../widgets/common/loading_dialog.dart';
 import '../widgets/common/notification_icon_button.dart';
@@ -24,7 +25,6 @@ import '../widgets/common/flair_badge.dart';
 import '../widgets/common/smart_avatar.dart';
 import '../providers/app_state_refresher.dart';
 import 'metaverse_page.dart';
-import 'package:ai_model_manager/ai_model_manager.dart';
 import 'topic_detail_page/topic_detail_page.dart';
 import 'drafts_page.dart';
 import 'private_messages_page.dart';
@@ -865,7 +865,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => AiProvidersPage(
+                builder: (_) => AiModelServicePage(
                   onOpenSession: (ctx, topicId, sessionId) {
                     Navigator.push(
                       ctx,

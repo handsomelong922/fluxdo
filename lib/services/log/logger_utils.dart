@@ -25,8 +25,9 @@ class LoggerUtils {
   static Future<String> getShareFilePath() async {
     final header = await _buildShareHeader();
     final logFile = await getLogFile();
-    final logContent =
-        logFile.existsSync() ? await logFile.readAsString() : '';
+    final logContent = logFile.existsSync()
+        ? await LogWriter.readContentSafely(logFile)
+        : '';
 
     final dir = logFile.parent;
     final shareFile = File('${dir.path}/app_log_share.jsonl');
@@ -49,7 +50,9 @@ class LoggerUtils {
       final deviceInfo = DeviceInfoPlugin();
       if (Platform.isAndroid) {
         final info = await deviceInfo.androidInfo;
-        buf.writeln('平台: Android ${info.version.release} (SDK ${info.version.sdkInt})');
+        buf.writeln(
+          '平台: Android ${info.version.release} (SDK ${info.version.sdkInt})',
+        );
         buf.writeln('设备: ${info.brand} ${info.model}');
       } else if (Platform.isIOS) {
         final info = await deviceInfo.iosInfo;
@@ -57,7 +60,9 @@ class LoggerUtils {
         buf.writeln('设备: ${info.utsname.machine}');
       } else if (Platform.isMacOS) {
         final info = await deviceInfo.macOsInfo;
-        buf.writeln('平台: macOS ${info.majorVersion}.${info.minorVersion}.${info.patchVersion}');
+        buf.writeln(
+          '平台: macOS ${info.majorVersion}.${info.minorVersion}.${info.patchVersion}',
+        );
         buf.writeln('设备: ${info.model} (${info.arch})');
       } else if (Platform.isLinux) {
         final info = await deviceInfo.linuxInfo;
@@ -90,13 +95,15 @@ class LoggerUtils {
 
     try {
       final pkg = await PackageInfo.fromPlatform();
-      buf.writeln(jsonEncode({
-        '_header': 'app_info',
-        'appName': pkg.appName,
-        'version': pkg.version,
-        'buildNumber': pkg.buildNumber,
-        'packageName': pkg.packageName,
-      }));
+      buf.writeln(
+        jsonEncode({
+          '_header': 'app_info',
+          'appName': pkg.appName,
+          'version': pkg.version,
+          'buildNumber': pkg.buildNumber,
+          'packageName': pkg.packageName,
+        }),
+      );
     } catch (_) {}
 
     try {
@@ -146,7 +153,10 @@ class LoggerUtils {
           'buildNumber': info.buildNumber,
         };
       } else {
-        device = {'_header': 'device_info', 'platform': Platform.operatingSystem};
+        device = {
+          '_header': 'device_info',
+          'platform': Platform.operatingSystem,
+        };
       }
 
       // User-Agent
@@ -247,7 +257,7 @@ class LoggerUtils {
     final file = await getLogFile();
     if (!file.existsSync()) return [];
 
-    final content = await file.readAsString();
+    final content = await LogWriter.readContentSafely(file);
     if (content.trim().isEmpty) return [];
 
     final lines = content.trim().split('\n');
@@ -264,8 +274,8 @@ class LoggerUtils {
         if (json['message'] == null) {
           final customParams =
               json['customParameters'] as Map<String, dynamic>?;
-          json['message'] = customParams?['message']?.toString() ??
-              json['error']?.toString();
+          json['message'] =
+              customParams?['message']?.toString() ?? json['error']?.toString();
           // 同时提升 tag
           json['tag'] ??= customParams?['tag']?.toString();
         }
@@ -282,7 +292,7 @@ class LoggerUtils {
   static Future<String> readLogContent() async {
     final file = await getLogFile();
     if (!file.existsSync()) return '';
-    return file.readAsString();
+    return LogWriter.readContentSafely(file);
   }
 
   /// 清理 14 天前的过期条目
@@ -290,7 +300,7 @@ class LoggerUtils {
     final file = await getLogFile();
     if (!file.existsSync()) return;
 
-    final content = await file.readAsString();
+    final content = await LogWriter.readContentSafely(file);
     if (content.trim().isEmpty) return;
 
     final lines = content.trim().split('\n');

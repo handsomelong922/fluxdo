@@ -5,7 +5,6 @@ import '../l10n/s.dart';
 import '../settings/search/settings_search_index.dart';
 import '../utils/platform_utils.dart';
 import 'about_page.dart';
-import 'ai_prompt_settings_page.dart'; // CUSTOM: AI Prompt Settings
 import 'appearance_page.dart';
 import 'bottom_nav_settings_page.dart';
 import 'data_management_page.dart';
@@ -264,19 +263,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const UserFilterPage()),
-                ),
-              ),
-              _buildDivider(theme),
-              // CUSTOM: AI Prompt Settings
-              _buildOptionTile(
-                icon: Icons.smart_toy_rounded,
-                iconColor: Colors.cyan,
-                title: 'AI 提示词配置',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const AiPromptSettingsPage(),
-                  ),
                 ),
               ),
               _buildDivider(theme),

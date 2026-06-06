@@ -541,7 +541,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     final isOp = widget.detail.createdBy?.username == post.username;
     final isAcceptedAnswer =
         post.acceptedAnswer ||
-        post.postNumber == widget.detail.acceptedAnswerPostNumber;
+        widget.detail.acceptedAnswerPostNumbers.contains(post.postNumber);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,7 +587,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           post: post,
           topicId: widget.topicId,
           topicHasAcceptedAnswer: widget.detail.hasAcceptedAnswer,
-          acceptedAnswerPostNumber: widget.detail.acceptedAnswerPostNumber,
+          acceptedAnswers: widget.detail.acceptedAnswers,
           padding: const EdgeInsets.only(top: 4),
           onReply: widget.isLoggedIn ? () => widget.onReply(post) : null,
           onReplyWithInitialContent:

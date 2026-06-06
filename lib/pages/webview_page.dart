@@ -253,7 +253,7 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
                             initialSettings: WebViewSettings.visible
                               ..useShouldOverrideUrlLoading = true,
                             initialUserScripts:
-                                WebViewSettings.ios15PolyfillScripts,
+                                WebViewSettings.compatPolyfillScripts,
                             shouldOverrideUrlLoading: _shouldOverrideUrlLoading,
                             onReceivedServerTrustAuthRequest: (_, challenge) =>
                                 WebViewSettings.handleServerTrustAuthRequest(
@@ -261,6 +261,9 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
                                 ),
                             onWebViewCreated: (controller) async {
                               _controller = controller;
+                              WebViewSettings.registerJsErrorReporter(
+                                controller,
+                              );
                               if (io.Platform.isWindows &&
                                   widget.url.isNotEmpty) {
                                 await controller.loadUrl(

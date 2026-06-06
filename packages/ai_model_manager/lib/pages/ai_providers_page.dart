@@ -16,7 +16,16 @@ class AiProvidersPage extends ConsumerWidget {
   /// 点击会话时的回调，由外部实现导航逻辑
   final OpenSessionCallback? onOpenSession;
 
-  const AiProvidersPage({super.key, this.onOpenSession});
+  /// 主应用注入的额外聊天设置项。
+  ///
+  /// 这里保持为 Widget 插槽，避免本地 package 反向依赖主应用页面。
+  final List<Widget> extraChatSettings;
+
+  const AiProvidersPage({
+    super.key,
+    this.onOpenSession,
+    this.extraChatSettings = const [],
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -53,8 +62,7 @@ class AiProvidersPage extends ConsumerWidget {
                             icon: Icons.edit_outlined,
                             color: Colors.blue,
                             label: AiL10n.current.edit,
-                            onPressed: () =>
-                                _navigateToEdit(context, provider),
+                            onPressed: () => _navigateToEdit(context, provider),
                           ),
                           SwipeAction(
                             icon: Icons.delete_outline,
@@ -66,8 +74,7 @@ class AiProvidersPage extends ConsumerWidget {
                         ],
                         child: _ProviderCard(
                           provider: provider,
-                          onTap: () =>
-                              _navigateToEdit(context, provider),
+                          onTap: () => _navigateToEdit(context, provider),
                         ),
                       ),
                     );
@@ -78,7 +85,10 @@ class AiProvidersPage extends ConsumerWidget {
                   // 聊天设置
                   const SizedBox(height: 24),
                   _ChatSettingsSection(
-                      ref: ref, onOpenSession: onOpenSession),
+                    ref: ref,
+                    onOpenSession: onOpenSession,
+                    extraSettings: extraChatSettings,
+                  ),
                 ],
               ),
             ),
@@ -91,15 +101,17 @@ class AiProvidersPage extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.smart_toy_outlined,
-              size: 64, color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+              size: 64,
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
           const SizedBox(height: 16),
           Text(AiL10n.current.noProviderConfigured,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant)),
+              style: theme.textTheme.bodyLarge
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 8),
           Text(AiL10n.current.addProviderHint,
               style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7))),
+                  color: theme.colorScheme.onSurfaceVariant
+                      .withValues(alpha: 0.7))),
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: () => _navigateToEdit(context),
@@ -139,8 +151,8 @@ class AiProvidersPage extends ConsumerWidget {
                   .removeProvider(provider.id);
               Navigator.pop(ctx);
             },
-            style:
-                FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
             child: Text(AiL10n.current.delete),
           ),
         ],
@@ -206,8 +218,7 @@ class _ProviderCard extends StatelessWidget {
                         child: Text(
                           provider.type.label,
                           style: theme.textTheme.labelSmall?.copyWith(
-                              color:
-                                  theme.colorScheme.onSecondaryContainer),
+                              color: theme.colorScheme.onSecondaryContainer),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -247,8 +258,13 @@ class _ProviderCard extends StatelessWidget {
 class _ChatSettingsSection extends StatelessWidget {
   final WidgetRef ref;
   final OpenSessionCallback? onOpenSession;
+  final List<Widget> extraSettings;
 
-  const _ChatSettingsSection({required this.ref, this.onOpenSession});
+  const _ChatSettingsSection({
+    required this.ref,
+    this.onOpenSession,
+    this.extraSettings = const [],
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -285,11 +301,11 @@ class _ChatSettingsSection extends StatelessWidget {
                 title: AiL10n.current.titleGenerationModel,
                 subtitle: AiL10n.current.autoGenerateTitleSubtitle,
                 trailing: GestureDetector(
-                  onTap: () => _showTitleModelPicker(
-                      context, allModels, titleModel),
+                  onTap: () =>
+                      _showTitleModelPicker(context, allModels, titleModel),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(8),
@@ -301,8 +317,7 @@ class _ChatSettingsSection extends StatelessWidget {
                           constraints: const BoxConstraints(maxWidth: 80),
                           child: Text(
                             titleModel != null
-                                ? (titleModel.model.name ??
-                                    titleModel.model.id)
+                                ? (titleModel.model.name ?? titleModel.model.id)
                                 : AiL10n.current.notSet,
                             style: theme.textTheme.bodySmall?.copyWith(
                               fontWeight: FontWeight.w600,
@@ -325,11 +340,11 @@ class _ChatSettingsSection extends StatelessWidget {
                 title: AiL10n.current.maxSessionCount,
                 subtitle: AiL10n.current.autoDeleteOldestSession,
                 trailing: GestureDetector(
-                  onTap: () =>
-                      _showMaxSessionsPicker(context, storageService, maxSessions),
+                  onTap: () => _showMaxSessionsPicker(
+                      context, storageService, maxSessions),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(8),
@@ -343,6 +358,10 @@ class _ChatSettingsSection extends StatelessWidget {
                   ),
                 ),
               ),
+              for (final extraSetting in extraSettings) ...[
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                extraSetting,
+              ],
               const Divider(height: 1, indent: 16, endIndent: 16),
               // 会话记录管理
               InkWell(
@@ -353,8 +372,8 @@ class _ChatSettingsSection extends StatelessWidget {
                         AiChatHistoryPage(onOpenSession: onOpenSession),
                   ),
                 ),
-                borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(12)),
+                borderRadius:
+                    const BorderRadius.vertical(bottom: Radius.circular(12)),
                 child: _SettingRow(
                   title: AiL10n.current.sessionManagement,
                   subtitle: AiL10n.current.totalSessionCount(totalCount),
@@ -404,8 +423,7 @@ class _ChatSettingsSection extends StatelessWidget {
                   subtitle: Text(item.provider.name),
                   trailing: isCurrent ? const Icon(Icons.check) : null,
                   onTap: () {
-                    setAiTitleModel(
-                        ref, item.provider.id, item.model.id);
+                    setAiTitleModel(ref, item.provider.id, item.model.id);
                     Navigator.pop(ctx);
                     (context as Element).markNeedsBuild();
                   },

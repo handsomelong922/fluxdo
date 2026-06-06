@@ -158,7 +158,7 @@ class _CdkPageState extends State<CdkPage> {
                         : null,
                     initialSettings: WebViewSettings.visible
                       ..useShouldOverrideUrlLoading = true,
-                    initialUserScripts: WebViewSettings.ios15PolyfillScripts,
+                    initialUserScripts: WebViewSettings.compatPolyfillScripts,
                     onReceivedServerTrustAuthRequest: (_, challenge) =>
                         WebViewSettings.handleServerTrustAuthRequest(challenge),
                     shouldOverrideUrlLoading:
@@ -187,6 +187,7 @@ class _CdkPageState extends State<CdkPage> {
                         },
                     onWebViewCreated: (controller) async {
                       _controller = controller;
+                      WebViewSettings.registerJsErrorReporter(controller);
                       if (io.Platform.isWindows && widget.url.isNotEmpty) {
                         await controller.loadUrl(
                           urlRequest: URLRequest(url: WebUri(widget.url)),

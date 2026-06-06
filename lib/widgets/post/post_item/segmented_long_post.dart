@@ -175,7 +175,7 @@ class LongPostFooterSegment extends StatelessWidget {
   final int topicId;
   final bool highlight;
   final bool topicHasAcceptedAnswer;
-  final int? acceptedAnswerPostNumber;
+  final List<AcceptedAnswer> acceptedAnswers;
   final String? bottomDateSeparatorLabel;
   final VoidCallback? onReply;
   final void Function(String initialContent)? onReplyWithInitialContent;
@@ -197,7 +197,7 @@ class LongPostFooterSegment extends StatelessWidget {
     required this.highlight,
     this.highlightBoostUsername,
     required this.topicHasAcceptedAnswer,
-    required this.acceptedAnswerPostNumber,
+    this.acceptedAnswers = const [],
     required this.bottomDateSeparatorLabel,
     required this.onReply,
     this.onReplyWithInitialContent,
@@ -215,7 +215,8 @@ class LongPostFooterSegment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAcceptedAnswer =
-        post.acceptedAnswer || post.postNumber == acceptedAnswerPostNumber;
+        post.acceptedAnswer ||
+        acceptedAnswers.any((answer) => answer.postNumber == post.postNumber);
     return PostSegmentFrame(
       post: post,
       highlight: highlight,
@@ -240,7 +241,7 @@ class LongPostFooterSegment extends StatelessWidget {
               post: post,
               topicId: topicId,
               topicHasAcceptedAnswer: topicHasAcceptedAnswer,
-              acceptedAnswerPostNumber: acceptedAnswerPostNumber,
+              acceptedAnswers: acceptedAnswers,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               highlightBoostUsername: highlightBoostUsername,
               onReply: onReply,

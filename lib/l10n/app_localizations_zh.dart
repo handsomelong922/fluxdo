@@ -3650,6 +3650,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get post_viewBestAnswer => '查看最佳答案';
 
   @override
+  String post_solutionsCount(int count) {
+    return '$count 解决方案';
+  }
+
+  @override
+  String get post_readMore => '阅读更多';
+
+  @override
   String get post_viewHiddenInfo => '查看隐藏的信息';
 
   @override
@@ -4570,12 +4578,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get preferences_advanced => '高级';
-
-  @override
-  String get preferences_androidNativeCdp => 'WebView Cookie 同步';
-
-  @override
-  String get preferences_androidNativeCdpDesc => '优先使用原生 CDP；异常时可关闭并回退兼容模式。';
 
   @override
   String get preferences_anonymousShare => '匿名分享';
@@ -9704,6 +9706,14 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get post_viewBestAnswer => '查看最佳答案';
 
   @override
+  String post_solutionsCount(int count) {
+    return '$count 解決方案';
+  }
+
+  @override
+  String get post_readMore => '閱讀更多';
+
+  @override
   String get post_viewHiddenInfo => '查看隱藏的信息';
 
   @override
@@ -10624,12 +10634,6 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
 
   @override
   String get preferences_advanced => '高級';
-
-  @override
-  String get preferences_androidNativeCdp => 'WebView Cookie 同步';
-
-  @override
-  String get preferences_androidNativeCdpDesc => '優先使用原生 CDP；異常時可關閉並回退相容模式。';
 
   @override
   String get preferences_anonymousShare => '匿名分享';
@@ -15634,6 +15638,14 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get post_viewBestAnswer => '檢視最佳答案';
 
   @override
+  String post_solutionsCount(int count) {
+    return '$count 解決方案';
+  }
+
+  @override
+  String get post_readMore => '閱讀更多';
+
+  @override
   String get post_viewHiddenInfo => '檢視隱藏的資訊';
 
   @override
@@ -16554,12 +16566,6 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get preferences_advanced => '高階';
-
-  @override
-  String get preferences_androidNativeCdp => 'WebView Cookie 同步';
-
-  @override
-  String get preferences_androidNativeCdpDesc => '優先使用原生 CDP；異常時可關閉並回退相容模式。';
 
   @override
   String get preferences_anonymousShare => '匿名分享';

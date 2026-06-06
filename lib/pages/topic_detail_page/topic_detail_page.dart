@@ -1143,40 +1143,41 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final hideBarOnScroll = ref.watch(
       preferencesProvider.select((p) => p.hideBarOnScroll),
     );
-    final topicScaffold = ValueListenableBuilder<bool>(
-      valueListenable: _controller.showBottomBarNotifier,
-      builder: (context, showBars, _) {
-        return ValueListenableBuilder<bool>(
-          valueListenable: _isAtTopNotifier,
-          builder: (context, isAtTop, _) {
-            final shouldShowAppBar = !isAtTop && (!hideBarOnScroll || showBars);
-            final contentTopInset =
-                MediaQuery.of(context).padding.top + _topicTopContentGap;
-            final topicBody = _buildBody(
-              context,
-              detailAsync,
-              detail,
-              notifier,
-              isLoggedIn,
-              topContentInset: contentTopInset,
-            );
-            return Scaffold(
-              extendBodyBehindAppBar: true,
-              body: Stack(
-                children: [
-                  topicBody,
-                  _buildCollapsibleAppBarOverlay(
+    final contentTopInset =
+        MediaQuery.of(context).padding.top + _topicTopContentGap;
+    final topicBody = _buildBody(
+      context,
+      detailAsync,
+      detail,
+      notifier,
+      isLoggedIn,
+      topContentInset: contentTopInset,
+    );
+    final topicScaffold = Scaffold(
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        children: [
+          topicBody,
+          ValueListenableBuilder<bool>(
+            valueListenable: _controller.showBottomBarNotifier,
+            builder: (context, showBars, _) {
+              return ValueListenableBuilder<bool>(
+                valueListenable: _isAtTopNotifier,
+                builder: (context, isAtTop, _) {
+                  final shouldShowAppBar =
+                      !isAtTop && (!hideBarOnScroll || showBars);
+                  return _buildCollapsibleAppBarOverlay(
                     theme: theme,
                     detail: detail,
                     notifier: notifier,
                     visible: shouldShowAppBar,
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
     );
 
     // 无 AI 模型或非滑动入口模式：普通布局
