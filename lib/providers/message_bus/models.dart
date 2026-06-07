@@ -1,7 +1,7 @@
 /// MessageBus 相关数据模型
 library;
 
-import '../../utils/url_helper.dart';
+import '../../models/avatar_url_policy.dart';
 
 /// 正在输入的用户信息
 class TypingUser {
@@ -16,16 +16,13 @@ class TypingUser {
   });
 
   String getAvatarUrl({int size = 40}) {
-    final template = avatarTemplate.replaceAll('{size}', '$size');
-    return UrlHelper.resolveUrlWithCdn(template);
+    return AvatarUrlPolicy.resolveTemplate(avatarTemplate, size: size);
   }
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is TypingUser &&
-          runtimeType == other.runtimeType &&
-          id == other.id;
+      other is TypingUser && runtimeType == other.runtimeType && id == other.id;
 
   @override
   int get hashCode => id.hashCode;
@@ -41,44 +38,47 @@ class PresenceResponse {
   factory PresenceResponse.fromJson(Map<String, dynamic> json, int topicId) {
     final channelKey = '/discourse-presence/reply/$topicId';
     final channelData = json[channelKey] as Map<String, dynamic>?;
-    
+
     if (channelData == null) {
       return const PresenceResponse(users: [], messageId: -1);
     }
-    
+
     final usersList = channelData['users'] as List<dynamic>? ?? [];
-    final users = usersList.map((u) {
-      final userMap = u as Map<String, dynamic>;
-      return TypingUser(
-        id: userMap['id'] as int? ?? 0,
-        username: userMap['username'] as String? ?? '',
-        avatarTemplate: userMap['avatar_template'] as String? ?? '',
-      );
-    }).where((u) => u.username.isNotEmpty && u.id > 0).toList();
-    
+    final users = usersList
+        .map((u) {
+          final userMap = u as Map<String, dynamic>;
+          return TypingUser(
+            id: userMap['id'] as int? ?? 0,
+            username: userMap['username'] as String? ?? '',
+            avatarTemplate: userMap['avatar_template'] as String? ?? '',
+          );
+        })
+        .where((u) => u.username.isNotEmpty && u.id > 0)
+        .toList();
+
     final messageId = channelData['message_id'] as int? ?? -1;
-    
+
     return PresenceResponse(users: users, messageId: messageId);
   }
 }
 
 /// 话题频道消息类型
 enum TopicMessageType {
-  created,    // 新帖子创建
-  revised,    // 帖子被修改
-  rebaked,    // 帖子被重新渲染
-  deleted,    // 帖子被删除（软删除）
-  destroyed,  // 帖子被永久删除
-  recovered,  // 帖子被恢复
-  acted,      // 有人对帖子执行了操作
-  liked,      // 有人点赞
-  unliked,    // 有人取消点赞
-  read,       // 有人阅读了帖子
-  stats,      // 话题统计更新
-  boostAdded,    // 有人发送了 Boost
-  boostRemoved,  // Boost 被删除
-  moveToInbox,    // 私信移入收件箱
-  archived,       // 私信被归档
+  created, // 新帖子创建
+  revised, // 帖子被修改
+  rebaked, // 帖子被重新渲染
+  deleted, // 帖子被删除（软删除）
+  destroyed, // 帖子被永久删除
+  recovered, // 帖子被恢复
+  acted, // 有人对帖子执行了操作
+  liked, // 有人点赞
+  unliked, // 有人取消点赞
+  read, // 有人阅读了帖子
+  stats, // 话题统计更新
+  boostAdded, // 有人发送了 Boost
+  boostRemoved, // Boost 被删除
+  moveToInbox, // 私信移入收件箱
+  archived, // 私信被归档
   removeAllowedUser, // 用户被移出私信
   policyChanged, // Policy 接受/撤销状态变更（discourse-policy）
 }
@@ -88,11 +88,11 @@ class PostUpdate {
   final int postId;
   final TopicMessageType type;
   final DateTime updatedAt;
-  final int? likesCount;  // 用于 liked/unliked
+  final int? likesCount; // 用于 liked/unliked
   final int? readersCount; // 用于 read
-  final int? userId;       // 操作用户
+  final int? userId; // 操作用户
   final Map<String, dynamic>? boostData; // 用于 boostAdded
-  final int? boostId;     // 用于 boostRemoved
+  final int? boostId; // 用于 boostRemoved
 
   const PostUpdate({
     required this.postId,
@@ -112,11 +112,7 @@ class TopicStatsUpdate {
   final int? likeCount;
   final DateTime? lastPostedAt;
 
-  const TopicStatsUpdate({
-    this.postsCount,
-    this.likeCount,
-    this.lastPostedAt,
-  });
+  const TopicStatsUpdate({this.postsCount, this.likeCount, this.lastPostedAt});
 }
 
 /// 话题频道状态
@@ -126,7 +122,7 @@ class TopicChannelState {
   final List<PostUpdate> postUpdates;
   final TopicStatsUpdate? statsUpdate;
   final bool messageArchived;
-  final bool reloadRequested;        // 需要重新加载话题（reload_topic 消息）
+  final bool reloadRequested; // 需要重新加载话题（reload_topic 消息）
   final bool refreshStreamRequested; // 需要刷新帖子流（reload_topic + refresh_stream）
   final int? notificationLevelChange; // 通知级别变更
 
@@ -157,11 +153,16 @@ class TopicChannelState {
       hasNewReplies: hasNewReplies ?? this.hasNewReplies,
       typingUsers: typingUsers ?? this.typingUsers,
       postUpdates: postUpdates ?? this.postUpdates,
-      statsUpdate: clearStatsUpdate == true ? null : (statsUpdate ?? this.statsUpdate),
+      statsUpdate: clearStatsUpdate == true
+          ? null
+          : (statsUpdate ?? this.statsUpdate),
       messageArchived: messageArchived ?? this.messageArchived,
       reloadRequested: reloadRequested ?? this.reloadRequested,
-      refreshStreamRequested: refreshStreamRequested ?? this.refreshStreamRequested,
-      notificationLevelChange: clearNotificationLevelChange ? null : (notificationLevelChange ?? this.notificationLevelChange),
+      refreshStreamRequested:
+          refreshStreamRequested ?? this.refreshStreamRequested,
+      notificationLevelChange: clearNotificationLevelChange
+          ? null
+          : (notificationLevelChange ?? this.notificationLevelChange),
     );
   }
 }
@@ -177,7 +178,7 @@ class NotificationCountState {
     this.unread = 0,
     this.highPriority = 0,
   });
-  
+
   NotificationCountState copyWith({
     int? allUnread,
     int? unread,

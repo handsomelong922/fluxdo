@@ -1,12 +1,13 @@
 // 用户操作记录
 import '../utils/time_utils.dart';
+import 'avatar_url_policy.dart';
 
 /// 用户操作类型
 class UserActionType {
-  static const int like = 1;        // 点赞
-  static const int wasLiked = 2;    // 被点赞
-  static const int newTopic = 4;    // 创建话题
-  static const int reply = 5;       // 回复
+  static const int like = 1; // 点赞
+  static const int wasLiked = 2; // 被点赞
+  static const int newTopic = 4; // 创建话题
+  static const int reply = 5; // 回复
 }
 
 class UserAction {
@@ -41,17 +42,21 @@ class UserAction {
       title: json['title'] as String? ?? '',
       slug: json['slug'] as String?,
       postNumber: json['post_number'] as int?,
-      username: json['acting_username'] as String? ?? json['username'] as String?,
-      avatarTemplate: json['acting_avatar_template'] as String? ?? json['avatar_template'] as String?,
-      actingAt: TimeUtils.parseUtcTime(json['acting_at'] as String? ?? json['created_at'] as String?),
+      username:
+          json['acting_username'] as String? ?? json['username'] as String?,
+      avatarTemplate:
+          json['acting_avatar_template'] as String? ??
+          json['avatar_template'] as String?,
+      actingAt: TimeUtils.parseUtcTime(
+        json['acting_at'] as String? ?? json['created_at'] as String?,
+      ),
       categoryId: json['category_id'] as int?,
       excerpt: json['excerpt'] as String?,
     );
   }
 
   String getAvatarUrl({int size = 120}) {
-    if (avatarTemplate == null) return '';
-    return avatarTemplate!.replaceAll('{size}', '$size');
+    return AvatarUrlPolicy.resolveTemplate(avatarTemplate, size: size);
   }
 }
 
@@ -63,7 +68,9 @@ class UserActionResponse {
   factory UserActionResponse.fromJson(Map<String, dynamic> json) {
     final actionsJson = json['user_actions'] as List<dynamic>? ?? [];
     return UserActionResponse(
-      actions: actionsJson.map((e) => UserAction.fromJson(e as Map<String, dynamic>)).toList(),
+      actions: actionsJson
+          .map((e) => UserAction.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 }
@@ -116,14 +123,21 @@ class UserReactionsResponse {
     // API 直接返回数组
     if (json is List) {
       return UserReactionsResponse(
-        reactions: json.map((e) => UserReaction.fromJson(e as Map<String, dynamic>)).toList(),
+        reactions: json
+            .map((e) => UserReaction.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
     }
     // 如果是对象包装的数组
     if (json is Map<String, dynamic>) {
-      final list = json['reactions'] as List<dynamic>? ?? json['posts'] as List<dynamic>? ?? [];
+      final list =
+          json['reactions'] as List<dynamic>? ??
+          json['posts'] as List<dynamic>? ??
+          [];
       return UserReactionsResponse(
-        reactions: list.map((e) => UserReaction.fromJson(e as Map<String, dynamic>)).toList(),
+        reactions: list
+            .map((e) => UserReaction.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
     }
     return const UserReactionsResponse(reactions: []);

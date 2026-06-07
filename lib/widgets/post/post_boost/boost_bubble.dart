@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/topic.dart';
 import '../../common/emoji_text.dart';
-import '../../../services/discourse_cache_manager.dart';
-import '../../../utils/url_helper.dart';
+import '../../common/smart_avatar.dart';
 import 'boost_content.dart';
 
 /// 单个 Boost 气泡
@@ -73,14 +72,10 @@ class BoostBubble extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircleAvatar(
+              SmartAvatar(
                 radius: 10,
-                backgroundImage: discourseImageProvider(
-                  UrlHelper.resolveUrlWithCdn(
-                    boost!.user.avatarTemplate.replaceAll('{size}', '48'),
-                  ),
-                ),
-                onBackgroundImageError: (_, _) {},
+                imageUrl: boost!.user.getAvatarUrl(size: 48),
+                fallbackText: boost!.user.username,
               ),
               const SizedBox(width: 4),
               ConstrainedBox(
@@ -232,14 +227,10 @@ class _AvatarStack extends StatelessWidget {
                     width: 1.5,
                   ),
                 ),
-                child: CircleAvatar(
+                child: SmartAvatar(
                   radius: 10,
-                  backgroundImage: discourseImageProvider(
-                    UrlHelper.resolveUrlWithCdn(
-                      visibleUsers[i].avatarTemplate.replaceAll('{size}', '48'),
-                    ),
-                  ),
-                  onBackgroundImageError: (_, _) {},
+                  imageUrl: visibleUsers[i].getAvatarUrl(size: 48),
+                  fallbackText: visibleUsers[i].username,
                 ),
               ),
             ),

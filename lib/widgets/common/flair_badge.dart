@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jovial_svg/jovial_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../../models/avatar_url_policy.dart';
+import '../../providers/preferences_provider.dart';
 import '../../services/discourse_cache_manager.dart';
 import '../../services/emoji_handler.dart';
+import '../../services/static_avatar_image_provider.dart';
 import '../../utils/svg_utils.dart';
 import '../../utils/font_awesome_helper.dart';
 import '../../utils/url_helper.dart';
 
 /// Flair 徽章组件
 /// 用于在头像右下角显示用户的群组/身份标识
-class FlairBadge extends StatelessWidget {
+class FlairBadge extends ConsumerWidget {
   final String? flairUrl;
   final String? flairName;
   final String? flairBgColor;
@@ -86,8 +90,11 @@ class FlairBadge extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (!hasFlair) return const SizedBox.shrink();
+    final preferStaticAvatars = ref.watch(
+      preferencesProvider.select((p) => p.preferStaticAvatars),
+    );
 
     final bgColor = _parseColor(flairBgColor);
     final fgColor = _parseColor(flairColor);
@@ -125,7 +132,10 @@ class FlairBadge extends StatelessWidget {
 
     // 有背景时图片缩小一点，留出内边距
     final imageSize = hasBgColor ? size * 0.7 : size;
-    final fullUrl = _getFullFlairUrl();
+    final fullUrl = AvatarUrlPolicy.resolveImageUrl(
+      _getFullFlairUrl(),
+      preferStaticAvatars: preferStaticAvatars,
+    );
 
     // SVG 图片使用 DiscourseCacheManager 下载后用 jovial_svg 渲染
     if (_isSvg) {
@@ -150,7 +160,18 @@ class FlairBadge extends StatelessWidget {
             : null,
         child: Center(
           child: Image(
-            image: discourseImageProvider(fullUrl),
+            image:
+                AvatarUrlPolicy.shouldRenderAsStaticImage(
+                  fullUrl,
+                  preferStaticAvatars: preferStaticAvatars,
+                )
+                ? staticAvatarImageProvider(
+                    fullUrl,
+                    targetSize:
+                        (imageSize * MediaQuery.of(context).devicePixelRatio)
+                            .round(),
+                  )
+                : discourseImageProvider(fullUrl),
             width: imageSize,
             height: imageSize,
             fit: BoxFit.contain,

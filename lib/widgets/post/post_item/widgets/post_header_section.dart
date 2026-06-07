@@ -56,6 +56,7 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
   );
   Widget? _cachedAvatarWidget;
   int? _cachedPostId;
+  bool? _cachedPreferStaticAvatars;
 
   @override
   void dispose() {
@@ -67,14 +68,21 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_cachedAvatarWidget == null || _cachedPostId != widget.post.id) {
+    final preferStaticAvatars = ref.read(
+      preferencesProvider.select((p) => p.preferStaticAvatars),
+    );
+    if (_cachedAvatarWidget == null ||
+        _cachedPostId != widget.post.id ||
+        _cachedPreferStaticAvatars != preferStaticAvatars) {
       final theme = Theme.of(context);
       _cachedAvatarWidget = PostAvatar(
-        key: ValueKey('avatar-${widget.post.id}'),
+        key: ValueKey('avatar-${widget.post.id}-$preferStaticAvatars'),
         post: widget.post,
         theme: theme,
+        preferStaticAvatars: preferStaticAvatars,
       );
       _cachedPostId = widget.post.id;
+      _cachedPreferStaticAvatars = preferStaticAvatars;
     }
   }
 
@@ -140,6 +148,21 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
     final theme = Theme.of(context);
     final post = widget.post;
     final currentUser = ref.read(currentUserProvider).value;
+    final preferStaticAvatars = ref.watch(
+      preferencesProvider.select((p) => p.preferStaticAvatars),
+    );
+    if (_cachedAvatarWidget == null ||
+        _cachedPostId != widget.post.id ||
+        _cachedPreferStaticAvatars != preferStaticAvatars) {
+      _cachedAvatarWidget = PostAvatar(
+        key: ValueKey('avatar-${widget.post.id}-$preferStaticAvatars'),
+        post: widget.post,
+        theme: theme,
+        preferStaticAvatars: preferStaticAvatars,
+      );
+      _cachedPostId = widget.post.id;
+      _cachedPreferStaticAvatars = preferStaticAvatars;
+    }
     final isOwnPost =
         currentUser != null && currentUser.username == post.username;
     final isWhisper = post.postType == PostTypes.whisper;

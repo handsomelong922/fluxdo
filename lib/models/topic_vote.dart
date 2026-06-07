@@ -1,5 +1,5 @@
 // 话题投票相关数据模型
-import '../utils/url_helper.dart';
+import 'avatar_url_policy.dart';
 
 /// 投票响应数据
 class VoteResponse {
@@ -28,8 +28,8 @@ class VoteResponse {
       alert: json['alert'] as bool? ?? false,
       whoVoted: json['who_voted'] != null
           ? (json['who_voted'] as List<dynamic>)
-              .map((e) => VotedUser.fromJson(e as Map<String, dynamic>))
-              .toList()
+                .map((e) => VotedUser.fromJson(e as Map<String, dynamic>))
+                .toList()
           : null,
     );
   }
@@ -59,7 +59,6 @@ class VotedUser {
   }
 
   String getAvatarUrl({int size = 40}) {
-    final url = avatarTemplate.replaceAll('{size}', '$size');
-    return UrlHelper.resolveUrlWithCdn(url);
+    return AvatarUrlPolicy.resolveTemplate(avatarTemplate, size: size);
   }
 }
