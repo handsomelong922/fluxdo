@@ -166,7 +166,9 @@ Future<void> launchContentLink(
       return;
     }
     // 没有回调时用 WebView 打开
-    final fullUrl = UrlHelper.resolveUrl(url);
+    final fullUrl = UrlHelper.resolveUrl(
+      DiscourseUrlParser.canonicalTopicPath(url) ?? url,
+    );
     if (!context.mounted) return;
     WebViewPage.open(context, fullUrl);
     return;

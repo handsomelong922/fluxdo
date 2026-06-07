@@ -73,6 +73,10 @@ const double _topicDetailToolbarHeight = 48.0;
 const double _topicFloatingButtonSize = 44.0;
 const double _topicActionMenuWidth = 128.0;
 const double _topicTopContentGap = 3.6;
+const double _topicSwipeBackEdgeWidth = 32.0;
+const double _topicSwipeBackTriggerDistance = 72.0;
+const double _topicSwipeBackDirectionRatio = 1.2;
+const double _topicSwipeBackVerticalRejectDistance = 48.0;
 
 @visibleForTesting
 bool shouldShowTopicTimelineProgress({
@@ -127,6 +131,29 @@ bool resolveInitialNestedView({
 
 int? _validPostNumber(int? postNumber) {
   return postNumber != null && postNumber > 0 ? postNumber : null;
+}
+
+@visibleForTesting
+bool shouldEnableTopicSwipeBack({
+  required bool embeddedMode,
+  required bool isSearchMode,
+  required bool isOnAiPage,
+  required bool isMobile,
+}) {
+  return !embeddedMode && !isSearchMode && !isOnAiPage && isMobile;
+}
+
+@visibleForTesting
+bool shouldTriggerTopicSwipeBack(Offset dragOffset) {
+  return dragOffset.dx >= _topicSwipeBackTriggerDistance &&
+      dragOffset.dx > dragOffset.dy.abs() * _topicSwipeBackDirectionRatio;
+}
+
+@visibleForTesting
+bool shouldRejectTopicSwipeBack(Offset dragOffset) {
+  return dragOffset.dx < -12 ||
+      (dragOffset.dy.abs() >= _topicSwipeBackVerticalRejectDistance &&
+          dragOffset.dy.abs() > dragOffset.dx.abs());
 }
 
 /// 话题详情页面
@@ -221,6 +248,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   bool _isAutoSwitching = false;
   bool _autoOpenReplyHandled = false; // 是否已处理自动打开回复框
   bool _autoOpenAiChatHandled = false; // 是否已处理自动打开 AI 聊天
+  bool _isSwipeBackPopping = false;
   late final TopicSearchNotifier _topicSearchNotifier;
   // AI 滑动入口相关
   late final PageController _pageController;
@@ -232,6 +260,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   bool _isRouteVisible = true;
   bool _isParentActive = true;
   bool _isScreenTrackRunning = false;
+  int? _swipeBackPointer;
+  Offset _swipeBackDragOffset = Offset.zero;
   TopicReadingState? _restoredReadingState;
   int? _pendingNestedRestorePostNumber;
   int? _lastPrimedNestedTargetPostNumber;
@@ -520,6 +550,59 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       'parentActive': _isParentActive,
       'reason': reason,
     });
+  }
+
+  Widget _wrapWithSwipeBackListener({
+    required Widget child,
+    required bool enabled,
+  }) {
+    if (!enabled) return child;
+
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: _handleSwipeBackPointerDown,
+      onPointerMove: _handleSwipeBackPointerMove,
+      onPointerUp: _handleSwipeBackPointerEnd,
+      onPointerCancel: _handleSwipeBackPointerEnd,
+      child: child,
+    );
+  }
+
+  void _handleSwipeBackPointerDown(PointerDownEvent event) {
+    if (_isSwipeBackPopping || _swipeBackPointer != null) return;
+    if (event.position.dx > _topicSwipeBackEdgeWidth) return;
+    _swipeBackPointer = event.pointer;
+    _swipeBackDragOffset = Offset.zero;
+  }
+
+  void _handleSwipeBackPointerMove(PointerMoveEvent event) {
+    if (event.pointer != _swipeBackPointer || _isSwipeBackPopping) return;
+
+    _swipeBackDragOffset += event.delta;
+    if (shouldRejectTopicSwipeBack(_swipeBackDragOffset)) {
+      _resetSwipeBackTracking();
+      return;
+    }
+
+    if (!shouldTriggerTopicSwipeBack(_swipeBackDragOffset)) return;
+    _isSwipeBackPopping = true;
+    _resetSwipeBackTracking();
+    Navigator.of(context).maybePop().whenComplete(() {
+      if (mounted) {
+        _isSwipeBackPopping = false;
+      }
+    });
+  }
+
+  void _handleSwipeBackPointerEnd(PointerEvent event) {
+    if (event.pointer == _swipeBackPointer) {
+      _resetSwipeBackTracking();
+    }
+  }
+
+  void _resetSwipeBackTracking() {
+    _swipeBackPointer = null;
+    _swipeBackDragOffset = Offset.zero;
   }
 
   void _scheduleCheckTitleVisibility() {
@@ -1201,6 +1284,51 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         valueListenable: _currentPageNotifier,
         builder: (context, currentPage, _) {
           final isOnAiPage = currentPage != 0;
+          final pageView = PageView(
+            controller: _pageController,
+            physics: isSearchMode
+                ? const NeverScrollableScrollPhysics()
+                : const ClampingScrollPhysics(),
+            onPageChanged: (page) {
+              _currentPageNotifier.value = page;
+              // 离开 AI 页面时取消输入框焦点，防止返回时键盘意外弹出
+              if (page != 1) {
+                FocusManager.instance.primaryFocus?.unfocus();
+              }
+            },
+            children: [
+              _KeepAlivePage(child: topicScaffold),
+              _KeepAlivePage(
+                child: AiChatPage(
+                  topicId: widget.topicId,
+                  detail: detail,
+                  embedded: true,
+                  onReplyToTopic: detail == null
+                      ? null
+                      : (imageMarkdown) {
+                          _pageController.animateToPage(
+                            0,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOutCubic,
+                          );
+                          showReplySheet(
+                            context: context,
+                            topicId: widget.topicId,
+                            categoryId: detail.categoryId,
+                            initialContent: '$imageMarkdown\n',
+                            isPrivateMessageTopic: detail.isPrivateMessage,
+                          );
+                        },
+                ),
+              ),
+            ],
+          );
+          final swipeBackEnabled = shouldEnableTopicSwipeBack(
+            embeddedMode: widget.embeddedMode,
+            isSearchMode: isSearchMode,
+            isOnAiPage: isOnAiPage,
+            isMobile: Responsive.isMobile(context),
+          );
           return PopScope(
             canPop: !isSearchMode && !isOnAiPage,
             onPopInvokedWithResult: (bool didPop, dynamic result) {
@@ -1216,44 +1344,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                 }
               }
             },
-            child: PageView(
-              controller: _pageController,
-              physics: isSearchMode
-                  ? const NeverScrollableScrollPhysics()
-                  : const ClampingScrollPhysics(),
-              onPageChanged: (page) {
-                _currentPageNotifier.value = page;
-                // 离开 AI 页面时取消输入框焦点，防止返回时键盘意外弹出
-                if (page != 1) {
-                  FocusManager.instance.primaryFocus?.unfocus();
-                }
-              },
-              children: [
-                _KeepAlivePage(child: topicScaffold),
-                _KeepAlivePage(
-                  child: AiChatPage(
-                    topicId: widget.topicId,
-                    detail: detail,
-                    embedded: true,
-                    onReplyToTopic: detail == null
-                        ? null
-                        : (imageMarkdown) {
-                            _pageController.animateToPage(
-                              0,
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeOutCubic,
-                            );
-                            showReplySheet(
-                              context: context,
-                              topicId: widget.topicId,
-                              categoryId: detail.categoryId,
-                              initialContent: '$imageMarkdown\n',
-                              isPrivateMessageTopic: detail.isPrivateMessage,
-                            );
-                          },
-                  ),
-                ),
-              ],
+            child: _wrapWithSwipeBackListener(
+              enabled: swipeBackEnabled,
+              child: pageView,
             ),
           );
         },

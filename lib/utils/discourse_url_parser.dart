@@ -49,15 +49,34 @@ class DiscourseUrlParser {
   /// - `/t/topic-slug/12345/1` → topicId=12345, slug=topic-slug, postNumber=1
   /// - `/t/topic-slug/12345/last` → topicId=12345
   /// - `/n/topic-slug/12345/1` → topicId=12345, slug=topic-slug, postNumber=1
+  /// - `/topic/12345` → topicId=12345
+  /// - `/topic/12345/1` → topicId=12345, postNumber=1
   static TopicLinkInfo? parseTopic(String url) {
     final segments = _pathSegments(url);
     final topicIndex = _lastIndexOfAny(segments, const {'t', 'n'});
-    if (topicIndex < 0 || topicIndex + 1 >= segments.length) return null;
+    if (topicIndex >= 0 && topicIndex + 1 < segments.length) {
+      final marker = segments[topicIndex].toLowerCase();
+      final parsed = marker == 'n'
+          ? _parseNestedTopic(segments, topicIndex, url)
+          : _parseRegularTopic(segments, topicIndex, url);
+      if (parsed != null) return parsed;
+    }
 
-    final marker = segments[topicIndex].toLowerCase();
-    return marker == 'n'
-        ? _parseNestedTopic(segments, topicIndex, url)
-        : _parseRegularTopic(segments, topicIndex, url);
+    final canonicalTopicIndex = _lastIndexOfAny(segments, const {'topic'});
+    if (canonicalTopicIndex < 0 || canonicalTopicIndex + 1 >= segments.length) {
+      return null;
+    }
+    return _parseCanonicalTopic(segments, canonicalTopicIndex, url);
+  }
+
+  /// 将任意可识别的话题链接转为稳定的通用路径。
+  ///
+  /// 例如 `/n/topic/388420?sort=old` → `/topic/388420`。
+  static String? canonicalTopicPath(String url) {
+    final info = parseTopic(url);
+    if (info == null) return null;
+    final base = '/topic/${info.topicId}';
+    return info.postNumber == null ? base : '$base/${info.postNumber}';
   }
 
   /// 解析仅含 slug 的话题链接（/t/some-slug），返回 slug 或 null
@@ -200,6 +219,30 @@ class DiscourseUrlParser {
       slug: _normalizeSlug(slug),
       postNumber: postNumber ?? _parsePostNumberFromFragment(url),
       isNestedRoute: true,
+    );
+  }
+
+  static TopicLinkInfo? _parseCanonicalTopic(
+    List<String> segments,
+    int topicIndex,
+    String url,
+  ) {
+    final remaining = segments.sublist(topicIndex + 1);
+    if (remaining.isEmpty) return null;
+
+    final topicId = int.tryParse(remaining[0]);
+    if (topicId == null || topicId <= 0) return null;
+    if (remaining.length > 2) return null;
+
+    final postSegment = remaining.length == 2 ? remaining[1] : null;
+    final postNumber = _parsePostNumberSegment(postSegment);
+    if (postSegment != null && postNumber == null && postSegment != 'last') {
+      return null;
+    }
+
+    return TopicLinkInfo(
+      topicId: topicId,
+      postNumber: postNumber ?? _parsePostNumberFromFragment(url),
     );
   }
 
