@@ -106,6 +106,8 @@ void main() {
       find.byType(NavigationBarTheme),
     );
     expect(theme.data.height, 52);
+    expect(theme.data.backgroundColor, Colors.transparent);
+    expect(theme.data.indicatorColor, Colors.transparent);
     expect(
       theme.data.labelBehavior,
       NavigationDestinationLabelBehavior.alwaysHide,
@@ -122,5 +124,27 @@ void main() {
         )
         .any((transform) => transform.transform.getMaxScaleOnAxis() > 1.1);
     expect(scaledTransform, isTrue);
+
+    final selectedShell = tester.widgetList<AnimatedContainer>(
+      find.ancestor(
+        of: selectedIconFinder,
+        matching: find.byType(AnimatedContainer),
+      ),
+    );
+    expect(
+      selectedShell.any((container) => container.constraints?.maxWidth == 44),
+      isTrue,
+    );
+
+    final selectedShellSize = tester.getSize(
+      find
+          .ancestor(
+            of: selectedIconFinder,
+            matching: find.byType(AnimatedContainer),
+          )
+          .first,
+    );
+    expect(selectedShellSize.width, 44);
+    expect(selectedShellSize.height, 38);
   });
 }

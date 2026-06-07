@@ -1970,23 +1970,48 @@ class _FloatingTopicChromeButtonSurface extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: theme.colorScheme.surface.withValues(alpha: 0.82),
+            color: theme.colorScheme.surface.withValues(
+              alpha: theme.brightness == Brightness.dark ? 0.62 : 0.76,
+            ),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.30),
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.10),
-                blurRadius: 14,
-                offset: const Offset(0, 6),
+                color: Colors.black.withValues(
+                  alpha: theme.brightness == Brightness.dark ? 0.24 : 0.10,
+                ),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
           child: SizedBox(
             width: _topicFloatingButtonSize,
             height: _topicFloatingButtonSize,
-            child: Center(child: _FloatingTopicChromeButtonContent(icon: icon)),
+            child: Stack(
+              children: [
+                Positioned(
+                  top: 6,
+                  left: 9,
+                  right: 9,
+                  height: 10,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.white.withValues(alpha: 0.22),
+                          Colors.white.withValues(alpha: 0.02),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Center(child: _FloatingTopicChromeButtonContent(icon: icon)),
+              ],
+            ),
           ),
         ),
       ),

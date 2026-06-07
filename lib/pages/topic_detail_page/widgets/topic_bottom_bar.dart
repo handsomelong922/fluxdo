@@ -61,16 +61,18 @@ class TopicBottomBar extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withValues(alpha: 0.76),
+              color: theme.colorScheme.surface.withValues(alpha: 0.70),
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.36),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.10),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
+                  color: Colors.black.withValues(
+                    alpha: theme.brightness == Brightness.dark ? 0.22 : 0.10,
+                  ),
+                  blurRadius: 22,
+                  offset: const Offset(0, 10),
                 ),
               ],
             ),
@@ -82,9 +84,9 @@ class TopicBottomBar extends StatelessWidget {
                 children: [
                   const SizedBox(width: 6),
                   // 回到顶部
-                  IconButton(
+                  _GlassToolIconButton(
                     onPressed: onScrollToTop,
-                    icon: const Icon(Icons.vertical_align_top),
+                    icon: Icons.vertical_align_top_rounded,
                     tooltip: context.l10n.topicDetail_scrollToTop,
                   ),
                   // 筛选
@@ -110,25 +112,14 @@ class TopicBottomBar extends StatelessWidget {
     final label = isBookmarked
         ? context.l10n.topicDetail_editBookmark
         : context.l10n.common_addBookmark;
-    return Semantics(
-      button: true,
-      label: label,
-      child: SizedBox.square(
-        dimension: 48,
-        child: InkResponse(
-          onTap: onBookmark,
-          onLongPress: onBookmarkLongPress,
-          radius: 24,
-          child: Center(
-            child: Icon(
-              isBookmarked
-                  ? Icons.bookmark_rounded
-                  : Icons.bookmark_border_rounded,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      ),
+    return _GlassToolIconButton(
+      onPressed: onBookmark,
+      onLongPress: onBookmarkLongPress,
+      icon: isBookmarked
+          ? Icons.bookmark_rounded
+          : Icons.bookmark_border_rounded,
+      tooltip: label,
+      selected: isBookmarked,
     );
   }
 
@@ -138,14 +129,11 @@ class TopicBottomBar extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        IconButton(
+        _GlassToolIconButton(
           onPressed: isLoading ? null : onCancelFilter,
-          icon: Icon(icon, color: theme.colorScheme.primary),
-          style: IconButton.styleFrom(
-            backgroundColor: theme.colorScheme.primaryContainer,
-          ),
-          iconSize: 20,
-          visualDensity: VisualDensity.compact,
+          icon: icon,
+          tooltip: context.l10n.topicDetail_filter,
+          selected: true,
         ),
       ],
     );
@@ -166,9 +154,9 @@ class TopicBottomBar extends StatelessWidget {
 
   /// 未激活：筛选菜单按钮
   Widget _buildFilterMenuButton(BuildContext context, ThemeData theme) {
-    return IconButton(
+    return _GlassToolIconButton(
       onPressed: isLoading ? null : () => _showFilterMenu(context),
-      icon: const Icon(Icons.filter_list),
+      icon: Icons.filter_list_rounded,
       tooltip: context.l10n.topicDetail_filter,
     );
   }
@@ -215,9 +203,11 @@ class TopicBottomBar extends StatelessWidget {
 
   Widget _buildShareMenu(BuildContext context, ThemeData theme) {
     return SwipeDismissiblePopupMenuButton<String>(
-      icon: const Icon(Icons.share_outlined),
-      iconColor: theme.colorScheme.onSurfaceVariant,
       tooltip: context.l10n.common_share,
+      child: _GlassToolIconButtonSurface(
+        icon: Icons.ios_share_rounded,
+        tooltip: context.l10n.common_share,
+      ),
       onSelected: (value) {
         switch (value) {
           case 'link':
@@ -274,6 +264,102 @@ class TopicBottomBar extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _GlassToolIconButton extends StatelessWidget {
+  const _GlassToolIconButton({
+    required this.onPressed,
+    required this.icon,
+    required this.tooltip,
+    this.onLongPress,
+    this.selected = false,
+  });
+
+  final VoidCallback? onPressed;
+  final VoidCallback? onLongPress;
+  final IconData icon;
+  final String tooltip;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        enabled: onPressed != null,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(15),
+          onTap: onPressed,
+          onLongPress: onLongPress,
+          child: _GlassToolIconButtonSurface(
+            icon: icon,
+            tooltip: tooltip,
+            selected: selected,
+            enabled: onPressed != null,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassToolIconButtonSurface extends StatelessWidget {
+  const _GlassToolIconButtonSurface({
+    required this.icon,
+    required this.tooltip,
+    this.selected = false,
+    this.enabled = true,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final bool selected;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final foreground = !enabled
+        ? colorScheme.outline
+        : selected
+        ? colorScheme.primary
+        : colorScheme.onSurfaceVariant;
+
+    return SizedBox.square(
+      dimension: 44,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(15),
+          gradient: selected
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    colorScheme.primaryContainer.withValues(alpha: 0.78),
+                    colorScheme.primary.withValues(alpha: 0.18),
+                  ],
+                )
+              : LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+                    colorScheme.surface.withValues(alpha: 0.18),
+                  ],
+                ),
+          border: Border.all(
+            color: selected
+                ? colorScheme.primary.withValues(alpha: 0.24)
+                : colorScheme.outlineVariant.withValues(alpha: 0.24),
+          ),
+        ),
+        child: Center(child: Icon(icon, size: 20, color: foreground)),
+      ),
     );
   }
 }

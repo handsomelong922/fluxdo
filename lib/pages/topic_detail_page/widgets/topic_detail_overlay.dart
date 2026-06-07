@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/s.dart';
 import '../../../models/topic.dart';
+import '../../../widgets/common/glass_action_button.dart';
 import '../../../widgets/topic/topic_progress.dart';
 import 'topic_bottom_bar.dart';
 
@@ -148,10 +150,11 @@ class TopicDetailOverlay extends StatelessWidget {
             bottom: fabVisibleBottom,
             child: _PaintOffsetTransition(
               offsetY: showBottomBar ? 0 : fabHiddenOffsetY,
-              child: FloatingActionButton(
+              child: GlassActionButton(
                 heroTag: 'replyTopic',
                 onPressed: onReply,
-                child: const Icon(Icons.reply),
+                tooltip: context.l10n.common_reply,
+                icon: Icons.reply_rounded,
               ),
             ),
           ),

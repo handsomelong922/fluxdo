@@ -258,7 +258,7 @@ class _AnimatedBottomNav extends StatelessWidget {
     final mediaQuery = MediaQuery.of(context);
     final theme = Theme.of(context);
     final clampedVisibility = visibility.clamp(0.0, 1.0).toDouble();
-    final maxWidth = (mediaQuery.size.width - 72).clamp(0.0, 420.0) * 0.85;
+    final maxWidth = (mediaQuery.size.width - 64).clamp(0.0, 430.0) * 0.88;
     final bottomInset = mediaQuery.padding.bottom;
 
     return IgnorePointer(
@@ -272,27 +272,33 @@ class _AnimatedBottomNav extends StatelessWidget {
             child: Opacity(
               opacity: clampedVisibility,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(36, 0, 36, bottomInset + 18),
+                padding: EdgeInsets.fromLTRB(32, 0, 32, bottomInset + 18),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(22),
+                  borderRadius: BorderRadius.circular(24),
                   child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: theme.colorScheme.surface.withValues(
-                          alpha: 0.72,
+                          alpha: theme.brightness == Brightness.dark
+                              ? 0.58
+                              : 0.68,
                         ),
-                        borderRadius: BorderRadius.circular(22),
+                        borderRadius: BorderRadius.circular(24),
                         border: Border.all(
                           color: theme.colorScheme.outlineVariant.withValues(
-                            alpha: 0.45,
+                            alpha: 0.34,
                           ),
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.10),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
+                            color: Colors.black.withValues(
+                              alpha: theme.brightness == Brightness.dark
+                                  ? 0.28
+                                  : 0.10,
+                            ),
+                            blurRadius: 24,
+                            offset: const Offset(0, 10),
                           ),
                         ],
                       ),

@@ -14,6 +14,7 @@ import '../services/navigation/pop_passthrough_material_page_route.dart';
 import '../utils/platform_utils.dart';
 import '../utils/blur_config.dart';
 import '../utils/responsive.dart';
+import '../widgets/common/glass_action_button.dart';
 import '../widgets/layout/master_detail_layout.dart';
 import 'topics_page.dart';
 import 'topic_detail_page/topic_detail_page.dart';
@@ -383,14 +384,12 @@ class _TopicsFabState extends ConsumerState<_TopicsFab>
               showWhenUnlinked: false,
               targetAnchor: Alignment.center,
               followerAnchor: Alignment.center,
-              child: FloatingActionButton(
+              child: GlassActionButton(
                 heroTag: null,
                 onPressed: _close,
-                child: AnimatedRotation(
-                  turns: 0.125,
-                  duration: const Duration(milliseconds: 200),
-                  child: const Icon(Icons.add),
-                ),
+                tooltip: context.l10n.topicsScreen_createTopic,
+                icon: Icons.add_rounded,
+                isExpanded: true,
               ),
             ),
           // 子按钮：定位到主 FAB 上方
@@ -455,10 +454,11 @@ class _TopicsFabState extends ConsumerState<_TopicsFab>
 
     // 刷新模式：简单的单按钮
     if (showRefresh) {
-      return FloatingActionButton(
+      return GlassActionButton(
         heroTag: 'createTopic',
         onPressed: _refreshTopics,
-        child: const Icon(Icons.refresh),
+        tooltip: context.l10n.common_refresh,
+        icon: Icons.refresh_rounded,
       );
     }
 
@@ -473,14 +473,12 @@ class _TopicsFabState extends ConsumerState<_TopicsFab>
       link: _layerLink,
       child: Opacity(
         opacity: hideFab ? 0 : 1,
-        child: FloatingActionButton(
+        child: GlassActionButton(
           heroTag: 'createTopic',
           onPressed: _toggle,
-          child: AnimatedRotation(
-            turns: _isExpanded ? 0.125 : 0,
-            duration: const Duration(milliseconds: 200),
-            child: const Icon(Icons.add),
-          ),
+          tooltip: context.l10n.topicsScreen_createTopic,
+          icon: Icons.add_rounded,
+          isExpanded: _isExpanded,
         ),
       ),
     );
@@ -503,16 +501,16 @@ class _TopicsFabState extends ConsumerState<_TopicsFab>
           mainAxisSize: MainAxisSize.min,
           children: [
             Material(
-              color: theme.colorScheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(8),
-              elevation: 2,
+              color: theme.colorScheme.surface.withValues(alpha: 0.84),
+              borderRadius: BorderRadius.circular(16),
+              elevation: 0,
               child: InkWell(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(16),
                 onTap: onTap,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
+                    horizontal: 14,
+                    vertical: 9,
                   ),
                   child: Text(
                     label,
@@ -524,10 +522,13 @@ class _TopicsFabState extends ConsumerState<_TopicsFab>
               ),
             ),
             const SizedBox(width: 12),
-            FloatingActionButton.small(
+            GlassActionButton(
               heroTag: 'fab_$label',
               onPressed: onTap,
-              child: Icon(icon),
+              tooltip: label,
+              icon: icon,
+              size: 44,
+              iconSize: 20,
             ),
           ],
         ),
