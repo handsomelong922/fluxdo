@@ -104,13 +104,19 @@ class _SearchAiChatCardState extends ConsumerState<SearchAiChatCard> {
         );
   }
 
-  void _openInternalTopicLink(int topicId, String? topicSlug, int? postNumber) {
+  void _openInternalTopicLink(
+    int topicId,
+    String? topicSlug,
+    int? postNumber, {
+    bool? initialNestedView,
+  }) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TopicDetailPage(
           topicId: topicId,
           initialTitle: topicSlug,
           scrollToPostNumber: postNumber,
+          initialNestedView: initialNestedView,
         ),
       ),
     );

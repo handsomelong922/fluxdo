@@ -268,18 +268,20 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
           fontSize:
               (theme.textTheme.bodyMedium?.fontSize ?? 14) * contentFontScale,
         ),
-        onInternalLinkTap: (topicId, topicSlug, postNumber) {
-          Navigator.of(context).pop();
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => TopicDetailPage(
-                topicId: topicId,
-                initialTitle: topicSlug,
-                scrollToPostNumber: postNumber,
-              ),
-            ),
-          );
-        },
+        onInternalLinkTap:
+            (topicId, topicSlug, postNumber, {initialNestedView}) {
+              Navigator.of(context).pop();
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => TopicDetailPage(
+                    topicId: topicId,
+                    initialTitle: topicSlug,
+                    scrollToPostNumber: postNumber,
+                    initialNestedView: initialNestedView,
+                  ),
+                ),
+              );
+            },
       );
     }
 

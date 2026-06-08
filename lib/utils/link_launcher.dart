@@ -19,6 +19,14 @@ import 'url_helper.dart';
 
 const _browserChannel = MethodChannel('com.github.lingyan000.fluxdo/browser');
 
+typedef InternalTopicLinkTap =
+    void Function(
+      int topicId,
+      String? topicSlug,
+      int? postNumber, {
+      bool? initialNestedView,
+    });
+
 /// 检查 URL 是否属于站点内部链接（主域名或子域名）
 bool isInternalUrl(Uri uri) {
   final baseUri = Uri.tryParse(AppConstants.baseUrl);
@@ -125,8 +133,7 @@ Future<void> launchExternalLink(BuildContext context, String url) async {
 Future<void> launchContentLink(
   BuildContext context,
   String url, {
-  void Function(int topicId, String? topicSlug, int? postNumber)?
-  onInternalLinkTap,
+  InternalTopicLinkTap? onInternalLinkTap,
   void Function(String url)? onDownloadAttachment,
 }) async {
   if (url.isEmpty) return;
@@ -162,6 +169,7 @@ Future<void> launchContentLink(
         topicInfo.topicId,
         topicInfo.slug,
         topicInfo.postNumber,
+        initialNestedView: topicInfo.isNestedRoute ? true : null,
       );
       return;
     }

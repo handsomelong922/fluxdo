@@ -101,10 +101,7 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
                 onPressed: () => Navigator.of(ctx).pop(false),
                 child: const Text('取消'),
               ),
-              FilledButton(
-                onPressed: onSave,
-                child: const Text('保存'),
-              ),
+              FilledButton(onPressed: onSave, child: const Text('保存')),
             ],
           );
         },
@@ -115,10 +112,12 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
     if (saved == true && mounted) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(
-          content: Text('规则已更新'),
-          duration: Duration(seconds: 1),
-        ));
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('规则已更新'),
+            duration: Duration(seconds: 1),
+          ),
+        );
     }
   }
 
@@ -128,9 +127,7 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
     final patterns = ref.watch(keywordFilterProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('关键词屏蔽'),
-      ),
+      appBar: AppBar(title: const Text('关键词屏蔽')),
       body: Column(
         children: [
           Padding(
@@ -151,10 +148,7 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: _addPattern,
-                  child: const Text('添加'),
-                ),
+                FilledButton(onPressed: _addPattern, child: const Text('添加')),
               ],
             ),
           ),
@@ -183,29 +177,34 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
                   )
                 : ListView.separated(
                     itemCount: patterns.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final pattern = patterns[index];
-                      return ListTile(
-                        title: Text(
-                          pattern,
-                          style: const TextStyle(fontFamily: 'monospace'),
-                        ),
-                        // CUSTOM: Keyword Filter 编辑 + 删除
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              tooltip: '编辑',
-                              onPressed: () => _editPattern(index, pattern),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit),
+                                  tooltip: '编辑',
+                                  onPressed: () => _editPattern(index, pattern),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline),
+                                  tooltip: '删除',
+                                  onPressed: () => ref
+                                      .read(keywordFilterProvider.notifier)
+                                      .removeAt(index),
+                                ),
+                              ],
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline),
-                              tooltip: '删除',
-                              onPressed: () => ref
-                                  .read(keywordFilterProvider.notifier)
-                                  .removeAt(index),
+                            SelectableText(
+                              pattern,
+                              style: const TextStyle(fontFamily: 'monospace'),
                             ),
                           ],
                         ),

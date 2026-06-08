@@ -44,8 +44,7 @@ class DiscourseHtmlContent extends ConsumerStatefulWidget {
   final TextStyle? textStyle;
   final bool compact; // 紧凑模式：移除段落边距
   /// 内部链接点击回调 (linux.do 话题链接)
-  final void Function(int topicId, String? topicSlug, int? postNumber)?
-  onInternalLinkTap;
+  final InternalTopicLinkTap? onInternalLinkTap;
 
   /// 链接点击统计数据
   final List<LinkCount>? linkCounts;

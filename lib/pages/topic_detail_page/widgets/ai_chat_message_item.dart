@@ -1,6 +1,7 @@
 import 'package:ai_model_manager/ai_model_manager.dart';
 import 'package:flutter/material.dart';
 import '../../../l10n/s.dart';
+import '../../../utils/link_launcher.dart';
 
 import '../../../widgets/markdown_editor/markdown_renderer.dart';
 
@@ -10,8 +11,7 @@ class AiChatMessageItem extends StatelessWidget {
   final VoidCallback? onRetry;
   final VoidCallback? onShareAsImage;
   final VoidCallback? onCopyText;
-  final void Function(int topicId, String? topicSlug, int? postNumber)?
-  onInternalLinkTap;
+  final InternalTopicLinkTap? onInternalLinkTap;
 
   /// 多选模式相关
   final bool selectionMode;

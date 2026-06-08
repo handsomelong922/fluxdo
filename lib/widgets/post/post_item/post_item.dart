@@ -180,16 +180,18 @@ class _PostItemState extends ConsumerState<PostItem> {
                   post: post,
                   topicId: widget.topicId,
                   onQuoteImage: widget.onQuoteImage,
-                  onInternalLinkTap: (topicId, topicSlug, postNumber) {
-                    openInternalTopicLink(
-                      context,
-                      currentTopicId: widget.topicId,
-                      targetTopicId: topicId,
-                      topicSlug: topicSlug,
-                      postNumber: postNumber,
-                      onJumpToPost: widget.onJumpToPost,
-                    );
-                  },
+                  onInternalLinkTap:
+                      (topicId, topicSlug, postNumber, {initialNestedView}) {
+                        openInternalTopicLink(
+                          context,
+                          currentTopicId: widget.topicId,
+                          targetTopicId: topicId,
+                          topicSlug: topicSlug,
+                          postNumber: postNumber,
+                          onJumpToPost: widget.onJumpToPost,
+                          initialNestedView: initialNestedView,
+                        );
+                      },
                   onSelectionChanged: widget.onQuoteSelection != null
                       ? (content) {
                           _lastSelectedContent = content;

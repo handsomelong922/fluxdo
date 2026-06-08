@@ -562,17 +562,18 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           post: post,
           topicId: widget.topicId,
           searchHighlightQuery: widget.searchHighlightQuery,
-          onInternalLinkTap: (targetTopicId, topicSlug, postNumber) {
-            openInternalTopicLink(
-              context,
-              currentTopicId: widget.topicId,
-              targetTopicId: targetTopicId,
-              topicSlug: topicSlug,
-              postNumber: postNumber,
-              onJumpToPost: widget.onJumpToPost,
-              initialNestedView: true,
-            );
-          },
+          onInternalLinkTap:
+              (targetTopicId, topicSlug, postNumber, {initialNestedView}) {
+                openInternalTopicLink(
+                  context,
+                  currentTopicId: widget.topicId,
+                  targetTopicId: targetTopicId,
+                  topicSlug: topicSlug,
+                  postNumber: postNumber,
+                  onJumpToPost: widget.onJumpToPost,
+                  initialNestedView: initialNestedView ?? true,
+                );
+              },
         ),
         PostSignature(
           post: post,

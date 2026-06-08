@@ -283,23 +283,25 @@ class _TopicSummaryWidgetState extends ConsumerState<TopicSummaryWidget> {
           ],
           MarkdownBody(
             data: summary.summarizedText,
-            onInternalLinkTap: (linkTopicId, topicSlug, postNumber) {
-              if (linkTopicId == widget.topicId &&
-                  postNumber != null &&
-                  widget.onJumpToPost != null) {
-                widget.onJumpToPost!(postNumber);
-              } else {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => TopicDetailPage(
-                      topicId: linkTopicId,
-                      initialTitle: topicSlug,
-                      scrollToPostNumber: postNumber,
-                    ),
-                  ),
-                );
-              }
-            },
+            onInternalLinkTap:
+                (linkTopicId, topicSlug, postNumber, {initialNestedView}) {
+                  if (linkTopicId == widget.topicId &&
+                      postNumber != null &&
+                      widget.onJumpToPost != null) {
+                    widget.onJumpToPost!(postNumber);
+                  } else {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => TopicDetailPage(
+                          topicId: linkTopicId,
+                          initialTitle: topicSlug,
+                          scrollToPostNumber: postNumber,
+                          initialNestedView: initialNestedView,
+                        ),
+                      ),
+                    );
+                  }
+                },
           ),
           const SizedBox(height: 12),
           Row(

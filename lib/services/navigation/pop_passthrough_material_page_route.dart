@@ -22,6 +22,14 @@ class PopPassthroughMaterialPageRoute<T> extends MaterialPageRoute<T> {
   final ValueNotifier<bool> _ignorePointersAfterPop = ValueNotifier(false);
   final ValueNotifier<bool> _horizontalPopGestureActive = ValueNotifier(false);
 
+  static ValueListenable<bool>? horizontalPopGestureActiveListenableOf(
+    BuildContext context,
+  ) {
+    return context
+        .dependOnInheritedWidgetOfExactType<_HorizontalPopGestureScope>()
+        ?.notifier;
+  }
+
   @override
   bool canTransitionFrom(TransitionRoute<dynamic> previousRoute) {
     if (enableHorizontalPopGesture) return false;
@@ -44,10 +52,17 @@ class PopPassthroughMaterialPageRoute<T> extends MaterialPageRoute<T> {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
+    final transitionChild = enableHorizontalPopGesture
+        ? _HorizontalPopGestureScope(
+            notifier: _horizontalPopGestureActive,
+            child: child,
+          )
+        : child;
+
     final transition = enableHorizontalPopGesture
         ? ValueListenableBuilder<bool>(
             valueListenable: _horizontalPopGestureActive,
-            child: child,
+            child: transitionChild,
             builder: (context, isHorizontalPopActive, child) {
               if (isHorizontalPopActive) {
                 return _buildHorizontalPageTransition(
@@ -123,9 +138,10 @@ class PopPassthroughMaterialPageRoute<T> extends MaterialPageRoute<T> {
   }
 }
 
-const double _horizontalPopMinDragDistance = 18.0;
-const double _horizontalPopMinFlingVelocity = 1.0;
-const Duration _horizontalPopSettleDuration = Duration(milliseconds: 280);
+const double _horizontalPopMinDragDistance = 12.0;
+const double _horizontalPopCommitThreshold = 0.68;
+const double _horizontalPopMinFlingVelocity = 0.8;
+const Duration _horizontalPopSettleDuration = Duration(milliseconds: 220);
 
 class _HorizontalPopGestureDetector<T> extends StatefulWidget {
   const _HorizontalPopGestureDetector({
@@ -278,6 +294,14 @@ class _HorizontalPopGestureDetectorState<T>
   }
 }
 
+class _HorizontalPopGestureScope
+    extends InheritedNotifier<ValueNotifier<bool>> {
+  const _HorizontalPopGestureScope({
+    required ValueNotifier<bool> notifier,
+    required super.child,
+  }) : super(notifier: notifier);
+}
+
 class _HorizontalPopGestureController<T> {
   _HorizontalPopGestureController({required this.route}) {
     route._horizontalPopGestureActive.value = true;
@@ -304,7 +328,7 @@ class _HorizontalPopGestureController<T> {
     } else if (velocity.abs() >= _horizontalPopMinFlingVelocity) {
       shouldRestore = velocity <= 0;
     } else {
-      shouldRestore = _controller.value > 0.5;
+      shouldRestore = _controller.value > _horizontalPopCommitThreshold;
     }
 
     if (shouldRestore) {

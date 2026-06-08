@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/utils/link_launcher.dart';
 
@@ -30,6 +31,46 @@ void main() {
       expect(isCdkUrlString('https://linux.do/t/1'), isFalse);
       expect(isCdkUrlString('https://example.com/cdk.linux.do'), isFalse);
       expect(isCdkUrlString('/t/1'), isFalse);
+    });
+  });
+
+  group('launchContentLink', () {
+    testWidgets('passes nested route intent for complex topic links', (
+      tester,
+    ) async {
+      var capturedTopicId = 0;
+      bool? capturedNestedView;
+
+      void callback(
+        int topicId,
+        String? topicSlug,
+        int? postNumber, {
+        bool? initialNestedView,
+      }) {
+        capturedTopicId = topicId;
+        capturedNestedView = initialNestedView;
+      }
+
+      late BuildContext testContext;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              testContext = context;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      await launchContentLink(
+        testContext,
+        'https://linux.do/n/topic/388420?sort=old',
+        onInternalLinkTap: callback,
+      );
+
+      expect(capturedTopicId, 388420);
+      expect(capturedNestedView, isTrue);
     });
   });
 }

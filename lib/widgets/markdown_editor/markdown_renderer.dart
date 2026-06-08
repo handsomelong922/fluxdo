@@ -3,6 +3,7 @@ import 'package:markdown/markdown.dart' as md;
 import '../content/discourse_html_content/discourse_html_content.dart';
 import '../../services/emoji_handler.dart';
 import '../../constants.dart';
+import '../../utils/link_launcher.dart';
 import '../../utils/url_helper.dart';
 
 /// Markdown 预览组件
@@ -10,19 +11,20 @@ import '../../utils/url_helper.dart';
 /// 再用 DiscourseHtmlContent 渲染，保持与帖子显示样式一致
 class MarkdownBody extends StatelessWidget {
   final String data;
+
   /// 内部链接点击回调（话题链接）
-  final void Function(int topicId, String? topicSlug, int? postNumber)? onInternalLinkTap;
+  final InternalTopicLinkTap? onInternalLinkTap;
 
   const MarkdownBody({super.key, required this.data, this.onInternalLinkTap});
-  
+
   @override
   Widget build(BuildContext context) {
     // 1. 处理 Emoji 替换 (将 :smile: 转为 <img>)
     var processedData = EmojiHandler().replaceEmojis(data);
-    
+
     // 2. 预处理 @用户名 提及（转换为 HTML 链接）
     processedData = _processMentions(processedData);
-    
+
     // 3. 预处理 Discourse 图片格式 (![alt|WxH](url) -> HTML img)
     processedData = _processDiscourseImages(processedData);
 
@@ -64,17 +66,15 @@ class MarkdownBody extends StatelessWidget {
 
     // 9. 后处理：将 quote 占位符替换回 aside.quote
     html = _restoreQuoteBlocks(html, quoteBlocks);
-    
+
     // 10. 使用 DiscourseHtmlContent 渲染，与帖子显示保持一致
     return DiscourseHtmlContent(
       html: html,
-      textStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-        height: 1.5,
-      ),
+      textStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
       onInternalLinkTap: onInternalLinkTap,
     );
   }
-  
+
   /// 处理 Discourse 图片格式：![alt|widthxheight](url) -> <img src="" width="" height="" alt="">
   /// 标准 Markdown 包不识别竖线语法，需要手动转换
   String _processDiscourseImages(String text) {
@@ -82,7 +82,7 @@ class MarkdownBody extends StatelessWidget {
     final discourseImageRegex = RegExp(
       r'!\[([^\]|]*)\|(\d+)x(\d+)\]\(([^)\s]+)\)',
     );
-    
+
     return text.replaceAllMapped(discourseImageRegex, (match) {
       final alt = match.group(1) ?? '';
       final width = match.group(2)!;
@@ -99,8 +99,7 @@ class MarkdownBody extends StatelessWidget {
     // 清理多余空行（连续 3 个以上换行合并为 2 个）
     // text = text.replaceAll(RegExp(r'\n{3,}'), '\n\n');
   }
-  
-  
+
   /// 预处理 [spoiler]...[/spoiler] 标记
   /// 块级 spoiler（内容含换行）使用占位符模式，行内 spoiler 直接替换为 HTML
   String _processSpoilerBlocks(String text, Map<String, String> spoilerBlocks) {
@@ -169,7 +168,7 @@ class MarkdownBody extends StatelessWidget {
       multiLine: true,
       dotAll: true,
     );
-    
+
     int index = 0;
     return text.replaceAllMapped(gridRegex, (match) {
       final content = match.group(1) ?? '';
@@ -179,11 +178,11 @@ class MarkdownBody extends StatelessWidget {
       return placeholder;
     });
   }
-  
+
   /// 后处理：将 grid 占位符替换为 div.d-image-grid 包裹的图片
   String _restoreGridBlocks(String html, Map<String, String> gridBlocks) {
     var result = html;
-    
+
     for (final entry in gridBlocks.entries) {
       final placeholder = entry.key;
       var markdownContent = entry.value;
@@ -196,21 +195,21 @@ class MarkdownBody extends StatelessWidget {
         markdownContent,
         extensionSet: md.ExtensionSet.gitHubFlavored,
       );
-      
+
       // 移除 markdown 生成的 <p> 标签包裹，只保留 <img> 标签
       gridHtml = gridHtml.replaceAll(RegExp(r'</?p>'), '');
-      
+
       // 用 d-image-grid div 包裹
       final replacement = '<div class="d-image-grid">$gridHtml</div>';
-      
+
       // 替换占位符（可能被 <p> 包裹了）
       result = result.replaceAll('<p>$placeholder</p>', replacement);
       result = result.replaceAll(placeholder, replacement);
     }
-    
+
     return result;
   }
-  
+
   /// 预处理 [quote="username, post:N, topic:T"]...[/quote] 标记
   /// 将其替换为占位符，避免被 markdown 解析器干扰
   String _processQuoteBlocks(String text, Map<String, String> quoteBlocks) {
@@ -240,7 +239,9 @@ class MarkdownBody extends StatelessWidget {
       final raw = entry.value;
       final firstNewline = raw.indexOf('\n');
       final attrs = firstNewline >= 0 ? raw.substring(0, firstNewline) : '';
-      final markdownContent = firstNewline >= 0 ? raw.substring(firstNewline + 1) : raw;
+      final markdownContent = firstNewline >= 0
+          ? raw.substring(firstNewline + 1)
+          : raw;
 
       // 解析属性
       String? username;
@@ -271,7 +272,8 @@ class MarkdownBody extends StatelessWidget {
       if (post != null) dataAttrs.write(' data-post="$post"');
       if (topic != null) dataAttrs.write(' data-topic="$topic"');
 
-      final replacement = '<aside class="quote"$dataAttrs>'
+      final replacement =
+          '<aside class="quote"$dataAttrs>'
           '<blockquote>$quoteHtml</blockquote>'
           '</aside>';
 
@@ -287,8 +289,11 @@ class MarkdownBody extends StatelessWidget {
   String _processMentions(String text) {
     // 匹配 @用户名，但不匹配邮箱中的 @
     // 要求 @ 前面是空白/开头，后面是合法的用户名字符
-    final mentionRegex = RegExp(r'(?<=^|\s)@([\w_-]+)(?=\s|$|[,.!?;:]|\))', multiLine: true);
-    
+    final mentionRegex = RegExp(
+      r'(?<=^|\s)@([\w_-]+)(?=\s|$|[,.!?;:]|\))',
+      multiLine: true,
+    );
+
     return text.replaceAllMapped(mentionRegex, (match) {
       final username = match.group(1)!;
       // 生成与 Discourse 一致的 mention 链接格式

@@ -235,6 +235,135 @@ void main() {
     expect(find.text('topic'), findsNothing);
   });
 
+  testWidgets('启用横向返回时较短右滑距离也能返回底层 route', (tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const Text('home')),
+    );
+
+    navigatorKey.currentState!.push(
+      PopPassthroughMaterialPageRoute<void>(
+        enableHorizontalPopGesture: true,
+        builder: (_) => const Text('detail'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(const Offset(400, 300));
+    await gesture.moveBy(const Offset(280, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(find.text('home'), findsOneWidget);
+    expect(find.text('detail'), findsNothing);
+  });
+
+  testWidgets('右滑返回手势回拉取消时不会误进入 AI 页', (tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    final pageController = PageController();
+    addTearDown(pageController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const Text('home')),
+    );
+
+    final route = PopPassthroughMaterialPageRoute<void>(
+      enableHorizontalPopGesture: true,
+      builder: (_) => PageView(
+        controller: pageController,
+        children: const [
+          ColoredBox(color: Colors.red, child: Text('topic')),
+          ColoredBox(color: Colors.blue, child: Text('ai')),
+        ],
+      ),
+    );
+    navigatorKey.currentState!.push(route);
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(const Offset(400, 300));
+    await gesture.moveBy(const Offset(220, 0));
+    await tester.pump();
+    expect(route.animation!.value, lessThan(1.0));
+
+    await gesture.moveBy(const Offset(-180, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(find.text('topic'), findsOneWidget);
+    expect(find.text('ai'), findsNothing);
+    expect(find.text('home'), findsNothing);
+    expect(pageController.page, 0);
+  });
+
+  testWidgets('右滑返回手势取消后帖子按钮仍可点击', (tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    final pageController = PageController();
+    addTearDown(pageController.dispose);
+    var avatarTapCount = 0;
+    var favoriteTapCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const Text('home')),
+    );
+
+    final route = PopPassthroughMaterialPageRoute<void>(
+      enableHorizontalPopGesture: true,
+      builder: (_) => PageView(
+        controller: pageController,
+        children: [
+          Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => avatarTapCount++,
+                    child: const SizedBox(
+                      width: 64,
+                      height: 64,
+                      child: Text('avatar-after-cancel'),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'favorite-after-cancel',
+                    onPressed: () => favoriteTapCount++,
+                    icon: const Icon(Icons.bookmark_border),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Scaffold(body: Center(child: Text('ai'))),
+        ],
+      ),
+    );
+    navigatorKey.currentState!.push(route);
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(const Offset(400, 300));
+    await gesture.moveBy(const Offset(220, 0));
+    await tester.pump();
+    await gesture.moveBy(const Offset(-180, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(find.text('home'), findsNothing);
+    expect(find.text('ai'), findsNothing);
+    expect(route.animation!.value, 1.0);
+
+    await tester.tap(find.text('avatar-after-cancel'));
+    await tester.tap(find.byTooltip('favorite-after-cancel'));
+    await tester.pump();
+
+    expect(avatarTapCount, 1);
+    expect(favoriteTapCount, 1);
+  });
+
   testWidgets('启用横向返回且内容为 PageView 时帖子按钮仍可逐个点击', (tester) async {
     final navigatorKey = GlobalKey<NavigatorState>();
     final pageController = PageController();

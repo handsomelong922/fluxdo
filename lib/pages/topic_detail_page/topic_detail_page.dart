@@ -33,6 +33,7 @@ import '../../services/topic_reading_state_service.dart';
 import '../../services/toast_service.dart';
 import '../../services/log/log_writer.dart';
 import '../../services/navigation/app_route_observer.dart';
+import '../../services/navigation/pop_passthrough_material_page_route.dart';
 import '../../widgets/content/lazy_load_scope.dart';
 import '../../widgets/post/post_item_skeleton.dart';
 import '../../widgets/post/post_replies_sheet.dart';
@@ -1227,44 +1228,75 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                 }
               }
             },
-            child: PageView(
-              controller: _pageController,
-              physics: isSearchMode
-                  ? const NeverScrollableScrollPhysics()
-                  : const ClampingScrollPhysics(),
-              onPageChanged: (page) {
-                _currentPageNotifier.value = page;
-                // 离开 AI 页面时取消输入框焦点，防止返回时键盘意外弹出
-                if (page != _aiPage) {
-                  FocusManager.instance.primaryFocus?.unfocus();
-                }
-              },
-              children: [
-                _KeepAlivePage(child: topicScaffold),
-                _KeepAlivePage(
-                  child: AiChatPage(
-                    topicId: widget.topicId,
-                    detail: detail,
-                    embedded: true,
-                    onReplyToTopic: detail == null
-                        ? null
-                        : (imageMarkdown) {
-                            _animateToTopicPage();
-                            showReplySheet(
-                              context: context,
-                              topicId: widget.topicId,
-                              categoryId: detail.categoryId,
-                              initialContent: '$imageMarkdown\n',
-                              isPrivateMessageTopic: detail.isPrivateMessage,
-                            );
-                          },
-                  ),
-                ),
-              ],
+            child: _buildSwipeEntryPageView(
+              context: context,
+              isSearchMode: isSearchMode,
+              detail: detail,
+              topicScaffold: topicScaffold,
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildSwipeEntryPageView({
+    required BuildContext context,
+    required bool isSearchMode,
+    required TopicDetail? detail,
+    required Widget topicScaffold,
+  }) {
+    final horizontalPopGestureActive =
+        PopPassthroughMaterialPageRoute.horizontalPopGestureActiveListenableOf(
+          context,
+        );
+
+    Widget buildPageView(bool lockAiSwipe) {
+      return PageView(
+        controller: _pageController,
+        physics: isSearchMode || lockAiSwipe
+            ? const NeverScrollableScrollPhysics()
+            : const ClampingScrollPhysics(),
+        onPageChanged: (page) {
+          _currentPageNotifier.value = page;
+          // 离开 AI 页面时取消输入框焦点，防止返回时键盘意外弹出
+          if (page != _aiPage) {
+            FocusManager.instance.primaryFocus?.unfocus();
+          }
+        },
+        children: [
+          _KeepAlivePage(child: topicScaffold),
+          _KeepAlivePage(
+            child: AiChatPage(
+              topicId: widget.topicId,
+              detail: detail,
+              embedded: true,
+              onReplyToTopic: detail == null
+                  ? null
+                  : (imageMarkdown) {
+                      _animateToTopicPage();
+                      showReplySheet(
+                        context: context,
+                        topicId: widget.topicId,
+                        categoryId: detail.categoryId,
+                        initialContent: '$imageMarkdown\n',
+                        isPrivateMessageTopic: detail.isPrivateMessage,
+                      );
+                    },
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (horizontalPopGestureActive == null) {
+      return buildPageView(false);
+    }
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: horizontalPopGestureActive,
+      builder: (context, isHorizontalPopActive, _) =>
+          buildPageView(isHorizontalPopActive),
     );
   }
 

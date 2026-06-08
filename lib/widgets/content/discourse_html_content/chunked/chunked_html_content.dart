@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
+import '../../../../utils/link_launcher.dart';
 import '../discourse_html_content_widget.dart';
 import '../image_utils.dart';
 import '../../../../models/topic.dart';
@@ -15,8 +16,7 @@ class ChunkedHtmlContent extends StatefulWidget {
   final TextStyle? textStyle;
 
   /// 内部链接点击回调 (linux.do 话题链接)
-  final void Function(int topicId, String? topicSlug, int? postNumber)?
-  onInternalLinkTap;
+  final InternalTopicLinkTap? onInternalLinkTap;
 
   /// 链接点击统计数据
   final List<LinkCount>? linkCounts;
@@ -217,8 +217,7 @@ class _ChunkedHtmlContentState extends State<ChunkedHtmlContent> {
 class HtmlChunkWidget extends StatelessWidget {
   final HtmlChunk chunk;
   final TextStyle? textStyle;
-  final void Function(int topicId, String? topicSlug, int? postNumber)?
-  onInternalLinkTap;
+  final InternalTopicLinkTap? onInternalLinkTap;
   final List<LinkCount>? linkCounts;
   final List<String> galleryImages;
   final Set<String>? spoilerImageUrls;

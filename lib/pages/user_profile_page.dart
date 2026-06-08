@@ -54,6 +54,8 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
   User? _user;
   UserSummary? _summary;
   bool _isLoading = true;
+  bool _isSummaryLoading = true;
+  String? _summaryError;
   String? _error;
 
   // 关注状态
@@ -128,17 +130,11 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
   Future<void> _loadUser() async {
     try {
       final service = ref.read(discourseServiceProvider);
-      // 并行加载用户基本信息和统计数据
-      final results = await Future.wait([
-        service.getUser(widget.username),
-        service.getUserSummary(widget.username),
-      ]);
+      final user = await service.getUser(widget.username);
 
       if (mounted) {
-        final user = results[0] as User;
         setState(() {
           _user = user;
-          _summary = results[1] as UserSummary;
           _isFollowed = user.isFollowed ?? false;
           _notificationLevel = user.ignored == true
               ? 'ignore'
@@ -147,13 +143,33 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
               : 'normal';
           _isLoading = false;
         });
-        // 总结 tab 数据已从 _summary 获取，无需额外加载
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _error = e.toString();
           _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      final summary = await ref
+          .read(discourseServiceProvider)
+          .getUserSummary(widget.username);
+      if (mounted) {
+        setState(() {
+          _summary = summary;
+          _summaryError = null;
+          _isSummaryLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _summaryError = e.toString();
+          _isSummaryLoading = false;
         });
       }
     }
@@ -1915,7 +1931,16 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
 
   Widget _buildSummaryTab() {
     if (_summary == null) {
-      return const UserActionListSkeleton();
+      if (_isSummaryLoading) {
+        return const UserActionListSkeleton();
+      }
+      return Center(
+        child: Text(
+          _summaryError == null
+              ? context.l10n.common_noData
+              : '${context.l10n.common_loadFailed}: $_summaryError',
+        ),
+      );
     }
 
     final theme = Theme.of(context);

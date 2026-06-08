@@ -142,16 +142,18 @@ class LongPostChunkSegment extends ConsumerWidget {
           child: HtmlChunkWidget(
             chunk: chunk,
             textStyle: contentTextStyle,
-            onInternalLinkTap: (targetTopicId, topicSlug, postNumber) {
-              openInternalTopicLink(
-                context,
-                currentTopicId: topicId,
-                targetTopicId: targetTopicId,
-                topicSlug: topicSlug,
-                postNumber: postNumber,
-                onJumpToPost: onJumpToPost,
-              );
-            },
+            onInternalLinkTap:
+                (targetTopicId, topicSlug, postNumber, {initialNestedView}) {
+                  openInternalTopicLink(
+                    context,
+                    currentTopicId: topicId,
+                    targetTopicId: targetTopicId,
+                    topicSlug: topicSlug,
+                    postNumber: postNumber,
+                    onJumpToPost: onJumpToPost,
+                    initialNestedView: initialNestedView,
+                  );
+                },
             linkCounts: post.linkCounts,
             galleryImages: renderData.galleryImages,
             spoilerImageUrls: renderData.spoilerImageUrls,
