@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../models/avatar_url_policy.dart';
 import '../../../models/topic.dart';
 import '../../common/emoji_text.dart';
 import '../../../services/discourse_cache_manager.dart';
-import '../../../utils/url_helper.dart';
 import 'boost_content.dart';
 
 /// 单个 Boost 气泡
@@ -73,14 +73,21 @@ class BoostBubble extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircleAvatar(
-                radius: 10,
-                backgroundImage: discourseImageProvider(
-                  UrlHelper.resolveUrlWithCdn(
-                    boost!.user.avatarTemplate.replaceAll('{size}', '48'),
-                  ),
-                ),
-                onBackgroundImageError: (_, _) {},
+              ValueListenableBuilder<int>(
+                valueListenable: AvatarUrlPolicy.revisionListenable,
+                builder: (context, _, _) {
+                  final avatarUrl = AvatarUrlPolicy.resolveTemplate(
+                    boost!.user.avatarTemplate,
+                    size: 48,
+                  );
+                  return CircleAvatar(
+                    radius: 10,
+                    backgroundImage: avatarUrl.isNotEmpty
+                        ? discourseImageProvider(avatarUrl)
+                        : null,
+                    onBackgroundImageError: (_, _) {},
+                  );
+                },
               ),
               const SizedBox(width: 4),
               ConstrainedBox(
@@ -232,14 +239,21 @@ class _AvatarStack extends StatelessWidget {
                     width: 1.5,
                   ),
                 ),
-                child: CircleAvatar(
-                  radius: 10,
-                  backgroundImage: discourseImageProvider(
-                    UrlHelper.resolveUrlWithCdn(
-                      visibleUsers[i].avatarTemplate.replaceAll('{size}', '48'),
-                    ),
-                  ),
-                  onBackgroundImageError: (_, _) {},
+                child: ValueListenableBuilder<int>(
+                  valueListenable: AvatarUrlPolicy.revisionListenable,
+                  builder: (context, _, _) {
+                    final avatarUrl = AvatarUrlPolicy.resolveTemplate(
+                      visibleUsers[i].avatarTemplate,
+                      size: 48,
+                    );
+                    return CircleAvatar(
+                      radius: 10,
+                      backgroundImage: avatarUrl.isNotEmpty
+                          ? discourseImageProvider(avatarUrl)
+                          : null,
+                      onBackgroundImageError: (_, _) {},
+                    );
+                  },
                 ),
               ),
             ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:jovial_svg/jovial_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../../models/avatar_url_policy.dart';
 import '../../services/discourse_cache_manager.dart';
 import '../../services/emoji_handler.dart';
 import '../../utils/svg_utils.dart';
@@ -87,6 +88,13 @@ class FlairBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: AvatarUrlPolicy.revisionListenable,
+      builder: (context, _, _) => _buildBadge(context),
+    );
+  }
+
+  Widget _buildBadge(BuildContext context) {
     if (!hasFlair) return const SizedBox.shrink();
 
     final bgColor = _parseColor(flairBgColor);
@@ -125,7 +133,16 @@ class FlairBadge extends StatelessWidget {
 
     // 有背景时图片缩小一点，留出内边距
     final imageSize = hasBgColor ? size * 0.7 : size;
-    final fullUrl = _getFullFlairUrl();
+    final fullUrl = AvatarUrlPolicy.resolveDirectAvatarUrl(
+      _getFullFlairUrl(),
+      size: imageSize.round(),
+    );
+    if (fullUrl.isEmpty) {
+      return Tooltip(
+        message: flairName ?? '',
+        child: _buildFallbackText(size, flairName),
+      );
+    }
 
     // SVG 图片使用 DiscourseCacheManager 下载后用 jovial_svg 渲染
     if (_isSvg) {
@@ -156,20 +173,24 @@ class FlairBadge extends StatelessWidget {
             fit: BoxFit.contain,
             errorBuilder: (_, _, _) {
               // 如果图片加载失败，显示首字母
-              final initial = (flairName ?? '').isNotEmpty
-                  ? flairName![0].toUpperCase()
-                  : '?';
-              return Text(
-                initial,
-                style: TextStyle(
-                  fontSize: size * 0.6,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey,
-                ),
-              );
+              return _buildFallbackText(size, flairName);
             },
           ),
         ),
+      ),
+    );
+  }
+
+  static Widget _buildFallbackText(double size, String? flairName) {
+    final initial = (flairName ?? '').isNotEmpty
+        ? flairName![0].toUpperCase()
+        : '?';
+    return Text(
+      initial,
+      style: TextStyle(
+        fontSize: size * 0.6,
+        fontWeight: FontWeight.w600,
+        color: Colors.grey,
       ),
     );
   }

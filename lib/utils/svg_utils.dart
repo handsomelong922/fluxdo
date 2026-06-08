@@ -14,14 +14,56 @@ class SvgUtils {
   static String sanitize(String svg) {
     String result = svg;
 
-    // 1. 移除 `<filter>` 元素和 filter 属性引用
+    // 1. 移除脚本、CSS 动画和事件属性，避免 SVG 徽章继续闪动
+    result = _removeScriptAndCssAnimations(result);
+
+    // 2. 移除 `<filter>` 元素和 filter 属性引用
     result = _removeFilters(result);
 
-    // 2. 移除 SMIL 动画标签
+    // 3. 移除 SMIL 动画标签
     result = _removeAnimations(result);
 
-    // 3. 处理嵌套的 SVG 标签
+    // 4. 处理嵌套的 SVG 标签
     result = _flattenNestedSvg(result);
+
+    return result;
+  }
+
+  /// 移除脚本、事件属性和 CSS 动画/过渡声明
+  static String _removeScriptAndCssAnimations(String content) {
+    String result = content;
+
+    result = result.replaceAll(
+      RegExp(
+        r'<script\b[^>]*>.*?</script>',
+        caseSensitive: false,
+        dotAll: true,
+      ),
+      '',
+    );
+    result = result.replaceAll(
+      RegExp(
+        r'@\w*keyframes\b[^{}]*\{(?:[^{}]|\{[^{}]*\})*\}',
+        caseSensitive: false,
+        dotAll: true,
+      ),
+      '',
+    );
+    result = result.replaceAll(
+      RegExp(r'\s+on[a-z]+\s*=\s*"[^"]*"', caseSensitive: false),
+      '',
+    );
+    result = result.replaceAll(
+      RegExp(r"\s+on[a-z]+\s*=\s*'[^']*'", caseSensitive: false),
+      '',
+    );
+    result = result.replaceAll(
+      RegExp(
+        r'(?:^|;)\s*(?:animation|transition)(?:-[\w-]+)?\s*:[^;"]*',
+        caseSensitive: false,
+      ),
+      '',
+    );
 
     return result;
   }
@@ -32,7 +74,11 @@ class SvgUtils {
 
     // 移除 <filter>...</filter>
     result = result.replaceAll(
-      RegExp(r'<filter\b[^>]*>.*?</filter>', caseSensitive: false, dotAll: true),
+      RegExp(
+        r'<filter\b[^>]*>.*?</filter>',
+        caseSensitive: false,
+        dotAll: true,
+      ),
       '',
     );
 

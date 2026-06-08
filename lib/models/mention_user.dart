@@ -1,4 +1,4 @@
-import '../utils/url_helper.dart';
+import 'avatar_url_policy.dart';
 
 /// 从文本中提取所有 @用户名
 /// 返回不重复的用户名列表（不含 @）
@@ -40,9 +40,8 @@ class MentionUser {
 
   /// 获取头像 URL（根据尺寸替换模板）
   String? getAvatarUrl(String baseUrl, {int size = 40}) {
-    if (avatarTemplate == null) return null;
-    final url = avatarTemplate!.replaceAll('{size}', size.toString());
-    return UrlHelper.resolveUrlWithCdn(url);
+    final url = AvatarUrlPolicy.resolveTemplate(avatarTemplate, size: size);
+    return url.isEmpty ? null : url;
   }
 }
 

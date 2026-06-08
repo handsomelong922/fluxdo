@@ -10,20 +10,28 @@ void main() {
   });
 
   group('PreferencesNotifier settings', () {
-    test(
-      'AvatarUrlPolicy falls back to animated avatar when static template is missing',
-      () {
-        AvatarUrlPolicy.setPreferStaticAvatars(true);
+    test('AvatarUrlPolicy does not return animated gif in static mode', () {
+      AvatarUrlPolicy.setPreferStaticAvatars(true);
 
-        final url = AvatarUrlPolicy.resolve(
-          avatarTemplate: '',
-          animatedAvatar: '/user_avatar/linux.do/test/120/1_2.gif',
-          size: 120,
-        );
+      final url = AvatarUrlPolicy.resolve(
+        avatarTemplate: '',
+        animatedAvatar: '/user_avatar/linux.do/test/120/1_2.gif',
+        size: 120,
+      );
 
-        expect(url, contains('1_2.gif'));
-      },
-    );
+      expect(url, isNot(contains('.gif')));
+      expect(url, contains('1_2.png'));
+    });
+
+    test('AvatarUrlPolicy staticizes direct avatar gif urls', () {
+      AvatarUrlPolicy.setPreferStaticAvatars(true);
+
+      final url = AvatarUrlPolicy.resolveDirectAvatarUrl(
+        'https://linux.do/user_avatar/linux.do/test/120/1_2.gif?foo=bar',
+      );
+
+      expect(url, contains('1_2.png?foo=bar'));
+    });
 
     test('uses safe defaults', () async {
       SharedPreferences.setMockInitialValues({});

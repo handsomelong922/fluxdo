@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import '../l10n/s.dart';
 import '../utils/time_utils.dart';
-import '../utils/url_helper.dart';
+import 'avatar_url_policy.dart';
 
 /// 解析通知 data 字段：可能是 Map、JSON string 或 null
 Map<String, dynamic> _parseDataField(dynamic data) {
@@ -246,9 +246,7 @@ class DiscourseNotification {
     if (template == null || template.isEmpty) {
       return '';
     }
-    // 替换 {size} 占位符并解析 URL
-    final url = template.replaceAll('{size}', size.toString());
-    return UrlHelper.resolveUrlWithCdn(url);
+    return AvatarUrlPolicy.resolveTemplate(template, size: size);
   }
 
   DiscourseNotification copyWith({
@@ -322,7 +320,9 @@ class DiscourseNotification {
     }
 
     // 话题类通知：使用话题标题
-    if (data.topicTitle != null && data.topicTitle!.isNotEmpty) return data.topicTitle!;
+    if (data.topicTitle != null && data.topicTitle!.isNotEmpty) {
+      return data.topicTitle!;
+    }
     if (fancyTitle != null && fancyTitle!.isNotEmpty) return fancyTitle!;
 
     // 兜底使用通知类型

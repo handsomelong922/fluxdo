@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:jovial_svg/jovial_svg.dart';
+import '../../models/avatar_url_policy.dart';
 import '../../services/discourse_cache_manager.dart';
 import '../../utils/svg_utils.dart';
 
@@ -36,6 +37,7 @@ class _SmartAvatarState extends State<SmartAvatar> {
   // 当检测到 SVG 时存储内容
   String? _svgContent;
   bool _isSvgDetected = false;
+  String? _lastResolvedImageUrl;
 
   @override
   void didUpdateWidget(SmartAvatar oldWidget) {
@@ -49,6 +51,13 @@ class _SmartAvatarState extends State<SmartAvatar> {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: AvatarUrlPolicy.revisionListenable,
+      builder: (context, _, _) => _buildAvatar(context),
+    );
+  }
+
+  Widget _buildAvatar(BuildContext context) {
     final theme = Theme.of(context);
     // 默认透明背景，只有在需要 fallback 时才用主题色
     final bgColor = widget.backgroundColor ?? Colors.transparent;
@@ -62,9 +71,18 @@ class _SmartAvatarState extends State<SmartAvatar> {
     }
     final innerRadius = widget.radius - borderWidth;
     final innerSize = innerRadius * 2;
+    final imageUrl = AvatarUrlPolicy.resolveDirectAvatarUrl(
+      widget.imageUrl,
+      size: innerSize.round(),
+    );
+    if (_lastResolvedImageUrl != imageUrl) {
+      _lastResolvedImageUrl = imageUrl;
+      _svgContent = null;
+      _isSvgDetected = false;
+    }
 
     Widget child;
-    if (widget.imageUrl == null || widget.imageUrl!.isEmpty) {
+    if (imageUrl.isEmpty) {
       child = _buildFallback(fgColor, innerRadius);
     } else if (_isSvgDetected && _svgContent != null) {
       // 已检测到 SVG，直接渲染
@@ -77,7 +95,7 @@ class _SmartAvatarState extends State<SmartAvatar> {
     } else {
       // 使用 CachedNetworkImage，解码失败时检测 SVG
       child = CachedNetworkImage(
-        imageUrl: widget.imageUrl!,
+        imageUrl: imageUrl,
         cacheManager: _cacheManager,
         width: innerSize,
         height: innerSize,
@@ -86,7 +104,7 @@ class _SmartAvatarState extends State<SmartAvatar> {
         fadeOutDuration: const Duration(milliseconds: 150),
         placeholder: (context, url) => _buildLoading(fgColor, innerRadius),
         errorWidget: (context, url, error) => _SvgFallbackBuilder(
-          imageUrl: widget.imageUrl!,
+          imageUrl: imageUrl,
           cacheManager: _cacheManager,
           size: innerSize,
           onSvgDetected: (svgContent) {

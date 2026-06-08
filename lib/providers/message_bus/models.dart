@@ -1,7 +1,7 @@
 /// MessageBus 相关数据模型
 library;
 
-import '../../utils/url_helper.dart';
+import '../../models/avatar_url_policy.dart';
 
 /// 正在输入的用户信息
 class TypingUser {
@@ -16,8 +16,7 @@ class TypingUser {
   });
 
   String getAvatarUrl({int size = 40}) {
-    final template = avatarTemplate.replaceAll('{size}', '$size');
-    return UrlHelper.resolveUrlWithCdn(template);
+    return AvatarUrlPolicy.resolveTemplate(avatarTemplate, size: size);
   }
 
   @override
