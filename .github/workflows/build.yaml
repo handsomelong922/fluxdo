@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: android-release-${{ github.ref }}
+  group: build-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -78,12 +78,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # CUSTOM: Keyword Filter 精简构建矩阵 - 仅保留 Android arm64-v8a
+          # CUSTOM: Keyword Filter 精简构建矩阵 - 保留 Android arm64-v8a 与 Windows x86_64
           - platform: android
             os: ubuntu-latest
             arch: arm64-v8a
             rust-target: aarch64-linux-android
             flutter-target: android-arm64
+          - platform: windows
+            os: windows-2022
+            arch: x86_64
 
     steps:
       - name: Checkout
@@ -105,7 +108,7 @@ jobs:
           cache: true
 
       - name: Setup Rust
-        if: startsWith(matrix.platform, 'android')
+        if: startsWith(matrix.platform, 'android') || matrix.platform == 'windows'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup Android build environment
@@ -141,7 +144,7 @@ jobs:
           echo '{"project_info":{"project_number":"123","project_id":"dummy"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:abc","android_client_info":{"package_name":"com.github.lingyan000.fluxdo"}},"api_key":[{"current_key":"dummy"}]}],"configuration_version":"1"}' > android/app/google-services.json
 
       - name: Generate CA certificates
-        if: startsWith(matrix.platform, 'android')
+        if: startsWith(matrix.platform, 'android') || matrix.platform == 'windows'
         working-directory: core/doh_proxy
         run: cargo run --bin gen_ca
 
@@ -172,6 +175,34 @@ jobs:
           flutter build apk --release --target-platform android-arm64 --dart-define=cronetHttpNoPlay=true
           mkdir -p dist
           mv build/app/outputs/flutter-apk/app-release.apk dist/fluxdo-${{ matrix.arch }}.apk
+
+      - name: Setup NuGet
+        if: matrix.platform == 'windows'
+        uses: nuget/setup-nuget@v2
+
+      - name: Setup NASM
+        if: matrix.platform == 'windows'
+        uses: ilammy/setup-nasm@v1
+
+      - name: Build Windows
+        if: matrix.platform == 'windows'
+        run: |
+          flutter build windows --release
+          mkdir dist
+          $releaseDir = "build\windows\x64\runner\Release"
+          Copy-Item "core\doh_proxy\certs\ca.der" "$releaseDir\proxy_ca.der"
+
+      - name: Package Windows ZIP
+        if: matrix.platform == 'windows'
+        run: |
+          cd build\windows\x64\runner\Release
+          7z a -tzip "..\..\..\..\..\dist\fluxdo-windows-x86_64.zip" .
+
+      - name: Build Windows Installer
+        if: matrix.platform == 'windows'
+        run: |
+          $version = "${{ needs.version.outputs.version }}"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=$version windows\setup.iss
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -232,7 +263,7 @@ jobs:
             grep -v '^- chore: bump version to ' >> "$out" || true
           echo "" >> "$out"
 
-      - name: Prepare Android release assets
+      - name: Prepare release assets
         shell: bash
         run: |
           set -euo pipefail
@@ -240,19 +271,24 @@ jobs:
           rm -rf ./release-assets
           mkdir -p ./release-assets
 
-          find ./dist -type f \( -name "*.apk" -o -name "*.aab" \) -print0 | while IFS= read -r -d '' file; do
-            cp "$file" "./release-assets/$(basename "$file")"
+          required_assets=(
+            "fluxdo-arm64-v8a.apk"
+            "fluxdo-windows-x86_64-setup.exe"
+            "fluxdo-windows-x86_64.zip"
+          )
+
+          for asset in "${required_assets[@]}"; do
+            source="./dist/$asset"
+            if [[ ! -f "$source" ]]; then
+              echo "Missing required release asset: $asset"
+              exit 1
+            fi
+            cp "$source" "./release-assets/$asset"
           done
 
-          asset_count=$(find ./release-assets -maxdepth 1 -type f \( -name "*.apk" -o -name "*.aab" \) | wc -l | tr -d ' ')
-          if [[ "$asset_count" == "0" ]]; then
-            echo "No Android APK/AAB files were found in downloaded artifacts."
-            exit 1
-          fi
-
-          unexpected_count=$(find ./release-assets -maxdepth 1 -type f ! \( -name "*.apk" -o -name "*.aab" \) | wc -l | tr -d ' ')
-          if [[ "$unexpected_count" != "0" ]]; then
-            echo "Release assets must contain only Android APK/AAB files."
+          asset_count=$(find ./release-assets -maxdepth 1 -type f | wc -l | tr -d ' ')
+          if [[ "$asset_count" != "3" ]]; then
+            echo "Release must contain exactly three installable assets."
             find ./release-assets -maxdepth 1 -type f -print
             exit 1
           fi
@@ -264,7 +300,10 @@ jobs:
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          files: ./release-assets/*
+          files: |
+            ./release-assets/fluxdo-arm64-v8a.apk
+            ./release-assets/fluxdo-windows-x86_64-setup.exe
+            ./release-assets/fluxdo-windows-x86_64.zip
           fail_on_unmatched_files: true
           body_path: release_notes.md
           draft: false
