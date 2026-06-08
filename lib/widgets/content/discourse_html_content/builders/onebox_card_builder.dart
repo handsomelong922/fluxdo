@@ -18,6 +18,7 @@ Widget buildOneboxCard({
   required ThemeData theme,
   required dynamic element,
   List<LinkCount>? linkCounts,
+  Future<void> Function(String url)? onLinkTap,
 }) {
   try {
     // 检测 onebox 类型
@@ -30,6 +31,7 @@ Widget buildOneboxCard({
       element: element,
       type: type,
       linkCounts: linkCounts,
+      onLinkTap: onLinkTap,
     );
   } catch (e, stackTrace) {
     debugPrint('=== Onebox Error ===\nError: $e\nStackTrace: $stackTrace');
@@ -39,6 +41,7 @@ Widget buildOneboxCard({
       theme: theme,
       element: element,
       linkCounts: linkCounts,
+      onLinkTap: onLinkTap,
     );
   }
 }
@@ -50,6 +53,7 @@ Widget _buildByType({
   required dynamic element,
   required OneboxType type,
   List<LinkCount>? linkCounts,
+  Future<void> Function(String url)? onLinkTap,
 }) {
   try {
     switch (type) {
@@ -201,17 +205,20 @@ Widget _buildByType({
           theme: theme,
           element: element,
           linkCounts: linkCounts,
+          onLinkTap: onLinkTap,
         );
     }
   } catch (e, stackTrace) {
     debugPrint(
-        '=== Onebox Build Error [$type] ===\nError: $e\nStackTrace: $stackTrace');
+      '=== Onebox Build Error [$type] ===\nError: $e\nStackTrace: $stackTrace',
+    );
     // 专用 builder 失败时回退到默认样式
     return _buildSafeDefault(
       context: context,
       theme: theme,
       element: element,
       linkCounts: linkCounts,
+      onLinkTap: onLinkTap,
     );
   }
 }
@@ -222,6 +229,7 @@ Widget _buildSafeDefault({
   required ThemeData theme,
   required dynamic element,
   List<LinkCount>? linkCounts,
+  Future<void> Function(String url)? onLinkTap,
 }) {
   try {
     return buildDefaultOnebox(
@@ -229,6 +237,7 @@ Widget _buildSafeDefault({
       theme: theme,
       element: element,
       linkCounts: linkCounts,
+      onLinkTap: onLinkTap,
     );
   } catch (e) {
     // 连默认样式都失败了，返回一个最简单的占位

@@ -9,6 +9,14 @@ void main() {
         isTrue,
       );
     });
+
+    test('accepts nested and canonical linux.do topic links', () {
+      expect(
+        isInternalUrlString('https://linux.do/n/topic/388420?sort=old'),
+        isTrue,
+      );
+      expect(isInternalUrlString('https://linux.do/topic/388420'), isTrue);
+    });
   });
 
   group('isCdkUrlString', () {

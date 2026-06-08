@@ -813,6 +813,7 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
         theme: theme,
         element: element,
         linkCounts: widget.linkCounts,
+        onLinkTap: _openContentUrl,
       );
     }
 

@@ -49,15 +49,39 @@ class DiscourseUrlParser {
   /// - `/t/topic-slug/12345/1` → topicId=12345, slug=topic-slug, postNumber=1
   /// - `/t/topic-slug/12345/last` → topicId=12345
   /// - `/n/topic-slug/12345/1` → topicId=12345, slug=topic-slug, postNumber=1
+  /// - `/topic/12345` → topicId=12345
+  /// - `/topic/12345/1` → topicId=12345, postNumber=1
   static TopicLinkInfo? parseTopic(String url) {
     final segments = _pathSegments(url);
     final topicIndex = _lastIndexOfAny(segments, const {'t', 'n'});
-    if (topicIndex < 0 || topicIndex + 1 >= segments.length) return null;
+    if (topicIndex >= 0 && topicIndex + 1 < segments.length) {
+      final marker = segments[topicIndex].toLowerCase();
+      final parsed = marker == 'n'
+          ? _parseNestedTopic(segments, topicIndex, url)
+          : _parseRegularTopic(segments, topicIndex, url);
+      if (parsed != null) return parsed;
+    }
 
-    final marker = segments[topicIndex].toLowerCase();
-    return marker == 'n'
-        ? _parseNestedTopic(segments, topicIndex, url)
-        : _parseRegularTopic(segments, topicIndex, url);
+    final canonicalTopicIndex = _lastIndexOfAny(segments, const {'topic'});
+    if (canonicalTopicIndex < 0 || canonicalTopicIndex + 1 >= segments.length) {
+      return null;
+    }
+    return _parseCanonicalTopic(segments, canonicalTopicIndex, url);
+  }
+
+  /// 生成 App 内部统一使用的话题路径，避免 `/n/`、slug、query 等变体造成跳转分流。
+  static String canonicalTopicPath(TopicLinkInfo info) {
+    final postNumber = info.postNumber;
+    if (postNumber != null) {
+      return '/topic/${info.topicId}/$postNumber';
+    }
+    return '/topic/${info.topicId}';
+  }
+
+  /// 将任意支持的话题链接转成统一话题路径，无法识别时返回 null。
+  static String? canonicalTopicPathFromUrl(String url) {
+    final info = parseTopic(url);
+    return info == null ? null : canonicalTopicPath(info);
   }
 
   /// 解析仅含 slug 的话题链接（/t/some-slug），返回 slug 或 null
@@ -165,6 +189,36 @@ class DiscourseUrlParser {
     );
   }
 
+  static TopicLinkInfo? _parseCanonicalTopic(
+    List<String> segments,
+    int topicIndex,
+    String url,
+  ) {
+    final remaining = segments.sublist(topicIndex + 1);
+    if (remaining.isEmpty) return null;
+
+    final topicId = int.tryParse(remaining[0]);
+    if (topicId == null || topicId <= 0) return null;
+
+    if (remaining.length > 2) return null;
+    final postSegment = remaining.length == 2 ? remaining[1] : null;
+    final postNumber = _parsePostNumberSegment(postSegment);
+    final isKnownTopicAction =
+        postSegment == null ||
+        postSegment == 'last' ||
+        postSegment == 'summary' ||
+        postSegment == 'print' ||
+        postSegment == 'wordpress';
+    if (postSegment != null && postNumber == null && !isKnownTopicAction) {
+      return null;
+    }
+
+    return TopicLinkInfo(
+      topicId: topicId,
+      postNumber: postNumber ?? _parsePostNumberFromFragment(url),
+    );
+  }
+
   static TopicLinkInfo? _parseNestedTopic(
     List<String> segments,
     int topicIndex,
@@ -237,7 +291,7 @@ class DiscourseUrlParser {
   }
 
   static String? _normalizeSlug(String slug) {
-    return slug == 'topic' ? null : slug;
+    return slug.toLowerCase() == 'topic' ? null : slug;
   }
 
   static bool _hasExtension(String segment) => segment.contains('.');

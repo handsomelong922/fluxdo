@@ -117,7 +117,7 @@ Future<void> launchExternalLink(BuildContext context, String url) async {
 ///
 /// 处理所有类型的链接：
 /// - 用户链接 /u/username → 打开用户页面
-/// - 话题链接 /t/topic/123 → 调用 onInternalLinkTap 或用 WebView 打开
+/// - 话题链接 /t/topic/123、/n/topic/123、/topic/123 → 调用 onInternalLinkTap 或用 WebView 打开
 /// - 附件链接 /uploads/ → 外部浏览器打开
 /// - 站点内部链接（主域名或子域名）→ 内置浏览器
 /// - Email 链接 → 外部邮件客户端
@@ -166,7 +166,8 @@ Future<void> launchContentLink(
       return;
     }
     // 没有回调时用 WebView 打开
-    final fullUrl = UrlHelper.resolveUrl(url);
+    final canonicalPath = DiscourseUrlParser.canonicalTopicPath(topicInfo);
+    final fullUrl = UrlHelper.resolveUrl(canonicalPath);
     if (!context.mounted) return;
     WebViewPage.open(context, fullUrl);
     return;

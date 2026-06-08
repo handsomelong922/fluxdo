@@ -8,6 +8,7 @@ Widget buildDefaultOnebox({
   required ThemeData theme,
   required dynamic element,
   List<LinkCount>? linkCounts,
+  Future<void> Function(String url)? onLinkTap,
 }) {
   // 提取点击数（支持 data-clicks 属性）
   final clickCount = extractClickCountFromOnebox(
@@ -43,7 +44,12 @@ Widget buildDefaultOnebox({
   return OneboxContainer(
     onTap: () async {
       if (url.isNotEmpty) {
-        await launchContentLink(context, url);
+        final handler = onLinkTap;
+        if (handler != null) {
+          await handler(url);
+        } else {
+          await launchContentLink(context, url);
+        }
       }
     },
     child: Column(
