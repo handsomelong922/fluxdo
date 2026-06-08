@@ -10,41 +10,20 @@ void main() {
   });
 
   group('PreferencesNotifier settings', () {
-    test('AvatarUrlPolicy staticizes animated avatar fallback URLs', () {
-      AvatarUrlPolicy.setPreferStaticAvatars(true);
+    test(
+      'AvatarUrlPolicy falls back to animated avatar when static template is missing',
+      () {
+        AvatarUrlPolicy.setPreferStaticAvatars(true);
 
-      final url = AvatarUrlPolicy.resolve(
-        avatarTemplate: '',
-        animatedAvatar: '/user_avatar/linux.do/test/120/1_2.gif',
-        size: 120,
-      );
+        final url = AvatarUrlPolicy.resolve(
+          avatarTemplate: '',
+          animatedAvatar: '/user_avatar/linux.do/test/120/1_2.gif',
+          size: 120,
+        );
 
-      expect(url, isNot(contains('.gif')));
-      expect(url, contains('/user_avatar/linux.do/test/120/1.png'));
-    });
-
-    test('AvatarUrlPolicy identifies animated avatar image URLs', () {
-      expect(
-        AvatarUrlPolicy.isAnimatedImageUrl(
-          'https://linux.do/user_avatar/linux.do/test/120/1_2.gif?foo=bar',
-        ),
-        isTrue,
-      );
-      expect(
-        AvatarUrlPolicy.resolveImageUrl(
-          'https://linux.do/user_avatar/linux.do/test/120/1_2.gif?foo=bar',
-          preferStaticAvatars: true,
-        ),
-        'https://linux.do/user_avatar/linux.do/test/120/1.png?foo=bar',
-      );
-      expect(
-        AvatarUrlPolicy.resolveImageUrl(
-          'https://example.com/avatar.gif',
-          preferStaticAvatars: true,
-        ),
-        'https://example.com/avatar.gif',
-      );
-    });
+        expect(url, contains('1_2.gif'));
+      },
+    );
 
     test('uses safe defaults', () async {
       SharedPreferences.setMockInitialValues({});

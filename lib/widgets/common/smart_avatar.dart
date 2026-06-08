@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jovial_svg/jovial_svg.dart';
-import '../../models/avatar_url_policy.dart';
-import '../../providers/preferences_provider.dart';
 import '../../services/discourse_cache_manager.dart';
-import '../../services/static_avatar_image_provider.dart';
 import '../../utils/svg_utils.dart';
 
 /// 智能头像组件
 ///
 /// 使用 CachedNetworkImage 加载图片，自动支持 GIF 动画。
 /// 当图片解码失败时，检测内容是否为 SVG 并渲染。
-class SmartAvatar extends ConsumerStatefulWidget {
+class SmartAvatar extends StatefulWidget {
   final String? imageUrl;
   final double radius;
   final String? fallbackText;
@@ -31,16 +27,15 @@ class SmartAvatar extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<SmartAvatar> createState() => _SmartAvatarState();
+  State<SmartAvatar> createState() => _SmartAvatarState();
 }
 
-class _SmartAvatarState extends ConsumerState<SmartAvatar> {
+class _SmartAvatarState extends State<SmartAvatar> {
   static final DiscourseCacheManager _cacheManager = DiscourseCacheManager();
 
   // 当检测到 SVG 时存储内容
   String? _svgContent;
   bool _isSvgDetected = false;
-  String? _lastResolvedImageUrl;
 
   @override
   void didUpdateWidget(SmartAvatar oldWidget) {
@@ -55,18 +50,6 @@ class _SmartAvatarState extends ConsumerState<SmartAvatar> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final preferStaticAvatars = ref.watch(
-      preferencesProvider.select((p) => p.preferStaticAvatars),
-    );
-    final resolvedImageUrl = AvatarUrlPolicy.resolveImageUrl(
-      widget.imageUrl,
-      preferStaticAvatars: preferStaticAvatars,
-    );
-    if (_lastResolvedImageUrl != resolvedImageUrl) {
-      _lastResolvedImageUrl = resolvedImageUrl;
-      _svgContent = null;
-      _isSvgDetected = false;
-    }
     // 默认透明背景，只有在需要 fallback 时才用主题色
     final bgColor = widget.backgroundColor ?? Colors.transparent;
     final fgColor =
@@ -81,7 +64,7 @@ class _SmartAvatarState extends ConsumerState<SmartAvatar> {
     final innerSize = innerRadius * 2;
 
     Widget child;
-    if (resolvedImageUrl.isEmpty) {
+    if (widget.imageUrl == null || widget.imageUrl!.isEmpty) {
       child = _buildFallback(fgColor, innerRadius);
     } else if (_isSvgDetected && _svgContent != null) {
       // 已检测到 SVG，直接渲染
@@ -92,64 +75,32 @@ class _SmartAvatarState extends ConsumerState<SmartAvatar> {
         child: ScalableImageWidget(si: si, fit: BoxFit.cover),
       );
     } else {
-      final shouldRenderStatic = AvatarUrlPolicy.shouldRenderAsStaticImage(
-        resolvedImageUrl,
-        preferStaticAvatars: preferStaticAvatars,
-      );
-      if (shouldRenderStatic) {
-        child = Image(
-          image: staticAvatarImageProvider(
-            resolvedImageUrl,
-            targetSize: (innerSize * MediaQuery.of(context).devicePixelRatio)
-                .round(),
-          ),
-          width: innerSize,
-          height: innerSize,
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-          errorBuilder: (context, error, stackTrace) => _SvgFallbackBuilder(
-            imageUrl: resolvedImageUrl,
-            cacheManager: _cacheManager,
-            size: innerSize,
-            onSvgDetected: (svgContent) {
-              if (mounted) {
-                setState(() {
-                  _svgContent = svgContent;
-                  _isSvgDetected = true;
-                });
-              }
-            },
-            fallback: _buildFallback(fgColor, innerRadius),
-          ),
-        );
-      } else {
-        // 使用 CachedNetworkImage，解码失败时检测 SVG
-        child = CachedNetworkImage(
-          imageUrl: resolvedImageUrl,
+      // 使用 CachedNetworkImage，解码失败时检测 SVG
+      child = CachedNetworkImage(
+        imageUrl: widget.imageUrl!,
+        cacheManager: _cacheManager,
+        width: innerSize,
+        height: innerSize,
+        fit: BoxFit.cover,
+        fadeInDuration: const Duration(milliseconds: 150),
+        fadeOutDuration: const Duration(milliseconds: 150),
+        placeholder: (context, url) => _buildLoading(fgColor, innerRadius),
+        errorWidget: (context, url, error) => _SvgFallbackBuilder(
+          imageUrl: widget.imageUrl!,
           cacheManager: _cacheManager,
-          width: innerSize,
-          height: innerSize,
-          fit: BoxFit.cover,
-          fadeInDuration: const Duration(milliseconds: 150),
-          fadeOutDuration: const Duration(milliseconds: 150),
-          placeholder: (context, url) => _buildLoading(fgColor, innerRadius),
-          errorWidget: (context, url, error) => _SvgFallbackBuilder(
-            imageUrl: resolvedImageUrl,
-            cacheManager: _cacheManager,
-            size: innerSize,
-            onSvgDetected: (svgContent) {
-              // 缓存 SVG 内容，下次直接渲染
-              if (mounted) {
-                setState(() {
-                  _svgContent = svgContent;
-                  _isSvgDetected = true;
-                });
-              }
-            },
-            fallback: _buildFallback(fgColor, innerRadius),
-          ),
-        );
-      }
+          size: innerSize,
+          onSvgDetected: (svgContent) {
+            // 缓存 SVG 内容，下次直接渲染
+            if (mounted) {
+              setState(() {
+                _svgContent = svgContent;
+                _isSvgDetected = true;
+              });
+            }
+          },
+          fallback: _buildFallback(fgColor, innerRadius),
+        ),
+      );
     }
 
     // 使用 BoxDecoration + shape: circle 确保 Hero 动画时保持圆形

@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../l10n/s.dart';
 import '../../../widgets/common/dismissible_popup_menu.dart';
-import '../../../widgets/common/glass_icon_button.dart';
 
 /// 话题详情页底部操作栏
 class TopicBottomBar extends StatelessWidget {
@@ -62,18 +61,16 @@ class TopicBottomBar extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withValues(alpha: 0.70),
+              color: theme.colorScheme.surface.withValues(alpha: 0.76),
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.36),
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: theme.brightness == Brightness.dark ? 0.22 : 0.10,
-                  ),
-                  blurRadius: 22,
-                  offset: const Offset(0, 10),
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
@@ -85,9 +82,9 @@ class TopicBottomBar extends StatelessWidget {
                 children: [
                   const SizedBox(width: 6),
                   // 回到顶部
-                  GlassIconButton(
+                  IconButton(
                     onPressed: onScrollToTop,
-                    icon: Icons.vertical_align_top_rounded,
+                    icon: const Icon(Icons.vertical_align_top),
                     tooltip: context.l10n.topicDetail_scrollToTop,
                   ),
                   // 筛选
@@ -113,14 +110,25 @@ class TopicBottomBar extends StatelessWidget {
     final label = isBookmarked
         ? context.l10n.topicDetail_editBookmark
         : context.l10n.common_addBookmark;
-    return GlassIconButton(
-      onPressed: onBookmark,
-      onLongPress: onBookmarkLongPress,
-      icon: isBookmarked
-          ? Icons.bookmark_rounded
-          : Icons.bookmark_border_rounded,
-      tooltip: label,
-      selected: isBookmarked,
+    return Semantics(
+      button: true,
+      label: label,
+      child: SizedBox.square(
+        dimension: 48,
+        child: InkResponse(
+          onTap: onBookmark,
+          onLongPress: onBookmarkLongPress,
+          radius: 24,
+          child: Center(
+            child: Icon(
+              isBookmarked
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_border_rounded,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -130,11 +138,14 @@ class TopicBottomBar extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        GlassIconButton(
+        IconButton(
           onPressed: isLoading ? null : onCancelFilter,
-          icon: icon,
-          tooltip: context.l10n.topicDetail_filter,
-          selected: true,
+          icon: Icon(icon, color: theme.colorScheme.primary),
+          style: IconButton.styleFrom(
+            backgroundColor: theme.colorScheme.primaryContainer,
+          ),
+          iconSize: 20,
+          visualDensity: VisualDensity.compact,
         ),
       ],
     );
@@ -155,9 +166,9 @@ class TopicBottomBar extends StatelessWidget {
 
   /// 未激活：筛选菜单按钮
   Widget _buildFilterMenuButton(BuildContext context, ThemeData theme) {
-    return GlassIconButton(
+    return IconButton(
       onPressed: isLoading ? null : () => _showFilterMenu(context),
-      icon: Icons.filter_list_rounded,
+      icon: const Icon(Icons.filter_list),
       tooltip: context.l10n.topicDetail_filter,
     );
   }
@@ -204,11 +215,9 @@ class TopicBottomBar extends StatelessWidget {
 
   Widget _buildShareMenu(BuildContext context, ThemeData theme) {
     return SwipeDismissiblePopupMenuButton<String>(
+      icon: const Icon(Icons.share_outlined),
+      iconColor: theme.colorScheme.onSurfaceVariant,
       tooltip: context.l10n.common_share,
-      child: GlassIconButtonSurface(
-        icon: Icons.ios_share_rounded,
-        tooltip: context.l10n.common_share,
-      ),
       onSelected: (value) {
         switch (value) {
           case 'link':

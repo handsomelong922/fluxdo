@@ -19,7 +19,6 @@ import 'webview_login_page.dart';
 import 'topic_detail_page/topic_detail_page.dart';
 import 'search_page.dart';
 import '../models/search_filter.dart';
-import '../widgets/common/glass_icon_button.dart';
 import '../widgets/common/notification_icon_button.dart';
 import '../widgets/topic/topic_list_skeleton.dart';
 import '../widgets/topic/sort_and_tags_bar.dart';
@@ -1144,13 +1143,11 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
                 // 分类浏览按钮
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
-                  child: GlassIconButton(
-                    icon: Icons.segment,
+                  child: IconButton(
+                    icon: const Icon(Icons.segment, size: 20),
                     onPressed: onCategoryManager,
                     tooltip: context.l10n.topics_browseCategories,
-                    size: 40,
-                    iconSize: 20,
-                    borderRadius: 14,
+                    visualDensity: VisualDensity.compact,
                   ),
                 ),
               ],

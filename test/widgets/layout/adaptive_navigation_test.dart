@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/providers/theme_provider.dart';
-import 'package:fluxdo/widgets/common/glass_icon_button.dart';
 import 'package:fluxdo/widgets/layout/adaptive_navigation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -107,8 +106,6 @@ void main() {
       find.byType(NavigationBarTheme),
     );
     expect(theme.data.height, 52);
-    expect(theme.data.backgroundColor, Colors.transparent);
-    expect(theme.data.indicatorColor, Colors.transparent);
     expect(
       theme.data.labelBehavior,
       NavigationDestinationLabelBehavior.alwaysHide,
@@ -125,51 +122,5 @@ void main() {
         )
         .any((transform) => transform.transform.getMaxScaleOnAxis() > 1.1);
     expect(scaledTransform, isTrue);
-
-    final selectedShell = tester.widgetList<AnimatedContainer>(
-      find.ancestor(
-        of: selectedIconFinder,
-        matching: find.byType(AnimatedContainer),
-      ),
-    );
-    expect(
-      selectedShell.any((container) => container.constraints?.maxWidth == 44),
-      isTrue,
-    );
-
-    final selectedShellSize = tester.getSize(
-      find
-          .ancestor(
-            of: selectedIconFinder,
-            matching: find.byType(AnimatedContainer),
-          )
-          .first,
-    );
-    expect(selectedShellSize.width, 44);
-    expect(selectedShellSize.height, 38);
-  });
-
-  testWidgets('glass icon button supports compact top-bar sizing', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: GlassIconButton(
-              icon: Icons.segment,
-              tooltip: 'Browse',
-              size: 40,
-              iconSize: 20,
-              borderRadius: 14,
-              onPressed: () {},
-            ),
-          ),
-        ),
-      ),
-    );
-
-    expect(tester.getSize(find.byType(GlassIconButton)), const Size(40, 40));
-    expect(find.byIcon(Icons.segment), findsOneWidget);
   });
 }

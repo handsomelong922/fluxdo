@@ -91,44 +91,6 @@ void main() {
       expect(nested?.isNestedRoute, isTrue);
     });
 
-    test('parses canonical topic links and nested topic placeholder links', () {
-      final nestedPlaceholder = DiscourseUrlParser.parseTopic(
-        'https://linux.do/n/topic/388420?sort=old',
-      );
-      expect(nestedPlaceholder?.topicId, 388420);
-      expect(nestedPlaceholder?.slug, isNull);
-      expect(nestedPlaceholder?.postNumber, isNull);
-      expect(nestedPlaceholder?.isNestedRoute, isTrue);
-
-      final canonical = DiscourseUrlParser.parseTopic(
-        'https://linux.do/topic/388420',
-      );
-      expect(canonical?.topicId, 388420);
-      expect(canonical?.slug, isNull);
-      expect(canonical?.postNumber, isNull);
-
-      final canonicalPost = DiscourseUrlParser.parseTopic(
-        'https://linux.do/topic/388420/7#post_8',
-      );
-      expect(canonicalPost?.topicId, 388420);
-      expect(canonicalPost?.postNumber, 7);
-    });
-
-    test('canonicalizes complex topic links to stable topic paths', () {
-      expect(
-        DiscourseUrlParser.canonicalTopicPath(
-          'https://linux.do/n/topic/388420?sort=old',
-        ),
-        '/topic/388420',
-      );
-      expect(
-        DiscourseUrlParser.canonicalTopicPath(
-          'https://linux.do/t/example-topic/388420/9?u=alice',
-        ),
-        '/topic/388420/9',
-      );
-    });
-
     test('does not treat topic API paths as topic links', () {
       expect(
         DiscourseUrlParser.parseTopic('https://linux.do/t/2237130/posts'),

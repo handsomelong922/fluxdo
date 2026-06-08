@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../../../l10n/s.dart';
 import '../../../../constants.dart';
-import '../../../../models/avatar_url_policy.dart';
 import '../../../../models/topic.dart';
 import '../../../../pages/user_profile_page.dart';
 import '../../../../services/discourse_cache_manager.dart';
 import '../../../../services/emoji_handler.dart';
+import '../../../../utils/url_helper.dart';
 import '../../../common/flair_badge.dart';
 import '../../../common/smart_avatar.dart';
 import '../../../common/avatar_glow.dart';
@@ -23,14 +23,12 @@ class PostAvatar extends StatefulWidget {
   final Post post;
   final ThemeData theme;
   final double radius;
-  final bool preferStaticAvatars;
 
   const PostAvatar({
     super.key,
     required this.post,
     required this.theme,
     this.radius = 20,
-    this.preferStaticAvatars = false,
   });
 
   @override
@@ -65,11 +63,7 @@ class _PostAvatarState extends State<PostAvatar> {
     );
 
     if (glowColor != null) {
-      avatar = AvatarGlow(
-        glowColor: glowColor,
-        animate: !widget.preferStaticAvatars,
-        child: avatar,
-      );
+      avatar = AvatarGlow(glowColor: glowColor, child: avatar);
     }
 
     return GestureDetector(
@@ -325,17 +319,25 @@ class PostHeader extends StatelessWidget {
           else
             Icon(Icons.reply, size: 14, color: theme.colorScheme.primary),
           const SizedBox(width: 6),
-          SmartAvatar(
+          CircleAvatar(
             radius: 10,
-            imageUrl: replyToUser.avatarTemplate.isNotEmpty
-                ? AvatarUrlPolicy.resolveTemplate(
-                    replyToUser.avatarTemplate,
-                    size: 40,
+            backgroundColor: theme.colorScheme.primaryContainer,
+            backgroundImage: replyToUser.avatarTemplate.isNotEmpty
+                ? discourseImageProvider(
+                    UrlHelper.resolveUrlWithCdn(
+                      replyToUser.avatarTemplate.replaceAll('{size}', '40'),
+                    ),
                   )
                 : null,
-            fallbackText: replyToUser.username,
-            backgroundColor: theme.colorScheme.primaryContainer,
-            foregroundColor: theme.colorScheme.onPrimaryContainer,
+            child: replyToUser.avatarTemplate.isEmpty
+                ? Text(
+                    replyToUser.username[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  )
+                : null,
           ),
           if (showUsername) ...[
             const SizedBox(width: 4),

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../../l10n/s.dart';
-import '../../../../models/avatar_url_policy.dart';
 import '../../../../models/topic.dart';
 import '../../../../utils/time_utils.dart';
+import '../../../../utils/url_helper.dart';
 import '../../../common/smart_avatar.dart';
 import '../../../content/discourse_html_content/discourse_html_content.dart';
 
@@ -145,7 +145,9 @@ class _AnswerRow extends StatelessWidget {
         : answer.username;
     final timeText = TimeUtils.formatRelativeTime(answer.createdAt);
     final avatarUrl = (answer.avatarTemplate?.isNotEmpty ?? false)
-        ? AvatarUrlPolicy.resolveTemplate(answer.avatarTemplate, size: 48)
+        ? UrlHelper.resolveUrlWithCdn(
+            answer.avatarTemplate!.replaceAll('{size}', '48'),
+          )
         : null;
     final hasExcerpt = (answer.excerpt?.isNotEmpty ?? false);
 

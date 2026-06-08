@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../pages/user_profile_page.dart';
-import '../../models/avatar_url_policy.dart';
-import '../common/smart_avatar.dart';
+import '../../services/discourse_cache_manager.dart';
+import '../../utils/url_helper.dart';
 
 /// 嵌套帖子左侧头像（可点击跳转用户主页）
 class NestedPostAvatar extends StatelessWidget {
@@ -22,10 +22,14 @@ class NestedPostAvatar extends StatelessWidget {
         context,
         MaterialPageRoute(builder: (_) => UserProfilePage(username: username)),
       ),
-      child: SmartAvatar(
-        imageUrl: AvatarUrlPolicy.resolveTemplate(avatarTemplate, size: 48),
+      child: CircleAvatar(
         radius: size / 2,
-        fallbackText: username,
+        backgroundImage: discourseImageProvider(
+          UrlHelper.resolveUrlWithCdn(
+            avatarTemplate.replaceAll('{size}', '48'),
+          ),
+        ),
+        onBackgroundImageError: (_, _) {},
       ),
     );
   }

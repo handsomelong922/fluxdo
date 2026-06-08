@@ -4,7 +4,6 @@ import 'package:fluxdo/l10n/app_localizations.dart';
 import 'package:fluxdo/models/topic.dart';
 import 'package:fluxdo/pages/topic_detail_page/topic_detail_page.dart';
 import 'package:fluxdo/pages/topic_detail_page/widgets/topic_detail_overlay.dart';
-import 'package:fluxdo/widgets/common/glass_action_button.dart';
 import 'package:fluxdo/widgets/topic/topic_progress.dart';
 
 void main() {
@@ -46,28 +45,17 @@ void main() {
 
       expect(find.byType(TopicProgress), findsNothing);
     });
-
-    testWidgets('uses the glass reply action when logged in', (tester) async {
-      await tester.pumpWidget(_buildApp(showProgress: true, isLoggedIn: true));
-
-      expect(find.byType(GlassActionButton), findsOneWidget);
-      expect(find.byIcon(Icons.reply_rounded), findsOneWidget);
-      expect(
-        tester.getSize(find.byType(GlassActionButton)),
-        const Size(56, 56),
-      );
-    });
   });
 }
 
-Widget _buildApp({required bool showProgress, bool isLoggedIn = false}) {
+Widget _buildApp({required bool showProgress}) {
   return MaterialApp(
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: TopicDetailOverlay(
         showBottomBar: true,
-        isLoggedIn: isLoggedIn,
+        isLoggedIn: false,
         currentStreamIndex: 1,
         totalCount: 2,
         detail: _detail(),

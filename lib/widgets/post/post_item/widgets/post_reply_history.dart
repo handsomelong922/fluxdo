@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../l10n/s.dart';
 import '../../../../models/topic.dart';
-import '../../../common/smart_avatar.dart';
+import '../../../../services/discourse_cache_manager.dart';
 import '../../../content/discourse_html_content/discourse_html_content.dart';
 
 /// 回复历史预览组件
@@ -90,12 +90,18 @@ class PostReplyHistory extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SmartAvatar(
+                    CircleAvatar(
                       radius: 14,
-                      imageUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
-                      fallbackText: replyPost.username,
                       backgroundColor: theme.colorScheme.primaryContainer,
-                      foregroundColor: theme.colorScheme.onPrimaryContainer,
+                      backgroundImage: avatarUrl.isNotEmpty
+                          ? discourseImageProvider(avatarUrl)
+                          : null,
+                      child: avatarUrl.isEmpty
+                          ? Text(
+                              replyPost.username[0].toUpperCase(),
+                              style: const TextStyle(fontSize: 10),
+                            )
+                          : null,
                     ),
                     const SizedBox(width: 10),
                     Expanded(

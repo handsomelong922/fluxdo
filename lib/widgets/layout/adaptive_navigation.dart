@@ -369,31 +369,18 @@ class _AdaptiveBottomNavigationState
     return NavigationBarTheme(
       data: const NavigationBarThemeData(
         height: 52,
-        backgroundColor: Colors.transparent,
-        indicatorColor: Colors.transparent,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
       ),
       child: NavigationBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        indicatorColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
         selectedIndex: widget.selectedIndex,
         onDestinationSelected: _handleTap,
-        destinations: widget.destinations.asMap().entries.map((entry) {
-          final index = entry.key;
-          final d = entry.value;
-          final selected = index == widget.selectedIndex;
+        destinations: widget.destinations.map((d) {
           return NavigationDestination(
-            icon: _DestinationIconShell(selected: false, child: d.icon),
+            icon: d.icon,
             selectedIcon: _SelectedDestinationIconFeedback(
-              child: _DestinationIconShell(
-                selected: selected,
-                child: _ActiveDestinationIcon(
-                  dest: d,
-                  defaultIcon: d.selectedIcon,
-                ),
+              child: _ActiveDestinationIcon(
+                dest: d,
+                defaultIcon: d.selectedIcon,
               ),
             ),
             label: d.label,
@@ -419,60 +406,6 @@ class _SelectedDestinationIconFeedback extends StatelessWidget {
         return Transform.scale(scale: scale, child: child);
       },
       child: child,
-    );
-  }
-}
-
-class _DestinationIconShell extends StatelessWidget {
-  const _DestinationIconShell({required this.selected, required this.child});
-
-  final bool selected;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final foreground = selected
-        ? colorScheme.primary
-        : colorScheme.onSurfaceVariant.withValues(alpha: 0.82);
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      width: selected ? 44 : 40,
-      height: 38,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: selected
-            ? LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  colorScheme.primaryContainer.withValues(alpha: 0.82),
-                  colorScheme.primary.withValues(alpha: 0.16),
-                ],
-              )
-            : null,
-        border: selected
-            ? Border.all(color: colorScheme.primary.withValues(alpha: 0.18))
-            : null,
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                  color: colorScheme.primary.withValues(alpha: 0.12),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : null,
-      ),
-      child: Center(
-        child: IconTheme(
-          data: IconThemeData(size: selected ? 23 : 22, color: foreground),
-          child: child,
-        ),
-      ),
     );
   }
 }

@@ -53,66 +53,15 @@ void main() {
       );
     });
 
-    test(
-      'explicit nested view from link overrides saved and default state',
-      () {
-        expect(
-          resolveInitialNestedView(
-            initialNestedView: true,
-            restoredNestedView: false,
-            preferenceNestedView: false,
-          ),
-          isTrue,
-        );
-      },
-    );
-
-    test('swipe back is enabled only for mobile top-level topic page', () {
+    test('explicit nested view from link overrides saved and default state', () {
       expect(
-        shouldEnableTopicSwipeBack(
-          embeddedMode: false,
-          isSearchMode: false,
-          isOnAiPage: false,
-          isMobile: true,
+        resolveInitialNestedView(
+          initialNestedView: true,
+          restoredNestedView: false,
+          preferenceNestedView: false,
         ),
         isTrue,
       );
-      expect(
-        shouldEnableTopicSwipeBack(
-          embeddedMode: false,
-          isSearchMode: true,
-          isOnAiPage: false,
-          isMobile: true,
-        ),
-        isFalse,
-      );
-      expect(
-        shouldEnableTopicSwipeBack(
-          embeddedMode: false,
-          isSearchMode: false,
-          isOnAiPage: true,
-          isMobile: true,
-        ),
-        isFalse,
-      );
-      expect(
-        shouldEnableTopicSwipeBack(
-          embeddedMode: true,
-          isSearchMode: false,
-          isOnAiPage: false,
-          isMobile: true,
-        ),
-        isFalse,
-      );
-    });
-
-    test('swipe back requires a mostly horizontal rightward drag', () {
-      expect(shouldTriggerTopicSwipeBack(const Offset(80, 12)), isTrue);
-      expect(shouldTriggerTopicSwipeBack(const Offset(56, 4)), isFalse);
-      expect(shouldTriggerTopicSwipeBack(const Offset(80, 72)), isFalse);
-      expect(shouldRejectTopicSwipeBack(const Offset(-16, 0)), isTrue);
-      expect(shouldRejectTopicSwipeBack(const Offset(8, 64)), isTrue);
-      expect(shouldRejectTopicSwipeBack(const Offset(36, 18)), isFalse);
     });
   });
 }

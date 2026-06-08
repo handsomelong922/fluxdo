@@ -1,6 +1,6 @@
 // 搜索结果数据模型
 import '../utils/time_utils.dart';
-import 'avatar_url_policy.dart';
+import '../utils/url_helper.dart';
 import 'topic.dart';
 
 /// 搜索结果响应
@@ -51,11 +51,9 @@ class SearchResult {
   }
 
   bool get isEmpty => posts.isEmpty && users.isEmpty;
-
   /// 是否有更多帖子结果
   /// 全页面搜索使用 more_full_page_results，头部搜索使用 more_posts
-  bool get hasMorePosts =>
-      groupedResult.moreFullPageResults || groupedResult.morePosts;
+  bool get hasMorePosts => groupedResult.moreFullPageResults || groupedResult.morePosts;
   bool get hasMoreUsers => groupedResult.moreUsers;
 }
 
@@ -88,15 +86,12 @@ class SearchPost {
   });
 
   factory SearchPost.fromJson(
-    Map<String, dynamic> json,
-    Map<String, dynamic>? topicJson,
-  ) {
+      Map<String, dynamic> json, Map<String, dynamic>? topicJson) {
     return SearchPost(
       id: json['id'] as int,
       username: json['username'] as String? ?? '',
       avatarTemplate: json['avatar_template'] as String? ?? '',
-      createdAt:
-          TimeUtils.parseUtcTime(json['created_at'] as String?) ??
+      createdAt: TimeUtils.parseUtcTime(json['created_at'] as String?) ??
           DateTime.now(),
       likeCount: json['like_count'] as int? ?? 0,
       blurb: json['blurb'] as String? ?? '',
@@ -120,7 +115,9 @@ class SearchPost {
   );
 
   String getAvatarUrl({int size = 120}) {
-    return AvatarUrlPolicy.resolveTemplate(avatarTemplate, size: size);
+    if (avatarTemplate.isEmpty) return '';
+    final url = avatarTemplate.replaceAll('{size}', '$size');
+    return UrlHelper.resolveUrlWithCdn(url);
   }
 }
 
@@ -188,7 +185,9 @@ class SearchUser {
   }
 
   String getAvatarUrl({int size = 120}) {
-    return AvatarUrlPolicy.resolveTemplate(avatarTemplate, size: size);
+    if (avatarTemplate.isEmpty) return '';
+    final url = avatarTemplate.replaceAll('{size}', '$size');
+    return UrlHelper.resolveUrlWithCdn(url);
   }
 }
 

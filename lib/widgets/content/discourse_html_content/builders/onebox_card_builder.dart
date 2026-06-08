@@ -18,8 +18,6 @@ Widget buildOneboxCard({
   required ThemeData theme,
   required dynamic element,
   List<LinkCount>? linkCounts,
-  void Function(int topicId, String? topicSlug, int? postNumber)?
-  onInternalLinkTap,
 }) {
   try {
     // 检测 onebox 类型
@@ -32,7 +30,6 @@ Widget buildOneboxCard({
       element: element,
       type: type,
       linkCounts: linkCounts,
-      onInternalLinkTap: onInternalLinkTap,
     );
   } catch (e, stackTrace) {
     debugPrint('=== Onebox Error ===\nError: $e\nStackTrace: $stackTrace');
@@ -42,7 +39,6 @@ Widget buildOneboxCard({
       theme: theme,
       element: element,
       linkCounts: linkCounts,
-      onInternalLinkTap: onInternalLinkTap,
     );
   }
 }
@@ -54,8 +50,6 @@ Widget _buildByType({
   required dynamic element,
   required OneboxType type,
   List<LinkCount>? linkCounts,
-  void Function(int topicId, String? topicSlug, int? postNumber)?
-  onInternalLinkTap,
 }) {
   try {
     switch (type) {
@@ -207,20 +201,17 @@ Widget _buildByType({
           theme: theme,
           element: element,
           linkCounts: linkCounts,
-          onInternalLinkTap: onInternalLinkTap,
         );
     }
   } catch (e, stackTrace) {
     debugPrint(
-      '=== Onebox Build Error [$type] ===\nError: $e\nStackTrace: $stackTrace',
-    );
+        '=== Onebox Build Error [$type] ===\nError: $e\nStackTrace: $stackTrace');
     // 专用 builder 失败时回退到默认样式
     return _buildSafeDefault(
       context: context,
       theme: theme,
       element: element,
       linkCounts: linkCounts,
-      onInternalLinkTap: onInternalLinkTap,
     );
   }
 }
@@ -231,8 +222,6 @@ Widget _buildSafeDefault({
   required ThemeData theme,
   required dynamic element,
   List<LinkCount>? linkCounts,
-  void Function(int topicId, String? topicSlug, int? postNumber)?
-  onInternalLinkTap,
 }) {
   try {
     return buildDefaultOnebox(
@@ -240,7 +229,6 @@ Widget _buildSafeDefault({
       theme: theme,
       element: element,
       linkCounts: linkCounts,
-      onInternalLinkTap: onInternalLinkTap,
     );
   } catch (e) {
     // 连默认样式都失败了，返回一个最简单的占位
