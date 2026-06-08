@@ -2,32 +2,88 @@ name: Build and Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - codex/rollback-to-v0.3.1
 
-# CUSTOM: Keyword Filter 顶层写权限，供 Release 创建/附件上传使用
 permissions:
   contents: write
 
-env:
-  IS_STABLE: ${{ !contains(github.ref, '-') }}
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  version:
+    name: Calculate next release tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.next-tag.outputs.tag }}
+      version: ${{ steps.next-tag.outputs.version }}
+      previous_tag: ${{ steps.next-tag.outputs.previous_tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Calculate next patch tag
+        id: next-tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --force --tags origin
+
+          latest_tag=$(git tag -l 'v*' --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
+          previous_tag="$latest_tag"
+
+          if [[ -z "$latest_tag" ]]; then
+            latest_tag="v0.0.0"
+          fi
+
+          version="${latest_tag#v}"
+          IFS='.' read -r major minor patch <<< "$version"
+          next_tag="v${major}.${minor}.$((patch + 1))"
+
+          echo "previous_tag=$previous_tag" >> "$GITHUB_OUTPUT"
+          echo "tag=$next_tag" >> "$GITHUB_OUTPUT"
+          echo "version=${next_tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${{ steps.next-tag.outputs.tag }}"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists on origin."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$tag" -m "Release $tag" "$GITHUB_SHA"
+          git push origin "refs/tags/$tag"
+
   build:
+    needs:
+      - version
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # CUSTOM: Keyword Filter 精简构建矩阵 - 仅保留 Android arm64-v8a 与 Windows x86_64
+          # CUSTOM: Keyword Filter 精简构建矩阵 - 仅保留 Android arm64-v8a
           - platform: android
             os: ubuntu-latest
             arch: arm64-v8a
             rust-target: aarch64-linux-android
             flutter-target: android-arm64
-          - platform: windows
-            os: windows-2022
-            arch: x86_64
 
     steps:
       - name: Checkout
@@ -49,7 +105,7 @@ jobs:
           cache: true
 
       - name: Setup Rust
-        if: startsWith(matrix.platform, 'android') || matrix.platform == 'windows'
+        if: startsWith(matrix.platform, 'android')
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup Android build environment
@@ -85,7 +141,7 @@ jobs:
           echo '{"project_info":{"project_number":"123","project_id":"dummy"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:abc","android_client_info":{"package_name":"com.github.lingyan000.fluxdo"}},"api_key":[{"current_key":"dummy"}]}],"configuration_version":"1"}' > android/app/google-services.json
 
       - name: Generate CA certificates
-        if: startsWith(matrix.platform, 'android') || matrix.platform == 'windows'
+        if: startsWith(matrix.platform, 'android')
         working-directory: core/doh_proxy
         run: cargo run --bin gen_ca
 
@@ -117,107 +173,20 @@ jobs:
           mkdir -p dist
           mv build/app/outputs/flutter-apk/app-release.apk dist/fluxdo-${{ matrix.arch }}.apk
 
-      - name: Setup NuGet
-        if: matrix.platform == 'windows'
-        uses: nuget/setup-nuget@v2
-
-      - name: Setup NASM
-        if: matrix.platform == 'windows'
-        uses: ilammy/setup-nasm@v1
-
-      - name: Build Windows
-        if: matrix.platform == 'windows'
-        run: |
-          flutter build windows --release
-          mkdir dist
-          $releaseDir = "build\windows\x64\runner\Release"
-          Copy-Item "core\doh_proxy\certs\ca.der" "$releaseDir\proxy_ca.der"
-
-      - name: Package Windows ZIP
-        if: matrix.platform == 'windows'
-        run: |
-          cd build\windows\x64\runner\Release
-          7z a -tzip "..\..\..\..\..\dist\fluxdo-windows-x86_64.zip" .
-
-      - name: Build Windows Installer (exe)
-        if: matrix.platform == 'windows'
-        run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=$version windows\setup.iss
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: artifact-${{ matrix.platform }}${{ matrix.arch && format('-{0}', matrix.arch) }}
+          name: artifact-${{ matrix.platform }}-${{ matrix.arch }}
           path: ./dist
           overwrite: true
 
-  changelog:
-    needs:
-      - build
-    runs-on: ubuntu-latest
-    if: ${{ !contains(github.ref, '-') }}
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: refs/heads/main
-          submodules: recursive
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate Changelog
-        run: |
-          last_ver=$(grep -m1 '^## ' CHANGELOG.md 2>/dev/null | sed 's/^## //' || echo "")
-
-          tags=($(git tag --merged HEAD --sort=-creatordate))
-
-          temp="NEW_CHANGELOG.md"
-          > "$temp"
-
-          for i in "${!tags[@]}"; do
-              curr="${tags[i]}"
-              [[ "$curr" == "$last_ver" ]] && break
-
-              prev="${tags[i+1]}"
-              range="${prev:+$prev..}$curr"
-
-              echo -e "## $curr\n" >> "$temp"
-              git log --no-merges --pretty=format:"- %s%n" "$range" | \
-                grep -v 'Update changelog' | \
-                grep -v 'Co-Authored-By: Release Script' | \
-                grep -v '^- chore: bump version to ' >> "$temp" || true
-              echo "" >> "$temp"
-          done
-
-          [ -f CHANGELOG.md ] && cat CHANGELOG.md >> "$temp"
-          mv "$temp" CHANGELOG.md
-
-      - name: Commit Changelog
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add CHANGELOG.md
-          if ! git diff --cached --quiet; then
-            git commit -m "Update changelog for ${{ github.ref_name }}"
-            git push
-          fi
-
   upload:
     needs:
+      - version
       - build
     runs-on: ubuntu-latest
-    permissions: write-all
-    services:
-      telegram-bot-api:
-        image: aiogram/telegram-bot-api:latest
-        env:
-          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
-        ports:
-          - 8081:8081
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -236,20 +205,26 @@ jobs:
       - name: List artifacts
         run: ls -la ./dist/
 
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
       - name: Generate release notes
+        shell: bash
         run: |
-          out="release_notes.md"
-          > "$out"
-          currentTag="${GITHUB_REF_NAME}"
-          previousTag=$(git describe --tags --abbrev=0 "${currentTag}^{commit}^" 2>/dev/null || true)
+          set -euo pipefail
 
-          range="${previousTag:+$previousTag..}$currentTag"
-          echo "Changes in $currentTag${previousTag:+ since $previousTag}" >> "$out"
+          git fetch --force --tags origin
+
+          out="release_notes.md"
+          current_tag="${{ needs.version.outputs.tag }}"
+          previous_tag="${{ needs.version.outputs.previous_tag }}"
+
+          > "$out"
+          echo "Changes in $current_tag${previous_tag:+ since $previous_tag}" >> "$out"
           echo "" >> "$out"
+
+          if [[ -n "$previous_tag" ]]; then
+            range="$previous_tag..$current_tag"
+          else
+            range="$current_tag"
+          fi
 
           git log --no-merges --pretty=format:"- %s%n" "$range" | \
             grep -v 'Update changelog' | \
@@ -257,59 +232,39 @@ jobs:
             grep -v '^- chore: bump version to ' >> "$out" || true
           echo "" >> "$out"
 
-      - name: Wait for telegram-bot-api
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        if: env.TELEGRAM_BOT_TOKEN
+      - name: Prepare Android release assets
+        shell: bash
         run: |
-          for i in {1..20}; do
-            if curl -sf "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getMe" > /dev/null; then
-              echo "telegram-bot-api is ready"
-              exit 0
-            fi
-            echo "waiting for telegram-bot-api..."
-            sleep 2
+          set -euo pipefail
+
+          rm -rf ./release-assets
+          mkdir -p ./release-assets
+
+          find ./dist -type f \( -name "*.apk" -o -name "*.aab" \) -print0 | while IFS= read -r -d '' file; do
+            cp "$file" "./release-assets/$(basename "$file")"
           done
-          echo "telegram-bot-api not ready"
-          exit 1
 
-      - name: Send Telegram notification
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          VERSION: ${{ steps.version.outputs.VERSION }}
-          IS_PRERELEASE: ${{ contains(github.ref, '-') }}
-          TELEGRAM_API_BASE: http://localhost:8081
-        if: env.TELEGRAM_BOT_TOKEN
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests
-          python release_telegram.py
+          asset_count=$(find ./release-assets -maxdepth 1 -type f \( -name "*.apk" -o -name "*.aab" \) | wc -l | tr -d ' ')
+          if [[ "$asset_count" == "0" ]]; then
+            echo "No Android APK/AAB files were found in downloaded artifacts."
+            exit 1
+          fi
 
-      - name: Append release template
-        run: |
-          sed 's/VERSION/${{ steps.version.outputs.VERSION }}/g' .github/release_template.md >> release_notes.md
+          unexpected_count=$(find ./release-assets -maxdepth 1 -type f ! \( -name "*.apk" -o -name "*.aab" \) | wc -l | tr -d ' ')
+          if [[ "$unexpected_count" != "0" ]]; then
+            echo "Release assets must contain only Android APK/AAB files."
+            find ./release-assets -maxdepth 1 -type f -print
+            exit 1
+          fi
 
-      - name: Generate SHA256 checksums
-        if: env.IS_STABLE == 'true'
-        run: |
-          cd ./dist
-          for file in $(find . -type f -not -name "*.sha256"); do
-            sha256sum "$file" > "${file}.sha256"
-          done
+          ls -la ./release-assets/
 
       - name: Create Release
-        if: env.IS_STABLE == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          # CUSTOM: Keyword Filter 显式列出产物路径，确保 Release 必附带 APK / ZIP / 安装包
-          files: |
-            ./dist/fluxdo-arm64-v8a.apk
-            ./dist/fluxdo-arm64-v8a.apk.sha256
-            ./dist/fluxdo-windows-x86_64.zip
-            ./dist/fluxdo-windows-x86_64.zip.sha256
-            ./dist/fluxdo-windows-x86_64-setup.exe
-            ./dist/fluxdo-windows-x86_64-setup.exe.sha256
+          tag_name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          files: ./release-assets/*
           fail_on_unmatched_files: true
           body_path: release_notes.md
           draft: false
