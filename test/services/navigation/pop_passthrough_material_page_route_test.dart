@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fluxdo/navigation/page_transition_preferences.dart';
 import 'package:fluxdo/services/navigation/pop_passthrough_material_page_route.dart';
 
 void main() {
@@ -107,6 +108,75 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('启用横向返回时仍尊重普通页面转场设置', (tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    final detailKey = GlobalKey();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        theme: ThemeData(
+          pageTransitionsTheme: buildAppPageTransitionsTheme(
+            transition: AppPageTransition.fade,
+            reduceLoadingAnimations: false,
+          ),
+        ),
+        home: const ColoredBox(color: Colors.green, child: SizedBox.expand()),
+      ),
+    );
+
+    navigatorKey.currentState!.push(
+      PopPassthroughMaterialPageRoute<void>(
+        enableHorizontalPopGesture: true,
+        builder: (_) => ColoredBox(
+          key: detailKey,
+          color: Colors.red,
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+
+    expect(tester.getTopLeft(find.byKey(detailKey)).dx, 0);
+
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('启用横向返回时 route 内容点击不会被手势层吞掉', (tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    var tapCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const Text('home')),
+    );
+
+    navigatorKey.currentState!.push(
+      PopPassthroughMaterialPageRoute<void>(
+        enableHorizontalPopGesture: true,
+        builder: (_) => Scaffold(
+          body: Center(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => tapCount++,
+              child: const SizedBox(
+                width: 120,
+                height: 120,
+                child: Text('avatar-or-link'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('avatar-or-link'));
+    await tester.pump();
+
+    expect(tapCount, 1);
+  });
+
   testWidgets('启用横向返回时超过阈值释放会返回底层 route', (tester) async {
     final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -130,6 +200,140 @@ void main() {
 
     expect(find.text('home'), findsOneWidget);
     expect(find.text('detail'), findsNothing);
+  });
+
+  testWidgets('启用横向返回且内容为 PageView 时右滑返回底层 route', (tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    final pageController = PageController();
+    addTearDown(pageController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const Text('home')),
+    );
+
+    navigatorKey.currentState!.push(
+      PopPassthroughMaterialPageRoute<void>(
+        enableHorizontalPopGesture: true,
+        builder: (_) => PageView(
+          controller: pageController,
+          children: const [
+            ColoredBox(color: Colors.red, child: Text('topic')),
+            ColoredBox(color: Colors.blue, child: Text('ai')),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(const Offset(400, 300));
+    await gesture.moveBy(const Offset(520, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(find.text('home'), findsOneWidget);
+    expect(find.text('topic'), findsNothing);
+  });
+
+  testWidgets('启用横向返回且内容为 PageView 时帖子按钮仍可逐个点击', (tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    final pageController = PageController();
+    addTearDown(pageController.dispose);
+    var avatarTapCount = 0;
+    var linkTapCount = 0;
+    var favoriteTapCount = 0;
+    var shareTapCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const Text('home')),
+    );
+
+    navigatorKey.currentState!.push(
+      PopPassthroughMaterialPageRoute<void>(
+        enableHorizontalPopGesture: true,
+        builder: (_) => PageView(
+          controller: pageController,
+          children: [
+            Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => avatarTapCount++,
+                      child: const SizedBox(
+                        width: 64,
+                        height: 64,
+                        child: Text('avatar'),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => linkTapCount++,
+                      child: const Text('link'),
+                    ),
+                    IconButton(
+                      tooltip: 'favorite',
+                      onPressed: () => favoriteTapCount++,
+                      icon: const Icon(Icons.bookmark_border),
+                    ),
+                    IconButton(
+                      tooltip: 'share',
+                      onPressed: () => shareTapCount++,
+                      icon: const Icon(Icons.share),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Scaffold(body: Center(child: Text('ai'))),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('avatar'));
+    await tester.tap(find.text('link'));
+    await tester.tap(find.byTooltip('favorite'));
+    await tester.tap(find.byTooltip('share'));
+    await tester.pump();
+
+    expect(avatarTapCount, 1);
+    expect(linkTapCount, 1);
+    expect(favoriteTapCount, 1);
+    expect(shareTapCount, 1);
+    expect(find.text('home'), findsNothing);
+  });
+
+  testWidgets('启用横向返回且内容为 PageView 时向左滑仍进入 AI 页', (tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    final pageController = PageController();
+    addTearDown(pageController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const Text('home')),
+    );
+
+    navigatorKey.currentState!.push(
+      PopPassthroughMaterialPageRoute<void>(
+        enableHorizontalPopGesture: true,
+        builder: (_) => PageView(
+          controller: pageController,
+          children: const [
+            ColoredBox(color: Colors.red, child: Text('topic')),
+            ColoredBox(color: Colors.blue, child: Text('ai')),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.text('topic'), const Offset(-520, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ai'), findsOneWidget);
+    expect(find.text('home'), findsNothing);
   });
 
   testWidgets('启用横向返回时向左拖不会误触返回', (tester) async {

@@ -20,6 +20,7 @@ class PopPassthroughMaterialPageRoute<T> extends MaterialPageRoute<T> {
 
   final bool enableHorizontalPopGesture;
   final ValueNotifier<bool> _ignorePointersAfterPop = ValueNotifier(false);
+  final ValueNotifier<bool> _horizontalPopGestureActive = ValueNotifier(false);
 
   @override
   bool canTransitionFrom(TransitionRoute<dynamic> previousRoute) {
@@ -44,7 +45,25 @@ class PopPassthroughMaterialPageRoute<T> extends MaterialPageRoute<T> {
     Widget child,
   ) {
     final transition = enableHorizontalPopGesture
-        ? _buildHorizontalPageTransition(context, animation, child)
+        ? ValueListenableBuilder<bool>(
+            valueListenable: _horizontalPopGestureActive,
+            child: child,
+            builder: (context, isHorizontalPopActive, child) {
+              if (isHorizontalPopActive) {
+                return _buildHorizontalPageTransition(
+                  context,
+                  animation,
+                  child!,
+                );
+              }
+              return super.buildTransitions(
+                context,
+                animation,
+                secondaryAnimation,
+                child!,
+              );
+            },
+          )
         : super.buildTransitions(context, animation, secondaryAnimation, child);
 
     Widget result = _PopPassthroughPointerGate(
@@ -73,6 +92,7 @@ class PopPassthroughMaterialPageRoute<T> extends MaterialPageRoute<T> {
   @override
   void dispose() {
     _ignorePointersAfterPop.dispose();
+    _horizontalPopGestureActive.dispose();
     super.dispose();
   }
 
@@ -123,18 +143,12 @@ class _HorizontalPopGestureDetector<T> extends StatefulWidget {
 
 class _HorizontalPopGestureDetectorState<T>
     extends State<_HorizontalPopGestureDetector<T>> {
-  late final _RightSwipePopGestureRecognizer _recognizer =
-      _RightSwipePopGestureRecognizer(
-        enabledCallback: () => widget.route.popGestureEnabled,
-        onStartPopGesture: () =>
-            _HorizontalPopGestureController<T>(route: widget.route),
-      );
-
-  @override
-  void dispose() {
-    _recognizer.dispose();
-    super.dispose();
-  }
+  final Map<int, VelocityTracker> _velocityTrackers = {};
+  int? _pointer;
+  Offset? _initialPosition;
+  Offset? _lastPosition;
+  bool _active = false;
+  _HorizontalPopGestureController<T>? _popController;
 
   @override
   Widget build(BuildContext context) {
@@ -145,17 +159,13 @@ class _HorizontalPopGestureDetectorState<T>
         animation,
         widget.route._ignorePointersAfterPop,
       ]),
-      child: Stack(
-        fit: StackFit.passthrough,
-        children: [
-          widget.child,
-          Positioned.fill(
-            child: Listener(
-              behavior: HitTestBehavior.translucent,
-              onPointerDown: _handlePointerDown,
-            ),
-          ),
-        ],
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: _handlePointerDown,
+        onPointerMove: _handlePointerMove,
+        onPointerUp: _handlePointerUp,
+        onPointerCancel: _handlePointerCancel,
+        child: widget.child,
       ),
       builder: (context, child) {
         final ignorePointers =
@@ -167,56 +177,21 @@ class _HorizontalPopGestureDetectorState<T>
   }
 
   void _handlePointerDown(PointerDownEvent event) {
-    _recognizer.addPointer(event);
-  }
-}
-
-class _RightSwipePopGestureRecognizer extends OneSequenceGestureRecognizer {
-  _RightSwipePopGestureRecognizer({
-    required this.enabledCallback,
-    required this.onStartPopGesture,
-  });
-
-  final ValueGetter<bool> enabledCallback;
-  final ValueGetter<_HorizontalPopGestureController<dynamic>> onStartPopGesture;
-
-  final Map<int, VelocityTracker> _velocityTrackers = {};
-  int? _pointer;
-  Offset? _initialPosition;
-  Offset? _lastPosition;
-  bool _accepted = false;
-  _HorizontalPopGestureController<dynamic>? _popController;
-
-  @override
-  void addAllowedPointer(PointerDownEvent event) {
-    if (!enabledCallback() || _pointer != null) {
-      resolvePointer(event.pointer, GestureDisposition.rejected);
+    if (!widget.route.popGestureEnabled || _pointer != null) {
       return;
     }
 
-    super.addAllowedPointer(event);
     _pointer = event.pointer;
     _initialPosition = event.position;
     _lastPosition = event.position;
-    _accepted = false;
+    _active = false;
     _velocityTrackers[event.pointer] = VelocityTracker.withKind(event.kind)
       ..addPosition(event.timeStamp, event.position);
   }
 
-  @override
-  void handleEvent(PointerEvent event) {
+  void _handlePointerMove(PointerMoveEvent event) {
     if (event.pointer != _pointer) return;
 
-    if (event is PointerMoveEvent) {
-      _handleMove(event);
-    } else if (event is PointerUpEvent) {
-      _handlePointerUp(event);
-    } else if (event is PointerCancelEvent) {
-      _handlePointerCancel(event);
-    }
-  }
-
-  void _handleMove(PointerMoveEvent event) {
     _velocityTrackers[event.pointer]?.addPosition(
       event.timeStamp,
       event.position,
@@ -225,15 +200,15 @@ class _RightSwipePopGestureRecognizer extends OneSequenceGestureRecognizer {
     if (initialPosition == null) return;
 
     final offset = event.position - initialPosition;
-    if (!_accepted) {
+    if (!_active) {
       if (_shouldReject(offset)) {
-        resolvePointer(event.pointer, GestureDisposition.rejected);
-        stopTrackingPointer(event.pointer);
+        _resetPointer(event.pointer);
         return;
       }
 
       if (!_shouldAccept(offset)) return;
-      resolvePointer(event.pointer, GestureDisposition.accepted);
+      _active = true;
+      _popController = _HorizontalPopGestureController<T>(route: widget.route);
     }
 
     final previousPosition = _lastPosition ?? event.position;
@@ -243,6 +218,29 @@ class _RightSwipePopGestureRecognizer extends OneSequenceGestureRecognizer {
     _popController?.dragUpdate(
       (event.position.dx - previousPosition.dx) / width,
     );
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    if (event.pointer != _pointer) return;
+
+    if (_active) {
+      final velocity =
+          _velocityTrackers[event.pointer]?.getVelocity() ?? Velocity.zero;
+      final width = _screenWidth;
+      _popController?.dragEnd(
+        width <= 0 ? 0.0 : velocity.pixelsPerSecond.dx / width,
+      );
+    }
+    _resetPointer(event.pointer);
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    if (event.pointer != _pointer) return;
+
+    if (_active) {
+      _popController?.dragEnd(0.0);
+    }
+    _resetPointer(event.pointer);
   }
 
   bool _shouldReject(Offset offset) {
@@ -255,21 +253,6 @@ class _RightSwipePopGestureRecognizer extends OneSequenceGestureRecognizer {
   bool _shouldAccept(Offset offset) {
     return offset.dx > _horizontalPopMinDragDistance &&
         offset.dx > offset.dy.abs();
-  }
-
-  void _handlePointerUp(PointerUpEvent event) {
-    final velocity =
-        _velocityTrackers[event.pointer]?.getVelocity() ?? Velocity.zero;
-    final width = _screenWidth;
-    _popController?.dragEnd(
-      width <= 0 ? 0.0 : velocity.pixelsPerSecond.dx / width,
-    );
-    stopTrackingPointer(event.pointer);
-  }
-
-  void _handlePointerCancel(PointerCancelEvent event) {
-    _popController?.dragEnd(0.0);
-    stopTrackingPointer(event.pointer);
   }
 
   double get _screenWidth {
@@ -285,37 +268,19 @@ class _RightSwipePopGestureRecognizer extends OneSequenceGestureRecognizer {
     return distance > 0 ? distance : 1.0;
   }
 
-  @override
-  void acceptGesture(int pointer) {
-    if (pointer != _pointer || _accepted) return;
-    _accepted = true;
-    _popController = onStartPopGesture();
-  }
-
-  @override
-  void rejectGesture(int pointer) {
-    if (pointer != _pointer) return;
-    _popController?.dragEnd(0.0);
-    _popController = null;
-    stopTrackingPointer(pointer);
-  }
-
-  @override
-  void didStopTrackingLastPointer(int pointer) {
+  void _resetPointer(int pointer) {
     _velocityTrackers.remove(pointer);
     _pointer = null;
     _initialPosition = null;
     _lastPosition = null;
-    _accepted = false;
+    _active = false;
     _popController = null;
   }
-
-  @override
-  String get debugDescription => 'right swipe pop';
 }
 
 class _HorizontalPopGestureController<T> {
   _HorizontalPopGestureController({required this.route}) {
+    route._horizontalPopGestureActive.value = true;
     route.navigator!.didStartUserGesture();
   }
 
@@ -366,11 +331,17 @@ class _HorizontalPopGestureController<T> {
       late AnimationStatusListener listener;
       listener = (status) {
         if (status.isAnimating) return;
+        if (shouldRestore) {
+          route._horizontalPopGestureActive.value = false;
+        }
         _navigator.didStopUserGesture();
         _controller.removeStatusListener(listener);
       };
       _controller.addStatusListener(listener);
     } else {
+      if (shouldRestore) {
+        route._horizontalPopGestureActive.value = false;
+      }
       _navigator.didStopUserGesture();
     }
   }

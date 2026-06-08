@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/s.dart';
+import '../../../models/avatar_url_policy.dart';
 import '../../../services/discourse_cache_manager.dart';
 import '../../../utils/dialog_utils.dart';
 import '../../../services/toast_service.dart';
@@ -164,6 +165,10 @@ class _LdcRewardSheetState extends ConsumerState<_LdcRewardSheet> {
     final theme = Theme.of(context);
     final target = widget.target;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final avatarUrl = AvatarUrlPolicy.resolveDirectAvatarUrl(
+      target.avatarUrl,
+      size: 40,
+    );
 
     return Container(
       margin: EdgeInsets.only(
@@ -198,7 +203,12 @@ class _LdcRewardSheetState extends ConsumerState<_LdcRewardSheet> {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundImage: discourseImageProvider(target.avatarUrl),
+                  backgroundImage: avatarUrl.isNotEmpty
+                      ? discourseImageProvider(avatarUrl)
+                      : null,
+                  child: avatarUrl.isEmpty && target.username.isNotEmpty
+                      ? Text(target.username[0].toUpperCase())
+                      : null,
                 ),
                 const SizedBox(width: 12),
                 Expanded(

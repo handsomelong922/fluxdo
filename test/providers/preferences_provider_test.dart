@@ -33,6 +33,30 @@ void main() {
       expect(url, contains('1_2.png?foo=bar'));
     });
 
+    test('AvatarUrlPolicy staticizes additional animated avatar formats', () {
+      AvatarUrlPolicy.setPreferStaticAvatars(true);
+
+      final webpUrl = AvatarUrlPolicy.resolveDirectAvatarUrl(
+        'https://linux.do/user_avatar/linux.do/test/120/1_2.webp?foo=bar',
+      );
+      final avifUrl = AvatarUrlPolicy.resolveDirectAvatarUrl(
+        'https://linux.do/user_avatar/linux.do/test/120/1_2.avif',
+      );
+
+      expect(webpUrl, contains('1_2.png?foo=bar'));
+      expect(avifUrl, contains('1_2.png'));
+    });
+
+    test('AvatarUrlPolicy does not rewrite non-avatar webp images', () {
+      AvatarUrlPolicy.setPreferStaticAvatars(true);
+
+      final url = AvatarUrlPolicy.resolveDirectAvatarUrl(
+        'https://linux.do/uploads/default/original/3X/image.webp',
+      );
+
+      expect(url, contains('image.webp'));
+    });
+
     test('uses safe defaults', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();

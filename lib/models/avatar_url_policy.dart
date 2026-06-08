@@ -56,7 +56,7 @@ class AvatarUrlPolicy {
         : avatarUrl;
     final resolved = UrlHelper.resolveUrlWithCdn(staticCandidate);
 
-    if (_preferStaticAvatars && _isAnimatedImageUrl(resolved)) {
+    if (_preferStaticAvatars && _isAnimatedAvatarUrl(resolved)) {
       return '';
     }
     return resolved;
@@ -76,13 +76,19 @@ class AvatarUrlPolicy {
     }
 
     return result.replaceFirst(
-      RegExp(r'\.gif(?=($|\?))', caseSensitive: false),
+      RegExp(r'\.(?:gif|webp|avif)(?=($|\?))', caseSensitive: false),
       '.png',
     );
   }
 
-  static bool _isAnimatedImageUrl(String url) {
+  static bool _isAnimatedAvatarUrl(String url) {
     final path = Uri.tryParse(url)?.path.toLowerCase() ?? url.toLowerCase();
-    return path.endsWith('.gif');
+    final isAvatarPath =
+        path.startsWith('/user_avatar/') || path.contains('/user_avatar/');
+    if (!isAvatarPath) return false;
+
+    return path.endsWith('.gif') ||
+        path.endsWith('.webp') ||
+        path.endsWith('.avif');
   }
 }
