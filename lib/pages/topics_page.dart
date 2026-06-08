@@ -337,6 +337,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
                 Navigator.push(
                   context,
                   PopPassthroughMaterialPageRoute(
+                    enableHorizontalPopGesture: true,
                     builder: (_) => TopicDetailPage(
                       topicId: id,
                       autoSwitchToMasterDetail: true,
@@ -1313,6 +1314,7 @@ class _TopicListState extends ConsumerState<_TopicList>
     // 强制用 Navigator push 打开（而非 Master-Detail 内选中）
     Navigator.of(context).push(
       PopPassthroughMaterialPageRoute(
+        enableHorizontalPopGesture: true,
         builder: (_) => TopicDetailPage(
           topicId: topic.id,
           initialTitle: topic.title,
@@ -1338,6 +1340,7 @@ class _TopicListState extends ConsumerState<_TopicList>
 
     Navigator.of(context).push(
       PopPassthroughMaterialPageRoute(
+        enableHorizontalPopGesture: true,
         builder: (_) => TopicDetailPage(
           topicId: topic.id,
           initialTitle: topic.title,

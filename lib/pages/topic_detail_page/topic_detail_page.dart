@@ -168,9 +168,8 @@ class TopicDetailPage extends ConsumerStatefulWidget {
 
 class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     with WidgetsBindingObserver, SingleTickerProviderStateMixin, RouteAware {
-  static const int _swipeBackPage = 0;
-  static const int _topicPage = 1;
-  static const int _aiPage = 2;
+  static const int _topicPage = 0;
+  static const int _aiPage = 1;
 
   /// 唯一实例 ID，确保每次打开页面都创建新的 provider 实例
   /// 支持外部传入以在布局切换时复用同一个 provider
@@ -232,7 +231,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _topicPage,
   );
   bool _aiGuideChecked = false;
-  bool _isHandlingSwipeBack = false;
   // 缓存清理快捷键的回调，避免在 dispose 中使用 ref.read
   VoidCallback? _clearShortcuts;
   ModalRoute<dynamic>? _route;
@@ -388,23 +386,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutCubic,
     );
-  }
-
-  void _handleSwipeBackPage() {
-    if (_isHandlingSwipeBack) return;
-    _isHandlingSwipeBack = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      FocusManager.instance.primaryFocus?.unfocus();
-      final navigator = Navigator.of(context);
-      final didPop = await navigator.maybePop();
-      if (!mounted) return;
-      if (!didPop) {
-        _isHandlingSwipeBack = false;
-        _pageController.jumpToPage(_topicPage);
-        _currentPageNotifier.value = _topicPage;
-      }
-    });
   }
 
   void _registerPostShortcuts() {
@@ -1253,17 +1234,12 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                   : const ClampingScrollPhysics(),
               onPageChanged: (page) {
                 _currentPageNotifier.value = page;
-                if (page == _swipeBackPage) {
-                  _handleSwipeBackPage();
-                  return;
-                }
                 // 离开 AI 页面时取消输入框焦点，防止返回时键盘意外弹出
                 if (page != _aiPage) {
                   FocusManager.instance.primaryFocus?.unfocus();
                 }
               },
               children: [
-                const SizedBox.shrink(),
                 _KeepAlivePage(child: topicScaffold),
                 _KeepAlivePage(
                   child: AiChatPage(

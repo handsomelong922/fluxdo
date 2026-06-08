@@ -109,6 +109,7 @@ class _TopicsScreenState extends ConsumerState<TopicsScreen> {
         navigator
             .push(
               PopPassthroughMaterialPageRoute(
+                enableHorizontalPopGesture: true,
                 builder: (_) => TopicDetailPage(
                   topicId: topicId,
                   initialTitle: selectedTopic.initialTitle,
@@ -231,6 +232,7 @@ class _TopicsScreenState extends ConsumerState<TopicsScreen> {
         // 单栏模式：push 全屏详情页查看新话题
         Navigator.of(context).push(
           PopPassthroughMaterialPageRoute(
+            enableHorizontalPopGesture: true,
             builder: (_) => TopicDetailPage(
               topicId: topicId,
               autoSwitchToMasterDetail: true,
