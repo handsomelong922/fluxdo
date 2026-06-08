@@ -4851,6 +4851,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Open external links in in-app browser';
 
   @override
+  String get preferences_skipExternalLinkConfirmation =>
+      'Open external links directly';
+
+  @override
+  String get preferences_skipExternalLinkConfirmationDesc =>
+      'Skip the confirmation prompt when tapping external links';
+
+  @override
   String get preferences_portraitLock => 'Portrait lock';
 
   @override

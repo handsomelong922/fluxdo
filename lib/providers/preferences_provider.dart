@@ -19,6 +19,7 @@ class AppPreferences {
   final bool anonymousShare;
   final bool longPressPreview;
   final bool openExternalLinksInAppBrowser;
+  final bool skipExternalLinkConfirmation;
 
   /// 内容字体缩放比例，范围 0.8 ~ 1.4，默认 1.0
   final double contentFontScale;
@@ -107,6 +108,7 @@ class AppPreferences {
     required this.anonymousShare,
     required this.longPressPreview,
     required this.openExternalLinksInAppBrowser,
+    required this.skipExternalLinkConfirmation,
     required this.contentFontScale,
     required this.shareImageThemeIndex,
     required this.autoFillLogin,
@@ -142,6 +144,7 @@ class AppPreferences {
     bool? anonymousShare,
     bool? longPressPreview,
     bool? openExternalLinksInAppBrowser,
+    bool? skipExternalLinkConfirmation,
     double? contentFontScale,
     int? shareImageThemeIndex,
     bool? autoFillLogin,
@@ -177,6 +180,8 @@ class AppPreferences {
       longPressPreview: longPressPreview ?? this.longPressPreview,
       openExternalLinksInAppBrowser:
           openExternalLinksInAppBrowser ?? this.openExternalLinksInAppBrowser,
+      skipExternalLinkConfirmation:
+          skipExternalLinkConfirmation ?? this.skipExternalLinkConfirmation,
       contentFontScale: contentFontScale ?? this.contentFontScale,
       shareImageThemeIndex: shareImageThemeIndex ?? this.shareImageThemeIndex,
       autoFillLogin: autoFillLogin ?? this.autoFillLogin,
@@ -223,6 +228,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _longPressPreviewKey = 'pref_long_press_preview';
   static const String _openExternalLinksInAppBrowserKey =
       'pref_open_external_links_in_app_browser';
+  static const String _skipExternalLinkConfirmationKey =
+      'pref_skip_external_link_confirmation';
   static const String _contentFontScaleKey = 'pref_content_font_scale';
   static const String _shareImageThemeIndexKey = 'pref_share_image_theme_index';
   static const String _autoFillLoginKey = 'pref_auto_fill_login';
@@ -273,6 +280,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           longPressPreview: _prefs.getBool(_longPressPreviewKey) ?? true,
           openExternalLinksInAppBrowser:
               _prefs.getBool(_openExternalLinksInAppBrowserKey) ?? false,
+          skipExternalLinkConfirmation:
+              _prefs.getBool(_skipExternalLinkConfirmationKey) ?? false,
           contentFontScale: _prefs.getDouble(_contentFontScaleKey) ?? 1.0,
           shareImageThemeIndex: _prefs.getInt(_shareImageThemeIndexKey) ?? 0,
           autoFillLogin: _prefs.getBool(_autoFillLoginKey) ?? true,
@@ -349,6 +358,11 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setOpenExternalLinksInAppBrowser(bool enabled) async {
     state = state.copyWith(openExternalLinksInAppBrowser: enabled);
     await _prefs.setBool(_openExternalLinksInAppBrowserKey, enabled);
+  }
+
+  Future<void> setSkipExternalLinkConfirmation(bool enabled) async {
+    state = state.copyWith(skipExternalLinkConfirmation: enabled);
+    await _prefs.setBool(_skipExternalLinkConfirmationKey, enabled);
   }
 
   Future<void> setContentFontScale(double scale) async {

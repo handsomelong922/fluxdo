@@ -7,11 +7,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../config/site_customization.dart';
 import '../constants.dart';
+import '../l10n/s.dart';
 import '../pages/cdk_page.dart';
 import '../pages/user_profile_page.dart';
 import '../pages/webview_page.dart';
 import '../providers/preferences_provider.dart';
 import '../services/discourse/discourse_service.dart';
+import '../services/toast_service.dart';
 import '../widgets/common/external_link_confirm_dialog.dart';
 import 'discourse_url_parser.dart';
 import 'link_security.dart';
@@ -76,6 +78,12 @@ Future<void> launchExternalLink(BuildContext context, String url) async {
     return;
   }
 
+  final prefs = ProviderScope.containerOf(
+    context,
+    listen: false,
+  ).read(preferencesProvider);
+  final skipConfirmation = prefs.skipExternalLinkConfirmation;
+
   // 链接安全检查
   final config = AppConstants.siteCustomization.linkSecurityConfig;
   if (config != null && config.enableExitConfirmation) {
@@ -94,21 +102,19 @@ Future<void> launchExternalLink(BuildContext context, String url) async {
       case LinkRiskLevel.risky:
       case LinkRiskLevel.dangerous:
         // 需要确认的链接，显示确认对话框
-        final confirmed = await showExternalLinkConfirmDialog(
-          context,
-          url,
-          riskLevel,
-        );
-        if (confirmed != true) return;
+        if (!skipConfirmation) {
+          final confirmed = await showExternalLinkConfirmDialog(
+            context,
+            url,
+            riskLevel,
+          );
+          if (confirmed != true) return;
+        }
         break;
     }
   }
   if (!context.mounted) return;
 
-  final prefs = ProviderScope.containerOf(
-    context,
-    listen: false,
-  ).read(preferencesProvider);
   final preferInApp = prefs.openExternalLinksInAppBrowser;
 
   if (preferInApp && (uri.scheme == 'http' || uri.scheme == 'https')) {
@@ -116,9 +122,7 @@ Future<void> launchExternalLink(BuildContext context, String url) async {
     return;
   }
 
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
+  await _launchExternalApplicationUri(uri);
 }
 
 /// 打开内容中的链接（统一入口）
@@ -208,9 +212,9 @@ Future<void> launchContentLink(
       onDownloadAttachment(fullUrl);
     } else {
       final uri = UrlHelper.tryParseLenient(fullUrl);
-      if (uri != null && await canLaunchUrl(uri)) {
+      if (uri != null) {
         if (!context.mounted) return;
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        await _launchExternalApplicationUri(uri);
       }
     }
     return;
@@ -219,9 +223,9 @@ Future<void> launchContentLink(
   // 4. Email 链接
   if (url.startsWith('mailto:')) {
     final uri = UrlHelper.tryParseLenient(url);
-    if (uri != null && await canLaunchUrl(uri)) {
+    if (uri != null) {
       if (!context.mounted) return;
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      await _launchExternalApplicationUri(uri);
     }
     return;
   }
@@ -256,18 +260,41 @@ Future<bool> launchInExternalBrowser(String url) async {
     } catch (e) {
       debugPrint('[LinkLauncher] Failed to launch browser: $e');
       // 回退到 url_launcher
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-        return true;
-      }
-      return false;
+      return _launchExternalApplicationUri(uri);
     }
   } else {
     // iOS 和其他平台使用 url_launcher
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-      return true;
+    return _launchExternalApplicationUri(uri);
+  }
+}
+
+Future<bool> _launchExternalApplicationUri(Uri uri) async {
+  try {
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched) {
+      debugPrint('[LinkLauncher] 无可用应用处理链接: $uri');
+      _showNoAppForLinkToast();
     }
+    return launched;
+  } catch (e) {
+    debugPrint('[LinkLauncher] 打开链接失败: $uri, $e');
+    _showOpenFailedToast(e);
     return false;
+  }
+}
+
+void _showNoAppForLinkToast() {
+  try {
+    ToastService.showError(S.current.webview_noAppForLink);
+  } catch (e) {
+    debugPrint('[LinkLauncher] 显示链接失败提示失败: $e');
+  }
+}
+
+void _showOpenFailedToast(Object error) {
+  try {
+    ToastService.showError(S.current.webview_openFailed(error.toString()));
+  } catch (e) {
+    debugPrint('[LinkLauncher] 显示链接失败提示失败: $e');
   }
 }

@@ -70,6 +70,8 @@
   "preferences_longPressPreviewDesc": "長按話題卡片快速預覽內容",
   "preferences_openLinksInApp": "外部鏈接使用內置瀏覽器",
   "preferences_openLinksInAppDesc": "貼內外部鏈接優先在應用內打開",
+  "preferences_skipExternalLinkConfirmation": "直接打開外部鏈接",
+  "preferences_skipExternalLinkConfirmationDesc": "點擊外部鏈接時不再彈出確認提醒",
   "preferences_portraitLock": "豎屏鎖定",
   "preferences_portraitLockDesc": "鎖定屏幕方向為豎屏",
   "preferences_stickerSource": "表情包數據源",

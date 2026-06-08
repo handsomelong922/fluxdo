@@ -70,6 +70,8 @@
   "preferences_longPressPreviewDesc": "Long press topic card to preview content",
   "preferences_openLinksInApp": "Open links in app browser",
   "preferences_openLinksInAppDesc": "Open external links in in-app browser",
+  "preferences_skipExternalLinkConfirmation": "Open external links directly",
+  "preferences_skipExternalLinkConfirmationDesc": "Skip the confirmation prompt when tapping external links",
   "preferences_portraitLock": "Portrait lock",
   "preferences_portraitLockDesc": "Lock screen orientation to portrait",
   "preferences_stickerSource": "Sticker source",

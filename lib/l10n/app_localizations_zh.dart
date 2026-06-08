@@ -4717,6 +4717,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get preferences_openLinksInAppDesc => '贴内外部链接优先在应用内打开';
 
   @override
+  String get preferences_skipExternalLinkConfirmation => '直接打开外部链接';
+
+  @override
+  String get preferences_skipExternalLinkConfirmationDesc => '点击外部链接时不再弹出确认提醒';
+
+  @override
   String get preferences_portraitLock => '竖屏锁定';
 
   @override
@@ -10773,6 +10779,12 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get preferences_openLinksInAppDesc => '貼內外部鏈接優先在應用內打開';
 
   @override
+  String get preferences_skipExternalLinkConfirmation => '直接打開外部鏈接';
+
+  @override
+  String get preferences_skipExternalLinkConfirmationDesc => '點擊外部鏈接時不再彈出確認提醒';
+
+  @override
   String get preferences_portraitLock => '豎屏鎖定';
 
   @override
@@ -16703,6 +16715,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get preferences_openLinksInAppDesc => '貼內外部連結優先在應用內開啟';
+
+  @override
+  String get preferences_skipExternalLinkConfirmation => '直接開啟外部連結';
+
+  @override
+  String get preferences_skipExternalLinkConfirmationDesc => '點擊外部連結時不再彈出確認提醒';
 
   @override
   String get preferences_portraitLock => '豎屏鎖定';

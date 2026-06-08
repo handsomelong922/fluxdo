@@ -8830,6 +8830,18 @@ abstract class AppLocalizations {
   /// **'贴内外部链接优先在应用内打开'**
   String get preferences_openLinksInAppDesc;
 
+  /// No description provided for @preferences_skipExternalLinkConfirmation.
+  ///
+  /// In zh, this message translates to:
+  /// **'直接打开外部链接'**
+  String get preferences_skipExternalLinkConfirmation;
+
+  /// No description provided for @preferences_skipExternalLinkConfirmationDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击外部链接时不再弹出确认提醒'**
+  String get preferences_skipExternalLinkConfirmationDesc;
+
   /// No description provided for @preferences_portraitLock.
   ///
   /// In zh, this message translates to:

@@ -128,6 +128,17 @@ List<SettingsGroup> buildReadingGroups(BuildContext context) {
               .setOpenExternalLinksInAppBrowser(v),
         ),
         SwitchModel(
+          id: 'skipExternalLinkConfirmation',
+          title: l10n.preferences_skipExternalLinkConfirmation,
+          subtitle: l10n.preferences_skipExternalLinkConfirmationDesc,
+          icon: Icons.open_in_new_rounded,
+          getValue: (ref) =>
+              ref.watch(preferencesProvider).skipExternalLinkConfirmation,
+          onChanged: (ref, v) => ref
+              .read(preferencesProvider.notifier)
+              .setSkipExternalLinkConfirmation(v),
+        ),
+        SwitchModel(
           id: 'expandRelatedLinks',
           title: l10n.reading_expandRelatedLinks,
           subtitle: l10n.reading_expandRelatedLinksDesc,
