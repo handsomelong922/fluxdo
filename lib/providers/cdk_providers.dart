@@ -30,33 +30,26 @@ class CdkUserInfoNotifier extends AsyncNotifier<CdkUserInfo?> {
 
     if (!enabled) return null;
 
-    // 先读取缓存，用于网络失败时兜底
-    CdkUserInfo? cachedInfo;
-    final cached = prefs.getString(_cacheKey);
-    if (cached != null) {
-      try {
-        final cachedUser = prefs.getString(_cacheUserKey);
-        if (cachedUser != null && cachedUser != currentUser.username) {
-          await _clearCache(prefs);
-        } else {
-          cachedInfo = CdkUserInfo.fromJson(
-            jsonDecode(cached) as Map<String, dynamic>,
-          );
-        }
-      } catch (_) {
-        // 缓存损坏，忽略
-      }
-    }
+    // 首次创建 provider 时只读缓存，不自动访问 CDK 接口。
+    // 手动刷新/重新授权才会调用 _fetchUserInfo()，避免打开应用或页面触发频繁请求。
+    return _loadCachedInfo(prefs, currentUser.username);
+  }
 
+  Future<CdkUserInfo?> _loadCachedInfo(
+    SharedPreferences prefs,
+    String username,
+  ) async {
+    final cached = prefs.getString(_cacheKey);
+    if (cached == null) return null;
     try {
-      return await _fetchUserInfo();
-    } on OAuthExpiredException catch (_) {
-      // 授权过期：清除缓存，让错误状态透传到 UI
-      await _clearCache(prefs);
-      rethrow;
-    } catch (e) {
-      if (cachedInfo != null) return cachedInfo;
-      rethrow;
+      final cachedUser = prefs.getString(_cacheUserKey);
+      if (cachedUser != null && cachedUser != username) {
+        await _clearCache(prefs);
+        return null;
+      }
+      return CdkUserInfo.fromJson(jsonDecode(cached) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
     }
   }
 

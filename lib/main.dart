@@ -63,7 +63,6 @@ import 'services/navigation/app_route_observer.dart';
 import 'services/window_state_service.dart';
 import 'services/webview_settings.dart';
 import 'services/windows_webview_environment_service.dart';
-import 'services/metaverse_auto_auth_service.dart';
 import 'models/user.dart';
 import 'constants.dart';
 import 'providers/connectivity_provider.dart';
@@ -662,7 +661,6 @@ class _MainPageState extends ConsumerState<MainPage>
       final user = next.value;
       if (user != null && !_messageBusInitialized) {
         _messageBusInitialized = true;
-        unawaited(MetaverseAutoAuthService.ensureEnabled(ref));
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           _messageBusSub?.close();

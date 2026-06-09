@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:cross_file/cross_file.dart';
 import 'package:flutter/foundation.dart';
@@ -26,6 +27,30 @@ enum ExportFormat {
   final String extension;
 }
 
+class ExportResult {
+  const ExportResult({
+    required this.topicId,
+    required this.topicTitle,
+    required this.topicSlug,
+    required this.scope,
+    required this.format,
+    required this.postCount,
+    required this.byteSize,
+    required this.shareOutcome,
+    required this.createdAt,
+  });
+
+  final int topicId;
+  final String topicTitle;
+  final String topicSlug;
+  final ExportScope scope;
+  final ExportFormat format;
+  final int postCount;
+  final int byteSize;
+  final ShareOutcome shareOutcome;
+  final DateTime createdAt;
+}
+
 /// 导出工具类
 class ExportUtils {
   ExportUtils._();
@@ -46,8 +71,9 @@ class ExportUtils {
   /// [scope] - 导出范围
   /// [format] - 导出格式
   /// [onProgress] - 进度回调 (current, total)
-  /// 返回实际导出的帖子数量
-  static Future<int> exportTopic({
+  /// 返回实际导出的结果。用户取消桌面端保存时 [ExportResult.shareOutcome]
+  /// 为 [ShareOutcomeType.cancelled]，调用方可选择不写入历史。
+  static Future<ExportResult> exportTopic({
     required TopicDetail detail,
     required ExportScope scope,
     required ExportFormat format,
@@ -96,8 +122,22 @@ class ExportUtils {
         break;
     }
 
-    await _shareAsFile(content, detail.title, format.extension);
-    return posts.length;
+    final shareOutcome = await _shareAsFile(
+      content,
+      detail.title,
+      format.extension,
+    );
+    return ExportResult(
+      topicId: detail.id,
+      topicTitle: detail.title,
+      topicSlug: detail.slug,
+      scope: scope,
+      format: format,
+      postCount: posts.length,
+      byteSize: utf8.encode(content).length,
+      shareOutcome: shareOutcome,
+      createdAt: DateTime.now(),
+    );
   }
 
   /// 批量获取帖子数据
@@ -227,7 +267,11 @@ class ExportUtils {
   }
 
   /// 分享文件
-  static Future<void> _shareAsFile(String content, String title, String extension) async {
+  static Future<ShareOutcome> _shareAsFile(
+    String content,
+    String title,
+    String extension,
+  ) async {
     final tempDir = await getTemporaryDirectory();
     final safeName = _sanitizeFilename(title);
     final file = File('${tempDir.path}/$safeName.$extension');
@@ -240,7 +284,7 @@ class ExportUtils {
     };
 
     final xFile = XFile(file.path, mimeType: mimeType);
-    await ShareUtils.shareOrSaveFile(xFile);
+    return ShareUtils.shareOrSaveFile(xFile);
   }
 
   /// 移除 HTML 标签

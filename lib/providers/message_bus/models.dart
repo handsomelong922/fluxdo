@@ -118,12 +118,20 @@ class TopicStatsUpdate {
   });
 }
 
+/// “俺也一样”(shared_issue) 计数推送。
+class SharedIssueUpdate {
+  final int count;
+
+  const SharedIssueUpdate({required this.count});
+}
+
 /// 话题频道状态
 class TopicChannelState {
   final bool hasNewReplies;
   final List<TypingUser> typingUsers;
   final List<PostUpdate> postUpdates;
   final TopicStatsUpdate? statsUpdate;
+  final SharedIssueUpdate? sharedIssueUpdate;
   final bool messageArchived;
   final bool reloadRequested;        // 需要重新加载话题（reload_topic 消息）
   final bool refreshStreamRequested; // 需要刷新帖子流（reload_topic + refresh_stream）
@@ -134,6 +142,7 @@ class TopicChannelState {
     this.typingUsers = const [],
     this.postUpdates = const [],
     this.statsUpdate,
+    this.sharedIssueUpdate,
     this.messageArchived = false,
     this.reloadRequested = false,
     this.refreshStreamRequested = false,
@@ -146,6 +155,8 @@ class TopicChannelState {
     List<PostUpdate>? postUpdates,
     TopicStatsUpdate? statsUpdate,
     bool? clearStatsUpdate,
+    SharedIssueUpdate? sharedIssueUpdate,
+    bool clearSharedIssueUpdate = false,
     bool? messageArchived,
     bool? reloadRequested,
     bool? refreshStreamRequested,
@@ -157,6 +168,9 @@ class TopicChannelState {
       typingUsers: typingUsers ?? this.typingUsers,
       postUpdates: postUpdates ?? this.postUpdates,
       statsUpdate: clearStatsUpdate == true ? null : (statsUpdate ?? this.statsUpdate),
+      sharedIssueUpdate: clearSharedIssueUpdate
+          ? null
+          : (sharedIssueUpdate ?? this.sharedIssueUpdate),
       messageArchived: messageArchived ?? this.messageArchived,
       reloadRequested: reloadRequested ?? this.reloadRequested,
       refreshStreamRequested: refreshStreamRequested ?? this.refreshStreamRequested,

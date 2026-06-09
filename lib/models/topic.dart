@@ -1612,6 +1612,12 @@ class TopicDetail {
   final int voteCount; // 投票数
   final bool userVoted; // 当前用户是否已投票
 
+  // “俺也一样”(discourse-solved shared_issue) 相关字段
+  final bool sharedIssueVisible; // 服务端是否暴露入口
+  final bool canCreateSharedIssue; // 当前用户是否可点击
+  final int sharedIssueCount; // 已表态人数
+  final bool userCreatedSharedIssue; // 当前用户是否已表态
+
   // 创建者信息
   final TopicUser? createdBy;
 
@@ -1669,6 +1675,10 @@ class TopicDetail {
     this.canVote = false,
     this.voteCount = 0,
     this.userVoted = false,
+    this.sharedIssueVisible = false,
+    this.canCreateSharedIssue = false,
+    this.sharedIssueCount = 0,
+    this.userCreatedSharedIssue = false,
     this.createdBy,
     this.summarizable = false,
     this.hasCachedSummary = false,
@@ -1785,6 +1795,11 @@ class TopicDetail {
       canVote: json['can_vote'] as bool? ?? false,
       voteCount: json['vote_count'] as int? ?? 0,
       userVoted: json['user_voted'] as bool? ?? false,
+      sharedIssueVisible: json['shared_issue_visible'] as bool? ?? false,
+      canCreateSharedIssue: json['can_create_shared_issue'] as bool? ?? false,
+      sharedIssueCount: json['shared_issue_count'] as int? ?? 0,
+      userCreatedSharedIssue:
+          json['user_created_shared_issue'] as bool? ?? false,
       createdBy:
           (json['details'] as Map<String, dynamic>?)?['created_by'] != null
           ? TopicUser.fromJson(
@@ -1830,6 +1845,10 @@ class TopicDetail {
     bool? canVote,
     int? voteCount,
     bool? userVoted,
+    bool? sharedIssueVisible,
+    bool? canCreateSharedIssue,
+    int? sharedIssueCount,
+    bool? userCreatedSharedIssue,
     TopicUser? createdBy,
     bool? summarizable,
     bool? hasCachedSummary,
@@ -1882,6 +1901,12 @@ class TopicDetail {
       canVote: canVote ?? this.canVote,
       voteCount: voteCount ?? this.voteCount,
       userVoted: userVoted ?? this.userVoted,
+      sharedIssueVisible: sharedIssueVisible ?? this.sharedIssueVisible,
+      canCreateSharedIssue:
+          canCreateSharedIssue ?? this.canCreateSharedIssue,
+      sharedIssueCount: sharedIssueCount ?? this.sharedIssueCount,
+      userCreatedSharedIssue:
+          userCreatedSharedIssue ?? this.userCreatedSharedIssue,
       createdBy: createdBy ?? this.createdBy,
       summarizable: summarizable ?? this.summarizable,
       hasCachedSummary: hasCachedSummary ?? this.hasCachedSummary,

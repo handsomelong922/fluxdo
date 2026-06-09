@@ -11,6 +11,7 @@ import '../../../../../providers/preferences_provider.dart';
 import 'package:dio/dio.dart';
 import '../../../../../services/app_error_handler.dart';
 import '../../../../../services/discourse/discourse_service.dart';
+import '../../../../../services/network/exceptions/api_exception.dart';
 import '../../../../../services/toast_service.dart';
 import '../../../post_links.dart';
 import '../post_action_bar.dart';
@@ -73,6 +74,11 @@ class PostFooterSection extends ConsumerStatefulWidget {
   /// 内联回复展开状态缓存（由虚拟列表的父级持有，避免滚动回收后抖动）。
   final InlineRepliesState? inlineRepliesState;
   final ValueChanged<InlineRepliesState>? onInlineRepliesStateChanged;
+  final bool sharedIssueVisible;
+  final bool canCreateSharedIssue;
+  final int sharedIssueCount;
+  final bool userCreatedSharedIssue;
+  final void Function(int count, bool userCreated)? onSharedIssueChanged;
 
   const PostFooterSection({
     super.key,
@@ -97,6 +103,11 @@ class PostFooterSection extends ConsumerStatefulWidget {
     this.highlightBoostUsername,
     this.inlineRepliesState,
     this.onInlineRepliesStateChanged,
+    this.sharedIssueVisible = false,
+    this.canCreateSharedIssue = false,
+    this.sharedIssueCount = 0,
+    this.userCreatedSharedIssue = false,
+    this.onSharedIssueChanged,
   });
 
   @override
@@ -390,6 +401,17 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
               acceptedAnswers: widget.acceptedAnswers,
               onJumpToPost: widget.onJumpToPost,
             ),
+          if (widget.post.postNumber == 1 && widget.sharedIssueVisible)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: _SharedIssueButton(
+                topicId: widget.topicId,
+                canCreateSharedIssue: widget.canCreateSharedIssue,
+                count: widget.sharedIssueCount,
+                userCreated: widget.userCreatedSharedIssue,
+                onChanged: widget.onSharedIssueChanged,
+              ),
+            ),
           const SizedBox(height: 12),
           PostActionBar(
             post: widget.post,
@@ -442,6 +464,187 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SharedIssueButton extends ConsumerStatefulWidget {
+  const _SharedIssueButton({
+    required this.topicId,
+    required this.canCreateSharedIssue,
+    required this.count,
+    required this.userCreated,
+    this.onChanged,
+  });
+
+  final int topicId;
+  final bool canCreateSharedIssue;
+  final int count;
+  final bool userCreated;
+  final void Function(int count, bool userCreated)? onChanged;
+
+  @override
+  ConsumerState<_SharedIssueButton> createState() => _SharedIssueButtonState();
+}
+
+class _SharedIssueButtonState extends ConsumerState<_SharedIssueButton> {
+  bool _isLoading = false;
+  late int _count;
+  late bool _userCreated;
+
+  @override
+  void initState() {
+    super.initState();
+    _count = widget.count;
+    _userCreated = widget.userCreated;
+  }
+
+  @override
+  void didUpdateWidget(covariant _SharedIssueButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.count != widget.count ||
+        oldWidget.userCreated != widget.userCreated) {
+      _count = widget.count;
+      _userCreated = widget.userCreated;
+    }
+  }
+
+  Future<void> _toggle() async {
+    if (_isLoading) return;
+
+    final user = ref.read(currentUserProvider).value;
+    if (user == null) {
+      ToastService.showInfo(S.current.vote_pleaseLogin);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final response = await ref
+          .read(discourseServiceProvider)
+          .toggleSharedIssue(widget.topicId);
+      if (!mounted) return;
+      setState(() {
+        _count = response.count;
+        _userCreated = response.userCreatedSharedIssue;
+        _isLoading = false;
+      });
+      widget.onChanged?.call(response.count, response.userCreatedSharedIssue);
+      ToastService.showSuccess(
+        response.userCreatedSharedIssue ? '已标记“俺也一样”' : '已取消“俺也一样”',
+      );
+    } on DioException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      if (e.response?.statusCode == 429) {
+        ToastService.showInfo('操作太频繁，请稍后再试');
+      }
+    } on RateLimitException {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ToastService.showInfo('操作太频繁，请稍后再试');
+    } catch (e, s) {
+      AppErrorHandler.handleUnexpected(e, s);
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final disabled = !widget.canCreateSharedIssue;
+    final foreground = _userCreated
+        ? theme.colorScheme.onPrimary
+        : theme.colorScheme.primary;
+    final background = _userCreated
+        ? theme.colorScheme.primary
+        : theme.colorScheme.surfaceContainerHigh;
+
+    final button = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: disabled || _isLoading ? null : _toggle,
+        borderRadius: BorderRadius.circular(24),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: _userCreated
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outlineVariant,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_isLoading)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(foreground),
+                  ),
+                )
+              else
+                Icon(
+                  _userCreated
+                      ? Icons.front_hand_rounded
+                      : Icons.front_hand_outlined,
+                  size: 18,
+                  color: foreground,
+                ),
+              const SizedBox(width: 6),
+              Text(
+                '俺也一样',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: _userCreated
+                      ? theme.colorScheme.onPrimary
+                      : theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (_count > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 20),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _userCreated
+                        ? theme.colorScheme.onPrimary.withValues(alpha: 0.2)
+                        : theme.colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$_count',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: _userCreated
+                          ? theme.colorScheme.onPrimary
+                          : theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+
+    return Opacity(
+      opacity: disabled ? 0.7 : 1,
+      child: Tooltip(
+        message: disabled ? '作者不能对自己的主题标记“俺也一样”' : '俺也一样',
+        child: button,
       ),
     );
   }

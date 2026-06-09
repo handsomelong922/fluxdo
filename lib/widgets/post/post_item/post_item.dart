@@ -43,6 +43,11 @@ class PostItem extends ConsumerStatefulWidget {
   final InlineRepliesState? inlineRepliesState;
   final ValueChanged<InlineRepliesState>? onInlineRepliesStateChanged;
   final String? searchHighlightQuery;
+  final bool sharedIssueVisible;
+  final bool canCreateSharedIssue;
+  final int sharedIssueCount;
+  final bool userCreatedSharedIssue;
+  final void Function(int count, bool userCreated)? onSharedIssueChanged;
 
   const PostItem({
     super.key,
@@ -72,6 +77,11 @@ class PostItem extends ConsumerStatefulWidget {
     this.inlineRepliesState,
     this.onInlineRepliesStateChanged,
     this.searchHighlightQuery,
+    this.sharedIssueVisible = false,
+    this.canCreateSharedIssue = false,
+    this.sharedIssueCount = 0,
+    this.userCreatedSharedIssue = false,
+    this.onSharedIssueChanged,
   });
 
   @override
@@ -281,6 +291,11 @@ class _PostItemState extends ConsumerState<PostItem> {
                 hideRepliesButton: widget.hideRepliesButton,
                 inlineRepliesState: widget.inlineRepliesState,
                 onInlineRepliesStateChanged: widget.onInlineRepliesStateChanged,
+                sharedIssueVisible: widget.sharedIssueVisible,
+                canCreateSharedIssue: widget.canCreateSharedIssue,
+                sharedIssueCount: widget.sharedIssueCount,
+                userCreatedSharedIssue: widget.userCreatedSharedIssue,
+                onSharedIssueChanged: widget.onSharedIssueChanged,
                 onAcceptedAnswerChanged: (accepted) {
                   if (!mounted) return;
                   setState(() {

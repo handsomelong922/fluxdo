@@ -3,10 +3,8 @@ import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../services/cdk_oauth_service.dart';
 import '../services/network/cookie/webview_cookie_priming.dart';
 import '../services/toast_service.dart';
 import '../services/webview_settings.dart';
@@ -293,18 +291,6 @@ class _CdkPageState extends State<CdkPage> {
   Future<void> _seedAndBarrier() async {
     if (widget.url.isNotEmpty) {
       await WebViewCookiePriming.instance.prime(widget.url);
-    }
-    try {
-      final authorized = await CdkOAuthService().authorizeSilently().timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => false,
-      );
-      if (authorized) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('cdk_enabled', true);
-      }
-    } catch (e) {
-      debugPrint('[CdkPage] 静默授权跳过: $e');
     }
     if (widget.url.isNotEmpty) {
       await WebViewCookiePriming.instance.prime(widget.url);

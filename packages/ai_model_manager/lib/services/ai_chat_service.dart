@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 
 import '../models/ai_chat_chunk.dart';
 import '../models/ai_provider.dart';
@@ -9,6 +11,10 @@ import 'sse_transformer.dart';
 
 /// AI 聊天服务，支持流式响应
 class AiChatService {
+  static const Map<String, Object?> _streamRequestExtra = {
+    'aiLongLivedSse': true,
+  };
+
   final HttpClientAdapter Function()? _adapterFactory;
 
   AiChatService({HttpClientAdapter Function()? adapterFactory})
@@ -17,10 +23,21 @@ class AiChatService {
   Dio _createDio() {
     final dio = Dio(BaseOptions(
       connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(minutes: 5),
+      // AI SSE 在 thinking 阶段可能几十秒不发任何字节，不能用普通响应超时。
+      receiveTimeout: null,
     ));
     if (_adapterFactory != null) {
       dio.httpClientAdapter = _adapterFactory!();
+    } else {
+      dio.httpClientAdapter = IOHttpClientAdapter(
+        createHttpClient: () {
+          final client = HttpClient();
+          // dart:io HttpClient 默认 15s idle 会主动断开长 thinking SSE。
+          client.idleTimeout = const Duration(days: 3650);
+          client.connectionTimeout = const Duration(seconds: 30);
+          return client;
+        },
+      );
     }
     return dio;
   }
@@ -158,6 +175,7 @@ class AiChatService {
           'Content-Type': 'application/json',
         },
         responseType: ResponseType.stream,
+        extra: _streamRequestExtra,
       ),
     );
   }
@@ -200,6 +218,7 @@ class AiChatService {
           'Content-Type': 'application/json',
         },
         responseType: ResponseType.stream,
+        extra: _streamRequestExtra,
       ),
     );
   }
@@ -261,6 +280,7 @@ class AiChatService {
       options: Options(
         headers: {'Content-Type': 'application/json'},
         responseType: ResponseType.stream,
+        extra: _streamRequestExtra,
       ),
     );
   }
@@ -319,6 +339,7 @@ class AiChatService {
           'Content-Type': 'application/json',
         },
         responseType: ResponseType.stream,
+        extra: _streamRequestExtra,
       ),
     );
   }

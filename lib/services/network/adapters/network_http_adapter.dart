@@ -11,13 +11,20 @@ import '../proxy/proxy_settings_service.dart';
 class NetworkHttpAdapter implements HttpClientAdapter {
   NetworkHttpAdapter(this._settings, this._proxySettings);
 
+  static const _normalIdleTimeout = Duration(seconds: 30);
+  static const _longLivedSseIdleTimeout = Duration(days: 3650);
+
   final NetworkSettingsService _settings;
   final ProxySettingsService _proxySettings;
   HttpClient? _cachedClient;
+  HttpClient? _cachedLongLivedClient;
   int _cachedVersion = -1;
   int _cachedProxyVersion = -1;
+  int _cachedLongLivedVersion = -1;
+  int _cachedLongLivedProxyVersion = -1;
   bool _closed = false;
   bool _cachedProxyCaEnabled = false;
+  bool _cachedLongLivedProxyCaEnabled = false;
   Uint8List? _proxyCaBytes;
   Future<void>? _proxyCaLoad;
 
@@ -39,7 +46,10 @@ class NetworkHttpAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     await _ensureProxyCaLoaded();
-    final httpClient = _configHttpClient(options.connectTimeout);
+    final httpClient = _configHttpClient(
+      options.connectTimeout,
+      longLivedSse: options.extra['aiLongLivedSse'] == true,
+    );
     final reqFuture = httpClient.openUrl(options.method, options.uri);
     late HttpClientRequest request;
     try {
@@ -151,33 +161,58 @@ class NetworkHttpAdapter implements HttpClientAdapter {
     );
   }
 
-  HttpClient _configHttpClient(Duration? connectionTimeout) {
+  HttpClient _configHttpClient(
+    Duration? connectionTimeout, {
+    bool longLivedSse = false,
+  }) {
     final currentVersion = _settings.version;
     final currentProxyVersion = _proxySettings.version;
     final proxyCaEnabled = _shouldTrustProxyCa();
-    if (_cachedClient == null ||
-        _cachedVersion != currentVersion ||
-        _cachedProxyVersion != currentProxyVersion ||
-        _cachedProxyCaEnabled != proxyCaEnabled) {
-      _cachedClient?.close(force: false);
-      _cachedClient = _createHttpClient();
-      _cachedVersion = currentVersion;
-      _cachedProxyVersion = currentProxyVersion;
-      _cachedProxyCaEnabled = proxyCaEnabled;
+    final cachedClient =
+        longLivedSse ? _cachedLongLivedClient : _cachedClient;
+    final cachedVersion =
+        longLivedSse ? _cachedLongLivedVersion : _cachedVersion;
+    final cachedProxyVersion =
+        longLivedSse ? _cachedLongLivedProxyVersion : _cachedProxyVersion;
+    final cachedProxyCaEnabled = longLivedSse
+        ? _cachedLongLivedProxyCaEnabled
+        : _cachedProxyCaEnabled;
+
+    HttpClient client;
+    if (cachedClient == null ||
+        cachedVersion != currentVersion ||
+        cachedProxyVersion != currentProxyVersion ||
+        cachedProxyCaEnabled != proxyCaEnabled) {
+      cachedClient?.close(force: false);
+      client = _createHttpClient(longLivedSse: longLivedSse);
+      if (longLivedSse) {
+        _cachedLongLivedClient = client;
+        _cachedLongLivedVersion = currentVersion;
+        _cachedLongLivedProxyVersion = currentProxyVersion;
+        _cachedLongLivedProxyCaEnabled = proxyCaEnabled;
+      } else {
+        _cachedClient = client;
+        _cachedVersion = currentVersion;
+        _cachedProxyVersion = currentProxyVersion;
+        _cachedProxyCaEnabled = proxyCaEnabled;
+      }
+    } else {
+      client = cachedClient;
     }
     connectionTimeout ??= Duration.zero;
     if (connectionTimeout > Duration.zero) {
-      _cachedClient!.connectionTimeout = connectionTimeout;
+      client.connectionTimeout = connectionTimeout;
     } else {
-      _cachedClient!.connectionTimeout = null;
+      client.connectionTimeout = null;
     }
-    return _cachedClient!;
+    return client;
   }
 
-  HttpClient _createHttpClient() {
+  HttpClient _createHttpClient({bool longLivedSse = false}) {
     final context = _buildSecurityContext();
     final client = HttpClient(context: context)
-      ..idleTimeout = const Duration(seconds: 30);
+      ..idleTimeout =
+          longLivedSse ? _longLivedSseIdleTimeout : _normalIdleTimeout;
     final dohSettings = _settings.current;
     if (_shouldUseLocalGateway) {
       final proxyPort = dohSettings.proxyPort;
@@ -234,6 +269,7 @@ class NetworkHttpAdapter implements HttpClientAdapter {
   void close({bool force = false}) {
     _closed = true;
     _cachedClient?.close(force: force);
+    _cachedLongLivedClient?.close(force: force);
   }
 
   bool get _shouldUseLocalGateway {

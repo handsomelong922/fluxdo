@@ -175,6 +175,15 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
           }
           break;
 
+        case 'shared_issue':
+          final count = data['count'] as int?;
+          if (count != null) {
+            state = state.copyWith(
+              sharedIssueUpdate: SharedIssueUpdate(count: count),
+            );
+          }
+          break;
+
         default:
           debugPrint('[TopicChannel] 未知消息类型: $type');
       }
@@ -359,6 +368,10 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
   
   void clearStatsUpdate() {
     state = state.copyWith(clearStatsUpdate: true);
+  }
+
+  void clearSharedIssueUpdate() {
+    state = state.copyWith(clearSharedIssueUpdate: true);
   }
   
   void clearTypingUsers() {

@@ -356,6 +356,26 @@ mixin _PostsMixin on _DiscourseServiceBase {
     }
   }
 
+  /// 切换“俺也一样”(shared_issue) 状态。
+  ///
+  /// 同一接口 toggle：已表态则取消，未表态则创建。服务端可能对同一用户同一
+  /// 话题限流，调用方需要对 429 给出明确提示。
+  Future<SharedIssueResponse> toggleSharedIssue(int topicId) async {
+    try {
+      final response = await _dio.post(
+        '/solution/shared_issue',
+        data: {'topic_id': topicId},
+        options: Options(contentType: Headers.formUrlEncodedContentType),
+      );
+      return SharedIssueResponse.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 429) rethrow;
+      _throwApiError(e);
+    }
+  }
+
   /// 删除帖子
   Future<void> deletePost(int postId) async {
     try {

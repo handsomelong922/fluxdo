@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ignore: depend_on_referenced_packages
@@ -474,10 +475,15 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       int? promptTokens;
       int? responseTokens;
       int? cachedTokens;
+      final streamStartedAt = DateTime.now();
+      DateTime? firstChunkAt;
+      int chunkCount = 0;
 
       _streamSubscription = stream.listen(
         (chunk) {
           if (_cancelled || !mounted) return;
+          chunkCount++;
+          firstChunkAt ??= DateTime.now();
           switch (chunk) {
             case TextDelta(:final text):
               buffer.write(text);
@@ -505,7 +511,13 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
               assistantMessage.id,
               '',
               MessageStatus.error,
-              errorMessage: AiL10n.current.emptyResponseError,
+              errorMessage: _buildEmptyResponseError(
+                provider: selectedModel.provider,
+                model: selectedModel.model.id,
+                startedAt: streamStartedAt,
+                firstChunkAt: firstChunkAt,
+                chunkCount: chunkCount,
+              ),
             );
           } else {
             _updateAssistantMessage(
@@ -543,6 +555,31 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       );
       state = state.copyWith(isGenerating: false);
     }
+  }
+
+  String _buildEmptyResponseError({
+    required AiProvider provider,
+    required String model,
+    required DateTime startedAt,
+    required DateTime? firstChunkAt,
+    required int chunkCount,
+  }) {
+    final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
+    final ttfbMs = firstChunkAt?.difference(startedAt).inMilliseconds;
+    final ttfb = ttfbMs == null ? 'null' : '${ttfbMs}ms';
+    return '${AiL10n.current.emptyResponseError}\n\n'
+        '[diag] provider=${provider.type.name} model=$model '
+        'duration=${durationMs}ms ttfb=$ttfb chunks=$chunkCount '
+        'platform=${_platformTag()}';
+  }
+
+  String _platformTag() {
+    if (Platform.isIOS) return 'ios';
+    if (Platform.isAndroid) return 'android';
+    if (Platform.isMacOS) return 'macos';
+    if (Platform.isWindows) return 'windows';
+    if (Platform.isLinux) return 'linux';
+    return 'other';
   }
 
   /// 停止生成

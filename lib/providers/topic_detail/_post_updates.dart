@@ -341,6 +341,23 @@ extension PostUpdateMethods on TopicDetailNotifier {
     );
   }
 
+  /// 更新 “俺也一样”(shared_issue) 状态。
+  ///
+  /// 点击响应可以更新当前用户状态；MessageBus 广播只应更新 count，因为广播里
+  /// 的 user_created_shared_issue 属于操作用户，不一定是当前用户。
+  void updateSharedIssue(int newCount, {bool? userCreated}) {
+    final currentDetail = state.value;
+    if (currentDetail == null) return;
+
+    state = AsyncValue.data(
+      currentDetail.copyWith(
+        sharedIssueCount: newCount,
+        userCreatedSharedIssue:
+            userCreated ?? currentDetail.userCreatedSharedIssue,
+      ),
+    );
+  }
+
   /// 更新话题订阅级别
   Future<void> updateNotificationLevel(TopicNotificationLevel level) async {
     final currentDetail = state.value;

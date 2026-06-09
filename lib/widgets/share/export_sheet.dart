@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/export_history_item.dart';
 import '../../models/topic.dart';
 import '../../l10n/s.dart';
+import '../../providers/export_history_provider.dart';
 import '../../services/toast_service.dart';
 import '../../utils/dialog_utils.dart';
 import '../../utils/export_utils.dart';
+import '../../utils/share_utils.dart';
 
 /// 导出选项 Sheet
-class ExportSheet extends StatefulWidget {
+class ExportSheet extends ConsumerStatefulWidget {
   /// 话题详情
   final TopicDetail detail;
 
@@ -23,10 +27,10 @@ class ExportSheet extends StatefulWidget {
   }
 
   @override
-  State<ExportSheet> createState() => _ExportSheetState();
+  ConsumerState<ExportSheet> createState() => _ExportSheetState();
 }
 
-class _ExportSheetState extends State<ExportSheet> {
+class _ExportSheetState extends ConsumerState<ExportSheet> {
   ExportScope _scope = ExportScope.firstPostOnly;
   ExportFormat _format = ExportFormat.markdown;
   bool _isExporting = false;
@@ -51,7 +55,7 @@ class _ExportSheetState extends State<ExportSheet> {
     });
 
     try {
-      await ExportUtils.exportTopic(
+      final result = await ExportUtils.exportTopic(
         detail: widget.detail,
         scope: _scope,
         format: _format,
@@ -64,6 +68,11 @@ class _ExportSheetState extends State<ExportSheet> {
           }
         },
       );
+      if (result.shareOutcome.type != ShareOutcomeType.cancelled) {
+        ref
+            .read(exportHistoryProvider.notifier)
+            .add(ExportHistoryItem.fromResult(result));
+      }
       if (mounted) {
         Navigator.pop(context);
       }

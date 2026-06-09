@@ -109,7 +109,5 @@ class AppStateRefresher {
     (ref) => ref.invalidate(notificationAlertChannelProvider),
     (ref) => ref.invalidate(latestChannelProvider),
     (ref) => ref.invalidate(messageBusInitProvider),
-    (ref) => ref.invalidate(ldcUserInfoProvider),
-    (ref) => ref.invalidate(cdkUserInfoProvider),
   ];
 }

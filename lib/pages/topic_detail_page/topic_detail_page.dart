@@ -1055,7 +1055,16 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             .clearStatsUpdate();
       }
 
-      // 4. 帖子级别更新（created/revised/deleted/liked 等）
+      // 4. shared_issue 计数更新
+      if (next.sharedIssueUpdate != null &&
+          previous?.sharedIssueUpdate != next.sharedIssueUpdate) {
+        notifier.updateSharedIssue(next.sharedIssueUpdate!.count);
+        ref
+            .read(topicChannelProvider(widget.topicId).notifier)
+            .clearSharedIssueUpdate();
+      }
+
+      // 5. 帖子级别更新（created/revised/deleted/liked 等）
       final prevLen = previous?.postUpdates.length ?? 0;
       final nextLen = next.postUpdates.length;
       if (nextLen > prevLen) {
@@ -1623,6 +1632,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           onJumpToPost: (postNumber) =>
               _scrollToPost(postNumber, preserveNestedView: true),
           onVoteChanged: _handleVoteChanged,
+          onSharedIssueChanged: _handleSharedIssueChanged,
           onNotificationLevelChanged: (level) =>
               _handleNotificationLevelChanged(notifier, level),
           onSolutionChanged: _handleSolutionChanged,
@@ -1748,6 +1758,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               onShareAsImage: _sharePostAsImage,
               onRefreshPost: _handleRefreshPost,
               onVoteChanged: _handleVoteChanged,
+              onSharedIssueChanged: _handleSharedIssueChanged,
               onNotificationLevelChanged: (level) =>
                   _handleNotificationLevelChanged(notifier, level),
               onSolutionChanged: _handleSolutionChanged,

@@ -10,6 +10,15 @@ import '../l10n/s.dart';
 import '../services/toast_service.dart';
 import 'platform_utils.dart';
 
+enum ShareOutcomeType { shared, saved, cancelled }
+
+class ShareOutcome {
+  const ShareOutcome({required this.type, this.path});
+
+  final ShareOutcomeType type;
+  final String? path;
+}
+
 /// 分享链接工具类
 class ShareUtils {
   /// 构建分享链接
@@ -32,21 +41,22 @@ class ShareUtils {
   /// 分享或保存文件
   ///
   /// 桌面端弹出"另存为"对话框，移动端使用系统分享面板
-  static Future<void> shareOrSaveFile(
+  static Future<ShareOutcome> shareOrSaveFile(
     XFile file, {
     String? subject,
   }) async {
     if (PlatformUtils.isDesktop) {
-      await _saveFileDialog(file);
+      return _saveFileDialog(file);
     } else {
       await SharePlus.instance.share(
         ShareParams(files: [file], subject: subject),
       );
+      return const ShareOutcome(type: ShareOutcomeType.shared);
     }
   }
 
   /// 桌面端"另存为"对话框
-  static Future<void> _saveFileDialog(XFile file) async {
+  static Future<ShareOutcome> _saveFileDialog(XFile file) async {
     final fileName = p.basename(file.path);
     final ext = p.extension(fileName).replaceFirst('.', '');
 
@@ -57,15 +67,19 @@ class ShareUtils {
       allowedExtensions: ext.isNotEmpty ? [ext] : null,
     );
 
-    if (outputPath == null) return;
+    if (outputPath == null) {
+      return const ShareOutcome(type: ShareOutcomeType.cancelled);
+    }
 
     try {
       final sourceFile = File(file.path);
       await sourceFile.copy(outputPath);
       ToastService.show(S.current.share_fileSaved);
+      return ShareOutcome(type: ShareOutcomeType.saved, path: outputPath);
     } catch (e) {
       debugPrint('[ShareUtils] saveFile failed: $e');
       ToastService.showError(S.current.share_saveFailed);
+      rethrow;
     }
   }
 }

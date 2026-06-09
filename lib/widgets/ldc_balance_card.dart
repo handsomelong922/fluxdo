@@ -38,7 +38,7 @@ class LdcBalanceCard extends ConsumerWidget {
     }
 
     final userInfo = ldcUserInfo.value;
-    if (userInfo == null) return const SizedBox.shrink();
+    if (userInfo == null) return _buildIdleCard(context, ref);
 
     final theme = Theme.of(context);
     final isRefreshing = ldcUserInfo.isLoading;
@@ -809,6 +809,165 @@ class LdcBalanceCard extends ConsumerWidget {
               ),
             ),
             const LoadingSpinner(size: 16, color: Colors.white),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIdleCard(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+
+    if (inline) {
+      return Material(
+        color: Colors.transparent,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.account_balance_wallet_rounded,
+                      size: 20,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      S.current.ldc_balance,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () =>
+                        ref.read(ldcUserInfoProvider.notifier).refresh(),
+                    child: Text(S.current.common_refresh),
+                  ),
+                ],
+              ),
+            ),
+            if (showDivider)
+              Padding(
+                padding: const EdgeInsets.only(left: 56),
+                child: Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.2,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    if (compact) {
+      return Card(
+        elevation: 0,
+        color: theme.colorScheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+          ),
+        ),
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.account_balance_wallet_rounded,
+                  size: 20,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  S.current.ldc_balance,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () =>
+                    ref.read(ldcUserInfoProvider.notifier).refresh(),
+                child: Text(S.current.common_refresh),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      elevation: 8,
+      shadowColor: theme.colorScheme.primary.withValues(alpha: 0.3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [theme.colorScheme.primary, theme.colorScheme.tertiary],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.account_balance_wallet_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'LINUX DO Credits',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            FilledButton.icon(
+              onPressed: () =>
+                  ref.read(ldcUserInfoProvider.notifier).refresh(),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: Text(S.current.common_refresh),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                foregroundColor: Colors.white,
+              ),
+            ),
           ],
         ),
       ),

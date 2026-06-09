@@ -85,6 +85,73 @@ class CookieJarService {
       _initialized = true;
       _strategy = PlatformCookieStrategy.create();
     }
+
+    await _migrateSessionCookiesToHostOnly();
+  }
+
+  /// 历史脏数据迁移：把误存为 domain cookie 的会话 Cookie 改回 host-only。
+  ///
+  /// 早期边界同步会把 WebView 回读的裸 host 当作 Domain= 透传，导致
+  /// `_t` / `_forum_session` 被发送到 connect.linux.do、cdk.linux.do
+  /// 等子域名。这里只校正应用主域上的会话 Cookie，避免扩大影响面。
+  Future<void> _migrateSessionCookiesToHostOnly() async {
+    final jar = _cookieJar;
+    if (jar is! EnhancedPersistCookieJar) return;
+
+    try {
+      final baseHost = Uri.parse(AppConstants.baseUrl).host.toLowerCase();
+      final cookies = await jar.readAllCookies();
+      final patched = <CanonicalCookie>[];
+
+      for (final cookie in cookies) {
+        if (!sessionCookieNames.contains(cookie.name)) continue;
+        if (cookie.hostOnly) continue;
+        if (cookie.normalizedDomain != baseHost) continue;
+
+        patched.add(_asHostOnlySessionCookie(cookie, baseHost));
+      }
+
+      if (patched.isEmpty) return;
+
+      await jar.saveCanonicalCookies(Uri.parse(AppConstants.baseUrl), patched);
+      debugPrint(
+        '[CookieJar] Migrated ${patched.length} session cookie(s) back to host-only',
+      );
+    } catch (e) {
+      debugPrint('[CookieJar] Session cookie migration failed: $e');
+    }
+  }
+
+  CanonicalCookie _asHostOnlySessionCookie(
+    CanonicalCookie cookie,
+    String baseHost,
+  ) {
+    return CanonicalCookie(
+      name: cookie.name,
+      value: cookie.value,
+      domain: baseHost,
+      path: cookie.path,
+      expiresAt: cookie.expiresAt,
+      maxAge: cookie.maxAge,
+      secure: cookie.secure,
+      httpOnly: cookie.httpOnly,
+      sameSite: cookie.sameSite,
+      hostOnly: true,
+      persistent: cookie.persistent,
+      creationTime: cookie.creationTime,
+      lastAccessTime: cookie.lastAccessTime,
+      priority: cookie.priority,
+      sameParty: cookie.sameParty,
+      sourceScheme: cookie.sourceScheme,
+      sourcePort: cookie.sourcePort,
+      partitionKey: cookie.partitionKey,
+      partitioned: cookie.partitioned,
+      originUrl: cookie.originUrl,
+      source: cookie.source,
+      version: cookie.version,
+      lastSyncedToWebViewAt: cookie.lastSyncedToWebViewAt,
+      lastSyncedFromWebViewAt: cookie.lastSyncedFromWebViewAt,
+    );
   }
 
   // ---------------------------------------------------------------------------

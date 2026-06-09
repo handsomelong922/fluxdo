@@ -147,9 +147,15 @@ class BoundarySyncService {
               'valueLength': value.length,
             });
           }
-        } else if (rawDomain != null && rawDomain.isNotEmpty) {
-          // 新设备：平台返回了 domain，直接使用
+        } else if (rawDomain != null && rawDomain.startsWith('.')) {
+          // 浏览器约定：前导点表示原始 Set-Cookie 带 Domain=，
+          // 这是可以发送到子域名的真正 domain cookie。
           domain = rawDomain;
+        } else if (rawDomain != null && rawDomain.isNotEmpty) {
+          // 无前导点表示 host-only。部分平台从 WebView 回读时会把
+          // host-only cookie 的裸 host 填到 domain 字段，不能当作
+          // Domain= 透传，否则 _t / _forum_session 会泄到子域名。
+          domain = null;
         } else if (isSessionCookie) {
           // 会话 Cookie 缺失 domain 时，保持 host-only 语义，不再放大到子域名。
           domain = null;

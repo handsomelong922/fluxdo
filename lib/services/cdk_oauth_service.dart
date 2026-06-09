@@ -6,12 +6,11 @@ import 'network/exceptions/oauth_exception.dart';
 import '../pages/oauth_webview_page.dart';
 import '../l10n/s.dart';
 import '../utils/dialog_utils.dart';
-import 'toast_service.dart';
+import 'oauth_flow_helper.dart';
 import '../models/cdk_user_info.dart';
 
 class CdkOAuthService {
   static const String baseUrl = 'https://cdk.linux.do';
-  static const Duration _stepGap = Duration(milliseconds: 400);
 
   late final Dio _dio;
 
@@ -31,7 +30,10 @@ class CdkOAuthService {
     await _dio.post(
       '$baseUrl/api/v1/oauth/callback',
       data: {'code': code, 'state': state},
-      options: Options(extra: {'skipCsrf': true}),
+      options: Options(
+        headers: {'X-Requested-With': 'XMLHttpRequest'},
+        extra: {'skipCsrf': true},
+      ),
     );
   }
 
@@ -59,27 +61,20 @@ class CdkOAuthService {
     }
   }
 
-  Future<bool> authorizeSilently() async {
-    final authUrl = await _loadAuthUrl();
-    await Future.delayed(_stepGap);
-    final response = await _loadAuthPage(authUrl);
-
-    if (await _tryCallbackFromLocation(response.headers.value('location'))) {
-      return true;
+  Future<bool> reauthorize(BuildContext context) async {
+    try {
+      await logout();
+    } catch (_) {
+      // 忽略登出错误，不阻塞后续重新授权。
     }
-
-    final approveLink = _extractApproveLink(response.data);
-    if (approveLink == null) {
-      return false;
-    }
-
-    await _approveAndCallback(approveLink);
-    return true;
+    await OAuthFlowHelper.humanGap(minMs: 1000, maxMs: 1800);
+    if (!context.mounted) return false;
+    return authorize(context);
   }
 
   Future<bool> authorize(BuildContext context) async {
     final authUrl = await _loadAuthUrl();
-    await Future.delayed(_stepGap);
+    await OAuthFlowHelper.humanGap(minMs: 800, maxMs: 1500);
     final response = await _loadAuthPage(authUrl);
 
     if (await _tryCallbackFromLocation(response.headers.value('location'))) {
@@ -90,36 +85,44 @@ class CdkOAuthService {
 
     if (!context.mounted) return false;
     if (approveLink == null) {
-      final callbackResult = await Navigator.of(context)
-          .push<OAuthWebViewResult>(
-            MaterialPageRoute(
-              builder: (_) => OAuthWebViewPage(
-                initialUrl: authUrl,
-                callbackBaseUrl: baseUrl,
-                title: context.l10n.auth_cdkConfirmTitle,
-              ),
-            ),
-          );
-      if (callbackResult == null) {
-        return false;
-      }
-      await Future.delayed(_stepGap);
-      await callback(callbackResult.code, callbackResult.state);
-      return true;
+      return _authorizeWithWebView(context, authUrl);
     }
 
     final confirmed = await showAppDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => _AuthDialog(
-        onApprove: () async {
-          await _approveAndCallback(approveLink);
-          return true;
-        },
-      ),
+      builder: (context) => const _AuthDialog(),
     );
 
-    return confirmed ?? false;
+    if (confirmed != true) return false;
+    try {
+      await _approveAndCallback(approveLink);
+      return true;
+    } on _OAuthNeedsWebViewFallback {
+      if (!context.mounted) return false;
+      return _authorizeWithWebView(context, authUrl);
+    }
+  }
+
+  Future<bool> _authorizeWithWebView(
+    BuildContext context,
+    String authUrl,
+  ) async {
+    final callbackResult = await Navigator.of(context).push<OAuthWebViewResult>(
+      MaterialPageRoute(
+        builder: (_) => OAuthWebViewPage(
+          initialUrl: authUrl,
+          callbackBaseUrl: baseUrl,
+          title: context.l10n.auth_cdkConfirmTitle,
+        ),
+      ),
+    );
+    if (callbackResult == null) {
+      return false;
+    }
+    await OAuthFlowHelper.humanGap(minMs: 400, maxMs: 900);
+    await callback(callbackResult.code, callbackResult.state);
+    return true;
   }
 
   Future<String> _loadAuthUrl() async {
@@ -169,7 +172,7 @@ class CdkOAuthService {
     if (code == null || state == null) {
       return false;
     }
-    await Future.delayed(_stepGap);
+    await OAuthFlowHelper.humanGap(minMs: 400, maxMs: 900);
     await callback(code, state);
     return true;
   }
@@ -178,7 +181,7 @@ class CdkOAuthService {
     final approveUri = Uri.parse(
       'https://connect.linux.do',
     ).resolve(approveLink);
-    await Future.delayed(_stepGap);
+    await OAuthFlowHelper.humanGap(minMs: 600, maxMs: 1200);
     final approveResponse = await _dio.get(
       approveUri.toString(),
       options: Options(
@@ -194,7 +197,7 @@ class CdkOAuthService {
 
     final location = approveResponse.headers.value('location');
     if (location == null) {
-      throw Exception(S.current.oauth_noRedirectResponse);
+      throw const _OAuthNeedsWebViewFallback();
     }
 
     final uri = Uri.parse(location);
@@ -202,40 +205,20 @@ class CdkOAuthService {
     final state = uri.queryParameters['state'];
 
     if (code == null || state == null) {
-      throw Exception(S.current.oauth_missingParams);
+      throw const _OAuthNeedsWebViewFallback();
     }
 
-    await Future.delayed(_stepGap);
+    await OAuthFlowHelper.humanGap(minMs: 400, maxMs: 900);
     await callback(code, state);
   }
 }
 
-class _AuthDialog extends StatefulWidget {
-  final Future<bool> Function() onApprove;
-
-  const _AuthDialog({required this.onApprove});
-
-  @override
-  State<_AuthDialog> createState() => _AuthDialogState();
+class _OAuthNeedsWebViewFallback implements Exception {
+  const _OAuthNeedsWebViewFallback();
 }
 
-class _AuthDialogState extends State<_AuthDialog> {
-  bool _isLoading = false;
-
-  Future<void> _handleApprove() async {
-    setState(() => _isLoading = true);
-    try {
-      final result = await widget.onApprove();
-      if (mounted) {
-        Navigator.pop(context, result);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ToastService.showError('${S.current.reward_authFailed}: $e');
-      }
-    }
-  }
+class _AuthDialog extends StatelessWidget {
+  const _AuthDialog();
 
   @override
   Widget build(BuildContext context) {
@@ -244,18 +227,12 @@ class _AuthDialogState extends State<_AuthDialog> {
       content: Text(context.l10n.auth_cdkConfirmMessage),
       actions: [
         TextButton(
-          onPressed: _isLoading ? null : () => Navigator.pop(context, false),
+          onPressed: () => Navigator.pop(context, false),
           child: Text(context.l10n.common_deny),
         ),
         FilledButton(
-          onPressed: _isLoading ? null : _handleApprove,
-          child: _isLoading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(context.l10n.common_allow),
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(context.l10n.common_allow),
         ),
       ],
     );

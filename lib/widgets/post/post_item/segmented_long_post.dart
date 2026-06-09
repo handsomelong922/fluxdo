@@ -191,6 +191,11 @@ class LongPostFooterSegment extends StatelessWidget {
   final String? highlightBoostUsername;
   final InlineRepliesState? inlineRepliesState;
   final ValueChanged<InlineRepliesState>? onInlineRepliesStateChanged;
+  final bool sharedIssueVisible;
+  final bool canCreateSharedIssue;
+  final int sharedIssueCount;
+  final bool userCreatedSharedIssue;
+  final void Function(int count, bool userCreated)? onSharedIssueChanged;
 
   const LongPostFooterSegment({
     super.key,
@@ -212,6 +217,11 @@ class LongPostFooterSegment extends StatelessWidget {
     this.onShowPostDetail,
     this.inlineRepliesState,
     this.onInlineRepliesStateChanged,
+    this.sharedIssueVisible = false,
+    this.canCreateSharedIssue = false,
+    this.sharedIssueCount = 0,
+    this.userCreatedSharedIssue = false,
+    this.onSharedIssueChanged,
   });
 
   @override
@@ -257,6 +267,11 @@ class LongPostFooterSegment extends StatelessWidget {
               onShowPostDetail: onShowPostDetail,
               inlineRepliesState: inlineRepliesState,
               onInlineRepliesStateChanged: onInlineRepliesStateChanged,
+              sharedIssueVisible: sharedIssueVisible,
+              canCreateSharedIssue: canCreateSharedIssue,
+              sharedIssueCount: sharedIssueCount,
+              userCreatedSharedIssue: userCreatedSharedIssue,
+              onSharedIssueChanged: onSharedIssueChanged,
             ),
           ),
         ],

@@ -57,6 +57,7 @@ class TopicPostList extends StatefulWidget {
   final void Function(Post post)? onShareAsImage;
   final void Function(int postId) onRefreshPost;
   final void Function(int, bool) onVoteChanged;
+  final void Function(int, bool) onSharedIssueChanged;
   final void Function(TopicNotificationLevel)? onNotificationLevelChanged;
   final void Function(int postId, bool accepted)? onSolutionChanged;
   final void Function(TopicSummary summary)? onContinueAiSummary;
@@ -117,6 +118,7 @@ class TopicPostList extends StatefulWidget {
     this.onShareAsImage,
     required this.onRefreshPost,
     required this.onVoteChanged,
+    required this.onSharedIssueChanged,
     this.onNotificationLevelChanged,
     this.onSolutionChanged,
     this.onContinueAiSummary,
@@ -194,6 +196,8 @@ class _TopicPostListState extends State<TopicPostList> {
   void Function(Post post)? get onShareAsImage => widget.onShareAsImage;
   void Function(int postId) get onRefreshPost => widget.onRefreshPost;
   void Function(int, bool) get onVoteChanged => widget.onVoteChanged;
+  void Function(int, bool) get onSharedIssueChanged =>
+      widget.onSharedIssueChanged;
   void Function(TopicNotificationLevel)? get onNotificationLevelChanged =>
       widget.onNotificationLevelChanged;
   void Function(int postId, bool accepted)? get onSolutionChanged =>
@@ -794,6 +798,11 @@ class _TopicPostListState extends State<TopicPostList> {
           onInlineRepliesStateChanged: (state) {
             _inlineRepliesStateByPostId[post.id] = state;
           },
+          sharedIssueVisible: post.postNumber == 1 && detail.sharedIssueVisible,
+          canCreateSharedIssue: detail.canCreateSharedIssue,
+          sharedIssueCount: detail.sharedIssueCount,
+          userCreatedSharedIssue: detail.userCreatedSharedIssue,
+          onSharedIssueChanged: onSharedIssueChanged,
           searchHighlightQuery: widget.searchHighlightQuery,
         );
         break;
@@ -854,6 +863,11 @@ class _TopicPostListState extends State<TopicPostList> {
           onInlineRepliesStateChanged: (state) {
             _inlineRepliesStateByPostId[post.id] = state;
           },
+          sharedIssueVisible: post.postNumber == 1 && detail.sharedIssueVisible,
+          canCreateSharedIssue: detail.canCreateSharedIssue,
+          sharedIssueCount: detail.sharedIssueCount,
+          userCreatedSharedIssue: detail.userCreatedSharedIssue,
+          onSharedIssueChanged: onSharedIssueChanged,
         );
         break;
       case _PostRenderSegmentType.gapBefore:
