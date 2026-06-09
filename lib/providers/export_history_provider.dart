@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/export_history_item.dart';
 import 'core_providers.dart';
+import 'theme_provider.dart'; // sharedPreferencesProvider
 
 const int maxExportHistoryItems = 200;
 
@@ -72,9 +73,7 @@ final exportHistoryProvider =
     StateNotifierProvider<ExportHistoryNotifier, List<ExportHistoryItem>>(
   (ref) {
     final prefs = ref.watch(sharedPreferencesProvider);
-    final username = ref.watch(
-      currentUserProvider.select((value) => value.value?.username),
-    );
+    final username = ref.watch(currentUserProvider).value?.username;
     final account = _sanitizeExportHistoryAccount(username);
     return ExportHistoryNotifier(prefs, 'export_history_$account');
   },
