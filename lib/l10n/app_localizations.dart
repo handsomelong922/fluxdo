@@ -6790,6 +6790,12 @@ abstract class AppLocalizations {
   /// **'Boost 发送失败'**
   String get boost_failed;
 
+  /// No description provided for @boost_flagAlreadyReported.
+  ///
+  /// In zh, this message translates to:
+  /// **'你已经举报过这条 Boost'**
+  String get boost_flagAlreadyReported;
+
   /// No description provided for @boost_flagSubmitted.
   ///
   /// In zh, this message translates to:

@@ -3704,6 +3704,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get boost_failed => 'Failed to send boost';
 
   @override
+  String get boost_flagAlreadyReported =>
+      'You have already reported this boost';
+
+  @override
   String get boost_flagSubmitted => 'Flag submitted';
 
   @override

@@ -14,6 +14,8 @@ class BoostList extends StatefulWidget {
   final bool canBoost;
   final VoidCallback? onAddBoost;
   final void Function(Boost boost)? onBoostTap;
+  final void Function(Boost boost)? onBoostLongPress;
+  final void Function(BoostUser user)? onBoostAvatarTap;
 
   /// 高亮指定用户的 boost（自动展开并滚动到位）
   final String? highlightUsername;
@@ -24,6 +26,8 @@ class BoostList extends StatefulWidget {
     required this.canBoost,
     this.onAddBoost,
     this.onBoostTap,
+    this.onBoostLongPress,
+    this.onBoostAvatarTap,
     this.highlightUsername,
   });
 
@@ -192,6 +196,11 @@ class _BoostListState extends State<BoostList>
               Navigator.of(popoverContext).pop();
               widget.onBoostTap?.call(boost);
             },
+            onBoostLongPress: (boost) {
+              Navigator.of(popoverContext).pop();
+              widget.onBoostLongPress?.call(boost);
+            },
+            onBoostAvatarTap: widget.onBoostAvatarTap,
           );
         },
         direction: PopoverDirection.bottom,
@@ -264,9 +273,10 @@ class _BoostListState extends State<BoostList>
         onTap: widget.onBoostTap == null
             ? null
             : () => widget.onBoostTap!(boost),
-        onLongPress: widget.onBoostTap == null
+        onLongPress: widget.onBoostLongPress == null
             ? null
-            : () => widget.onBoostTap!(boost),
+            : () => widget.onBoostLongPress!(boost),
+        onAvatarTap: widget.onBoostAvatarTap,
       );
       if (isHighlighted) {
         bubble = _wrapHighlight(bubble);
@@ -286,6 +296,7 @@ class _BoostListState extends State<BoostList>
       onLongPressWithContext: (anchorContext) {
         unawaited(_toggleGroupPopover(anchorContext, group));
       },
+      onAvatarTap: widget.onBoostAvatarTap,
     );
     if (isHighlighted) {
       bubble = _wrapHighlight(bubble);
@@ -567,8 +578,15 @@ class _InlineControlChip extends StatelessWidget {
 class _BoostPopoverContent extends StatelessWidget {
   final List<Boost> boosts;
   final void Function(Boost boost)? onBoostTap;
+  final void Function(Boost boost)? onBoostLongPress;
+  final void Function(BoostUser user)? onBoostAvatarTap;
 
-  const _BoostPopoverContent({required this.boosts, this.onBoostTap});
+  const _BoostPopoverContent({
+    required this.boosts,
+    this.onBoostTap,
+    this.onBoostLongPress,
+    this.onBoostAvatarTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -592,9 +610,10 @@ class _BoostPopoverContent extends StatelessWidget {
                 BoostBubble(
                   boost: boost,
                   onTap: onBoostTap == null ? null : () => onBoostTap!(boost),
-                  onLongPress: onBoostTap == null
+                  onLongPress: onBoostLongPress == null
                       ? null
-                      : () => onBoostTap!(boost),
+                      : () => onBoostLongPress!(boost),
+                  onAvatarTap: onBoostAvatarTap,
                 ),
             ],
           ),

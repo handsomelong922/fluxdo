@@ -3609,6 +3609,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get boost_failed => 'Boost 发送失败';
 
   @override
+  String get boost_flagAlreadyReported => '你已经举报过这条 Boost';
+
+  @override
   String get boost_flagSubmitted => '举报已提交';
 
   @override
@@ -9906,6 +9909,44 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   }
 
   @override
+  String get boost_created => 'Boost 已發送';
+
+  @override
+  String get boost_deleteConfirm => '確定要刪除這條 Boost 嗎？';
+
+  @override
+  String get boost_deleteFailed => 'Boost 刪除失敗';
+
+  @override
+  String get boost_deleted => 'Boost 已刪除';
+
+  @override
+  String get boost_failed => 'Boost 發送失敗';
+
+  @override
+  String get boost_flagAlreadyReported => '你已經舉報過這條 Boost';
+
+  @override
+  String get boost_flagSubmitted => '舉報已提交';
+
+  @override
+  String get boost_flagTitle => '舉報 Boost';
+
+  @override
+  String get boost_limitReached => '此帖子的 Boost 數量已達上限';
+
+  @override
+  String get boost_placeholder => '說點什麼...';
+
+  @override
+  String get boost_send => '發送';
+
+  @override
+  String boost_tooLong(int count) {
+    return '內容過長，最多 $count 個字符';
+  }
+
+  @override
   String get nested_flatView => '切換平鋪視圖';
 
   @override
@@ -16056,6 +16097,44 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   @override
   String notion_syncFailed(Object error) {
     return 'Notion 同步失敗：$error';
+  }
+
+  @override
+  String get boost_created => 'Boost 已傳送';
+
+  @override
+  String get boost_deleteConfirm => '確定要刪除這條 Boost 嗎？';
+
+  @override
+  String get boost_deleteFailed => 'Boost 刪除失敗';
+
+  @override
+  String get boost_deleted => 'Boost 已刪除';
+
+  @override
+  String get boost_failed => 'Boost 傳送失敗';
+
+  @override
+  String get boost_flagAlreadyReported => '你已經舉報過這條 Boost';
+
+  @override
+  String get boost_flagSubmitted => '舉報已提交';
+
+  @override
+  String get boost_flagTitle => '舉報 Boost';
+
+  @override
+  String get boost_limitReached => '此帖子的 Boost 數量已達上限';
+
+  @override
+  String get boost_placeholder => '說點什麼...';
+
+  @override
+  String get boost_send => '傳送';
+
+  @override
+  String boost_tooLong(int count) {
+    return '內容過長，最多 $count 個字元';
   }
 
   @override

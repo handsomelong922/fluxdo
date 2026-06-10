@@ -12,6 +12,7 @@ class BoostBubble extends StatelessWidget {
   final bool expanded;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final ValueChanged<BoostUser>? onAvatarTap;
   final void Function(BuildContext bubbleContext)? onTapWithContext;
   final void Function(BuildContext bubbleContext)? onLongPressWithContext;
 
@@ -20,6 +21,7 @@ class BoostBubble extends StatelessWidget {
     required this.boost,
     this.onTap,
     this.onLongPress,
+    this.onAvatarTap,
     this.onTapWithContext,
     this.onLongPressWithContext,
   }) : group = null,
@@ -31,6 +33,7 @@ class BoostBubble extends StatelessWidget {
     this.expanded = false,
     this.onTap,
     this.onLongPress,
+    this.onAvatarTap,
     this.onTapWithContext,
     this.onLongPressWithContext,
   }) : boost = null;
@@ -43,6 +46,7 @@ class BoostBubble extends StatelessWidget {
         expanded: expanded,
         onTap: onTap,
         onLongPress: onLongPress,
+        onAvatarTap: onAvatarTap,
         onTapWithContext: onTapWithContext,
         onLongPressWithContext: onLongPressWithContext,
       );
@@ -80,12 +84,20 @@ class BoostBubble extends StatelessWidget {
                     boost!.user.avatarTemplate,
                     size: 48,
                   );
-                  return CircleAvatar(
-                    radius: 10,
-                    backgroundImage: avatarUrl.isNotEmpty
-                        ? discourseImageProvider(avatarUrl)
-                        : null,
-                    onBackgroundImageError: (_, _) {},
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onAvatarTap == null
+                        ? null
+                        : () => onAvatarTap!(boost!.user),
+                    child: CircleAvatar(
+                      radius: 10,
+                      backgroundImage: avatarUrl.isNotEmpty
+                          ? discourseImageProvider(avatarUrl)
+                          : null,
+                      onBackgroundImageError: avatarUrl.isNotEmpty
+                          ? (_, _) {}
+                          : null,
+                    ),
                   );
                 },
               ),
@@ -115,6 +127,7 @@ class _GroupedBoostBubble extends StatelessWidget {
   final bool expanded;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final ValueChanged<BoostUser>? onAvatarTap;
   final void Function(BuildContext bubbleContext)? onTapWithContext;
   final void Function(BuildContext bubbleContext)? onLongPressWithContext;
 
@@ -123,6 +136,7 @@ class _GroupedBoostBubble extends StatelessWidget {
     required this.expanded,
     this.onTap,
     this.onLongPress,
+    this.onAvatarTap,
     this.onTapWithContext,
     this.onLongPressWithContext,
   });
@@ -154,7 +168,7 @@ class _GroupedBoostBubble extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _AvatarStack(users: avatars),
+              _AvatarStack(users: avatars, onAvatarTap: onAvatarTap),
               const SizedBox(width: 4),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 180),
@@ -209,8 +223,9 @@ class _GroupedBoostBubble extends StatelessWidget {
 
 class _AvatarStack extends StatelessWidget {
   final List<BoostUser> users;
+  final ValueChanged<BoostUser>? onAvatarTap;
 
-  const _AvatarStack({required this.users});
+  const _AvatarStack({required this.users, this.onAvatarTap});
 
   @override
   Widget build(BuildContext context) {
@@ -239,21 +254,29 @@ class _AvatarStack extends StatelessWidget {
                     width: 1.5,
                   ),
                 ),
-                child: ValueListenableBuilder<int>(
-                  valueListenable: AvatarUrlPolicy.revisionListenable,
-                  builder: (context, _, _) {
-                    final avatarUrl = AvatarUrlPolicy.resolveTemplate(
-                      visibleUsers[i].avatarTemplate,
-                      size: 48,
-                    );
-                    return CircleAvatar(
-                      radius: 10,
-                      backgroundImage: avatarUrl.isNotEmpty
-                          ? discourseImageProvider(avatarUrl)
-                          : null,
-                      onBackgroundImageError: (_, _) {},
-                    );
-                  },
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onAvatarTap == null
+                      ? null
+                      : () => onAvatarTap!(visibleUsers[i]),
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: AvatarUrlPolicy.revisionListenable,
+                    builder: (context, _, _) {
+                      final avatarUrl = AvatarUrlPolicy.resolveTemplate(
+                        visibleUsers[i].avatarTemplate,
+                        size: 48,
+                      );
+                      return CircleAvatar(
+                        radius: 10,
+                        backgroundImage: avatarUrl.isNotEmpty
+                            ? discourseImageProvider(avatarUrl)
+                            : null,
+                        onBackgroundImageError: avatarUrl.isNotEmpty
+                            ? (_, _) {}
+                            : null,
+                      );
+                    },
+                  ),
                 ),
               ),
             ),

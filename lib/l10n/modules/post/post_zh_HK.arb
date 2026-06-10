@@ -1,5 +1,24 @@
 {
   "@@locale": "zh_HK",
+  "boost_created": "Boost 已發送",
+  "boost_deleteConfirm": "確定要刪除這條 Boost 嗎？",
+  "boost_deleteFailed": "Boost 刪除失敗",
+  "boost_deleted": "Boost 已刪除",
+  "boost_failed": "Boost 發送失敗",
+  "boost_flagAlreadyReported": "你已經舉報過這條 Boost",
+  "boost_flagSubmitted": "舉報已提交",
+  "boost_flagTitle": "舉報 Boost",
+  "boost_limitReached": "此帖子的 Boost 數量已達上限",
+  "boost_placeholder": "說點什麼...",
+  "boost_send": "發送",
+  "boost_tooLong": "內容過長，最多 {count} 個字符",
+  "@boost_tooLong": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nested_flatView": "切換平鋪視圖",
   "nested_loadMore": "加載更多",
   "nested_loadMoreReplies": "加載更多回覆",
