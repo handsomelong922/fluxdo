@@ -35,4 +35,8 @@ class RequestSchedulerConfig {
     }
     return remaining;
   }
+
+  static void resetServerCooldownForTesting() {
+    _serverCooldownUntil = null;
+  }
 }

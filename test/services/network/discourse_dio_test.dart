@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/services/network/discourse_dio.dart';
+import 'package:fluxdo/services/network/interceptors/error_interceptor.dart';
 import 'package:fluxdo/services/network/interceptors/request_scheduler_interceptor.dart';
 import 'package:fluxdo/services/network/request_scheduler_config.dart';
 
@@ -114,6 +115,10 @@ void main() {
   });
 
   group('RequestSchedulerConfig', () {
+    tearDown(() {
+      RequestSchedulerConfig.resetServerCooldownForTesting();
+    });
+
     test(
       'pauses new requests after server rate limits and clears after expiry',
       () async {
@@ -129,6 +134,34 @@ void main() {
         expect(RequestSchedulerConfig.serverCooldownRemaining, Duration.zero);
       },
     );
+  });
+
+  group('ErrorInterceptor', () {
+    tearDown(() {
+      RequestSchedulerConfig.resetServerCooldownForTesting();
+    });
+
+    test('silent rate limits still pause the shared scheduler', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://linux.do'));
+      dio.httpClientAdapter = _StatusAdapter(
+        statusCode: 429,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+          'retry-after': ['3'],
+        },
+      );
+      dio.interceptors.add(ErrorInterceptor());
+
+      await expectLater(
+        dio.get('/latest.json', options: Options(extra: {'isSilent': true})),
+        throwsA(isA<DioException>()),
+      );
+
+      expect(
+        RequestSchedulerConfig.serverCooldownRemaining.inMicroseconds,
+        greaterThan(0),
+      );
+    });
   });
 
   group('RequestSchedulerInterceptor', () {
@@ -205,6 +238,25 @@ class _ConcurrencyRecordingAdapter implements HttpClientAdapter {
     } finally {
       active--;
     }
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _StatusAdapter implements HttpClientAdapter {
+  _StatusAdapter({required this.statusCode, this.headers = const {}});
+
+  final int statusCode;
+  final Map<String, List<String>> headers;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    return ResponseBody.fromString('{}', statusCode, headers: headers);
   }
 
   @override

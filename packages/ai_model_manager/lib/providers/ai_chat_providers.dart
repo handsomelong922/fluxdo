@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ignore: depend_on_referenced_packages
@@ -12,7 +11,6 @@ import '../models/ai_provider.dart';
 import '../models/ai_chat_message.dart';
 import '../services/ai_chat_service.dart';
 import '../services/ai_chat_storage_service.dart';
-import '../services/ai_package_logger.dart';
 import 'ai_provider_providers.dart';
 
 const _lastUsedAiAssistantModelKey = 'ai_assistant_last_model';
@@ -442,8 +440,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       final apiKey =
           await AiProviderListNotifier.getApiKey(selectedModel.provider.id);
       if (!mounted) return;
-      final trimmedApiKey = apiKey?.trim();
-      if (trimmedApiKey == null || trimmedApiKey.isEmpty) {
+      if (apiKey == null) {
         _updateAssistantMessage(
           assistantMessage.id,
           '',
@@ -466,7 +463,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       final stream = chatService.sendChatChunks(
         provider: selectedModel.provider,
         model: selectedModel.model.id,
-        apiKey: trimmedApiKey,
+        apiKey: apiKey,
         messages: chatMessages,
         systemPrompt: _buildSystemPrompt(topicContext),
         thinkingConfig: thinkingConfig,
@@ -477,15 +474,10 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       int? promptTokens;
       int? responseTokens;
       int? cachedTokens;
-      final streamStartedAt = DateTime.now();
-      DateTime? firstChunkAt;
-      int chunkCount = 0;
 
       _streamSubscription = stream.listen(
         (chunk) {
           if (_cancelled || !mounted) return;
-          chunkCount++;
-          firstChunkAt ??= DateTime.now();
           switch (chunk) {
             case TextDelta(:final text):
               buffer.write(text);
@@ -513,14 +505,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
               assistantMessage.id,
               '',
               MessageStatus.error,
-              errorMessage: _buildEmptyResponseError(
-                provider: selectedModel.provider,
-                model: selectedModel.model.id,
-                apiKey: trimmedApiKey,
-                startedAt: streamStartedAt,
-                firstChunkAt: firstChunkAt,
-                chunkCount: chunkCount,
-              ),
+              errorMessage: AiL10n.current.emptyResponseError,
             );
           } else {
             _updateAssistantMessage(
@@ -558,34 +543,6 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       );
       state = state.copyWith(isGenerating: false);
     }
-  }
-
-  String _buildEmptyResponseError({
-    required AiProvider provider,
-    required String model,
-    required String apiKey,
-    required DateTime startedAt,
-    required DateTime? firstChunkAt,
-    required int chunkCount,
-  }) {
-    final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
-    final ttfbMs = firstChunkAt?.difference(startedAt).inMilliseconds;
-    final ttfb = ttfbMs == null ? 'null' : '${ttfbMs}ms';
-    final diag = 'provider=${provider.type.name} model=$model '
-        'duration=${durationMs}ms ttfb=$ttfb chunks=$chunkCount '
-        'apiKeyLen=${apiKey.length} platform=${_platformTag()}';
-    AiPackageLogger.warning('AiChat', 'emptyResponse $diag');
-    return '${AiL10n.current.emptyResponseError}\n\n'
-        '[diag] $diag';
-  }
-
-  String _platformTag() {
-    if (Platform.isIOS) return 'ios';
-    if (Platform.isAndroid) return 'android';
-    if (Platform.isMacOS) return 'macos';
-    if (Platform.isWindows) return 'windows';
-    if (Platform.isLinux) return 'linux';
-    return 'other';
   }
 
   /// 停止生成
@@ -797,7 +754,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
 
     try {
       final apiKey = await AiProviderListNotifier.getApiKey(model.provider.id);
-      if (apiKey == null || apiKey.trim().isEmpty || !mounted) return;
+      if (apiKey == null || !mounted) return;
 
       final userMsg =
           completedMessages.firstWhere((m) => m.role == ChatRole.user).content;
@@ -806,7 +763,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       final titleStream = chatService.sendChatStream(
         provider: model.provider,
         model: model.model.id,
-        apiKey: apiKey.trim(),
+        apiKey: apiKey,
         messages: [
           {'role': 'user', 'content': userMsg},
         ],

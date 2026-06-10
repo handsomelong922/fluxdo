@@ -21,12 +21,7 @@ class ErrorInterceptor extends Interceptor {
     final statusCode = err.response?.statusCode;
     final method = err.requestOptions.method.toUpperCase();
     final extra = err.requestOptions.extra;
-
-    // 静默模式：不显示任何错误提示
-    if (extra['isSilent'] == true) {
-      handler.next(err);
-      return;
-    }
+    final isSilent = extra['isSilent'] == true;
 
     // CF 盾 403 交给 CfChallengeInterceptor 决定展示形态，避免先弹普通 403。
     if (statusCode == 403 &&
@@ -57,9 +52,13 @@ class ErrorInterceptor extends Interceptor {
       final retryAfter = _extractRetryAfterSeconds(err.response);
       RequestSchedulerConfig.pauseFor(
         Duration(
-          seconds: retryAfter != null && retryAfter > 0 ? retryAfter : 2,
+          seconds: retryAfter != null && retryAfter > 0 ? retryAfter : 10,
         ),
       );
+      if (isSilent) {
+        handler.next(err);
+        return;
+      }
       if (showErrorToast) {
         final toastMessage = retryAfter != null && retryAfter > 0
             ? S.current.network_rateLimitedWait(_formatWaitDuration(retryAfter))
@@ -67,6 +66,12 @@ class ErrorInterceptor extends Interceptor {
         ToastService.showError(toastMessage);
       }
       throw RateLimitException(retryAfter, errorMessage);
+    }
+
+    // 静默模式：429 冷却已记录，其它错误不显示任何提示。
+    if (isSilent) {
+      handler.next(err);
+      return;
     }
     if (statusCode == 502 || statusCode == 503 || statusCode == 504) {
       if (showErrorToast) {
