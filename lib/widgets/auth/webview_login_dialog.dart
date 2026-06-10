@@ -6,9 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../constants.dart';
+import '../../services/cf_challenge_service.dart';
 import '../../services/discourse/discourse_service.dart';
 import '../../services/network/cookie/boundary_sync_service.dart';
 import '../../services/network/cookie/cookie_jar_service.dart';
+import '../../services/toast_service.dart';
 import '../../services/webview_settings.dart';
 import '../../services/windows_webview_environment_service.dart';
 
@@ -54,6 +56,7 @@ Future<WebViewLoginDialogResult?> showWebViewLoginDialog(
   required String password,
   required Future<String?> Function(WebViewLoginNeed2FA need)
   onNeedSecondFactor,
+  String? hcaptchaCreateEndpoint,
 }) {
   return showDialog<WebViewLoginDialogResult>(
     context: context,
@@ -64,6 +67,7 @@ Future<WebViewLoginDialogResult?> showWebViewLoginDialog(
       identifier: identifier,
       password: password,
       onNeedSecondFactor: onNeedSecondFactor,
+      hcaptchaCreateEndpoint: hcaptchaCreateEndpoint,
     ),
   );
 }
@@ -74,12 +78,14 @@ class _WebViewLoginDialog extends StatefulWidget {
     required this.identifier,
     required this.password,
     required this.onNeedSecondFactor,
+    this.hcaptchaCreateEndpoint,
   });
 
   final String siteKey;
   final String identifier;
   final String password;
   final Future<String?> Function(WebViewLoginNeed2FA need) onNeedSecondFactor;
+  final String? hcaptchaCreateEndpoint;
 
   @override
   State<_WebViewLoginDialog> createState() => _WebViewLoginDialogState();
@@ -91,6 +97,19 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
   bool _processing = false;
   bool _finished = false;
   bool _cookiesPrimed = false;
+  bool _cfRetryUsed = false;
+  String? _lastHcaptchaToken;
+  String? _lastSecondFactorToken;
+
+  List<String> get _hcaptchaCreateEndpoints {
+    final configured = widget.hcaptchaCreateEndpoint?.trim();
+    final list = <String>[
+      if (configured != null && configured.isNotEmpty) configured,
+      '/captcha/hcaptcha/create.json',
+      '/hcaptcha/create.json',
+    ];
+    return list.toSet().toList();
+  }
 
   String get _inlineHtml {
     final scheme = Theme.of(context).colorScheme;
@@ -99,6 +118,7 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
     final titleColor = hex(scheme.onSurface);
     final subColor = hex(scheme.onSurfaceVariant);
     final accent = hex(scheme.primary);
+    final endpointsJson = jsonEncode(_hcaptchaCreateEndpoints);
     return '''
 <!DOCTYPE html>
 <html>
@@ -156,18 +176,31 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
         var csrf = (await c.json()).csrf;
 
         if (hcaptchaToken) {
-          var h = await fetch('/captcha/hcaptcha/create.json', {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'X-CSRF-Token': csrf,
-              'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: 'token=' + encodeURIComponent(hcaptchaToken)
-          });
-          if (h.status !== 200) {
-            return done({ phase: 'hcaptcha', status: h.status, body: await h.text() });
+          var hcaptchaEndpoints = $endpointsJson;
+          var hcaptchaOk = false;
+          var hcaptchaLast = null;
+          for (var i = 0; i < hcaptchaEndpoints.length; i++) {
+            var ep = hcaptchaEndpoints[i];
+            try {
+              var h = await fetch(ep, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'X-CSRF-Token': csrf,
+                  'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: 'token=' + encodeURIComponent(hcaptchaToken)
+              });
+              hcaptchaLast = { endpoint: ep, status: h.status, body: await h.text() };
+              if (h.status === 200) { hcaptchaOk = true; break; }
+              if (h.status !== 404) break;
+            } catch (e) {
+              hcaptchaLast = { endpoint: ep, status: 0, body: String(e) };
+            }
+          }
+          if (!hcaptchaOk) {
+            return done({ phase: 'hcaptcha', status: hcaptchaLast ? hcaptchaLast.status : 0, body: 'tried=' + JSON.stringify(hcaptchaEndpoints) + ' last=' + JSON.stringify(hcaptchaLast) });
           }
         }
 
@@ -268,6 +301,9 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
     if (controller == null || _finished) return;
     if (mounted) setState(() => _processing = true);
 
+    _lastHcaptchaToken = hcaptchaToken;
+    _lastSecondFactorToken = secondFactorToken;
+
     await _primeCookiesFromJar();
     if (_finished) return;
 
@@ -304,10 +340,7 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
 
     switch (phase) {
       case 'csrf':
-        _finishFailure(
-          LoginErrorKind.network,
-          'Cloudflare 验证已失效 (CSRF $status)',
-        );
+        await _handleCsrfFailure(status);
         return;
       case 'hcaptcha':
         _finishFailure(LoginErrorKind.unknown, '人机验证失败 (hcaptcha $status)');
@@ -334,6 +367,49 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
       return;
     }
     _finishFailure(failure.kind, failure.message);
+  }
+
+  Future<void> _handleCsrfFailure(int status) async {
+    if (_finished) return;
+    if (_cfRetryUsed) {
+      _finishFailure(
+        LoginErrorKind.network,
+        'Cloudflare 验证已失效，请重试 (CSRF $status)',
+      );
+      return;
+    }
+    _cfRetryUsed = true;
+
+    if (mounted) {
+      ToastService.showInfo('Cloudflare 验证已失效，正在重新验证...');
+    }
+
+    if (!mounted) return;
+    final ok = await CfChallengeService().showManualVerify(context, true);
+    if (_finished) return;
+    if (ok != true) {
+      _finishFailure(
+        LoginErrorKind.network,
+        'Cloudflare 验证已失效，请重试 (CSRF $status)',
+      );
+      return;
+    }
+
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    if (_finished) return;
+    for (var i = 0; i < 3; i++) {
+      await BoundarySyncService.instance.syncFromWebView(cookieNames: null);
+      final clearance = await CookieJarService().getCfClearance();
+      if (clearance != null && clearance.isNotEmpty) break;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (_finished) return;
+    }
+
+    _cookiesPrimed = false;
+    await _runLogin(
+      hcaptchaToken: _lastHcaptchaToken,
+      secondFactorToken: _lastSecondFactorToken,
+    );
   }
 
   Future<void> _handleSecondFactor(LoginFailure failure) async {

@@ -78,6 +78,9 @@ class AppPreferences {
   /// 自动总结需要达到的最小回复数
   final int autoSummarizeMinReplies;
 
+  /// hCaptcha create endpoint 覆盖；null 时使用内置 fallback 列表。
+  final String? hcaptchaCreateEndpoint;
+
   /// 对话框背景高斯模糊
   final bool dialogBlur;
 
@@ -128,6 +131,7 @@ class AppPreferences {
     required this.defaultNestedTopicView,
     required this.autoSummarizeTopicOnEnter,
     required this.autoSummarizeMinReplies,
+    this.hcaptchaCreateEndpoint,
     required this.dialogBlur,
     required this.maxConcurrent,
     required this.maxPerWindow,
@@ -164,6 +168,7 @@ class AppPreferences {
     bool? defaultNestedTopicView,
     bool? autoSummarizeTopicOnEnter,
     int? autoSummarizeMinReplies,
+    String? hcaptchaCreateEndpoint,
     bool? dialogBlur,
     int? maxConcurrent,
     int? maxPerWindow,
@@ -206,6 +211,8 @@ class AppPreferences {
           autoSummarizeTopicOnEnter ?? this.autoSummarizeTopicOnEnter,
       autoSummarizeMinReplies:
           autoSummarizeMinReplies ?? this.autoSummarizeMinReplies,
+      hcaptchaCreateEndpoint:
+          hcaptchaCreateEndpoint ?? this.hcaptchaCreateEndpoint,
       dialogBlur: dialogBlur ?? this.dialogBlur,
       maxConcurrent: maxConcurrent ?? this.maxConcurrent,
       maxPerWindow: maxPerWindow ?? this.maxPerWindow,
@@ -255,6 +262,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
       'pref_auto_summarize_topic_on_enter';
   static const String _autoSummarizeMinRepliesKey =
       'pref_auto_summarize_min_replies';
+  static const String _hcaptchaCreateEndpointKey =
+      'pref_hcaptcha_create_endpoint';
   static const String _dialogBlurKey = 'pref_dialog_blur';
   static const String _maxConcurrentKey = 'pref_max_concurrent';
   static const String _maxPerWindowKey = 'pref_max_per_window';
@@ -309,6 +318,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
               _prefs.getBool(_autoSummarizeTopicOnEnterKey) ?? false,
           autoSummarizeMinReplies:
               _prefs.getInt(_autoSummarizeMinRepliesKey) ?? 20,
+          hcaptchaCreateEndpoint: _prefs.getString(_hcaptchaCreateEndpointKey),
           dialogBlur: _prefs.getBool(_dialogBlurKey) ?? true,
           maxConcurrent: _prefs.getInt(_maxConcurrentKey) ?? 3,
           maxPerWindow: _prefs.getInt(_maxPerWindowKey) ?? 6,

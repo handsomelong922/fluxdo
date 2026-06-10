@@ -11,12 +11,13 @@ import '../storage/resilient_secure_storage.dart';
 /// 数据备份导出/导入服务
 class DataBackupService {
   static final ResilientSecureStorage _secureStorage = ResilientSecureStorage();
-  static const _apiKeyPrefix = 'ai_provider_key_';
+  static const _apiKeyPrefix = 'ai_apikey_';
+  static const _legacyApiKeyPrefix = 'ai_provider_key_';
 
   /// 需要备份的 key 前缀
   static const _backupKeyPrefixes = [
     'pref_', // 偏好设置
-    'ai_', // AI 模型配置（API Key 在 SecureStorage 中，不会被导出）
+    'ai_', // AI 模型配置（API Key 通过 apiKeys 字段单独导出）
     'theme_', // 主题设置
     'doh_', // DOH 网络设置
     'http_proxy_', // 代理设置
@@ -29,6 +30,7 @@ class DataBackupService {
     'ai_chat_session_messages_',
     'ai_chat_topic_sessions_',
     'ai_chat_all_sessions_index',
+    'ai_apikey_',
   ];
 
   /// 需要备份的完整 key
@@ -90,7 +92,7 @@ class DataBackupService {
       data[key] = {'type': type, 'value': serializedValue};
     }
 
-    // 导出 AI 供应商 API Key（存储在 FlutterSecureStorage 中）
+    // 导出 AI 供应商 API Key（新版本在 SharedPreferences，旧版本可能还在 SecureStorage）
     final apiKeys = await _exportApiKeys(prefs);
 
     return {
@@ -102,7 +104,7 @@ class DataBackupService {
     };
   }
 
-  /// 从 SecureStorage 中导出所有 AI 供应商的 API Key
+  /// 导出所有 AI 供应商的 API Key，并兼容旧 SecureStorage 位置。
   static Future<Map<String, String>> _exportApiKeys(
     SharedPreferences prefs,
   ) async {
@@ -115,7 +117,10 @@ class DataBackupService {
       for (final item in list) {
         final id = (item as Map<String, dynamic>)['id'] as String?;
         if (id == null) continue;
-        final key = await _secureStorage.read(key: '$_apiKeyPrefix$id');
+        final plain = prefs.getString('$_apiKeyPrefix$id')?.trim();
+        final key = plain?.isNotEmpty == true
+            ? plain
+            : await _secureStorage.read(key: '$_legacyApiKeyPrefix$id');
         if (key != null && key.isNotEmpty) {
           apiKeys[id] = key;
         }
@@ -170,14 +175,14 @@ class DataBackupService {
       }
     }
 
-    // 导入 API Key 到 SecureStorage
+    // 导入 API Key 到新 SharedPreferences 位置，并清理旧 SecureStorage 位置。
     final apiKeys = backup['apiKeys'] as Map<String, dynamic>?;
     if (apiKeys != null) {
       for (final entry in apiKeys.entries) {
-        await _secureStorage.write(
-          key: '$_apiKeyPrefix${entry.key}',
-          value: entry.value as String,
-        );
+        final value = (entry.value as String).trim();
+        if (value.isEmpty) continue;
+        await prefs.setString('$_apiKeyPrefix${entry.key}', value);
+        await _secureStorage.delete(key: '$_legacyApiKeyPrefix${entry.key}');
       }
     }
   }

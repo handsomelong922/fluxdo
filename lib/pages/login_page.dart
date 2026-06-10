@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/s.dart';
 import '../services/cf_challenge_service.dart';
@@ -119,11 +120,16 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     }
     if (!mounted) return false;
 
+    final prefs = await SharedPreferences.getInstance();
+    final hcaptchaEndpoint = prefs.getString('pref_hcaptcha_create_endpoint');
+    if (!mounted) return false;
+
     final result = await showWebViewLoginDialog(
       context,
       siteKey: _linuxDoHcaptchaSiteKey,
       identifier: identifier,
       password: password,
+      hcaptchaCreateEndpoint: hcaptchaEndpoint,
       onNeedSecondFactor: (need) => showTwoFactorDialog(
         context,
         hint: need.totpEnabled ? '请输入身份验证器 App 显示的 6 位验证码' : '此账号需要二步验证',

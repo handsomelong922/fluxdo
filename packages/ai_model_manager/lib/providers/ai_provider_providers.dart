@@ -4,13 +4,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/ai_provider.dart';
 import '../services/ai_chat_storage_service.dart';
 import '../services/ai_provider_service.dart';
-import '../services/resilient_secure_storage.dart';
 
 /// 需要主应用在 ProviderScope.overrides 中注入
 final aiSharedPreferencesProvider = Provider<SharedPreferences>((_) {
@@ -76,9 +76,16 @@ Future<void> clearDefaultAiModel(WidgetRef ref) async {
 /// 供应商列表 Notifier
 class AiProviderListNotifier extends StateNotifier<List<AiProvider>> {
   static const String _storageKey = 'ai_providers';
+  static const String _kApiKeyPrefix = 'ai_apikey_';
+  static const String _kLegacyKeychainPrefix = 'ai_provider_key_';
+  static const String _kLegacyFallbackPrefix =
+      '__secure_fallback__ai_provider_key_';
   static const _uuid = Uuid();
 
-  static final ResilientSecureStorage _secureStorage = ResilientSecureStorage();
+  /// 仅作为旧版本 Keychain 数据迁移源；新写入统一走 SharedPreferences。
+  static const FlutterSecureStorage _legacyKeychain = FlutterSecureStorage(
+    mOptions: MacOsOptions(useDataProtectionKeyChain: false),
+  );
 
   final SharedPreferences _prefs;
 
@@ -168,15 +175,61 @@ class AiProviderListNotifier extends StateNotifier<List<AiProvider>> {
 
   /// 获取 API Key
   static Future<String?> getApiKey(String providerId) async {
-    return _secureStorage.read(key: 'ai_provider_key_$providerId');
+    final prefs = await SharedPreferences.getInstance();
+    final plain = prefs.getString('$_kApiKeyPrefix$providerId');
+    if (plain != null && plain.trim().isNotEmpty) {
+      return plain.trim();
+    }
+    return _migrateLegacyApiKey(providerId, prefs);
+  }
+
+  static Future<String?> _migrateLegacyApiKey(
+    String providerId,
+    SharedPreferences prefs,
+  ) async {
+    String? value;
+    try {
+      final fromKeychain = await _legacyKeychain.read(
+        key: '$_kLegacyKeychainPrefix$providerId',
+      );
+      if (fromKeychain != null && fromKeychain.trim().isNotEmpty) {
+        value = fromKeychain.trim();
+      }
+    } catch (_) {
+      // 自签 / 未签名 / 无 keyring 等场景下 Keychain 读取可能失败，继续看旧 fallback。
+    }
+
+    value ??= prefs.getString('$_kLegacyFallbackPrefix$providerId')?.trim();
+    if (value == null || value.isEmpty) return null;
+
+    await prefs.setString('$_kApiKeyPrefix$providerId', value);
+    await prefs.remove('$_kLegacyFallbackPrefix$providerId');
+    try {
+      await _legacyKeychain.delete(key: '$_kLegacyKeychainPrefix$providerId');
+    } catch (_) {}
+    return value;
   }
 
   static Future<void> _saveApiKey(String providerId, String apiKey) async {
-    await _secureStorage.write(
-        key: 'ai_provider_key_$providerId', value: apiKey);
+    final trimmed = apiKey.trim();
+    if (trimmed.isEmpty) {
+      await _deleteApiKey(providerId);
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_kApiKeyPrefix$providerId', trimmed);
+    await prefs.remove('$_kLegacyFallbackPrefix$providerId');
+    try {
+      await _legacyKeychain.delete(key: '$_kLegacyKeychainPrefix$providerId');
+    } catch (_) {}
   }
 
   static Future<void> _deleteApiKey(String providerId) async {
-    await _secureStorage.delete(key: 'ai_provider_key_$providerId');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('$_kApiKeyPrefix$providerId');
+    await prefs.remove('$_kLegacyFallbackPrefix$providerId');
+    try {
+      await _legacyKeychain.delete(key: '$_kLegacyKeychainPrefix$providerId');
+    } catch (_) {}
   }
 }

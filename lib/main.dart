@@ -58,6 +58,7 @@ import 'services/connectivity_service.dart';
 import 'services/log/json_file_handler.dart';
 import 'services/log/log_writer.dart';
 import 'services/log/logger_utils.dart';
+import 'services/app_logger.dart';
 import 'services/download_service.dart';
 import 'services/migration_service.dart';
 import 'services/navigation/app_route_observer.dart';
@@ -323,6 +324,17 @@ Future<void> main() async {
         ToastService.showInfo(message);
     }
   });
+
+  AiPackageLogger.handler = (level, tag, message) {
+    switch (level) {
+      case 'error':
+        AppLogger.error(message, tag: tag);
+      case 'warning':
+        AppLogger.warning(message, tag: tag);
+      default:
+        AppLogger.info(message, tag: tag);
+    }
+  };
 
   // 根据当前语言配置 AI 模型管理包的语言
   final savedLocale = prefs.getString('pref_locale');

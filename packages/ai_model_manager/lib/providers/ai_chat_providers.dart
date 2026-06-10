@@ -12,6 +12,7 @@ import '../models/ai_provider.dart';
 import '../models/ai_chat_message.dart';
 import '../services/ai_chat_service.dart';
 import '../services/ai_chat_storage_service.dart';
+import '../services/ai_package_logger.dart';
 import 'ai_provider_providers.dart';
 
 const _lastUsedAiAssistantModelKey = 'ai_assistant_last_model';
@@ -441,7 +442,8 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       final apiKey =
           await AiProviderListNotifier.getApiKey(selectedModel.provider.id);
       if (!mounted) return;
-      if (apiKey == null) {
+      final trimmedApiKey = apiKey?.trim();
+      if (trimmedApiKey == null || trimmedApiKey.isEmpty) {
         _updateAssistantMessage(
           assistantMessage.id,
           '',
@@ -464,7 +466,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       final stream = chatService.sendChatChunks(
         provider: selectedModel.provider,
         model: selectedModel.model.id,
-        apiKey: apiKey,
+        apiKey: trimmedApiKey,
         messages: chatMessages,
         systemPrompt: _buildSystemPrompt(topicContext),
         thinkingConfig: thinkingConfig,
@@ -514,6 +516,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
               errorMessage: _buildEmptyResponseError(
                 provider: selectedModel.provider,
                 model: selectedModel.model.id,
+                apiKey: trimmedApiKey,
                 startedAt: streamStartedAt,
                 firstChunkAt: firstChunkAt,
                 chunkCount: chunkCount,
@@ -560,6 +563,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   String _buildEmptyResponseError({
     required AiProvider provider,
     required String model,
+    required String apiKey,
     required DateTime startedAt,
     required DateTime? firstChunkAt,
     required int chunkCount,
@@ -567,10 +571,12 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
     final ttfbMs = firstChunkAt?.difference(startedAt).inMilliseconds;
     final ttfb = ttfbMs == null ? 'null' : '${ttfbMs}ms';
-    return '${AiL10n.current.emptyResponseError}\n\n'
-        '[diag] provider=${provider.type.name} model=$model '
+    final diag = 'provider=${provider.type.name} model=$model '
         'duration=${durationMs}ms ttfb=$ttfb chunks=$chunkCount '
-        'platform=${_platformTag()}';
+        'apiKeyLen=${apiKey.length} platform=${_platformTag()}';
+    AiPackageLogger.warning('AiChat', 'emptyResponse $diag');
+    return '${AiL10n.current.emptyResponseError}\n\n'
+        '[diag] $diag';
   }
 
   String _platformTag() {
@@ -791,7 +797,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
 
     try {
       final apiKey = await AiProviderListNotifier.getApiKey(model.provider.id);
-      if (apiKey == null || !mounted) return;
+      if (apiKey == null || apiKey.trim().isEmpty || !mounted) return;
 
       final userMsg =
           completedMessages.firstWhere((m) => m.role == ChatRole.user).content;
@@ -800,7 +806,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
       final titleStream = chatService.sendChatStream(
         provider: model.provider,
         model: model.model.id,
-        apiKey: apiKey,
+        apiKey: apiKey.trim(),
         messages: [
           {'role': 'user', 'content': userMsg},
         ],
