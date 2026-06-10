@@ -1,4 +1,5 @@
 {
+  "@@locale": "en",
   "notion_title": "Notion Sync",
   "notion_subtitle": "Sync posts or topics to your Notion database.",
   "notion_disconnect": "Disconnect",
@@ -6,6 +7,7 @@
   "notion_step1Body": "Create an internal Notion integration, copy its Integration Token, then share the target page with the integration.",
   "notion_openIntegrationsPage": "Open integrations",
   "notion_tokenSection": "Integration Token",
+  "notion_howToGetToken": "How to get a token?",
   "notion_step2Title": "Select or create a database",
   "notion_step2Body": "Enter the target Database ID, or provide a parent page ID and let FluxDO create a template database.",
   "notion_databaseSection": "Database ID",

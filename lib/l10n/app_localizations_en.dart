@@ -3509,6 +3509,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notion_tokenSection => 'Integration Token';
 
   @override
+  String get notion_howToGetToken => 'How to get a token?';
+
+  @override
   String get notion_step2Title => 'Select or create a database';
 
   @override

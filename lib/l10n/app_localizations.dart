@@ -6466,6 +6466,12 @@ abstract class AppLocalizations {
   /// **'Integration Token'**
   String get notion_tokenSection;
 
+  /// No description provided for @notion_howToGetToken.
+  ///
+  /// In zh, this message translates to:
+  /// **'如何获取 Token？'**
+  String get notion_howToGetToken;
+
   /// No description provided for @notion_step2Title.
   ///
   /// In zh, this message translates to:

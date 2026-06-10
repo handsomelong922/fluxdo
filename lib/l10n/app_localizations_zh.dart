@@ -3419,6 +3419,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notion_tokenSection => 'Integration Token';
 
   @override
+  String get notion_howToGetToken => '如何获取 Token？';
+
+  @override
   String get notion_step2Title => '选择或创建 Database';
 
   @override
@@ -9728,6 +9731,9 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get notion_tokenSection => 'Integration Token';
 
   @override
+  String get notion_howToGetToken => '點樣攞 Token？';
+
+  @override
   String get notion_step2Title => '選擇或建立 Database';
 
   @override
@@ -15876,6 +15882,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get notion_tokenSection => 'Integration Token';
+
+  @override
+  String get notion_howToGetToken => '如何取得 Token？';
 
   @override
   String get notion_step2Title => '選擇或建立 Database';

@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/services/network/discourse_dio.dart';
+import 'package:fluxdo/services/network/interceptors/request_scheduler_interceptor.dart';
 import 'package:fluxdo/services/network/request_scheduler_config.dart';
 
 void main() {
@@ -127,4 +130,83 @@ void main() {
       },
     );
   });
+
+  group('RequestSchedulerInterceptor', () {
+    late int previousMaxConcurrent;
+    late int previousMaxPerWindow;
+    late int previousWindowSeconds;
+
+    setUp(() {
+      previousMaxConcurrent = RequestSchedulerConfig.maxConcurrent;
+      previousMaxPerWindow = RequestSchedulerConfig.maxPerWindow;
+      previousWindowSeconds = RequestSchedulerConfig.windowSeconds;
+      RequestSchedulerInterceptor.resetSharedStateForTesting();
+      RequestSchedulerConfig.maxConcurrent = 1;
+      RequestSchedulerConfig.maxPerWindow = 100;
+      RequestSchedulerConfig.windowSeconds = 1;
+    });
+
+    tearDown(() {
+      RequestSchedulerConfig.maxConcurrent = previousMaxConcurrent;
+      RequestSchedulerConfig.maxPerWindow = previousMaxPerWindow;
+      RequestSchedulerConfig.windowSeconds = previousWindowSeconds;
+      RequestSchedulerInterceptor.resetSharedStateForTesting();
+    });
+
+    test('shares concurrency by host across dio instances', () async {
+      final adapter = _ConcurrencyRecordingAdapter(
+        delay: const Duration(milliseconds: 30),
+      );
+
+      Dio createDio() {
+        final dio = Dio(BaseOptions(baseUrl: 'https://linux.do'));
+        dio.httpClientAdapter = adapter;
+        dio.interceptors.add(RequestSchedulerInterceptor());
+        return dio;
+      }
+
+      await Future.wait([
+        createDio().get('/latest.json'),
+        createDio().get('/hot.json'),
+      ]);
+
+      expect(adapter.maxActive, 1);
+      expect(adapter.completedRequests, 2);
+    });
+  });
+}
+
+class _ConcurrencyRecordingAdapter implements HttpClientAdapter {
+  _ConcurrencyRecordingAdapter({required this.delay});
+
+  final Duration delay;
+  int active = 0;
+  int maxActive = 0;
+  int completedRequests = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    active++;
+    if (active > maxActive) maxActive = active;
+    try {
+      await Future<void>.delayed(delay);
+      completedRequests++;
+      return ResponseBody.fromString(
+        '{}',
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
+    } finally {
+      active--;
+    }
+  }
+
+  @override
+  void close({bool force = false}) {}
 }

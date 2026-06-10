@@ -1,4 +1,5 @@
 {
+  "@@locale": "zh",
   "notion_title": "Notion 同步",
   "notion_subtitle": "将帖子或话题同步到你的 Notion Database。",
   "notion_disconnect": "断开",
@@ -6,6 +7,7 @@
   "notion_step1Body": "在 Notion 创建内部集成并复制 Integration Token，然后把目标页面分享给该集成。",
   "notion_openIntegrationsPage": "打开 Notion 集成页面",
   "notion_tokenSection": "Integration Token",
+  "notion_howToGetToken": "如何获取 Token？",
   "notion_step2Title": "选择或创建 Database",
   "notion_step2Body": "填写目标 Database ID，或输入父页面 ID 后由 FluxDO 创建模板 Database。",
   "notion_databaseSection": "Database ID",
