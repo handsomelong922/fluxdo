@@ -34,6 +34,8 @@ final notionConfigProvider =
     });
 
 class NotionConfigNotifier extends StateNotifier<NotionConfig> {
+  static const _accountResolveTimeout = Duration(milliseconds: 800);
+
   NotionConfigNotifier({
     required NotionConfigRepository repository,
     required Future<String?> Function() accountIdResolver,
@@ -90,7 +92,9 @@ class NotionConfigNotifier extends StateNotifier<NotionConfig> {
 
   Future<String?> _ensureAccountId() async {
     if (_accountId != null && _accountId!.isNotEmpty) return _accountId;
-    final accountId = await _resolveAccountId();
+    final accountId = await _resolveAccountId()
+        .timeout(_accountResolveTimeout, onTimeout: () => null)
+        .catchError((_) => null);
     if (accountId != null && accountId.isNotEmpty) {
       onAccountIdResolved(accountId);
     }

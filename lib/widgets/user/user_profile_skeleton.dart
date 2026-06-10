@@ -6,7 +6,7 @@ import '../common/skeleton.dart';
 class UserProfileSkeleton extends StatelessWidget {
   final bool animate;
 
-  const UserProfileSkeleton({super.key, this.animate = true});
+  const UserProfileSkeleton({super.key, this.animate = false});
 
   @override
   Widget build(BuildContext context) {
@@ -227,12 +227,18 @@ class UserActionItemSkeleton extends StatelessWidget {
 /// 用户动态列表骨架屏（用于 Tab 内容的初始加载）
 class UserActionListSkeleton extends StatelessWidget {
   final int itemCount;
+  final bool animate;
 
-  const UserActionListSkeleton({super.key, this.itemCount = 5});
+  const UserActionListSkeleton({
+    super.key,
+    this.itemCount = 5,
+    this.animate = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Skeleton(
+      animate: animate,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         itemCount: itemCount,

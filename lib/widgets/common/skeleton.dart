@@ -17,7 +17,7 @@ class Skeleton extends StatefulWidget {
   final Widget child;
   final bool animate;
 
-  const Skeleton({required this.child, this.animate = true, super.key});
+  const Skeleton({required this.child, this.animate = false, super.key});
 
   @override
   State<Skeleton> createState() => _SkeletonState();

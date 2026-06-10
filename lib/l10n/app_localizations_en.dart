@@ -3522,6 +3522,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notion_createTemplateDb => 'Create template database';
 
   @override
+  String get notion_step3Title => 'Save and test';
+
+  @override
+  String get notion_step3Body =>
+      'After the connection test passes, manual Notion sync is available from the post export menu. If auto-sync is enabled, bookmarking topics or posts also syncs automatically.';
+
+  @override
   String get notion_saveAndTest => 'Save and test';
 
   @override

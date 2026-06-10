@@ -70,12 +70,17 @@ class _RateLimiter {
 
   /// 是否可以发出请求
   bool canProceed() {
+    if (RequestSchedulerConfig.serverCooldownRemaining > Duration.zero) {
+      return false;
+    }
     _evict(DateTime.now());
     return _timestamps.length < RequestSchedulerConfig.maxPerWindow;
   }
 
   /// 需要等待的时间（队列未满时返回 Duration.zero）
   Duration get waitDuration {
+    final serverCooldown = RequestSchedulerConfig.serverCooldownRemaining;
+    if (serverCooldown > Duration.zero) return serverCooldown;
     final now = DateTime.now();
     _evict(now);
     if (_timestamps.length < RequestSchedulerConfig.maxPerWindow) {

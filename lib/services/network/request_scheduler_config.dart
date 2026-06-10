@@ -13,4 +13,26 @@ class RequestSchedulerConfig {
 
   /// 滑动窗口时长，单位秒（默认 3）
   static int windowSeconds = 3;
+
+  static DateTime? _serverCooldownUntil;
+
+  /// 服务端返回 429 后暂停新请求，避免自动刷新继续把限流窗口顶满。
+  static void pauseFor(Duration duration) {
+    if (duration <= Duration.zero) return;
+    final until = DateTime.now().add(duration);
+    if (_serverCooldownUntil == null || until.isAfter(_serverCooldownUntil!)) {
+      _serverCooldownUntil = until;
+    }
+  }
+
+  static Duration get serverCooldownRemaining {
+    final until = _serverCooldownUntil;
+    if (until == null) return Duration.zero;
+    final remaining = until.difference(DateTime.now());
+    if (remaining <= Duration.zero) {
+      _serverCooldownUntil = null;
+      return Duration.zero;
+    }
+    return remaining;
+  }
 }

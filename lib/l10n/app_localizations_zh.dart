@@ -3432,6 +3432,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notion_createTemplateDb => '创建模板 Database';
 
   @override
+  String get notion_step3Title => '保存并测试';
+
+  @override
+  String get notion_step3Body =>
+      '测试通过后配置生效，可在帖子导出菜单里同步到 Notion；开启自动同步后，收藏话题或单条帖子也会自动同步。';
+
+  @override
   String get notion_saveAndTest => '保存并测试连接';
 
   @override
@@ -9734,6 +9741,13 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get notion_createTemplateDb => '建立模板 Database';
 
   @override
+  String get notion_step3Title => '保存並測試';
+
+  @override
+  String get notion_step3Body =>
+      '測試通過後配置生效，可在帖子匯出選單同步到 Notion；開啟自動同步後，收藏話題或單條帖子也會自動同步。';
+
+  @override
   String get notion_saveAndTest => '保存並測試連接';
 
   @override
@@ -15875,6 +15889,13 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get notion_createTemplateDb => '建立模板 Database';
+
+  @override
+  String get notion_step3Title => '儲存並測試';
+
+  @override
+  String get notion_step3Body =>
+      '測試通過後設定生效，可在帖子匯出選單同步到 Notion；開啟自動同步後，收藏話題或單則貼文也會自動同步。';
 
   @override
   String get notion_saveAndTest => '儲存並測試連線';

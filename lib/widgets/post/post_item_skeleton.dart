@@ -137,7 +137,7 @@ class PostListSkeleton extends StatelessWidget {
     super.key,
     this.itemCount,
     this.withHeader = false,
-    this.animate = true,
+    this.animate = false,
   });
 
   @override
@@ -182,6 +182,7 @@ class LoadingSkeletonSliver extends StatelessWidget {
   Widget build(BuildContext context) {
     return SliverToBoxAdapter(
       child: Skeleton(
+        animate: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: List.generate(

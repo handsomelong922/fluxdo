@@ -93,7 +93,6 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
       arg.topicId,
       sort: 'top',
       page: 0,
-      trackVisit: true,
     );
 
     return NestedTopicState(

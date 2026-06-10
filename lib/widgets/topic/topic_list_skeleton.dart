@@ -4,15 +4,18 @@ import '../common/skeleton.dart';
 /// 话题列表骨架屏
 class TopicListSkeleton extends StatelessWidget {
   final EdgeInsetsGeometry padding;
+  final bool animate;
 
   const TopicListSkeleton({
     super.key,
     this.padding = const EdgeInsets.all(12),
+    this.animate = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Skeleton(
+      animate: animate,
       child: ListView.builder(
         padding: padding,
         itemCount: 8,
@@ -31,9 +34,7 @@ class _TopicCardSkeleton extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
         child: Row(

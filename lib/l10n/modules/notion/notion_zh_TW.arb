@@ -10,6 +10,8 @@
   "notion_step2Body": "填寫目標 Database ID，或輸入父頁面 ID 後由 FluxDO 建立模板 Database。",
   "notion_databaseSection": "Database ID",
   "notion_createTemplateDb": "建立模板 Database",
+  "notion_step3Title": "儲存並測試",
+  "notion_step3Body": "測試通過後設定生效，可在帖子匯出選單同步到 Notion；開啟自動同步後，收藏話題或單則貼文也會自動同步。",
   "notion_saveAndTest": "儲存並測試連線",
   "notion_syncOptions": "同步選項",
   "notion_autoSyncOnBookmark": "收藏後自動同步",

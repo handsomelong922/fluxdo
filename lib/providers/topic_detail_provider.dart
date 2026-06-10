@@ -39,10 +39,7 @@ bool isRetryableTopicInitialLoadError(Object error) {
     case DioExceptionType.badResponse:
       final statusCode = error.response?.statusCode;
       if (statusCode == null) return false;
-      return statusCode == 429 ||
-          statusCode == 502 ||
-          statusCode == 503 ||
-          statusCode == 504;
+      return statusCode == 502 || statusCode == 503 || statusCode == 504;
   }
 }
 
@@ -197,7 +194,6 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     _isLoadMoreFailed = false;
     _isLoadPreviousFailed = false;
     final detail = await _loadInitialTopicDetailWithRetry();
-    unawaited(_trackInitialTopicVisit());
 
     final filteredDetail = _applyUserFilter(detail);
     _updateBoundaryState(
@@ -246,24 +242,6 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
       lastError ?? StateError('Topic detail initial load failed'),
       lastStackTrace ?? StackTrace.current,
     );
-  }
-
-  Future<void> _trackInitialTopicVisit() async {
-    try {
-      await Future<void>.delayed(const Duration(milliseconds: 800));
-      if (!ref.mounted) return;
-      await ref
-          .read(discourseServiceProvider)
-          .getTopicDetail(
-            arg.topicId,
-            postNumber: arg.postNumber,
-            trackVisit: true,
-          );
-    } catch (error) {
-      debugPrint(
-        '[TopicDetailNotifier] 后台阅读追踪失败 topicId=${arg.topicId}: $error',
-      );
-    }
   }
 }
 

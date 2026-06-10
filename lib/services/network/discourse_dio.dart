@@ -18,7 +18,7 @@ import 'interceptors/request_header_interceptor.dart';
 import 'interceptors/self_healing_interceptor.dart';
 
 const Set<String> _retryableReadMethods = {'GET', 'HEAD', 'OPTIONS'};
-const Set<int> _retryableDiscourseStatuses = {408, 429, 502, 503, 504};
+const Set<int> _retryableDiscourseStatuses = {408, 502, 503, 504};
 
 @visibleForTesting
 bool shouldRetryDiscourseRequest(DioException error, int attempt) {

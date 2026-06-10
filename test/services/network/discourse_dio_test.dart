@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/services/network/discourse_dio.dart';
+import 'package:fluxdo/services/network/request_scheduler_config.dart';
 
 void main() {
   group('shouldRetryDiscourseRequest', () {
@@ -34,7 +35,7 @@ void main() {
     });
 
     test('retries selected read response statuses', () {
-      for (final statusCode in [408, 429, 502, 503, 504]) {
+      for (final statusCode in [408, 502, 503, 504]) {
         final requestOptions = options('GET');
 
         expect(
@@ -52,6 +53,22 @@ void main() {
           isTrue,
         );
       }
+    });
+
+    test('does not retry rate limits', () {
+      final requestOptions = options('GET');
+
+      expect(
+        shouldRetryDiscourseRequest(
+          DioException.badResponse(
+            statusCode: 429,
+            requestOptions: requestOptions,
+            response: Response(requestOptions: requestOptions, statusCode: 429),
+          ),
+          1,
+        ),
+        isFalse,
+      );
     });
 
     test('does not retry write requests', () {
@@ -91,5 +108,23 @@ void main() {
         isFalse,
       );
     });
+  });
+
+  group('RequestSchedulerConfig', () {
+    test(
+      'pauses new requests after server rate limits and clears after expiry',
+      () async {
+        RequestSchedulerConfig.pauseFor(const Duration(milliseconds: 30));
+
+        expect(
+          RequestSchedulerConfig.serverCooldownRemaining.inMicroseconds,
+          greaterThan(0),
+        );
+
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        expect(RequestSchedulerConfig.serverCooldownRemaining, Duration.zero);
+      },
+    );
   });
 }

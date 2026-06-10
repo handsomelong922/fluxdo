@@ -68,6 +68,7 @@ void main() {
       expect(notifier.state.showSignatures, isTrue);
       expect(notifier.state.preferStaticAvatars, isFalse);
       expect(notifier.state.hideTopicListAvatars, isFalse);
+      expect(notifier.state.reduceLoadingAnimations, isTrue);
       expect(notifier.state.pageTransition, AppPageTransition.platform);
       expect(notifier.state.clipboardTopicLinkDetection, isFalse);
       expect(AvatarUrlPolicy.preferStaticAvatars, isFalse);

@@ -10,6 +10,8 @@
   "notion_step2Body": "Enter the target Database ID, or provide a parent page ID and let FluxDO create a template database.",
   "notion_databaseSection": "Database ID",
   "notion_createTemplateDb": "Create template database",
+  "notion_step3Title": "Save and test",
+  "notion_step3Body": "After the connection test passes, manual Notion sync is available from the post export menu. If auto-sync is enabled, bookmarking topics or posts also syncs automatically.",
   "notion_saveAndTest": "Save and test",
   "notion_syncOptions": "Sync options",
   "notion_autoSyncOnBookmark": "Auto-sync after bookmarking",

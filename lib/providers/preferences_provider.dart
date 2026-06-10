@@ -294,7 +294,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           hideTopicListAvatars:
               _prefs.getBool(_hideTopicListAvatarsKey) ?? false,
           reduceLoadingAnimations:
-              _prefs.getBool(_reduceLoadingAnimationsKey) ?? false,
+              _prefs.getBool(_reduceLoadingAnimationsKey) ?? true,
           pageTransition: AppPageTransition.fromStorageKey(
             _prefs.getString(_pageTransitionKey),
           ),

@@ -359,19 +359,28 @@ class _NotionSettingsPageState extends ConsumerState<NotionSettingsPage> {
               ],
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                icon: _busy
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.check_circle_outline_rounded),
-                onPressed: _busy ? null : _saveAndTest,
-                label: Text(S.current.notion_saveAndTest),
-              ),
+            _StepCard(
+              index: 3,
+              title: S.current.notion_step3Title,
+              body: S.current.notion_step3Body,
+              done: config.isComplete && !_editing,
+              children: [
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    icon: _busy
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check_circle_outline_rounded),
+                    onPressed: _busy ? null : _saveAndTest,
+                    label: Text(S.current.notion_saveAndTest),
+                  ),
+                ),
+              ],
             ),
           ] else
             _ConfiguredBanner(onEdit: () => setState(() => _editing = true)),

@@ -6,6 +6,7 @@ import '../../../l10n/s.dart';
 import '../../cf_challenge_service.dart';
 import '../../toast_service.dart';
 import '../exceptions/api_exception.dart';
+import '../request_scheduler_config.dart';
 
 /// 错误拦截器
 /// 处理 429/502/503/504 错误，转换为自定义异常
@@ -54,6 +55,11 @@ class ErrorInterceptor extends Interceptor {
     // 重试耗尽后抛出自定义异常供 UI 层处理
     if (statusCode == 429) {
       final retryAfter = _extractRetryAfterSeconds(err.response);
+      RequestSchedulerConfig.pauseFor(
+        Duration(
+          seconds: retryAfter != null && retryAfter > 0 ? retryAfter : 2,
+        ),
+      );
       if (showErrorToast) {
         final toastMessage = retryAfter != null && retryAfter > 0
             ? S.current.network_rateLimitedWait(_formatWaitDuration(retryAfter))

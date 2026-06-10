@@ -27,6 +27,8 @@ class PreheatGate extends StatefulWidget {
 }
 
 class _PreheatGateState extends State<PreheatGate> {
+  static const _minimumLoadingDuration = Duration(milliseconds: 1500);
+
   late Future<bool> _loadFuture;
   Object? _error;
   AppIconStyle _iconStyle = AppIconStyle.classic;
@@ -36,7 +38,7 @@ class _PreheatGateState extends State<PreheatGate> {
     super.initState();
     _readIconStyle();
     // 延迟到下一帧执行，确保 context 可用（_preload 内部可能弹 Dialog）
-    _loadFuture = Future.microtask(() => _preload());
+    _loadFuture = Future.microtask(() => _preloadWithMinimumDuration());
   }
 
   void _readIconStyle() {
@@ -82,6 +84,17 @@ class _PreheatGateState extends State<PreheatGate> {
     }
   }
 
+  Future<bool> _preloadWithMinimumDuration() async {
+    final startedAt = DateTime.now();
+    final result = await _preload();
+    final elapsed = DateTime.now().difference(startedAt);
+    final remaining = _minimumLoadingDuration - elapsed;
+    if (remaining > Duration.zero) {
+      await Future<void>.delayed(remaining);
+    }
+    return result;
+  }
+
   /// 弹出重新登录提示，用户确认后继续
   Future<void> _showReloginDialog() async {
     MigrationService.requiresRelogin = false; // 只弹一次
@@ -104,7 +117,7 @@ class _PreheatGateState extends State<PreheatGate> {
 
   void _retry() {
     setState(() {
-      _loadFuture = _preload();
+      _loadFuture = _preloadWithMinimumDuration();
     });
   }
 

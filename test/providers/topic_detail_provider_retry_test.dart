@@ -33,8 +33,8 @@ void main() {
       );
     });
 
-    test('retries rate limit and gateway/server availability responses', () {
-      for (final statusCode in [429, 502, 503, 504]) {
+    test('retries gateway/server availability responses', () {
+      for (final statusCode in [502, 503, 504]) {
         expect(
           isRetryableTopicInitialLoadError(
             DioException.badResponse(
@@ -49,6 +49,19 @@ void main() {
           isTrue,
         );
       }
+    });
+
+    test('does not retry rate limits', () {
+      expect(
+        isRetryableTopicInitialLoadError(
+          DioException.badResponse(
+            statusCode: 429,
+            requestOptions: options(),
+            response: Response(requestOptions: options(), statusCode: 429),
+          ),
+        ),
+        isFalse,
+      );
     });
 
     test('does not retry definitive client or auth responses', () {

@@ -1043,7 +1043,7 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
                       padding: const EdgeInsets.only(
                         top: 8,
                         left: 16,
-                        right: 16,
+                        right: 8,
                         bottom: 8,
                       ),
                       child: Row(
@@ -1092,8 +1092,10 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
                             ),
                           ),
                           if (isLoggedIn &&
-                              !Responsive.showNavigationRail(context))
+                              !Responsive.showNavigationRail(context)) ...[
+                            const SizedBox(width: 12),
                             const NotificationIconButton(),
+                          ],
                           if (kDebugMode)
                             IconButton(
                               icon: const Icon(Icons.bug_report),

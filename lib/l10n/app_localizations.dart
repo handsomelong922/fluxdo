@@ -6490,6 +6490,18 @@ abstract class AppLocalizations {
   /// **'创建模板 Database'**
   String get notion_createTemplateDb;
 
+  /// No description provided for @notion_step3Title.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存并测试'**
+  String get notion_step3Title;
+
+  /// No description provided for @notion_step3Body.
+  ///
+  /// In zh, this message translates to:
+  /// **'测试通过后配置生效，可在帖子导出菜单里同步到 Notion；开启自动同步后，收藏话题或单条帖子也会自动同步。'**
+  String get notion_step3Body;
+
   /// No description provided for @notion_saveAndTest.
   ///
   /// In zh, this message translates to:
