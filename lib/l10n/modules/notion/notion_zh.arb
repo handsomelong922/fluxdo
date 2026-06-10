@@ -15,6 +15,49 @@
   "notion_autoSyncOnBookmark": "收藏后自动同步",
   "notion_autoSyncDesc": "默认关闭。开启后收藏话题或单条帖子时会自动同步到 Notion。",
   "notion_syncScope": "话题同步范围",
+  "notion_historySyncTitle": "历史收藏同步",
+  "notion_historySyncDesc": "将已有收藏批量同步到 Notion，已存在的页面会自动跳过。",
+  "notion_historySyncAction": "同步历史收藏",
+  "notion_historySyncFetching": "正在读取书签第 {page} 页",
+  "@notion_historySyncFetching": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
+  "notion_historySyncProgress": "正在同步收藏 {current}/{total}",
+  "@notion_historySyncProgress": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "notion_historySyncDone": "历史收藏同步完成：成功 {success}，跳过 {skipped}，失败 {failed}",
+  "@notion_historySyncDone": {
+    "placeholders": {
+      "success": {
+        "type": "int"
+      },
+      "skipped": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
+  "notion_historySyncEmpty": "没有可同步的历史收藏",
+  "notion_historySyncFailed": "历史收藏同步失败：{error}",
+  "@notion_historySyncFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
   "notion_tokenSecurityNote": "Integration Token 会按账号保存在本机偏好设置中，请只在受信任设备上使用。",
   "notion_fillTokenAndDb": "请填写 Integration Token 和 Database ID",
   "notion_testOk": "连接成功：{title}",

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/s.dart';
 import '../providers/notion_config_provider.dart';
+import '../services/notion/notion_bookmark_batch_sync.dart';
 import '../services/notion/notion_client.dart';
 import '../services/notion/notion_config.dart';
 import '../services/notion/notion_sync_service.dart';
@@ -26,6 +29,14 @@ class _NotionSettingsPageState extends ConsumerState<NotionSettingsPage> {
   bool _initialized = false;
   bool? _needsUpgrade;
   bool _upgrading = false;
+  bool _syncingHistory = false;
+  NotionBookmarkBatchProgress? _historyProgress;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(ref.read(notionConfigProvider.notifier).ensureLoaded());
+  }
 
   @override
   void dispose() {
@@ -157,6 +168,48 @@ class _NotionSettingsPageState extends ConsumerState<NotionSettingsPage> {
       ToastService.showError(S.current.notion_dbCreateFailed(error.toString()));
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _syncHistoryBookmarks(NotionConfig config) async {
+    if (!config.isComplete || _syncingHistory) return;
+    setState(() {
+      _syncingHistory = true;
+      _historyProgress = null;
+    });
+
+    try {
+      final result = await NotionBookmarkBatchSync(config: config).syncAll(
+        onProgress: (progress) {
+          if (!mounted) return;
+          setState(() => _historyProgress = progress);
+        },
+      );
+      if (!mounted) return;
+      if (result.total == 0) {
+        ToastService.show(S.current.notion_historySyncEmpty);
+      } else {
+        ToastService.showSuccess(
+          S.current.notion_historySyncDone(
+            result.success,
+            result.skipped,
+            result.failed,
+          ),
+        );
+      }
+    } on NotionApiException catch (error) {
+      ToastService.showError(S.current.notion_historySyncFailed(error.message));
+    } catch (error) {
+      ToastService.showError(
+        S.current.notion_historySyncFailed(error.toString()),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _syncingHistory = false;
+          _historyProgress = null;
+        });
+      }
     }
   }
 
@@ -376,6 +429,14 @@ class _NotionSettingsPageState extends ConsumerState<NotionSettingsPage> {
                       ],
                     ),
                   ),
+                  const Divider(height: 1),
+                  _HistorySyncTile(
+                    syncing: _syncingHistory,
+                    progress: _historyProgress,
+                    onPressed: _syncingHistory
+                        ? null
+                        : () => _syncHistoryBookmarks(config),
+                  ),
                 ],
               ),
             ),
@@ -385,6 +446,68 @@ class _NotionSettingsPageState extends ConsumerState<NotionSettingsPage> {
         ],
       ),
     );
+  }
+}
+
+class _HistorySyncTile extends StatelessWidget {
+  const _HistorySyncTile({
+    required this.syncing,
+    required this.progress,
+    required this.onPressed,
+  });
+
+  final bool syncing;
+  final NotionBookmarkBatchProgress? progress;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = this.progress;
+    final hasTotal = progress != null && progress.total > 0;
+    final progressValue = hasTotal ? progress.current / progress.total : null;
+
+    return Column(
+      children: [
+        ListTile(
+          leading: const Icon(Icons.history_rounded),
+          title: Text(S.current.notion_historySyncTitle),
+          subtitle: Text(_subtitle(progress)),
+          trailing: FilledButton.icon(
+            icon: syncing
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync_rounded, size: 16),
+            onPressed: onPressed,
+            label: Text(S.current.notion_historySyncAction),
+          ),
+        ),
+        if (syncing)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            child: LinearProgressIndicator(value: progressValue),
+          ),
+      ],
+    );
+  }
+
+  String _subtitle(NotionBookmarkBatchProgress? progress) {
+    if (!syncing || progress == null) {
+      return S.current.notion_historySyncDesc;
+    }
+    switch (progress.phase) {
+      case NotionBookmarkBatchPhase.fetchBookmarks:
+        return S.current.notion_historySyncFetching(progress.current);
+      case NotionBookmarkBatchPhase.syncItem:
+        return S.current.notion_historySyncProgress(
+          progress.current,
+          progress.total,
+        );
+      case NotionBookmarkBatchPhase.done:
+        return S.current.notion_historySyncDesc;
+    }
   }
 }
 

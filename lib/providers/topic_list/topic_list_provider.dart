@@ -72,22 +72,6 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         _hasMore = result.hasMore;
         return result.items;
       }
-      if (preloadedService.hasInitialTopicList) {
-        final asyncPreloaded = await preloadedService.getInitialTopicList();
-        if (asyncPreloaded != null) {
-          final result = await _processFilteredRefresh(
-            service: ref.read(discourseServiceProvider),
-            currentFilter: currentFilter,
-            filterParams: filter,
-            order: orderParam,
-            ascending: ascendingParam,
-            subset: subset,
-            response: asyncPreloaded,
-          );
-          _hasMore = result.hasMore;
-          return result.items;
-        }
-      }
     }
 
     // 如果没有预加载数据，走正常的异步流程

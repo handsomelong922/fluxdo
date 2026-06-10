@@ -6520,6 +6520,54 @@ abstract class AppLocalizations {
   /// **'话题同步范围'**
   String get notion_syncScope;
 
+  /// No description provided for @notion_historySyncTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'历史收藏同步'**
+  String get notion_historySyncTitle;
+
+  /// No description provided for @notion_historySyncDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'将已有收藏批量同步到 Notion，已存在的页面会自动跳过。'**
+  String get notion_historySyncDesc;
+
+  /// No description provided for @notion_historySyncAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步历史收藏'**
+  String get notion_historySyncAction;
+
+  /// No description provided for @notion_historySyncFetching.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在读取书签第 {page} 页'**
+  String notion_historySyncFetching(int page);
+
+  /// No description provided for @notion_historySyncProgress.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在同步收藏 {current}/{total}'**
+  String notion_historySyncProgress(int current, int total);
+
+  /// No description provided for @notion_historySyncDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'历史收藏同步完成：成功 {success}，跳过 {skipped}，失败 {failed}'**
+  String notion_historySyncDone(int success, int skipped, int failed);
+
+  /// No description provided for @notion_historySyncEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有可同步的历史收藏'**
+  String get notion_historySyncEmpty;
+
+  /// No description provided for @notion_historySyncFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'历史收藏同步失败：{error}'**
+  String notion_historySyncFailed(Object error);
+
   /// No description provided for @notion_tokenSecurityNote.
   ///
   /// In zh, this message translates to:

@@ -1,6 +1,46 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+Map<String, dynamic> notionExportDatabaseProperties() => {
+  'Name': {'title': <String, dynamic>{}},
+  'URL': {'url': <String, dynamic>{}},
+  'Topic ID': {'number': <String, dynamic>{}},
+  'Post ID': {'number': <String, dynamic>{}},
+  'Post Number': {'number': <String, dynamic>{}},
+  'Type': {
+    'select': {
+      'options': [
+        {'name': 'Topic', 'color': 'blue'},
+        {'name': 'Post', 'color': 'green'},
+      ],
+    },
+  },
+  'Source': {
+    'select': {
+      'options': [
+        {'name': 'Manual Export', 'color': 'gray'},
+        {'name': 'Bookmark', 'color': 'purple'},
+      ],
+    },
+  },
+  'Category': {'rich_text': <String, dynamic>{}},
+  'Tags': {'multi_select': <String, dynamic>{}},
+  'Author': {'rich_text': <String, dynamic>{}},
+  'Created': {'date': <String, dynamic>{}},
+  'Synced': {'date': <String, dynamic>{}},
+  'Bookmark ID': {'number': <String, dynamic>{}},
+  'Bookmark Name': {'rich_text': <String, dynamic>{}},
+  'Bookmark Reminder': {'date': <String, dynamic>{}},
+};
+
+Map<String, dynamic> notionExportUpgradeableProperties() {
+  final properties = Map<String, dynamic>.from(
+    notionExportDatabaseProperties(),
+  );
+  properties.remove('Name');
+  return properties;
+}
+
 class NotionApiException implements Exception {
   NotionApiException(this.message, {this.statusCode, this.code});
 
@@ -115,15 +155,7 @@ class NotionClient {
           'text': {'content': title},
         },
       ],
-      'properties': {
-        'Name': {'title': {}},
-        'URL': {'url': {}},
-        'Topic ID': {'number': {}},
-        'Post ID': {'number': {}},
-        'Author': {'rich_text': {}},
-        'Created': {'date': {}},
-        'Synced': {'date': {}},
-      },
+      'properties': notionExportDatabaseProperties(),
     });
   }
 
@@ -137,6 +169,16 @@ class NotionClient {
     return properties is Map && properties.containsKey(propertyName);
   }
 
+  Future<bool> hasProperties(
+    String databaseId,
+    Iterable<String> propertyNames,
+  ) async {
+    final database = await retrieveDatabase(databaseId);
+    final properties = database['properties'];
+    if (properties is! Map) return false;
+    return propertyNames.every(properties.containsKey);
+  }
+
   Future<void> ensureNumberProperty(
     String databaseId,
     String propertyName,
@@ -147,6 +189,25 @@ class NotionClient {
         propertyName: {'number': {}},
       },
     });
+  }
+
+  Future<void> ensureProperties(
+    String databaseId,
+    Map<String, dynamic> expectedProperties,
+  ) async {
+    final database = await retrieveDatabase(databaseId);
+    final properties = database['properties'];
+    final existing = properties is Map
+        ? properties.keys.map((key) => key.toString()).toSet()
+        : <String>{};
+    final missing = <String, dynamic>{};
+    for (final entry in expectedProperties.entries) {
+      if (!existing.contains(entry.key)) {
+        missing[entry.key] = entry.value;
+      }
+    }
+    if (missing.isEmpty) return;
+    await _patch('databases/$databaseId', {'properties': missing});
   }
 
   Future<Map<String, dynamic>> _get(String path) {

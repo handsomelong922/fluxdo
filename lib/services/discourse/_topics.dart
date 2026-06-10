@@ -22,7 +22,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
   }) async {
     if (page == 0 && order == null) {
       final preloaded = PreloadedDataService();
-      final preloadedList = await preloaded.getInitialTopicList();
+      final preloadedList = preloaded.getInitialTopicListSync();
       if (preloadedList != null) {
         return preloadedList;
       }

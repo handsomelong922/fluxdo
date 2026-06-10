@@ -58,10 +58,20 @@ class _PreheatGateState extends State<PreheatGate> {
         await _showReloginDialog();
       }
 
-      await PreloadedDataService().ensureLoaded();
-
-      DiscourseService().getEnabledReactions();
-      EmojiHandler().init();
+      // 预加载 HTML 只作为后台暖启动，不能阻塞主界面和首页列表。
+      // 首屏帖子应优先走 /latest.json 快速路径；预加载完成后再为分类、
+      // emoji、MessageBus 等能力提供缓存。
+      unawaited(
+        PreloadedDataService()
+            .ensureLoaded()
+            .then((_) {
+              DiscourseService().getEnabledReactions();
+              EmojiHandler().init();
+            })
+            .catchError((Object e) {
+              debugPrint('[PreheatGate] 后台预加载失败: $e');
+            }),
+      );
 
       _error = null;
       return true;

@@ -62,6 +62,7 @@ class NotionBookmarkAutoSync {
         detail: detail,
         scope: config.syncScope,
         onDuplicate: DuplicateAction.skip,
+        source: NotionSyncSource.bookmark,
         onProgress: (progress) {
           handle.updateFileName(_progressLabel(detail.title, progress));
           handle.updateProgress(
@@ -115,6 +116,7 @@ class NotionBookmarkAutoSync {
         detail: detail,
         post: post,
         onDuplicate: DuplicateAction.skip,
+        source: NotionSyncSource.bookmark,
         onProgress: (progress) {
           handle.updateFileName(_progressLabel(title, progress));
           handle.updateProgress(

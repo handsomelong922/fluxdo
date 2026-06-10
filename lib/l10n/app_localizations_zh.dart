@@ -3447,6 +3447,38 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notion_syncScope => '话题同步范围';
 
   @override
+  String get notion_historySyncTitle => '历史收藏同步';
+
+  @override
+  String get notion_historySyncDesc => '将已有收藏批量同步到 Notion，已存在的页面会自动跳过。';
+
+  @override
+  String get notion_historySyncAction => '同步历史收藏';
+
+  @override
+  String notion_historySyncFetching(int page) {
+    return '正在读取书签第 $page 页';
+  }
+
+  @override
+  String notion_historySyncProgress(int current, int total) {
+    return '正在同步收藏 $current/$total';
+  }
+
+  @override
+  String notion_historySyncDone(int success, int skipped, int failed) {
+    return '历史收藏同步完成：成功 $success，跳过 $skipped，失败 $failed';
+  }
+
+  @override
+  String get notion_historySyncEmpty => '没有可同步的历史收藏';
+
+  @override
+  String notion_historySyncFailed(Object error) {
+    return '历史收藏同步失败：$error';
+  }
+
+  @override
   String get notion_tokenSecurityNote =>
       'Integration Token 会按账号保存在本机偏好设置中，请只在受信任设备上使用。';
 
@@ -9717,6 +9749,38 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get notion_syncScope => '話題同步範圍';
 
   @override
+  String get notion_historySyncTitle => '歷史收藏同步';
+
+  @override
+  String get notion_historySyncDesc => '將已有收藏批量同步到 Notion，已存在的頁面會自動跳過。';
+
+  @override
+  String get notion_historySyncAction => '同步歷史收藏';
+
+  @override
+  String notion_historySyncFetching(int page) {
+    return '正在讀取書籤第 $page 頁';
+  }
+
+  @override
+  String notion_historySyncProgress(int current, int total) {
+    return '正在同步收藏 $current/$total';
+  }
+
+  @override
+  String notion_historySyncDone(int success, int skipped, int failed) {
+    return '歷史收藏同步完成：成功 $success，跳過 $skipped，失敗 $failed';
+  }
+
+  @override
+  String get notion_historySyncEmpty => '沒有可同步的歷史收藏';
+
+  @override
+  String notion_historySyncFailed(Object error) {
+    return '歷史收藏同步失敗：$error';
+  }
+
+  @override
   String get notion_tokenSecurityNote =>
       'Integration Token 會按帳號保存在本機偏好設定中，請只在受信任設備上使用。';
 
@@ -15826,6 +15890,38 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get notion_syncScope => '話題同步範圍';
+
+  @override
+  String get notion_historySyncTitle => '歷史收藏同步';
+
+  @override
+  String get notion_historySyncDesc => '將已有收藏批次同步到 Notion，已存在的頁面會自動略過。';
+
+  @override
+  String get notion_historySyncAction => '同步歷史收藏';
+
+  @override
+  String notion_historySyncFetching(int page) {
+    return '正在讀取書籤第 $page 頁';
+  }
+
+  @override
+  String notion_historySyncProgress(int current, int total) {
+    return '正在同步收藏 $current/$total';
+  }
+
+  @override
+  String notion_historySyncDone(int success, int skipped, int failed) {
+    return '歷史收藏同步完成：成功 $success，略過 $skipped，失敗 $failed';
+  }
+
+  @override
+  String get notion_historySyncEmpty => '沒有可同步的歷史收藏';
+
+  @override
+  String notion_historySyncFailed(Object error) {
+    return '歷史收藏同步失敗：$error';
+  }
 
   @override
   String get notion_tokenSecurityNote =>

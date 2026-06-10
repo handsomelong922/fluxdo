@@ -12,6 +12,15 @@ enum DuplicateAction { skip, overwrite }
 
 enum SyncPhase { fetch, convert, create, append, done }
 
+enum NotionSyncSource {
+  manualExport('Manual Export'),
+  bookmark('Bookmark');
+
+  const NotionSyncSource(this.label);
+
+  final String label;
+}
+
 class NotionSyncProgress {
   const NotionSyncProgress(this.phase, {this.current = 0, this.total = 0});
 
@@ -49,8 +58,11 @@ class NotionSyncService {
     required TopicDetail detail,
     required NotionSyncScope scope,
     DuplicateAction onDuplicate = DuplicateAction.skip,
+    NotionSyncSource source = NotionSyncSource.manualExport,
+    Topic? bookmark,
     void Function(NotionSyncProgress progress)? onProgress,
   }) async {
+    await _ensureDatabaseSchema();
     final exportScope = scope == NotionSyncScope.firstPostOnly
         ? ExportScope.firstPostOnly
         : ExportScope.allPosts;
@@ -84,7 +96,11 @@ class NotionSyncService {
 
     onProgress?.call(const NotionSyncProgress(SyncPhase.create));
     final result = await _createPageWithBlocks(
-      properties: _buildTopicProperties(detail),
+      properties: _buildTopicProperties(
+        detail,
+        source: source,
+        bookmark: bookmark,
+      ),
       blocks: blocks,
       onProgress: onProgress,
     );
@@ -100,8 +116,11 @@ class NotionSyncService {
     required TopicDetail detail,
     required Post post,
     DuplicateAction onDuplicate = DuplicateAction.skip,
+    NotionSyncSource source = NotionSyncSource.manualExport,
+    Topic? bookmark,
     void Function(NotionSyncProgress progress)? onProgress,
   }) async {
+    await _ensureDatabaseSchema();
     onProgress?.call(const NotionSyncProgress(SyncPhase.convert));
     final blocks = await _buildBlocks(detail: detail, posts: [post]);
     final existingPageId = await _queryPostPage(detail.id, post.id);
@@ -119,7 +138,12 @@ class NotionSyncService {
     }
 
     onProgress?.call(const NotionSyncProgress(SyncPhase.create));
-    Map<String, dynamic> properties = _buildPostProperties(detail, post);
+    Map<String, dynamic> properties = _buildPostProperties(
+      detail,
+      post,
+      source: source,
+      bookmark: bookmark,
+    );
     _CreatedPage result;
     try {
       result = await _createPageWithBlocks(
@@ -146,11 +170,17 @@ class NotionSyncService {
   }
 
   Future<bool> isDatabaseUpToDate() {
-    return _client.hasProperty(config.databaseId!, 'Post ID');
+    return _client.hasProperties(
+      config.databaseId!,
+      notionExportDatabaseProperties().keys,
+    );
   }
 
   Future<void> upgradeDatabase() {
-    return _client.ensureNumberProperty(config.databaseId!, 'Post ID');
+    return _client.ensureProperties(
+      config.databaseId!,
+      notionExportUpgradeableProperties(),
+    );
   }
 
   Future<String> testConnection() async {
@@ -220,8 +250,7 @@ class NotionSyncService {
     void Function(NotionSyncProgress progress)? onProgress,
   }) async {
     final firstBatch = blocks.take(_childrenPerRequest).toList();
-    final created = await _client.createPage(
-      databaseId: config.databaseId!,
+    final created = await _createPageWithPropertyFallback(
       properties: properties,
       children: firstBatch,
     );
@@ -249,6 +278,47 @@ class NotionSyncService {
     return _CreatedPage(pageId: pageId, pageUrl: pageUrl);
   }
 
+  Future<Map<String, dynamic>> _createPageWithPropertyFallback({
+    required Map<String, dynamic> properties,
+    required List<Map<String, dynamic>> children,
+  }) async {
+    try {
+      return await _client.createPage(
+        databaseId: config.databaseId!,
+        properties: properties,
+        children: children,
+      );
+    } on NotionApiException catch (error) {
+      if (!_looksLikeMissingProperty(error)) rethrow;
+      final fallback = _legacyCompatibleProperties(properties);
+      if (fallback.length == properties.length) rethrow;
+      try {
+        return await _client.createPage(
+          databaseId: config.databaseId!,
+          properties: fallback,
+          children: children,
+        );
+      } on NotionApiException catch (secondError) {
+        if (!_looksLikeMissingProperty(secondError)) rethrow;
+        final minimal = Map<String, dynamic>.from(fallback)..remove('Post ID');
+        if (minimal.length == fallback.length) rethrow;
+        return _client.createPage(
+          databaseId: config.databaseId!,
+          properties: minimal,
+          children: children,
+        );
+      }
+    }
+  }
+
+  Future<void> _ensureDatabaseSchema() async {
+    try {
+      await upgradeDatabase();
+    } catch (error) {
+      debugPrint('[NotionSync] ensure database schema failed: $error');
+    }
+  }
+
   Future<void> _archiveIgnoringFailure(String pageId) async {
     try {
       await _client.archivePage(pageId);
@@ -257,14 +327,18 @@ class NotionSyncService {
     }
   }
 
-  Map<String, dynamic> _buildTopicProperties(TopicDetail detail) {
+  Map<String, dynamic> _buildTopicProperties(
+    TopicDetail detail, {
+    required NotionSyncSource source,
+    Topic? bookmark,
+  }) {
     final firstPost = detail.postStream.posts.isEmpty
         ? null
         : detail.postStream.posts.first;
     final author = firstPost?.username ?? '';
     final created = firstPost?.createdAt.toUtc().toIso8601String();
     final url = '${AppConstants.baseUrl}/t/${detail.slug}/${detail.id}';
-    return {
+    final properties = <String, dynamic>{
       'Name': {
         'title': [
           {
@@ -275,15 +349,21 @@ class NotionSyncService {
       },
       'URL': {'url': url},
       'Topic ID': {'number': detail.id},
-      if (author.isNotEmpty)
-        'Author': {
-          'rich_text': [
-            {
-              'type': 'text',
-              'text': {'content': author},
-            },
-          ],
+      'Type': {
+        'select': {'name': 'Topic'},
+      },
+      'Source': {
+        'select': {'name': source.label},
+      },
+      if (detail.categoryId > 0)
+        'Category': _richText('Category #${detail.categoryId}'),
+      if ((detail.tags ?? const <Tag>[]).isNotEmpty)
+        'Tags': {
+          'multi_select': detail.tags!
+              .map((tag) => {'name': _selectName(tag.name)})
+              .toList(),
         },
+      if (author.isNotEmpty) 'Author': _richText(author),
       if (created != null)
         'Created': {
           'date': {'start': created},
@@ -292,14 +372,21 @@ class NotionSyncService {
         'date': {'start': DateTime.now().toUtc().toIso8601String()},
       },
     };
+    _addBookmarkProperties(properties, bookmark);
+    return properties;
   }
 
-  Map<String, dynamic> _buildPostProperties(TopicDetail detail, Post post) {
+  Map<String, dynamic> _buildPostProperties(
+    TopicDetail detail,
+    Post post, {
+    required NotionSyncSource source,
+    Topic? bookmark,
+  }) {
     final title =
         '${_truncate(detail.title, 160)} - @${post.username} #${post.postNumber}';
     final url =
         '${AppConstants.baseUrl}/t/${detail.slug}/${detail.id}/${post.postNumber}';
-    return {
+    final properties = <String, dynamic>{
       'Name': {
         'title': [
           {
@@ -311,14 +398,22 @@ class NotionSyncService {
       'URL': {'url': url},
       'Topic ID': {'number': detail.id},
       'Post ID': {'number': post.id},
-      'Author': {
-        'rich_text': [
-          {
-            'type': 'text',
-            'text': {'content': post.username},
-          },
-        ],
+      'Post Number': {'number': post.postNumber},
+      'Type': {
+        'select': {'name': 'Post'},
       },
+      'Source': {
+        'select': {'name': source.label},
+      },
+      if (detail.categoryId > 0)
+        'Category': _richText('Category #${detail.categoryId}'),
+      if ((detail.tags ?? const <Tag>[]).isNotEmpty)
+        'Tags': {
+          'multi_select': detail.tags!
+              .map((tag) => {'name': _selectName(tag.name)})
+              .toList(),
+        },
+      'Author': _richText(post.username),
       'Created': {
         'date': {'start': post.createdAt.toUtc().toIso8601String()},
       },
@@ -326,6 +421,45 @@ class NotionSyncService {
         'date': {'start': DateTime.now().toUtc().toIso8601String()},
       },
     };
+    _addBookmarkProperties(properties, bookmark);
+    return properties;
+  }
+
+  void _addBookmarkProperties(
+    Map<String, dynamic> properties,
+    Topic? bookmark,
+  ) {
+    if (bookmark == null) return;
+    final bookmarkName = bookmark.bookmarkName?.trim();
+    if (bookmark.bookmarkId != null) {
+      properties['Bookmark ID'] = {'number': bookmark.bookmarkId};
+    }
+    if (bookmarkName != null && bookmarkName.isNotEmpty) {
+      properties['Bookmark Name'] = _richText(bookmarkName);
+    }
+    final reminderAt = bookmark.bookmarkReminderAt;
+    if (reminderAt != null) {
+      properties['Bookmark Reminder'] = {
+        'date': {'start': reminderAt.toUtc().toIso8601String()},
+      };
+    }
+  }
+
+  Map<String, dynamic> _legacyCompatibleProperties(
+    Map<String, dynamic> properties,
+  ) {
+    const allowed = {
+      'Name',
+      'URL',
+      'Topic ID',
+      'Post ID',
+      'Author',
+      'Created',
+      'Synced',
+    };
+    return Map<String, dynamic>.fromEntries(
+      properties.entries.where((entry) => allowed.contains(entry.key)),
+    );
   }
 
   bool _looksLikeMissingProperty(NotionApiException error) {
@@ -337,6 +471,23 @@ class NotionSyncService {
 
   static String _truncate(String value, int maxLength) {
     return value.length <= maxLength ? value : value.substring(0, maxLength);
+  }
+
+  static Map<String, dynamic> _richText(String value) {
+    return {
+      'rich_text': [
+        {
+          'type': 'text',
+          'text': {'content': _truncate(value, 2000)},
+        },
+      ],
+    };
+  }
+
+  static String _selectName(String value) {
+    final sanitized = value.replaceAll(',', ' ').trim();
+    if (sanitized.isEmpty) return 'untagged';
+    return _truncate(sanitized, 100);
   }
 
   static String _pageUrlFromId(String pageId) {

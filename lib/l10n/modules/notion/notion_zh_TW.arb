@@ -15,6 +15,49 @@
   "notion_autoSyncOnBookmark": "收藏後自動同步",
   "notion_autoSyncDesc": "預設關閉。開啟後收藏話題或單則貼文時會自動同步到 Notion。",
   "notion_syncScope": "話題同步範圍",
+  "notion_historySyncTitle": "歷史收藏同步",
+  "notion_historySyncDesc": "將已有收藏批次同步到 Notion，已存在的頁面會自動略過。",
+  "notion_historySyncAction": "同步歷史收藏",
+  "notion_historySyncFetching": "正在讀取書籤第 {page} 頁",
+  "@notion_historySyncFetching": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
+  "notion_historySyncProgress": "正在同步收藏 {current}/{total}",
+  "@notion_historySyncProgress": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "notion_historySyncDone": "歷史收藏同步完成：成功 {success}，略過 {skipped}，失敗 {failed}",
+  "@notion_historySyncDone": {
+    "placeholders": {
+      "success": {
+        "type": "int"
+      },
+      "skipped": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
+  "notion_historySyncEmpty": "沒有可同步的歷史收藏",
+  "notion_historySyncFailed": "歷史收藏同步失敗：{error}",
+  "@notion_historySyncFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
   "notion_tokenSecurityNote": "Integration Token 會按帳號保存在本機偏好設定中，請只在受信任裝置上使用。",
   "notion_fillTokenAndDb": "請填寫 Integration Token 和 Database ID",
   "notion_testOk": "連線成功：{title}",

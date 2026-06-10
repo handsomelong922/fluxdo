@@ -561,6 +561,7 @@ class _SharedIssueButtonState extends ConsumerState<_SharedIssueButton> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final disabled = !widget.canCreateSharedIssue;
+    final hasCount = _count > 0;
     final countText = _count > 999 ? '999+' : '$_count';
     final foreground = _userCreated
         ? theme.colorScheme.onPrimaryContainer
@@ -580,8 +581,8 @@ class _SharedIssueButtonState extends ConsumerState<_SharedIssueButton> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           height: 36,
-          constraints: const BoxConstraints(minWidth: 54),
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          constraints: BoxConstraints(minWidth: hasCount ? 54 : 36),
+          padding: EdgeInsets.symmetric(horizontal: hasCount ? 10 : 9),
           decoration: BoxDecoration(
             color: background,
             borderRadius: BorderRadius.circular(18),
@@ -616,15 +617,17 @@ class _SharedIssueButtonState extends ConsumerState<_SharedIssueButton> {
                   size: 18,
                   color: foreground,
                 ),
-              const SizedBox(width: 5),
-              Text(
-                countText,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: foreground,
-                  fontWeight: FontWeight.w700,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+              if (hasCount) ...[
+                const SizedBox(width: 5),
+                Text(
+                  countText,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

@@ -15,6 +15,49 @@
   "notion_autoSyncOnBookmark": "Auto-sync after bookmarking",
   "notion_autoSyncDesc": "Off by default. When enabled, bookmarked topics or posts are synced to Notion automatically.",
   "notion_syncScope": "Topic sync scope",
+  "notion_historySyncTitle": "Bookmark history sync",
+  "notion_historySyncDesc": "Sync existing bookmarks to Notion in batch. Existing pages are skipped automatically.",
+  "notion_historySyncAction": "Sync history",
+  "notion_historySyncFetching": "Loading bookmarks page {page}",
+  "@notion_historySyncFetching": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
+  "notion_historySyncProgress": "Syncing bookmarks {current}/{total}",
+  "@notion_historySyncProgress": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "notion_historySyncDone": "Bookmark history sync finished: {success} synced, {skipped} skipped, {failed} failed",
+  "@notion_historySyncDone": {
+    "placeholders": {
+      "success": {
+        "type": "int"
+      },
+      "skipped": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
+  "notion_historySyncEmpty": "No bookmark history to sync",
+  "notion_historySyncFailed": "Bookmark history sync failed: {error}",
+  "@notion_historySyncFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
   "notion_tokenSecurityNote": "The Integration Token is stored per account in local preferences. Use this only on trusted devices.",
   "notion_fillTokenAndDb": "Enter both Integration Token and Database ID",
   "notion_testOk": "Connected: {title}",

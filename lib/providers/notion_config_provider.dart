@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // ignore: depend_on_referenced_packages
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,7 +39,7 @@ class NotionConfigNotifier extends StateNotifier<NotionConfig> {
     required Future<String?> Function() accountIdResolver,
   }) : _repository = repository,
        _resolveAccountId = accountIdResolver,
-       super(const NotionConfig());
+       super(repository.readFallback());
 
   final NotionConfigRepository _repository;
   final Future<String?> Function() _resolveAccountId;
@@ -46,24 +48,43 @@ class NotionConfigNotifier extends StateNotifier<NotionConfig> {
   void onAccountIdResolved(String accountId) {
     if (_accountId == accountId) return;
     _accountId = accountId;
-    if (mounted) state = _repository.read(accountId);
+    final accountConfig = _repository.read(accountId);
+    if (accountConfig.hasStoredValues) {
+      if (mounted) state = accountConfig;
+      return;
+    }
+    final fallbackConfig = state.hasStoredValues
+        ? state
+        : _repository.readFallback();
+    if (fallbackConfig.hasStoredValues) {
+      if (mounted) state = fallbackConfig;
+      unawaited(_repository.write(accountId, fallbackConfig));
+      return;
+    }
+    if (mounted) state = const NotionConfig();
   }
 
   Future<void> ensureLoaded() async {
-    await _ensureAccountId();
+    final accountId = await _ensureAccountId();
+    if (accountId == null && mounted) {
+      state = _repository.readFallback();
+    }
   }
 
   Future<void> update(NotionConfig config) async {
-    final accountId = await _ensureAccountId();
-    if (accountId == null) return;
+    final accountId = await _ensureWritableAccountId();
     await _repository.write(accountId, config);
     if (mounted) state = config;
   }
 
   Future<void> clear() async {
-    final accountId = await _ensureAccountId();
-    if (accountId == null) return;
-    await _repository.clear(accountId);
+    final accountId = await _ensureWritableAccountId();
+    if (accountId == NotionConfigRepository.fallbackAccountId) {
+      await _repository.clearFallbackSources();
+    } else {
+      await _repository.clear(accountId);
+      await _repository.clear(NotionConfigRepository.fallbackAccountId);
+    }
     if (mounted) state = const NotionConfig();
   }
 
@@ -74,5 +95,11 @@ class NotionConfigNotifier extends StateNotifier<NotionConfig> {
       onAccountIdResolved(accountId);
     }
     return _accountId;
+  }
+
+  Future<String> _ensureWritableAccountId() async {
+    final accountId = await _ensureAccountId();
+    if (accountId != null && accountId.isNotEmpty) return accountId;
+    return NotionConfigRepository.fallbackAccountId;
   }
 }

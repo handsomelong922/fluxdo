@@ -3538,6 +3538,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notion_syncScope => 'Topic sync scope';
 
   @override
+  String get notion_historySyncTitle => 'Bookmark history sync';
+
+  @override
+  String get notion_historySyncDesc =>
+      'Sync existing bookmarks to Notion in batch. Existing pages are skipped automatically.';
+
+  @override
+  String get notion_historySyncAction => 'Sync history';
+
+  @override
+  String notion_historySyncFetching(int page) {
+    return 'Loading bookmarks page $page';
+  }
+
+  @override
+  String notion_historySyncProgress(int current, int total) {
+    return 'Syncing bookmarks $current/$total';
+  }
+
+  @override
+  String notion_historySyncDone(int success, int skipped, int failed) {
+    return 'Bookmark history sync finished: $success synced, $skipped skipped, $failed failed';
+  }
+
+  @override
+  String get notion_historySyncEmpty => 'No bookmark history to sync';
+
+  @override
+  String notion_historySyncFailed(Object error) {
+    return 'Bookmark history sync failed: $error';
+  }
+
+  @override
   String get notion_tokenSecurityNote =>
       'The Integration Token is stored per account in local preferences. Use this only on trusted devices.';
 

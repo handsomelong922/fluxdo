@@ -156,7 +156,7 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
         var csrf = (await c.json()).csrf;
 
         if (hcaptchaToken) {
-          var h = await fetch('/hcaptcha/create.json', {
+          var h = await fetch('/captcha/hcaptcha/create.json', {
             method: 'POST',
             credentials: 'include',
             headers: {
