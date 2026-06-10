@@ -34,6 +34,7 @@ class PostActionBar extends StatefulWidget {
   final VoidCallback? onAddBoost;
   final bool canBoost;
   final bool hasBoosts;
+  final Widget? leadingAction;
 
   const PostActionBar({
     super.key,
@@ -57,6 +58,7 @@ class PostActionBar extends StatefulWidget {
     this.onAddBoost,
     this.canBoost = false,
     this.hasBoosts = false,
+    this.leadingAction,
   });
 
   @override
@@ -171,6 +173,10 @@ class _PostActionBarState extends State<PostActionBar> {
           ),
 
         const Spacer(),
+        if (widget.leadingAction != null) ...[
+          widget.leadingAction!,
+          const SizedBox(width: 8),
+        ],
         if (!widget.isGuest) ...[
           // 回应和赞
           // 左右两个 GestureDetector 是兄弟关系（非嵌套），避免手势竞争

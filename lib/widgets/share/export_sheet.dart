@@ -3,11 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/export_history_item.dart';
 import '../../models/topic.dart';
 import '../../l10n/s.dart';
+import '../../pages/notion_settings_page.dart';
 import '../../providers/export_history_provider.dart';
+import '../../providers/notion_config_provider.dart';
+import '../../services/notion/notion_client.dart';
+import '../../services/notion/notion_config.dart';
+import '../../services/notion/notion_sync_service.dart';
 import '../../services/toast_service.dart';
 import '../../utils/dialog_utils.dart';
 import '../../utils/export_utils.dart';
 import '../../utils/share_utils.dart';
+
+enum _ExportTarget { markdown, html, notion }
 
 /// 导出选项 Sheet
 class ExportSheet extends ConsumerStatefulWidget {
@@ -32,17 +39,18 @@ class ExportSheet extends ConsumerStatefulWidget {
 
 class _ExportSheetState extends ConsumerState<ExportSheet> {
   ExportScope _scope = ExportScope.firstPostOnly;
-  ExportFormat _format = ExportFormat.markdown;
+  _ExportTarget _target = _ExportTarget.markdown;
   bool _isExporting = false;
   int _progress = 0;
   int _total = 0;
+  String? _phaseLabel;
 
   /// 获取话题的总帖子数
   int get _totalPostsCount => widget.detail.postStream.stream.length;
 
   /// 判断 Markdown 导出是否会被限制
   bool get _willBeLimited =>
-      _format == ExportFormat.markdown &&
+      _target == _ExportTarget.markdown &&
       _scope == ExportScope.allPosts &&
       _totalPostsCount > ExportUtils.maxMarkdownPosts;
 
@@ -52,29 +60,18 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
       _isExporting = true;
       _progress = 0;
       _total = 0;
+      _phaseLabel = null;
     });
 
     try {
-      final result = await ExportUtils.exportTopic(
-        detail: widget.detail,
-        scope: _scope,
-        format: _format,
-        onProgress: (current, total) {
-          if (mounted) {
-            setState(() {
-              _progress = current;
-              _total = total;
-            });
-          }
-        },
-      );
-      if (result.shareOutcome.type != ShareOutcomeType.cancelled) {
-        ref
-            .read(exportHistoryProvider.notifier)
-            .add(ExportHistoryItem.fromResult(result));
-      }
-      if (mounted) {
-        Navigator.pop(context);
+      switch (_target) {
+        case _ExportTarget.markdown:
+        case _ExportTarget.html:
+          await _exportLocal();
+          break;
+        case _ExportTarget.notion:
+          await _exportNotion();
+          break;
       }
     } catch (e) {
       if (mounted) {
@@ -82,15 +79,180 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isExporting = false);
+        setState(() {
+          _isExporting = false;
+          _phaseLabel = null;
+        });
       }
     }
+  }
+
+  Future<void> _exportLocal() async {
+    final format = _target == _ExportTarget.markdown
+        ? ExportFormat.markdown
+        : ExportFormat.html;
+    final result = await ExportUtils.exportTopic(
+      detail: widget.detail,
+      scope: _scope,
+      format: format,
+      onProgress: (current, total) {
+        if (mounted) {
+          setState(() {
+            _progress = current;
+            _total = total;
+          });
+        }
+      },
+    );
+    if (result.shareOutcome.type != ShareOutcomeType.cancelled) {
+      ref
+          .read(exportHistoryProvider.notifier)
+          .add(ExportHistoryItem.fromResult(result));
+    }
+    if (mounted) {
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> _exportNotion() async {
+    final config = ref.read(notionConfigProvider);
+    if (!config.isComplete) {
+      final goToSettings = await _askGoToSettings();
+      if (goToSettings == true && mounted) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const NotionSettingsPage()),
+        );
+      }
+      return;
+    }
+
+    final service = NotionSyncService(config: config);
+    final scope = _scope == ExportScope.firstPostOnly
+        ? NotionSyncScope.firstPostOnly
+        : NotionSyncScope.allPosts;
+
+    Future<NotionSyncResult> run(DuplicateAction duplicateAction) {
+      return service.syncTopic(
+        detail: widget.detail,
+        scope: scope,
+        onDuplicate: duplicateAction,
+        onProgress: (progress) {
+          if (!mounted) return;
+          setState(() {
+            _phaseLabel = _labelForPhase(progress);
+            _progress = progress.current;
+            _total = progress.total;
+          });
+        },
+      );
+    }
+
+    NotionSyncResult result;
+    try {
+      result = await run(DuplicateAction.skip);
+    } on NotionApiException catch (error) {
+      throw Exception(error.message);
+    }
+
+    if (result.duplicated) {
+      final action = await _askDuplicateAction();
+      if (action == null) return;
+      if (action == DuplicateAction.overwrite) {
+        result = await run(DuplicateAction.overwrite);
+      }
+    }
+
+    ref.read(exportHistoryProvider.notifier).add(_notionHistoryItem(result));
+    if (mounted) {
+      ToastService.showSuccess(S.current.notion_syncSucceed);
+      Navigator.pop(context);
+    }
+  }
+
+  ExportHistoryItem _notionHistoryItem(NotionSyncResult result) {
+    final createdAt = DateTime.now();
+    return ExportHistoryItem(
+      id: '${createdAt.millisecondsSinceEpoch}-${widget.detail.id}-notion',
+      topicId: widget.detail.id,
+      topicTitle: widget.detail.title,
+      topicSlug: widget.detail.slug,
+      format: ExportFormat.notion,
+      scope: _scope,
+      postCount: result.postCount,
+      byteSize: 0,
+      destination: ShareOutcomeType.notion,
+      createdAtMillis: createdAt.millisecondsSinceEpoch,
+      filePath: result.pageUrl,
+    );
+  }
+
+  String _labelForPhase(NotionSyncProgress progress) {
+    switch (progress.phase) {
+      case SyncPhase.fetch:
+        return progress.total > 0
+            ? S.current.notion_syncingFetch(progress.current, progress.total)
+            : S.current.notion_syncing;
+      case SyncPhase.convert:
+        return S.current.notion_syncingConvert;
+      case SyncPhase.create:
+        return S.current.notion_syncingCreate;
+      case SyncPhase.append:
+        return S.current.notion_syncingAppend(progress.current, progress.total);
+      case SyncPhase.done:
+        return S.current.notion_syncing;
+    }
+  }
+
+  Future<bool?> _askGoToSettings() {
+    return showAppDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(S.current.notion_title),
+        content: Text(S.current.notion_notConfigured),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(S.current.common_cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(S.current.common_confirm),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<DuplicateAction?> _askDuplicateAction() {
+    return showAppDialog<DuplicateAction?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(S.current.notion_duplicateTitle),
+        content: Text(S.current.notion_duplicateMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(S.current.common_cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, DuplicateAction.skip),
+            child: Text(S.current.notion_duplicateSkip),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, DuplicateAction.overwrite),
+            child: Text(S.current.notion_duplicateOverwrite),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    ref.watch(notionConfigProvider);
 
     return Container(
       decoration: BoxDecoration(
@@ -178,22 +340,27 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SegmentedButton<ExportFormat>(
+              child: SegmentedButton<_ExportTarget>(
                 segments: const [
                   ButtonSegment(
-                    value: ExportFormat.markdown,
+                    value: _ExportTarget.markdown,
                     label: Text('MD'),
                     icon: Icon(Icons.code),
                   ),
                   ButtonSegment(
-                    value: ExportFormat.html,
+                    value: _ExportTarget.html,
                     label: Text('HTML'),
                     icon: Icon(Icons.html),
                   ),
+                  ButtonSegment(
+                    value: _ExportTarget.notion,
+                    label: Text('Notion'),
+                    icon: Icon(Icons.cloud_sync_rounded),
+                  ),
                 ],
-                selected: {_format},
+                selected: {_target},
                 onSelectionChanged: (selected) {
-                  setState(() => _format = selected.first);
+                  setState(() => _target = selected.first);
                 },
               ),
             ),
@@ -245,9 +412,13 @@ class _ExportSheetState extends ConsumerState<ExportSheet> {
                     : const Icon(Icons.download),
                 label: Text(
                   _isExporting
-                      ? (_total > 0
-                            ? context.l10n.export_exporting(_progress, _total)
-                            : context.l10n.export_exportingNoProgress)
+                      ? (_phaseLabel ??
+                            (_total > 0
+                                ? context.l10n.export_exporting(
+                                    _progress,
+                                    _total,
+                                  )
+                                : context.l10n.export_exportingNoProgress))
                       : context.l10n.common_export,
                 ),
                 style: FilledButton.styleFrom(

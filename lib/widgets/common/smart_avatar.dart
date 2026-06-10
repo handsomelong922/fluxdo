@@ -92,6 +92,21 @@ class _SmartAvatarState extends State<SmartAvatar> {
         height: innerSize,
         child: ScalableImageWidget(si: si, fit: BoxFit.cover),
       );
+    } else if (AvifImageProvider.isAvifUrl(imageUrl) ||
+        isNativeAnimatedUrl(imageUrl)) {
+      child = Image(
+        image: discourseImageProvider(imageUrl),
+        width: innerSize,
+        height: innerSize,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        frameBuilder: (context, displayChild, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded || frame != null) return displayChild;
+          return _buildLoading(fgColor, innerRadius);
+        },
+        errorBuilder: (context, error, stack) =>
+            _buildFallback(fgColor, innerRadius),
+      );
     } else {
       // 使用 CachedNetworkImage，解码失败时检测 SVG
       child = CachedNetworkImage(

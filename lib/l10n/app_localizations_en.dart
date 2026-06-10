@@ -3487,6 +3487,164 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notifications_title => 'Notifications';
 
   @override
+  String get notion_title => 'Notion Sync';
+
+  @override
+  String get notion_subtitle => 'Sync posts or topics to your Notion database.';
+
+  @override
+  String get notion_disconnect => 'Disconnect';
+
+  @override
+  String get notion_step1Title => 'Create a Notion integration';
+
+  @override
+  String get notion_step1Body =>
+      'Create an internal Notion integration, copy its Integration Token, then share the target page with the integration.';
+
+  @override
+  String get notion_openIntegrationsPage => 'Open integrations';
+
+  @override
+  String get notion_tokenSection => 'Integration Token';
+
+  @override
+  String get notion_step2Title => 'Select or create a database';
+
+  @override
+  String get notion_step2Body =>
+      'Enter the target Database ID, or provide a parent page ID and let FluxDO create a template database.';
+
+  @override
+  String get notion_databaseSection => 'Database ID';
+
+  @override
+  String get notion_createTemplateDb => 'Create template database';
+
+  @override
+  String get notion_saveAndTest => 'Save and test';
+
+  @override
+  String get notion_syncOptions => 'Sync options';
+
+  @override
+  String get notion_autoSyncOnBookmark => 'Auto-sync after bookmarking';
+
+  @override
+  String get notion_autoSyncDesc =>
+      'Off by default. When enabled, bookmarked topics or posts are synced to Notion automatically.';
+
+  @override
+  String get notion_syncScope => 'Topic sync scope';
+
+  @override
+  String get notion_tokenSecurityNote =>
+      'The Integration Token is stored per account in local preferences. Use this only on trusted devices.';
+
+  @override
+  String get notion_fillTokenAndDb =>
+      'Enter both Integration Token and Database ID';
+
+  @override
+  String notion_testOk(Object title) {
+    return 'Connected: $title';
+  }
+
+  @override
+  String notion_testFailed(Object error) {
+    return 'Connection failed: $error';
+  }
+
+  @override
+  String get notion_disconnected => 'Notion configuration disconnected';
+
+  @override
+  String get notion_tokenRequired => 'Enter the Integration Token first';
+
+  @override
+  String get notion_databaseCreated => 'Template database created';
+
+  @override
+  String notion_dbCreateFailed(Object error) {
+    return 'Failed to create database: $error';
+  }
+
+  @override
+  String get notion_pickParentPage => 'Parent page ID';
+
+  @override
+  String get notion_pickParentPageHint =>
+      'Enter a Notion page ID shared with this integration. The template database will be created under it.';
+
+  @override
+  String get notion_configured => 'Notion is configured';
+
+  @override
+  String get notion_editConfig => 'Edit';
+
+  @override
+  String get notion_upgradeAvailable => 'Database upgrade available';
+
+  @override
+  String get notion_upgradeMessage =>
+      'This database is missing the Post ID property. Upgrade it to deduplicate by topic and post.';
+
+  @override
+  String get notion_upgradeAction => 'Upgrade';
+
+  @override
+  String get notion_upgradeSucceed => 'Database upgraded';
+
+  @override
+  String notion_upgradeFailed(Object error) {
+    return 'Database upgrade failed: $error';
+  }
+
+  @override
+  String get notion_notConfigured =>
+      'Configure the Notion Integration Token and Database ID first.';
+
+  @override
+  String get notion_duplicateTitle => 'Page already exists';
+
+  @override
+  String get notion_duplicateMessage =>
+      'This topic already has a Notion page. You can skip it, or archive the old page and create a new one.';
+
+  @override
+  String get notion_duplicateSkip => 'Skip';
+
+  @override
+  String get notion_duplicateOverwrite => 'Recreate';
+
+  @override
+  String get notion_syncing => 'Syncing to Notion';
+
+  @override
+  String notion_syncingFetch(int current, int total) {
+    return 'Fetching posts $current/$total';
+  }
+
+  @override
+  String get notion_syncingConvert => 'Converting to Notion blocks';
+
+  @override
+  String get notion_syncingCreate => 'Creating Notion page';
+
+  @override
+  String notion_syncingAppend(int current, int total) {
+    return 'Appending blocks $current/$total';
+  }
+
+  @override
+  String get notion_syncSucceed => 'Synced to Notion';
+
+  @override
+  String notion_syncFailed(Object error) {
+    return 'Notion sync failed: $error';
+  }
+
+  @override
   String get boost_created => 'Boost sent';
 
   @override
@@ -3864,6 +4022,25 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vote_voted => 'Voted';
+
+  @override
+  String get sharedIssue_label => 'Me too';
+
+  @override
+  String get sharedIssue_title => 'I am also experiencing this issue';
+
+  @override
+  String get sharedIssue_authorTitle => 'You started this topic';
+
+  @override
+  String get sharedIssue_marked => 'Marked as me too';
+
+  @override
+  String get sharedIssue_unmarked => 'Removed me too';
+
+  @override
+  String get sharedIssue_rateLimited =>
+      'Too many actions, please try again later';
 
   @override
   String get preheat_logoutConfirm =>

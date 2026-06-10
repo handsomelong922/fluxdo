@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../constants.dart';
+import 'eruda_settings_service.dart';
 import 'log/log_writer.dart';
 import 'network/doh/network_settings_service.dart';
 
@@ -112,7 +113,10 @@ class WebViewSettings {
         UserScript(
           source: source,
           injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-          forMainFrameOnly: false,
+          // es-module-shims 会创建 about:blank iframe 评估模块。若每个 iframe
+          // 都注入这份 polyfill，会把 native bridge 和主线程压满。
+          // 业务与 Discourse boot 只需要 main frame 注入。
+          forMainFrameOnly: true,
         ),
       ]);
     } catch (e) {
@@ -133,17 +137,33 @@ class WebViewSettings {
     }
   }
 
+  /// Eruda 默认关闭时注入的禁用脚本：在 polyfill 之前抢先设置 guard，
+  /// 让 bundle 内 eruda-init 跳过初始化。
+  static final UserScript _erudaDisableScript = UserScript(
+    source: 'window.__fluxdoErudaInited = true;',
+    injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+    forMainFrameOnly: true,
+  );
+
   /// 兼容性脚本列表，传给 InAppWebView.initialUserScripts。
+  ///
+  /// Eruda 开关关闭时（默认）会在 polyfill 前追加禁用脚本；打开时原样返回，
+  /// 让 bundle 内 Eruda 在主页面初始化。
   static UnmodifiableListView<UserScript> get compatPolyfillScripts {
     final cached = _compatPolyfillScripts;
-    if (cached != null) return cached;
-    if (!_polyfillLoadAttempted) {
-      debugPrint(
-        '[WebViewSettings] compatPolyfillScripts 在 preloadPolyfill() 完成前被读取，'
-        '老 WebView 兼容性会缺失。请检查 main.dart 初始化序列。',
-      );
+    if (cached == null) {
+      if (!_polyfillLoadAttempted) {
+        debugPrint(
+          '[WebViewSettings] compatPolyfillScripts 在 preloadPolyfill() 完成前被读取，'
+          '老 WebView 兼容性会缺失。请检查 main.dart 初始化序列。',
+        );
+      }
+      return UnmodifiableListView<UserScript>([]);
     }
-    return UnmodifiableListView<UserScript>([]);
+    if (!ErudaSettingsService.instance.enabled) {
+      return UnmodifiableListView<UserScript>([_erudaDisableScript, ...cached]);
+    }
+    return cached;
   }
 
   /// 注册 JS 错误 / lifecycle 回传 handler，把 WebView 内的事件落到 LogWriter。
@@ -159,14 +179,20 @@ class WebViewSettings {
           final source = data['source']?.toString() ?? 'unknown';
 
           if (source == 'lifecycle') {
+            final message =
+                data['message']?.toString() ?? 'compat_bundle_loaded';
             LogWriter.instance.write({
               'timestamp': DateTime.now().toIso8601String(),
               'level': 'info',
               'type': 'webview_compat',
-              'event': 'webview_compat_ready',
-              'message': data['message']?.toString() ?? 'compat_bundle_loaded',
+              'event': message,
+              'message': message,
               'probes': data['probes'],
               'missing': data['missing'],
+              'stage': data['stage'],
+              'stages': data['stages'],
+              'extra': data['extra'],
+              'hasSplash': data['hasSplash'],
               'pageUrl': data['url'],
               'pageUa': data['ua'],
               'platform': Platform.operatingSystem,

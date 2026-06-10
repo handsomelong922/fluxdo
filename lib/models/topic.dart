@@ -1902,8 +1902,7 @@ class TopicDetail {
       voteCount: voteCount ?? this.voteCount,
       userVoted: userVoted ?? this.userVoted,
       sharedIssueVisible: sharedIssueVisible ?? this.sharedIssueVisible,
-      canCreateSharedIssue:
-          canCreateSharedIssue ?? this.canCreateSharedIssue,
+      canCreateSharedIssue: canCreateSharedIssue ?? this.canCreateSharedIssue,
       sharedIssueCount: sharedIssueCount ?? this.sharedIssueCount,
       userCreatedSharedIssue:
           userCreatedSharedIssue ?? this.userCreatedSharedIssue,

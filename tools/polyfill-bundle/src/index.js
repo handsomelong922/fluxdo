@@ -27,3 +27,6 @@ import 'core-js/actual';
 
 // WebView 内 JS 运行时错误捕获 + 启动期 polyfill 自检，回传到 Dart 侧 LogWriter。
 import './error-reporter.js';
+
+// Eruda 设备内 DevTools，默认由 Dart 侧 guard 关闭。
+import './eruda-init.js';

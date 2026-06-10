@@ -40,6 +40,7 @@ import 'services/network/doh/network_settings_service.dart';
 import 'services/network/proxy/proxy_settings_service.dart';
 import 'services/network/rhttp/rhttp_settings_service.dart';
 import 'services/network/webview/webview_adapter_settings_service.dart';
+import 'services/eruda_settings_service.dart';
 import 'package:rhttp/rhttp.dart' as rhttp;
 import 'services/network/vpn_auto_toggle_service.dart';
 import 'services/hcaptcha_accessibility_service.dart';
@@ -127,6 +128,10 @@ Future<void> _applyAndroidDisplayMode(SharedPreferences prefs) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // sticker / emoji / avatar 会产生大量小图，默认 100MB/1000 项太容易淘汰。
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 800 * 1024 * 1024;
+  PaintingBinding.instance.imageCache.maximumSize = 30000;
 
   // 启用 Edge-to-Edge 模式（小白条沉浸式）
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -217,6 +222,8 @@ Future<void> main() async {
   await RhttpSettingsService.instance.initialize(prefs);
   // WebView 适配器设置
   await WebViewAdapterSettingsService.instance.initialize(prefs);
+  // Eruda 调试控制台开关（默认关闭）
+  await ErudaSettingsService.instance.initialize(prefs);
   // v0.4.0: 启动时执行 WV cookie 重灌 (取代 RawSetCookieQueue + 启动自检)
   unawaited(
     WebViewCookiePriming.instance.prime(AppConstants.baseUrl).catchError((

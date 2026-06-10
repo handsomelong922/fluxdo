@@ -156,6 +156,12 @@ extension _UserActions on _TopicDetailPageState {
     _isTopicBookmarking = true;
     try {
       await notifier.addTopicBookmark();
+      unawaited(
+        NotionBookmarkAutoSync.tryTriggerTopic(
+          ref: ref,
+          topicId: widget.topicId,
+        ),
+      );
     } catch (_) {
       // 快速收藏按用户要求保持静默，不打断阅读。
     } finally {
@@ -195,6 +201,12 @@ extension _UserActions on _TopicDetailPageState {
         final newBookmarkId = await notifier.addTopicBookmark();
         if (!mounted) return;
         ToastService.showSuccess(S.current.common_bookmarkAdded);
+        unawaited(
+          NotionBookmarkAutoSync.tryTriggerTopic(
+            ref: ref,
+            topicId: widget.topicId,
+          ),
+        );
 
         // 弹出编辑 BottomSheet
         final result = await BookmarkEditSheet.show(

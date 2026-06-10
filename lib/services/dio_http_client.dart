@@ -2,35 +2,58 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:dio/dio.dart' as dio;
 import 'package:http/http.dart' as http;
+import '../constants.dart';
 import 'network/discourse_dio.dart';
 
-/// 包装 Dio 的 http.BaseClient 实现
+/// 包装 Dio 的 http.BaseClient 实现，供 flutter_cache_manager 下载图片/文件。
 ///
-/// 这样可以让 HttpFileService 使用 Dio 作为底层 HTTP 客户端，
-/// 从而保留 WebView 适配器、Cookie 管理、重试等所有 Dio 拦截器功能
-///
-/// 支持真正的流式响应，适用于大文件下载和图片加载进度显示
+/// 主站图片可能需要 session cookie；第三方 CDN 不需要 cookie，单独使用
+/// 轻量 Dio，避免大量 sticker/emoji 下载反复读写 cookie jar。
 class DioHttpClient extends http.BaseClient {
   static DioHttpClient? _instance;
 
-  final dio.Dio _dio;
+  final dio.Dio _mainDomainDio;
+  final dio.Dio _cdnDio;
 
   factory DioHttpClient() {
     _instance ??= DioHttpClient._internal();
     return _instance!;
   }
 
-  DioHttpClient._internal() : _dio = DiscourseDio.create(
-    defaultHeaders: {
-      'Accept': '*/*',
-      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    },
-    // 图片/文件下载走 CDN，不需要速率限制
-    maxConcurrent: null,
-  );
+  DioHttpClient._internal()
+    : _mainDomainDio = DiscourseDio.create(
+        defaultHeaders: _imageHeaders,
+        maxConcurrent: null,
+        enableCookies: true,
+        enableCfChallenge: false,
+        enableRetry: false,
+        enableNetworkLog: false,
+      ),
+      _cdnDio = DiscourseDio.create(
+        defaultHeaders: _imageHeaders,
+        maxConcurrent: null,
+        enableCookies: false,
+        enableCfChallenge: false,
+        enableRetry: false,
+        enableNetworkLog: false,
+      );
 
-  /// 获取底层 Dio 实例（用于需要直接访问的场景）
-  dio.Dio get dioInstance => _dio;
+  static const Map<String, String> _imageHeaders = {
+    'Accept': '*/*',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+  };
+
+  static final String _mainHost = Uri.parse(AppConstants.baseUrl).host;
+
+  bool _isMainDomain(Uri url) {
+    final host = url.host;
+    if (host.isEmpty) return false;
+    return host == _mainHost || host.endsWith('.$_mainHost');
+  }
+
+  dio.Dio _selectDio(Uri url) {
+    return _isMainDomain(url) ? _mainDomainDio : _cdnDio;
+  }
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
@@ -52,8 +75,7 @@ class DioHttpClient extends http.BaseClient {
         bodyBytes = Uint8List.fromList(bytes);
       }
 
-      // 发起 Dio 请求，使用流式响应
-      final response = await _dio.request<dio.ResponseBody>(
+      final response = await _selectDio(request.url).request<dio.ResponseBody>(
         request.url.toString(),
         options: dio.Options(
           method: request.method,
@@ -73,7 +95,9 @@ class DioHttpClient extends http.BaseClient {
 
       // 获取 Content-Length
       final contentLengthStr = responseHeaders['content-length'];
-      final contentLength = contentLengthStr != null ? int.tryParse(contentLengthStr) : null;
+      final contentLength = contentLengthStr != null
+          ? int.tryParse(contentLengthStr)
+          : null;
 
       // 获取流式响应体
       final responseBody = response.data;
@@ -98,7 +122,10 @@ class DioHttpClient extends http.BaseClient {
       // 将 DioException 转换为 http 包可以理解的异常
       if (e.type == dio.DioExceptionType.connectionTimeout ||
           e.type == dio.DioExceptionType.receiveTimeout) {
-        throw http.ClientException('Request timeout: ${e.message}', request.url);
+        throw http.ClientException(
+          'Request timeout: ${e.message}',
+          request.url,
+        );
       }
       throw http.ClientException('Dio error: ${e.message}', request.url);
     }

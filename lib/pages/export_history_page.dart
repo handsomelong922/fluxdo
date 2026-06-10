@@ -4,6 +4,7 @@ import 'package:cross_file/cross_file.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/export_history_item.dart';
 import '../providers/export_history_provider.dart';
@@ -77,6 +78,16 @@ class ExportHistoryPage extends ConsumerWidget {
       ToastService.show('该记录来自系统分享，没有本地保存路径');
       return;
     }
+    if (item.destination == ShareOutcomeType.notion) {
+      final uri = Uri.tryParse(path);
+      if (uri == null) {
+        ToastService.showError('Notion 页面链接无效');
+        return;
+      }
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened) ToastService.showError('无法打开 Notion 页面');
+      return;
+    }
     final file = File(path);
     if (!file.existsSync()) {
       ToastService.showError('文件不存在');
@@ -126,12 +137,12 @@ class _ExportHistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasPath = item.filePath != null && item.filePath!.isNotEmpty;
+    final hasTarget = item.filePath != null && item.filePath!.isNotEmpty;
 
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: hasPath ? onOpen : null,
+        onTap: hasTarget ? onOpen : null,
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(
@@ -144,12 +155,11 @@ class _ExportHistoryCard extends StatelessWidget {
                   color: theme.colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  item.format == ExportFormat.markdown
-                      ? Icons.code_rounded
-                      : Icons.html_rounded,
-                  color: theme.colorScheme.onPrimaryContainer,
-                ),
+                child: Icon(switch (item.format) {
+                  ExportFormat.markdown => Icons.code_rounded,
+                  ExportFormat.html => Icons.html_rounded,
+                  ExportFormat.notion => Icons.cloud_sync_rounded,
+                }, color: theme.colorScheme.onPrimaryContainer),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -170,7 +180,7 @@ class _ExportHistoryCard extends StatelessWidget {
                             ? '仅主帖'
                             : '全部帖子',
                         '${item.postCount} 帖',
-                        _formatBytes(item.byteSize),
+                        if (item.byteSize > 0) _formatBytes(item.byteSize),
                       ].join(' · '),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
@@ -183,7 +193,7 @@ class _ExportHistoryCard extends StatelessWidget {
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    if (hasPath) ...[
+                    if (hasTarget) ...[
                       const SizedBox(height: 4),
                       Text(
                         item.filePath!,

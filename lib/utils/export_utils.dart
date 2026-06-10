@@ -13,6 +13,7 @@ import 'share_utils.dart';
 enum ExportScope {
   /// 仅主帖
   firstPostOnly,
+
   /// 全部帖子
   allPosts,
 }
@@ -20,7 +21,8 @@ enum ExportScope {
 /// 导出格式
 enum ExportFormat {
   markdown('Markdown', 'md'),
-  html('HTML', 'html');
+  html('HTML', 'html'),
+  notion('Notion', 'notion');
 
   const ExportFormat(this.displayName, this.extension);
   final String displayName;
@@ -120,6 +122,8 @@ class ExportUtils {
       case ExportFormat.html:
         content = _exportToHtml(detail, posts);
         break;
+      case ExportFormat.notion:
+        throw UnsupportedError('Notion sync is handled by NotionSyncService');
     }
 
     final shareOutcome = await _shareAsFile(
@@ -138,6 +142,39 @@ class ExportUtils {
       shareOutcome: shareOutcome,
       createdAt: DateTime.now(),
     );
+  }
+
+  /// 获取用于导出/同步的帖子列表。
+  ///
+  /// Notion 同步复用这条路径，确保抓帖批量大小、排序和限速行为与本地导出一致。
+  /// 这里不套用 Markdown 文件导出的 10 条上限，避免同步全话题时丢帖子。
+  static Future<List<Post>> fetchPostsForExport({
+    required TopicDetail detail,
+    required ExportScope scope,
+    void Function(int current, int total)? onProgress,
+  }) async {
+    final postIds = switch (scope) {
+      ExportScope.firstPostOnly =>
+        detail.postStream.stream.isEmpty
+            ? const <int>[]
+            : <int>[detail.postStream.stream.first],
+      ExportScope.allPosts => List<int>.from(detail.postStream.stream),
+    };
+    if (postIds.isEmpty) return const [];
+    return _fetchPosts(
+      topicId: detail.id,
+      postIds: postIds,
+      onProgress: onProgress,
+    );
+  }
+
+  /// 将已抓取帖子渲染为 Markdown，供 Notion 同步等出口复用。
+  static Future<String> renderMarkdown({
+    required TopicDetail detail,
+    required List<Post> posts,
+    void Function(int current, int total)? onProgress,
+  }) {
+    return _exportToMarkdown(detail, posts, onProgress);
   }
 
   /// 批量获取帖子数据
@@ -161,7 +198,9 @@ class ExportUtils {
         allPosts.addAll(postStream.posts);
         onProgress?.call(allPosts.length, total);
       } catch (e) {
-        debugPrint('[ExportUtils] getPosts failed for batch starting at $i: $e');
+        debugPrint(
+          '[ExportUtils] getPosts failed for batch starting at $i: $e',
+        );
         // 继续尝试下一批
       }
     }
@@ -182,7 +221,9 @@ class ExportUtils {
     // 标题
     buffer.writeln('# ${detail.title}');
     buffer.writeln();
-    buffer.writeln('> 来源: ${AppConstants.baseUrl}/t/${detail.slug}/${detail.id}');
+    buffer.writeln(
+      '> 来源: ${AppConstants.baseUrl}/t/${detail.slug}/${detail.id}',
+    );
     buffer.writeln();
     buffer.writeln('---');
     buffer.writeln();
@@ -233,7 +274,9 @@ class ExportUtils {
     buffer.writeln('<html lang="zh-CN">');
     buffer.writeln('<head>');
     buffer.writeln('<meta charset="UTF-8">');
-    buffer.writeln('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
+    buffer.writeln(
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+    );
     buffer.writeln('<title>${_escapeHtml(detail.title)}</title>');
     buffer.writeln('<style>');
     buffer.writeln(_htmlStyles);
@@ -244,7 +287,9 @@ class ExportUtils {
     // 标题
     buffer.writeln('<header>');
     buffer.writeln('<h1>${_escapeHtml(detail.title)}</h1>');
-    buffer.writeln('<p class="source">来源: <a href="${AppConstants.baseUrl}/t/${detail.slug}/${detail.id}">${AppConstants.baseUrl}/t/${detail.slug}/${detail.id}</a></p>');
+    buffer.writeln(
+      '<p class="source">来源: <a href="${AppConstants.baseUrl}/t/${detail.slug}/${detail.id}">${AppConstants.baseUrl}/t/${detail.slug}/${detail.id}</a></p>',
+    );
     buffer.writeln('</header>');
 
     // 帖子内容
@@ -252,7 +297,9 @@ class ExportUtils {
       buffer.writeln('<article class="post">');
       buffer.writeln('<div class="post-header">');
       buffer.writeln('<span class="post-number">#${post.postNumber}</span>');
-      buffer.writeln('<span class="username">@${_escapeHtml(post.username)}</span>');
+      buffer.writeln(
+        '<span class="username">@${_escapeHtml(post.username)}</span>',
+      );
       buffer.writeln('</div>');
       buffer.writeln('<div class="post-content">');
       buffer.writeln(post.cooked);

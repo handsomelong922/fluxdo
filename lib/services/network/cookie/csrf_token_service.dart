@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../../constants.dart';
 import '../../app_logger.dart';
 import '../adapters/platform_adapter.dart';
+import '../interceptors/cf_challenge_interceptor.dart';
 import 'app_cookie_manager.dart';
 import 'cookie_jar_service.dart';
 import '../../storage/resilient_secure_storage.dart';
@@ -73,11 +74,21 @@ class CsrfTokenService {
         followRedirects: false,
         validateStatus: (status) =>
             status != null && status >= 200 && status < 400,
+        // 与 DiscourseService 主请求头保持一致，避免 CSRF 预取因
+        // fingerprint 差异被 CF 当成 bot 而陷入 403 循环。
+        headers: const {
+          'Accept': 'application/json, text/javascript, */*; q=0.01',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
       ),
     );
 
     configurePlatformAdapter(dio);
     dio.interceptors.add(AppCookieManager(cookieJarService.cookieJar));
+    dio.interceptors.add(
+      CfChallengeInterceptor(dio: dio, cookieJarService: cookieJarService),
+    );
     _mainSiteDio = dio;
     return dio;
   }

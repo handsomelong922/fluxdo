@@ -3,6 +3,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:native_animated_image/native_animated_image.dart'
+    show NativeAnimatedImageProvider;
 import 'avif_image_provider.dart';
 export 'avif_image_provider.dart' show AvifImageProvider;
 import 'dio_http_client.dart';
@@ -20,15 +22,16 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
     return _instance!;
   }
 
-  DiscourseCacheManager._() : super(
-    Config(
-      key,
-      stalePeriod: const Duration(days: 7),
-      maxNrOfCacheObjects: 500,
-      repo: JsonCacheInfoRepository(databaseName: key),
-      fileService: HttpFileService(httpClient: DioHttpClient()),
-    ),
-  );
+  DiscourseCacheManager._()
+    : super(
+        Config(
+          key,
+          stalePeriod: const Duration(days: 7),
+          maxNrOfCacheObjects: 500,
+          repo: JsonCacheInfoRepository(databaseName: key),
+          fileService: HttpFileService(httpClient: DioHttpClient()),
+        ),
+      );
 
   /// 内存级 URL 索引：记录已知存在于磁盘缓存中的 URL
   ///
@@ -130,15 +133,16 @@ class EmojiCacheManager extends CacheManager with ImageCacheManager {
     return _instance!;
   }
 
-  EmojiCacheManager._() : super(
-    Config(
-      key,
-      stalePeriod: const Duration(days: 30), // emoji 很少变化，长期缓存
-      maxNrOfCacheObjects: 5000,
-      repo: JsonCacheInfoRepository(databaseName: key),
-      fileService: HttpFileService(httpClient: DioHttpClient()),
-    ),
-  );
+  EmojiCacheManager._()
+    : super(
+        Config(
+          key,
+          stalePeriod: const Duration(days: 90),
+          maxNrOfCacheObjects: 15000,
+          repo: JsonCacheInfoRepository(databaseName: key),
+          fileService: HttpFileService(httpClient: DioHttpClient()),
+        ),
+      );
 }
 
 /// 通用外部图片缓存管理器
@@ -154,14 +158,15 @@ class ExternalImageCacheManager extends CacheManager with ImageCacheManager {
     return _instance!;
   }
 
-  ExternalImageCacheManager._() : super(
-    Config(
-      key,
-      stalePeriod: const Duration(days: 30),
-      maxNrOfCacheObjects: 200,
-      repo: JsonCacheInfoRepository(databaseName: key),
-    ),
-  );
+  ExternalImageCacheManager._()
+    : super(
+        Config(
+          key,
+          stalePeriod: const Duration(days: 30),
+          maxNrOfCacheObjects: 200,
+          repo: JsonCacheInfoRepository(databaseName: key),
+        ),
+      );
 }
 
 /// 表情包（Sticker）专用缓存管理器
@@ -177,15 +182,16 @@ class StickerCacheManager extends CacheManager with ImageCacheManager {
     return _instance!;
   }
 
-  StickerCacheManager._() : super(
-    Config(
-      key,
-      stalePeriod: const Duration(days: 30),
-      maxNrOfCacheObjects: 2000,
-      repo: JsonCacheInfoRepository(databaseName: key),
-      fileService: HttpFileService(httpClient: DioHttpClient()),
-    ),
-  );
+  StickerCacheManager._()
+    : super(
+        Config(
+          key,
+          stalePeriod: const Duration(days: 90),
+          maxNrOfCacheObjects: 20000,
+          repo: JsonCacheInfoRepository(databaseName: key),
+          fileService: HttpFileService(httpClient: DioHttpClient()),
+        ),
+      );
 }
 
 /// 检查 URL 是否指向 AVIF 图片
@@ -198,10 +204,23 @@ bool _isAvifUrl(String url) {
   }
 }
 
+bool isNativeAnimatedUrl(String url) => _isNativeAnimatedUrl(url);
+
+bool _isNativeAnimatedUrl(String url) {
+  try {
+    final path = Uri.parse(url).path.toLowerCase();
+    return path.endsWith('.gif') ||
+        path.endsWith('.apng') ||
+        path.endsWith('.webp');
+  } catch (_) {
+    return false;
+  }
+}
+
 /// 创建 Discourse 图片 Provider
 ///
 /// 用于需要 ImageProvider 的场景（CircleAvatar、DecorationImage 等）
-/// AVIF URL 自动使用 AvifImageProvider 解码，其他格式使用 CachedNetworkImageProvider
+/// AVIF URL 自动使用 AvifImageProvider 解码；GIF/APNG/WebP 用 native 动图解码。
 ImageProvider discourseImageProvider(
   String url, {
   double scale = 1.0,
@@ -210,6 +229,20 @@ ImageProvider discourseImageProvider(
 }) {
   if (_isAvifUrl(url)) {
     return AvifImageProvider(url, scale: scale);
+  }
+  if (_isNativeAnimatedUrl(url)) {
+    final cache = DiscourseCacheManager();
+    return NativeAnimatedImageProvider.fromBytesProvider(
+      loader: () async {
+        final bytes = await cache.getImageBytes(url);
+        if (bytes == null || bytes.isEmpty) {
+          throw Exception('empty image bytes: $url');
+        }
+        return bytes;
+      },
+      tag: url,
+      scale: scale,
+    );
   }
   return CachedNetworkImageProvider(
     url,
@@ -236,7 +269,26 @@ ImageProvider emojiImageProvider(String url, {double scale = 1.0}) {
 /// 使用独立的 [StickerCacheManager]，AVIF URL 自动使用 AvifImageProvider 解码
 ImageProvider stickerImageProvider(String url, {double scale = 1.0}) {
   if (_isAvifUrl(url)) {
-    return AvifImageProvider(url, scale: scale, cacheManager: StickerCacheManager());
+    return AvifImageProvider(
+      url,
+      scale: scale,
+      cacheManager: StickerCacheManager(),
+    );
+  }
+  if (_isNativeAnimatedUrl(url)) {
+    final cache = StickerCacheManager();
+    return NativeAnimatedImageProvider.fromBytesProvider(
+      loader: () async {
+        final file = await cache.getSingleFile(url);
+        final bytes = await file.readAsBytes();
+        if (bytes.isEmpty) {
+          throw Exception('empty sticker bytes: $url');
+        }
+        return bytes;
+      },
+      tag: url,
+      scale: scale,
+    );
   }
   return CachedNetworkImageProvider(
     url,

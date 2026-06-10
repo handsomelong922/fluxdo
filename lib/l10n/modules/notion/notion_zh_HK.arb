@@ -1,0 +1,92 @@
+{
+  "notion_title": "Notion 同步",
+  "notion_subtitle": "將帖子或話題同步到你的 Notion Database。",
+  "notion_disconnect": "斷開",
+  "notion_step1Title": "建立 Notion Integration",
+  "notion_step1Body": "在 Notion 建立內部整合並複製 Integration Token，然後把目標頁面分享給該整合。",
+  "notion_openIntegrationsPage": "打開 Notion 整合頁面",
+  "notion_tokenSection": "Integration Token",
+  "notion_step2Title": "選擇或建立 Database",
+  "notion_step2Body": "填寫目標 Database ID，或輸入父頁面 ID 後由 FluxDO 建立模板 Database。",
+  "notion_databaseSection": "Database ID",
+  "notion_createTemplateDb": "建立模板 Database",
+  "notion_saveAndTest": "保存並測試連接",
+  "notion_syncOptions": "同步選項",
+  "notion_autoSyncOnBookmark": "收藏後自動同步",
+  "notion_autoSyncDesc": "默認關閉。開啟後收藏話題或單條帖子時會自動同步到 Notion。",
+  "notion_syncScope": "話題同步範圍",
+  "notion_tokenSecurityNote": "Integration Token 會按帳號保存在本機偏好設定中，請只在受信任設備上使用。",
+  "notion_fillTokenAndDb": "請填寫 Integration Token 和 Database ID",
+  "notion_testOk": "連接成功：{title}",
+  "@notion_testOk": {
+    "placeholders": {
+      "title": {}
+    }
+  },
+  "notion_testFailed": "連接失敗：{error}",
+  "@notion_testFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "notion_disconnected": "已斷開 Notion 配置",
+  "notion_tokenRequired": "請先填寫 Integration Token",
+  "notion_databaseCreated": "模板 Database 已建立",
+  "notion_dbCreateFailed": "建立 Database 失敗：{error}",
+  "@notion_dbCreateFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "notion_pickParentPage": "父頁面 ID",
+  "notion_pickParentPageHint": "填寫一個已分享給該 Integration 的 Notion 頁面 ID，用於在其下建立模板 Database。",
+  "notion_configured": "Notion 已配置",
+  "notion_editConfig": "修改",
+  "notion_upgradeAvailable": "Database 可升級",
+  "notion_upgradeMessage": "當前 Database 缺少 Post ID 欄位。升級後可按話題和帖子雙鍵去重。",
+  "notion_upgradeAction": "升級欄位",
+  "notion_upgradeSucceed": "Database 已升級",
+  "notion_upgradeFailed": "Database 升級失敗：{error}",
+  "@notion_upgradeFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "notion_notConfigured": "請先配置 Notion Integration Token 和 Database ID。",
+  "notion_duplicateTitle": "已存在同步頁面",
+  "notion_duplicateMessage": "這個話題已經同步到 Notion。你可以跳過，或歸檔舊頁面後重新建立。",
+  "notion_duplicateSkip": "跳過",
+  "notion_duplicateOverwrite": "重新建立",
+  "notion_syncing": "正在同步到 Notion",
+  "notion_syncingFetch": "抓取帖子 {current}/{total}",
+  "@notion_syncingFetch": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "notion_syncingConvert": "轉換為 Notion blocks",
+  "notion_syncingCreate": "建立 Notion 頁面",
+  "notion_syncingAppend": "追加內容 {current}/{total}",
+  "@notion_syncingAppend": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "notion_syncSucceed": "已同步到 Notion",
+  "notion_syncFailed": "Notion 同步失敗：{error}",
+  "@notion_syncFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  }
+}

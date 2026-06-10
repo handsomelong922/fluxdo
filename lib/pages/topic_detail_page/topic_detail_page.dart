@@ -28,6 +28,7 @@ import '../../providers/discourse_providers.dart';
 import '../../providers/message_bus_providers.dart';
 import '../../providers/pinned_categories_provider.dart';
 import '../../services/discourse/discourse_service.dart';
+import '../../services/notion/notion_bookmark_auto_sync.dart';
 import '../../services/screen_track.dart';
 import '../../services/topic_reading_state_service.dart';
 import '../../services/toast_service.dart';

@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io' as io;
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../constants.dart';
@@ -133,6 +135,28 @@ class CfChallengeService {
     _lastToastAt = DateTime.now();
     debugPrint('[CfChallenge] 前台提示已静默: $message');
     CfChallengeLogger.log('[VERIFY] Foreground message suppressed: $message');
+  }
+
+  /// 综合响应头和响应体判断 Dio 响应是否为 Cloudflare challenge。
+  ///
+  /// CF 会根据请求 Accept header 返回不同格式。浏览器请求通常是 HTML，
+  /// API 请求可能是 text/plain，但两者都会带 `cf-mitigated: challenge`。
+  /// 因此这里优先使用官方 header 信号，只有 HTML 响应才退回 body 检测，
+  /// 避免把 Discourse 自身的 plaintext 403 误判成 CF 验证。
+  static bool isCfChallengeResponse(Response? response) {
+    if (response == null) return false;
+    final headers = response.headers;
+
+    final server = headers.value('server') ?? '';
+    if (!server.toLowerCase().contains('cloudflare')) return false;
+
+    final cfMitigated = headers.value('cf-mitigated') ?? '';
+    if (cfMitigated.contains('challenge')) return true;
+
+    final contentType = headers.value('content-type') ?? '';
+    if (!contentType.contains('text/html')) return false;
+
+    return isCfChallenge(response.data);
   }
 
   void setContext(BuildContext context) {

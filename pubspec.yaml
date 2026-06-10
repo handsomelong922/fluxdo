@@ -23,6 +23,8 @@ dependencies:
   cached_network_image: ^3.4.1
   octo_image: ^2.1.0
   flutter_cache_manager: ^3.4.1
+  # native Rust 解码 GIF/APNG/动画 WebP，避免大量 sticker 缩略图走 Skia 多帧慢路径。
+  native_animated_image: ^0.3.0
   flutter_riverpod: ^3.1.0
   flutter_widget_from_html: ^0.17.1
   extended_image_lite:

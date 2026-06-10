@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +14,7 @@ import 'package:dio/dio.dart';
 import '../../../../../services/app_error_handler.dart';
 import '../../../../../services/discourse/discourse_service.dart';
 import '../../../../../services/network/exceptions/api_exception.dart';
+import '../../../../../services/notion/notion_bookmark_auto_sync.dart';
 import '../../../../../services/toast_service.dart';
 import '../../../post_links.dart';
 import '../post_action_bar.dart';
@@ -381,6 +384,16 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
     final isOwnPost =
         currentUser != null && currentUser.username == widget.post.username;
     final isGuest = currentUser == null;
+    final sharedIssueAction =
+        widget.post.postNumber == 1 && widget.sharedIssueVisible
+        ? _SharedIssueButton(
+            topicId: widget.topicId,
+            canCreateSharedIssue: widget.canCreateSharedIssue,
+            count: widget.sharedIssueCount,
+            userCreated: widget.userCreatedSharedIssue,
+            onChanged: widget.onSharedIssueChanged,
+          )
+        : null;
 
     // 预热打赏凭证，避免首次打开更多菜单时因 AsyncLoading 导致打赏选项不显示
     ref.watch(ldcRewardCredentialsProvider);
@@ -400,17 +413,6 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
             PostSolutionBanner(
               acceptedAnswers: widget.acceptedAnswers,
               onJumpToPost: widget.onJumpToPost,
-            ),
-          if (widget.post.postNumber == 1 && widget.sharedIssueVisible)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: _SharedIssueButton(
-                topicId: widget.topicId,
-                canCreateSharedIssue: widget.canCreateSharedIssue,
-                count: widget.sharedIssueCount,
-                userCreated: widget.userCreatedSharedIssue,
-                onChanged: widget.onSharedIssueChanged,
-              ),
             ),
           const SizedBox(height: 12),
           PostActionBar(
@@ -435,6 +437,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
             onAddBoost: _openBoostInput,
             canBoost: _canBoost,
             hasBoosts: _boosts.isNotEmpty,
+            leadingAction: sharedIssueAction,
           ),
           // Boost 气泡列表
           if (_boosts.isNotEmpty)
@@ -532,18 +535,22 @@ class _SharedIssueButtonState extends ConsumerState<_SharedIssueButton> {
       });
       widget.onChanged?.call(response.count, response.userCreatedSharedIssue);
       ToastService.showSuccess(
-        response.userCreatedSharedIssue ? '已标记“俺也一样”' : '已取消“俺也一样”',
+        response.userCreatedSharedIssue
+            ? S.current.sharedIssue_marked
+            : S.current.sharedIssue_unmarked,
       );
     } on DioException catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (e.response?.statusCode == 429) {
-        ToastService.showInfo('操作太频繁，请稍后再试');
+        ToastService.showInfo(S.current.sharedIssue_rateLimited);
+      } else {
+        AppErrorHandler.handleUnexpected(e, e.stackTrace);
       }
     } on RateLimitException {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ToastService.showInfo('操作太频繁，请稍后再试');
+      ToastService.showInfo(S.current.sharedIssue_rateLimited);
     } catch (e, s) {
       AppErrorHandler.handleUnexpected(e, s);
       if (mounted) setState(() => _isLoading = false);
@@ -554,29 +561,40 @@ class _SharedIssueButtonState extends ConsumerState<_SharedIssueButton> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final disabled = !widget.canCreateSharedIssue;
+    final countText = _count > 999 ? '999+' : '$_count';
     final foreground = _userCreated
-        ? theme.colorScheme.onPrimary
-        : theme.colorScheme.primary;
+        ? theme.colorScheme.onPrimaryContainer
+        : theme.colorScheme.onSurfaceVariant;
     final background = _userCreated
-        ? theme.colorScheme.primary
-        : theme.colorScheme.surfaceContainerHigh;
+        ? theme.colorScheme.primaryContainer
+        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.36);
+    final borderColor = _userCreated
+        ? theme.colorScheme.primary.withValues(alpha: 0.28)
+        : theme.colorScheme.outlineVariant.withValues(alpha: 0.7);
 
     final button = Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: disabled || _isLoading ? null : _toggle,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          height: 36,
+          constraints: const BoxConstraints(minWidth: 54),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
             color: background,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: _userCreated
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.outlineVariant,
-            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: borderColor),
+            boxShadow: _userCreated
+                ? [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -598,42 +616,15 @@ class _SharedIssueButtonState extends ConsumerState<_SharedIssueButton> {
                   size: 18,
                   color: foreground,
                 ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 5),
               Text(
-                '俺也一样',
+                countText,
                 style: theme.textTheme.labelLarge?.copyWith(
-                  color: _userCreated
-                      ? theme.colorScheme.onPrimary
-                      : theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
+                  color: foreground,
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
-              if (_count > 0) ...[
-                const SizedBox(width: 6),
-                Container(
-                  constraints: const BoxConstraints(minWidth: 20),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _userCreated
-                        ? theme.colorScheme.onPrimary.withValues(alpha: 0.2)
-                        : theme.colorScheme.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '$_count',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: _userCreated
-                          ? theme.colorScheme.onPrimary
-                          : theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -643,7 +634,9 @@ class _SharedIssueButtonState extends ConsumerState<_SharedIssueButton> {
     return Opacity(
       opacity: disabled ? 0.7 : 1,
       child: Tooltip(
-        message: disabled ? '作者不能对自己的主题标记“俺也一样”' : '俺也一样',
+        message: disabled
+            ? S.current.sharedIssue_authorTitle
+            : S.current.sharedIssue_title,
         child: button,
       ),
     );

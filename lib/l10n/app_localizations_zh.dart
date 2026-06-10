@@ -3397,6 +3397,161 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notifications_title => '通知';
 
   @override
+  String get notion_title => 'Notion 同步';
+
+  @override
+  String get notion_subtitle => '将帖子或话题同步到你的 Notion Database。';
+
+  @override
+  String get notion_disconnect => '断开';
+
+  @override
+  String get notion_step1Title => '创建 Notion Integration';
+
+  @override
+  String get notion_step1Body =>
+      '在 Notion 创建内部集成并复制 Integration Token，然后把目标页面分享给该集成。';
+
+  @override
+  String get notion_openIntegrationsPage => '打开 Notion 集成页面';
+
+  @override
+  String get notion_tokenSection => 'Integration Token';
+
+  @override
+  String get notion_step2Title => '选择或创建 Database';
+
+  @override
+  String get notion_step2Body =>
+      '填写目标 Database ID，或输入父页面 ID 后由 FluxDO 创建模板 Database。';
+
+  @override
+  String get notion_databaseSection => 'Database ID';
+
+  @override
+  String get notion_createTemplateDb => '创建模板 Database';
+
+  @override
+  String get notion_saveAndTest => '保存并测试连接';
+
+  @override
+  String get notion_syncOptions => '同步选项';
+
+  @override
+  String get notion_autoSyncOnBookmark => '收藏后自动同步';
+
+  @override
+  String get notion_autoSyncDesc => '默认关闭。开启后收藏话题或单条帖子时会自动同步到 Notion。';
+
+  @override
+  String get notion_syncScope => '话题同步范围';
+
+  @override
+  String get notion_tokenSecurityNote =>
+      'Integration Token 会按账号保存在本机偏好设置中，请只在受信任设备上使用。';
+
+  @override
+  String get notion_fillTokenAndDb => '请填写 Integration Token 和 Database ID';
+
+  @override
+  String notion_testOk(Object title) {
+    return '连接成功：$title';
+  }
+
+  @override
+  String notion_testFailed(Object error) {
+    return '连接失败：$error';
+  }
+
+  @override
+  String get notion_disconnected => '已断开 Notion 配置';
+
+  @override
+  String get notion_tokenRequired => '请先填写 Integration Token';
+
+  @override
+  String get notion_databaseCreated => '模板 Database 已创建';
+
+  @override
+  String notion_dbCreateFailed(Object error) {
+    return '创建 Database 失败：$error';
+  }
+
+  @override
+  String get notion_pickParentPage => '父页面 ID';
+
+  @override
+  String get notion_pickParentPageHint =>
+      '填写一个已分享给该 Integration 的 Notion 页面 ID，用于在其下创建模板 Database。';
+
+  @override
+  String get notion_configured => 'Notion 已配置';
+
+  @override
+  String get notion_editConfig => '修改';
+
+  @override
+  String get notion_upgradeAvailable => 'Database 可升级';
+
+  @override
+  String get notion_upgradeMessage =>
+      '当前 Database 缺少 Post ID 字段。升级后可按话题和帖子双键去重。';
+
+  @override
+  String get notion_upgradeAction => '升级字段';
+
+  @override
+  String get notion_upgradeSucceed => 'Database 已升级';
+
+  @override
+  String notion_upgradeFailed(Object error) {
+    return 'Database 升级失败：$error';
+  }
+
+  @override
+  String get notion_notConfigured =>
+      '请先配置 Notion Integration Token 和 Database ID。';
+
+  @override
+  String get notion_duplicateTitle => '已存在同步页面';
+
+  @override
+  String get notion_duplicateMessage => '这个话题已经同步到 Notion。你可以跳过，或归档旧页面后重新创建。';
+
+  @override
+  String get notion_duplicateSkip => '跳过';
+
+  @override
+  String get notion_duplicateOverwrite => '重新创建';
+
+  @override
+  String get notion_syncing => '正在同步到 Notion';
+
+  @override
+  String notion_syncingFetch(int current, int total) {
+    return '抓取帖子 $current/$total';
+  }
+
+  @override
+  String get notion_syncingConvert => '转换为 Notion blocks';
+
+  @override
+  String get notion_syncingCreate => '创建 Notion 页面';
+
+  @override
+  String notion_syncingAppend(int current, int total) {
+    return '追加内容 $current/$total';
+  }
+
+  @override
+  String get notion_syncSucceed => '已同步到 Notion';
+
+  @override
+  String notion_syncFailed(Object error) {
+    return 'Notion 同步失败：$error';
+  }
+
+  @override
   String get boost_created => 'Boost 已发送';
 
   @override
@@ -3772,6 +3927,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get vote_voted => '已投票';
+
+  @override
+  String get sharedIssue_label => '俺也一样';
+
+  @override
+  String get sharedIssue_title => '我也遇到了这个问题';
+
+  @override
+  String get sharedIssue_authorTitle => '这是你创建的话题';
+
+  @override
+  String get sharedIssue_marked => '已标记“俺也一样”';
+
+  @override
+  String get sharedIssue_unmarked => '已取消“俺也一样”';
+
+  @override
+  String get sharedIssue_rateLimited => '操作太频繁，请稍后再试';
 
   @override
   String get preheat_logoutConfirm => '确定要退出当前账号吗？退出后将清除本地登录信息。';
@@ -9494,6 +9667,161 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
   String get notifications_title => '通知';
 
   @override
+  String get notion_title => 'Notion 同步';
+
+  @override
+  String get notion_subtitle => '將帖子或話題同步到你的 Notion Database。';
+
+  @override
+  String get notion_disconnect => '斷開';
+
+  @override
+  String get notion_step1Title => '建立 Notion Integration';
+
+  @override
+  String get notion_step1Body =>
+      '在 Notion 建立內部整合並複製 Integration Token，然後把目標頁面分享給該整合。';
+
+  @override
+  String get notion_openIntegrationsPage => '打開 Notion 整合頁面';
+
+  @override
+  String get notion_tokenSection => 'Integration Token';
+
+  @override
+  String get notion_step2Title => '選擇或建立 Database';
+
+  @override
+  String get notion_step2Body =>
+      '填寫目標 Database ID，或輸入父頁面 ID 後由 FluxDO 建立模板 Database。';
+
+  @override
+  String get notion_databaseSection => 'Database ID';
+
+  @override
+  String get notion_createTemplateDb => '建立模板 Database';
+
+  @override
+  String get notion_saveAndTest => '保存並測試連接';
+
+  @override
+  String get notion_syncOptions => '同步選項';
+
+  @override
+  String get notion_autoSyncOnBookmark => '收藏後自動同步';
+
+  @override
+  String get notion_autoSyncDesc => '默認關閉。開啟後收藏話題或單條帖子時會自動同步到 Notion。';
+
+  @override
+  String get notion_syncScope => '話題同步範圍';
+
+  @override
+  String get notion_tokenSecurityNote =>
+      'Integration Token 會按帳號保存在本機偏好設定中，請只在受信任設備上使用。';
+
+  @override
+  String get notion_fillTokenAndDb => '請填寫 Integration Token 和 Database ID';
+
+  @override
+  String notion_testOk(Object title) {
+    return '連接成功：$title';
+  }
+
+  @override
+  String notion_testFailed(Object error) {
+    return '連接失敗：$error';
+  }
+
+  @override
+  String get notion_disconnected => '已斷開 Notion 配置';
+
+  @override
+  String get notion_tokenRequired => '請先填寫 Integration Token';
+
+  @override
+  String get notion_databaseCreated => '模板 Database 已建立';
+
+  @override
+  String notion_dbCreateFailed(Object error) {
+    return '建立 Database 失敗：$error';
+  }
+
+  @override
+  String get notion_pickParentPage => '父頁面 ID';
+
+  @override
+  String get notion_pickParentPageHint =>
+      '填寫一個已分享給該 Integration 的 Notion 頁面 ID，用於在其下建立模板 Database。';
+
+  @override
+  String get notion_configured => 'Notion 已配置';
+
+  @override
+  String get notion_editConfig => '修改';
+
+  @override
+  String get notion_upgradeAvailable => 'Database 可升級';
+
+  @override
+  String get notion_upgradeMessage =>
+      '當前 Database 缺少 Post ID 欄位。升級後可按話題和帖子雙鍵去重。';
+
+  @override
+  String get notion_upgradeAction => '升級欄位';
+
+  @override
+  String get notion_upgradeSucceed => 'Database 已升級';
+
+  @override
+  String notion_upgradeFailed(Object error) {
+    return 'Database 升級失敗：$error';
+  }
+
+  @override
+  String get notion_notConfigured =>
+      '請先配置 Notion Integration Token 和 Database ID。';
+
+  @override
+  String get notion_duplicateTitle => '已存在同步頁面';
+
+  @override
+  String get notion_duplicateMessage => '這個話題已經同步到 Notion。你可以跳過，或歸檔舊頁面後重新建立。';
+
+  @override
+  String get notion_duplicateSkip => '跳過';
+
+  @override
+  String get notion_duplicateOverwrite => '重新建立';
+
+  @override
+  String get notion_syncing => '正在同步到 Notion';
+
+  @override
+  String notion_syncingFetch(int current, int total) {
+    return '抓取帖子 $current/$total';
+  }
+
+  @override
+  String get notion_syncingConvert => '轉換為 Notion blocks';
+
+  @override
+  String get notion_syncingCreate => '建立 Notion 頁面';
+
+  @override
+  String notion_syncingAppend(int current, int total) {
+    return '追加內容 $current/$total';
+  }
+
+  @override
+  String get notion_syncSucceed => '已同步到 Notion';
+
+  @override
+  String notion_syncFailed(Object error) {
+    return 'Notion 同步失敗：$error';
+  }
+
+  @override
   String get nested_flatView => '切換平鋪視圖';
 
   @override
@@ -9834,6 +10162,24 @@ class AppLocalizationsZhHk extends AppLocalizationsZh {
 
   @override
   String get vote_voted => '已投票';
+
+  @override
+  String get sharedIssue_label => '俺也一樣';
+
+  @override
+  String get sharedIssue_title => '我也遇到了這個問題';
+
+  @override
+  String get sharedIssue_authorTitle => '這是你建立的話題';
+
+  @override
+  String get sharedIssue_marked => '已標記「俺也一樣」';
+
+  @override
+  String get sharedIssue_unmarked => '已取消「俺也一樣」';
+
+  @override
+  String get sharedIssue_rateLimited => '操作太頻繁，請稍後再試';
 
   @override
   String get preheat_logoutConfirm => '確定要退出當前賬號嗎？退出後將清除本地登錄信息。';
@@ -15432,6 +15778,161 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get notifications_title => '通知';
 
   @override
+  String get notion_title => 'Notion 同步';
+
+  @override
+  String get notion_subtitle => '將貼文或話題同步到你的 Notion Database。';
+
+  @override
+  String get notion_disconnect => '斷開';
+
+  @override
+  String get notion_step1Title => '建立 Notion Integration';
+
+  @override
+  String get notion_step1Body =>
+      '在 Notion 建立內部整合並複製 Integration Token，然後把目標頁面分享給該整合。';
+
+  @override
+  String get notion_openIntegrationsPage => '開啟 Notion 整合頁面';
+
+  @override
+  String get notion_tokenSection => 'Integration Token';
+
+  @override
+  String get notion_step2Title => '選擇或建立 Database';
+
+  @override
+  String get notion_step2Body =>
+      '填寫目標 Database ID，或輸入父頁面 ID 後由 FluxDO 建立模板 Database。';
+
+  @override
+  String get notion_databaseSection => 'Database ID';
+
+  @override
+  String get notion_createTemplateDb => '建立模板 Database';
+
+  @override
+  String get notion_saveAndTest => '儲存並測試連線';
+
+  @override
+  String get notion_syncOptions => '同步選項';
+
+  @override
+  String get notion_autoSyncOnBookmark => '收藏後自動同步';
+
+  @override
+  String get notion_autoSyncDesc => '預設關閉。開啟後收藏話題或單則貼文時會自動同步到 Notion。';
+
+  @override
+  String get notion_syncScope => '話題同步範圍';
+
+  @override
+  String get notion_tokenSecurityNote =>
+      'Integration Token 會按帳號保存在本機偏好設定中，請只在受信任裝置上使用。';
+
+  @override
+  String get notion_fillTokenAndDb => '請填寫 Integration Token 和 Database ID';
+
+  @override
+  String notion_testOk(Object title) {
+    return '連線成功：$title';
+  }
+
+  @override
+  String notion_testFailed(Object error) {
+    return '連線失敗：$error';
+  }
+
+  @override
+  String get notion_disconnected => '已斷開 Notion 設定';
+
+  @override
+  String get notion_tokenRequired => '請先填寫 Integration Token';
+
+  @override
+  String get notion_databaseCreated => '模板 Database 已建立';
+
+  @override
+  String notion_dbCreateFailed(Object error) {
+    return '建立 Database 失敗：$error';
+  }
+
+  @override
+  String get notion_pickParentPage => '父頁面 ID';
+
+  @override
+  String get notion_pickParentPageHint =>
+      '填寫一個已分享給該 Integration 的 Notion 頁面 ID，用於在其下建立模板 Database。';
+
+  @override
+  String get notion_configured => 'Notion 已設定';
+
+  @override
+  String get notion_editConfig => '修改';
+
+  @override
+  String get notion_upgradeAvailable => 'Database 可升級';
+
+  @override
+  String get notion_upgradeMessage =>
+      '目前 Database 缺少 Post ID 欄位。升級後可按話題和貼文雙鍵去重。';
+
+  @override
+  String get notion_upgradeAction => '升級欄位';
+
+  @override
+  String get notion_upgradeSucceed => 'Database 已升級';
+
+  @override
+  String notion_upgradeFailed(Object error) {
+    return 'Database 升級失敗：$error';
+  }
+
+  @override
+  String get notion_notConfigured =>
+      '請先設定 Notion Integration Token 和 Database ID。';
+
+  @override
+  String get notion_duplicateTitle => '已存在同步頁面';
+
+  @override
+  String get notion_duplicateMessage => '這個話題已經同步到 Notion。你可以跳過，或封存舊頁面後重新建立。';
+
+  @override
+  String get notion_duplicateSkip => '跳過';
+
+  @override
+  String get notion_duplicateOverwrite => '重新建立';
+
+  @override
+  String get notion_syncing => '正在同步到 Notion';
+
+  @override
+  String notion_syncingFetch(int current, int total) {
+    return '抓取貼文 $current/$total';
+  }
+
+  @override
+  String get notion_syncingConvert => '轉換為 Notion blocks';
+
+  @override
+  String get notion_syncingCreate => '建立 Notion 頁面';
+
+  @override
+  String notion_syncingAppend(int current, int total) {
+    return '追加內容 $current/$total';
+  }
+
+  @override
+  String get notion_syncSucceed => '已同步到 Notion';
+
+  @override
+  String notion_syncFailed(Object error) {
+    return 'Notion 同步失敗：$error';
+  }
+
+  @override
   String get nested_flatView => '切換平鋪檢視';
 
   @override
@@ -15772,6 +16273,24 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get vote_voted => '已投票';
+
+  @override
+  String get sharedIssue_label => '俺也一樣';
+
+  @override
+  String get sharedIssue_title => '我也遇到了這個問題';
+
+  @override
+  String get sharedIssue_authorTitle => '這是你建立的話題';
+
+  @override
+  String get sharedIssue_marked => '已標記「俺也一樣」';
+
+  @override
+  String get sharedIssue_unmarked => '已取消「俺也一樣」';
+
+  @override
+  String get sharedIssue_rateLimited => '操作太頻繁，請稍後再試';
 
   @override
   String get preheat_logoutConfirm => '確定要退出當前賬號嗎？退出後將清除本地登入資訊。';

@@ -44,7 +44,7 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
   final ScrollController _tabScrollController = ScrollController();
   final GlobalKey _contentAreaKey = GlobalKey();
   List<GlobalKey> _groupKeys = [];
-  int _activeGroupIndex = 0;
+  final ValueNotifier<int> _activeGroupIndex = ValueNotifier<int>(0);
   bool _isProgrammaticScroll = false;
   bool _scrollThrottled = false;
 
@@ -60,6 +60,7 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
 
   @override
   void dispose() {
+    _activeGroupIndex.dispose();
     _scrollController.dispose();
     _tabScrollController.dispose();
     super.dispose();
@@ -122,8 +123,8 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
         activeIndex = i;
       }
     }
-    if (_activeGroupIndex != activeIndex) {
-      setState(() => _activeGroupIndex = activeIndex);
+    if (_activeGroupIndex.value != activeIndex) {
+      _activeGroupIndex.value = activeIndex;
       _ensureTabVisible(activeIndex);
     }
   }
@@ -133,7 +134,7 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
     final ctx = _groupKeys[index].currentContext;
     if (ctx == null) return;
     _isProgrammaticScroll = true;
-    setState(() => _activeGroupIndex = index);
+    _activeGroupIndex.value = index;
     _ensureTabVisible(index);
     await Scrollable.ensureVisible(
       ctx,
@@ -232,8 +233,9 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
   }
 
   Widget _buildContent(Map<String, List<Emoji>> emojiGroups) {
-    if (emojiGroups.isEmpty)
+    if (emojiGroups.isEmpty) {
       return Center(child: Text(S.current.emoji_notFound));
+    }
 
     // 构建最近使用的表情（使用快照）
     final recentEmojis = <Emoji>[];
@@ -270,7 +272,7 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
           key: _contentAreaKey,
           child: CustomScrollView(
             controller: _scrollController,
-            cacheExtent: 500,
+            cacheExtent: 1500,
             slivers: _buildSlivers(
               emojiGroups,
               groupKeys,
@@ -293,97 +295,111 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
     const tabSlotWidth = 40.0;
     const tabWidth = 36.0;
     const tabMargin = 2.0;
-    final activeIndex = _activeGroupIndex.clamp(0, totalTabs - 1);
 
-    return Row(
-      children: [
-        IconButton(
-          icon: Icon(Icons.search, size: 20, color: theme.colorScheme.primary),
-          onPressed: () => _showSearchDialog(context, emojiGroups),
-          tooltip: S.current.emoji_searchTooltip,
-        ),
-        Container(
-          height: 20,
-          width: 1,
-          color: theme.colorScheme.outlineVariant,
-        ),
-        Expanded(
-          child: SizedBox(
-            height: 40,
-            child: SingleChildScrollView(
-              controller: _tabScrollController,
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: SizedBox(
-                width: totalTabs * tabSlotWidth,
-                height: 40,
-                child: Stack(
-                  children: [
-                    // 滑动指示器
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                      left: activeIndex * tabSlotWidth + tabMargin,
-                      top: 4,
-                      bottom: 4,
-                      width: tabWidth,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primaryContainer.withValues(
-                            alpha: 0.5,
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                    // Tab 图标
-                    Row(
-                      children: List.generate(totalTabs, (index) {
-                        Widget icon;
-                        if (hasRecent && index == 0) {
-                          icon = Icon(
-                            Icons.access_time,
-                            size: 20,
-                            color: activeIndex == index
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.onSurfaceVariant,
-                          );
-                        } else {
-                          final groupIndex = hasRecent ? index - 1 : index;
-                          final firstEmoji =
-                              emojiGroups[groupKeys[groupIndex]]!.first;
-                          icon = CachedImage(
-                            url: EmojiHandler().getEmojiUrl(firstEmoji.name),
-                            width: 24,
-                            height: 24,
-                            memCacheWidth: 48,
-                            memCacheHeight: 48,
-                            fit: BoxFit.contain,
-                            cacheManager: EmojiCacheManager(),
-                          );
-                        }
-                        return GestureDetector(
-                          onTap: () => _scrollToGroup(index),
-                          child: SizedBox(
-                            width: tabSlotWidth,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: tabMargin,
-                                vertical: 4,
+    return RepaintBoundary(
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(
+              Icons.search,
+              size: 20,
+              color: theme.colorScheme.primary,
+            ),
+            onPressed: () => _showSearchDialog(context, emojiGroups),
+            tooltip: S.current.emoji_searchTooltip,
+          ),
+          Container(
+            height: 20,
+            width: 1,
+            color: theme.colorScheme.outlineVariant,
+          ),
+          Expanded(
+            child: SizedBox(
+              height: 40,
+              child: SingleChildScrollView(
+                controller: _tabScrollController,
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: SizedBox(
+                  width: totalTabs * tabSlotWidth,
+                  height: 40,
+                  child: Stack(
+                    children: [
+                      ValueListenableBuilder<int>(
+                        valueListenable: _activeGroupIndex,
+                        builder: (_, raw, _) {
+                          final activeIndex = raw.clamp(0, totalTabs - 1);
+                          return AnimatedPositioned(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOut,
+                            left: activeIndex * tabSlotWidth + tabMargin,
+                            top: 4,
+                            bottom: 4,
+                            width: tabWidth,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer
+                                    .withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Center(child: icon),
                             ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ],
+                          );
+                        },
+                      ),
+                      Row(
+                        children: List.generate(totalTabs, (index) {
+                          Widget icon;
+                          if (hasRecent && index == 0) {
+                            icon = ValueListenableBuilder<int>(
+                              valueListenable: _activeGroupIndex,
+                              builder: (_, raw, _) {
+                                final activeIndex = raw.clamp(0, totalTabs - 1);
+                                return Icon(
+                                  Icons.access_time,
+                                  size: 20,
+                                  color: activeIndex == index
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurfaceVariant,
+                                );
+                              },
+                            );
+                          } else {
+                            final groupIndex = hasRecent ? index - 1 : index;
+                            final firstEmoji =
+                                emojiGroups[groupKeys[groupIndex]]!.first;
+                            icon = CachedImage(
+                              url: EmojiHandler().getEmojiUrl(firstEmoji.name),
+                              width: 24,
+                              height: 24,
+                              memCacheWidth: 48,
+                              memCacheHeight: 48,
+                              fit: BoxFit.contain,
+                              cacheManager: EmojiCacheManager(),
+                            );
+                          }
+                          return GestureDetector(
+                            onTap: () => _scrollToGroup(index),
+                            child: SizedBox(
+                              width: tabSlotWidth,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: tabMargin,
+                                  vertical: 4,
+                                ),
+                                child: Center(child: icon),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

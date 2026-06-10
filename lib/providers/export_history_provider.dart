@@ -18,7 +18,7 @@ String _sanitizeExportHistoryAccount(String? username) {
 
 class ExportHistoryNotifier extends StateNotifier<List<ExportHistoryItem>> {
   ExportHistoryNotifier(this._prefs, this._storageKey)
-      : super(_load(_prefs, _storageKey));
+    : super(_load(_prefs, _storageKey));
 
   final SharedPreferences _prefs;
   final String _storageKey;
@@ -33,9 +33,9 @@ class ExportHistoryNotifier extends StateNotifier<List<ExportHistoryItem>> {
       final decoded = jsonDecode(raw) as List<dynamic>;
       return decoded
           .whereType<Map>()
-          .map((item) => item.map(
-                (key, value) => MapEntry(key.toString(), value),
-              ))
+          .map(
+            (item) => item.map((key, value) => MapEntry(key.toString(), value)),
+          )
           .map(ExportHistoryItem.fromJson)
           .where((item) => item.id.isNotEmpty)
           .toList(growable: false);
@@ -70,11 +70,11 @@ class ExportHistoryNotifier extends StateNotifier<List<ExportHistoryItem>> {
 }
 
 final exportHistoryProvider =
-    StateNotifierProvider<ExportHistoryNotifier, List<ExportHistoryItem>>(
-  (ref) {
-    final prefs = ref.watch(sharedPreferencesProvider);
-    final username = ref.watch(currentUserProvider).value?.username;
-    final account = _sanitizeExportHistoryAccount(username);
-    return ExportHistoryNotifier(prefs, 'export_history_$account');
-  },
-);
+    StateNotifierProvider<ExportHistoryNotifier, List<ExportHistoryItem>>((
+      ref,
+    ) {
+      final prefs = ref.watch(sharedPreferencesProvider);
+      final username = ref.watch(currentUserProvider).value?.username;
+      final account = _sanitizeExportHistoryAccount(username);
+      return ExportHistoryNotifier(prefs, 'export_history_$account');
+    });

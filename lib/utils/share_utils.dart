@@ -10,7 +10,7 @@ import '../l10n/s.dart';
 import '../services/toast_service.dart';
 import 'platform_utils.dart';
 
-enum ShareOutcomeType { shared, saved, cancelled }
+enum ShareOutcomeType { shared, saved, cancelled, notion }
 
 class ShareOutcome {
   const ShareOutcome({required this.type, this.path});

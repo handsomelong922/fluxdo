@@ -1,0 +1,113 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+/// 极光环境背景，用于 onboarding / 登录页等品牌页面。
+class AmbientBackground extends StatefulWidget {
+  const AmbientBackground({super.key, this.child});
+
+  final Widget? child;
+
+  @override
+  State<AmbientBackground> createState() => _AmbientBackgroundState();
+}
+
+class _AmbientBackgroundState extends State<AmbientBackground>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 20),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primary = theme.colorScheme.primary;
+    final secondary = theme.colorScheme.secondary;
+
+    return ColoredBox(
+      color: theme.colorScheme.surface,
+      child: Stack(
+        children: [
+          Positioned(
+            top: -100,
+            left: -100,
+            child: _AnimatedBlob(
+              color: primary.withValues(alpha: isDark ? 0.15 : 0.08),
+              size: 400,
+              controller: _controller,
+              offset: 0,
+            ),
+          ),
+          Positioned(
+            bottom: -100,
+            right: -100,
+            child: _AnimatedBlob(
+              color: secondary.withValues(alpha: isDark ? 0.15 : 0.08),
+              size: 350,
+              controller: _controller,
+              offset: math.pi,
+            ),
+          ),
+          if (isDark)
+            Positioned.fill(
+              child: ColoredBox(color: Colors.black.withValues(alpha: 0.2)),
+            ),
+          if (widget.child != null) Positioned.fill(child: widget.child!),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnimatedBlob extends StatelessWidget {
+  const _AnimatedBlob({
+    required this.color,
+    required this.size,
+    required this.controller,
+    required this.offset,
+  });
+
+  final Color color;
+  final double size;
+  final AnimationController controller;
+  final double offset;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, child) {
+        final angle = controller.value * 2 * math.pi + offset;
+        return Transform.translate(
+          offset: Offset(30 * math.cos(angle), 30 * math.sin(angle)),
+          child: child,
+        );
+      },
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color,
+          boxShadow: [
+            BoxShadow(color: color, blurRadius: 100, spreadRadius: 50),
+          ],
+        ),
+      ),
+    );
+  }
+}

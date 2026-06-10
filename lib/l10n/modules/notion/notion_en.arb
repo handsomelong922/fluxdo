@@ -1,0 +1,92 @@
+{
+  "notion_title": "Notion Sync",
+  "notion_subtitle": "Sync posts or topics to your Notion database.",
+  "notion_disconnect": "Disconnect",
+  "notion_step1Title": "Create a Notion integration",
+  "notion_step1Body": "Create an internal Notion integration, copy its Integration Token, then share the target page with the integration.",
+  "notion_openIntegrationsPage": "Open integrations",
+  "notion_tokenSection": "Integration Token",
+  "notion_step2Title": "Select or create a database",
+  "notion_step2Body": "Enter the target Database ID, or provide a parent page ID and let FluxDO create a template database.",
+  "notion_databaseSection": "Database ID",
+  "notion_createTemplateDb": "Create template database",
+  "notion_saveAndTest": "Save and test",
+  "notion_syncOptions": "Sync options",
+  "notion_autoSyncOnBookmark": "Auto-sync after bookmarking",
+  "notion_autoSyncDesc": "Off by default. When enabled, bookmarked topics or posts are synced to Notion automatically.",
+  "notion_syncScope": "Topic sync scope",
+  "notion_tokenSecurityNote": "The Integration Token is stored per account in local preferences. Use this only on trusted devices.",
+  "notion_fillTokenAndDb": "Enter both Integration Token and Database ID",
+  "notion_testOk": "Connected: {title}",
+  "@notion_testOk": {
+    "placeholders": {
+      "title": {}
+    }
+  },
+  "notion_testFailed": "Connection failed: {error}",
+  "@notion_testFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "notion_disconnected": "Notion configuration disconnected",
+  "notion_tokenRequired": "Enter the Integration Token first",
+  "notion_databaseCreated": "Template database created",
+  "notion_dbCreateFailed": "Failed to create database: {error}",
+  "@notion_dbCreateFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "notion_pickParentPage": "Parent page ID",
+  "notion_pickParentPageHint": "Enter a Notion page ID shared with this integration. The template database will be created under it.",
+  "notion_configured": "Notion is configured",
+  "notion_editConfig": "Edit",
+  "notion_upgradeAvailable": "Database upgrade available",
+  "notion_upgradeMessage": "This database is missing the Post ID property. Upgrade it to deduplicate by topic and post.",
+  "notion_upgradeAction": "Upgrade",
+  "notion_upgradeSucceed": "Database upgraded",
+  "notion_upgradeFailed": "Database upgrade failed: {error}",
+  "@notion_upgradeFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "notion_notConfigured": "Configure the Notion Integration Token and Database ID first.",
+  "notion_duplicateTitle": "Page already exists",
+  "notion_duplicateMessage": "This topic already has a Notion page. You can skip it, or archive the old page and create a new one.",
+  "notion_duplicateSkip": "Skip",
+  "notion_duplicateOverwrite": "Recreate",
+  "notion_syncing": "Syncing to Notion",
+  "notion_syncingFetch": "Fetching posts {current}/{total}",
+  "@notion_syncingFetch": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "notion_syncingConvert": "Converting to Notion blocks",
+  "notion_syncingCreate": "Creating Notion page",
+  "notion_syncingAppend": "Appending blocks {current}/{total}",
+  "@notion_syncingAppend": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "notion_syncSucceed": "Synced to Notion",
+  "notion_syncFailed": "Notion sync failed: {error}",
+  "@notion_syncFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  }
+}

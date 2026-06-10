@@ -53,6 +53,11 @@
     send(payload);
   }
 
+  // es-module-shims 会创建 about:blank iframe 评估模块。stub frame 不跑探针、
+  // 不发 lifecycle 信号，只保留错误捕获，避免 native bridge 被刷爆。
+  var isStubFrame =
+    location.href === 'about:blank' || location.href === 'about:srcdoc';
+
   // ===== 1) 启动期自检：lifecycle 信号 + API 探针 =====
   // 用 typeof 防御未定义的全局 (Iterator / AbortSignal 等老 WebKit 可能没有)。
   function probe(getter) {
@@ -62,6 +67,7 @@
       return false;
     }
   }
+  if (!isStubFrame) {
   var probes = {
     // ES2022 (Safari 15.4)
     'Object.hasOwn': probe(function () { return typeof Object.hasOwn === 'function'; }),
@@ -114,6 +120,54 @@
     url: location.href,
     ua: navigator.userAgent,
   });
+
+  // ===== Discourse boot 阶段追踪 =====
+  function bootMark(stage, extra) {
+    send({
+      source: 'lifecycle',
+      message: 'discourse_boot_' + stage,
+      stage: stage,
+      url: location.href,
+      ua: navigator.userAgent,
+      extra: extra || null,
+    });
+  }
+  var bootStages = { dom: false, load: false, init: false, ready: false };
+  function track(stage, extra) {
+    if (bootStages[stage]) return;
+    bootStages[stage] = true;
+    bootMark(stage, extra);
+  }
+  try {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () { track('dom'); }, { once: true });
+    } else {
+      track('dom', 'already-' + document.readyState);
+    }
+    if (document.readyState !== 'complete') {
+      window.addEventListener('load', function () { track('load'); }, { once: true });
+    } else {
+      track('load', 'already-complete');
+    }
+    document.addEventListener('discourse-init', function () { track('init'); }, { once: true });
+    var splashWatch = setInterval(function () {
+      if (!document.querySelector('#d-splash')) {
+        clearInterval(splashWatch);
+        track('ready');
+      }
+    }, 500);
+    setTimeout(function () {
+      clearInterval(splashWatch);
+      send({
+        source: 'lifecycle',
+        message: 'discourse_boot_status_30s',
+        stages: bootStages,
+        hasSplash: !!document.querySelector('#d-splash'),
+        url: location.href,
+      });
+    }, 30000);
+  } catch (_) {}
+  }
 
   // ===== 2) console.error 拦截 — 突破跨域 sanitization =====
   try {

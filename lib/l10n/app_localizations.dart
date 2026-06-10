@@ -6424,6 +6424,276 @@ abstract class AppLocalizations {
   /// **'通知'**
   String get notifications_title;
 
+  /// No description provided for @notion_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'Notion 同步'**
+  String get notion_title;
+
+  /// No description provided for @notion_subtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'将帖子或话题同步到你的 Notion Database。'**
+  String get notion_subtitle;
+
+  /// No description provided for @notion_disconnect.
+  ///
+  /// In zh, this message translates to:
+  /// **'断开'**
+  String get notion_disconnect;
+
+  /// No description provided for @notion_step1Title.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建 Notion Integration'**
+  String get notion_step1Title;
+
+  /// No description provided for @notion_step1Body.
+  ///
+  /// In zh, this message translates to:
+  /// **'在 Notion 创建内部集成并复制 Integration Token，然后把目标页面分享给该集成。'**
+  String get notion_step1Body;
+
+  /// No description provided for @notion_openIntegrationsPage.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开 Notion 集成页面'**
+  String get notion_openIntegrationsPage;
+
+  /// No description provided for @notion_tokenSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'Integration Token'**
+  String get notion_tokenSection;
+
+  /// No description provided for @notion_step2Title.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择或创建 Database'**
+  String get notion_step2Title;
+
+  /// No description provided for @notion_step2Body.
+  ///
+  /// In zh, this message translates to:
+  /// **'填写目标 Database ID，或输入父页面 ID 后由 FluxDO 创建模板 Database。'**
+  String get notion_step2Body;
+
+  /// No description provided for @notion_databaseSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'Database ID'**
+  String get notion_databaseSection;
+
+  /// No description provided for @notion_createTemplateDb.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建模板 Database'**
+  String get notion_createTemplateDb;
+
+  /// No description provided for @notion_saveAndTest.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存并测试连接'**
+  String get notion_saveAndTest;
+
+  /// No description provided for @notion_syncOptions.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步选项'**
+  String get notion_syncOptions;
+
+  /// No description provided for @notion_autoSyncOnBookmark.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏后自动同步'**
+  String get notion_autoSyncOnBookmark;
+
+  /// No description provided for @notion_autoSyncDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认关闭。开启后收藏话题或单条帖子时会自动同步到 Notion。'**
+  String get notion_autoSyncDesc;
+
+  /// No description provided for @notion_syncScope.
+  ///
+  /// In zh, this message translates to:
+  /// **'话题同步范围'**
+  String get notion_syncScope;
+
+  /// No description provided for @notion_tokenSecurityNote.
+  ///
+  /// In zh, this message translates to:
+  /// **'Integration Token 会按账号保存在本机偏好设置中，请只在受信任设备上使用。'**
+  String get notion_tokenSecurityNote;
+
+  /// No description provided for @notion_fillTokenAndDb.
+  ///
+  /// In zh, this message translates to:
+  /// **'请填写 Integration Token 和 Database ID'**
+  String get notion_fillTokenAndDb;
+
+  /// No description provided for @notion_testOk.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接成功：{title}'**
+  String notion_testOk(Object title);
+
+  /// No description provided for @notion_testFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接失败：{error}'**
+  String notion_testFailed(Object error);
+
+  /// No description provided for @notion_disconnected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已断开 Notion 配置'**
+  String get notion_disconnected;
+
+  /// No description provided for @notion_tokenRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先填写 Integration Token'**
+  String get notion_tokenRequired;
+
+  /// No description provided for @notion_databaseCreated.
+  ///
+  /// In zh, this message translates to:
+  /// **'模板 Database 已创建'**
+  String get notion_databaseCreated;
+
+  /// No description provided for @notion_dbCreateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建 Database 失败：{error}'**
+  String notion_dbCreateFailed(Object error);
+
+  /// No description provided for @notion_pickParentPage.
+  ///
+  /// In zh, this message translates to:
+  /// **'父页面 ID'**
+  String get notion_pickParentPage;
+
+  /// No description provided for @notion_pickParentPageHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'填写一个已分享给该 Integration 的 Notion 页面 ID，用于在其下创建模板 Database。'**
+  String get notion_pickParentPageHint;
+
+  /// No description provided for @notion_configured.
+  ///
+  /// In zh, this message translates to:
+  /// **'Notion 已配置'**
+  String get notion_configured;
+
+  /// No description provided for @notion_editConfig.
+  ///
+  /// In zh, this message translates to:
+  /// **'修改'**
+  String get notion_editConfig;
+
+  /// No description provided for @notion_upgradeAvailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'Database 可升级'**
+  String get notion_upgradeAvailable;
+
+  /// No description provided for @notion_upgradeMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前 Database 缺少 Post ID 字段。升级后可按话题和帖子双键去重。'**
+  String get notion_upgradeMessage;
+
+  /// No description provided for @notion_upgradeAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'升级字段'**
+  String get notion_upgradeAction;
+
+  /// No description provided for @notion_upgradeSucceed.
+  ///
+  /// In zh, this message translates to:
+  /// **'Database 已升级'**
+  String get notion_upgradeSucceed;
+
+  /// No description provided for @notion_upgradeFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'Database 升级失败：{error}'**
+  String notion_upgradeFailed(Object error);
+
+  /// No description provided for @notion_notConfigured.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先配置 Notion Integration Token 和 Database ID。'**
+  String get notion_notConfigured;
+
+  /// No description provided for @notion_duplicateTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'已存在同步页面'**
+  String get notion_duplicateTitle;
+
+  /// No description provided for @notion_duplicateMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个话题已经同步到 Notion。你可以跳过，或归档旧页面后重新创建。'**
+  String get notion_duplicateMessage;
+
+  /// No description provided for @notion_duplicateSkip.
+  ///
+  /// In zh, this message translates to:
+  /// **'跳过'**
+  String get notion_duplicateSkip;
+
+  /// No description provided for @notion_duplicateOverwrite.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新创建'**
+  String get notion_duplicateOverwrite;
+
+  /// No description provided for @notion_syncing.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在同步到 Notion'**
+  String get notion_syncing;
+
+  /// No description provided for @notion_syncingFetch.
+  ///
+  /// In zh, this message translates to:
+  /// **'抓取帖子 {current}/{total}'**
+  String notion_syncingFetch(int current, int total);
+
+  /// No description provided for @notion_syncingConvert.
+  ///
+  /// In zh, this message translates to:
+  /// **'转换为 Notion blocks'**
+  String get notion_syncingConvert;
+
+  /// No description provided for @notion_syncingCreate.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建 Notion 页面'**
+  String get notion_syncingCreate;
+
+  /// No description provided for @notion_syncingAppend.
+  ///
+  /// In zh, this message translates to:
+  /// **'追加内容 {current}/{total}'**
+  String notion_syncingAppend(int current, int total);
+
+  /// No description provided for @notion_syncSucceed.
+  ///
+  /// In zh, this message translates to:
+  /// **'已同步到 Notion'**
+  String get notion_syncSucceed;
+
+  /// No description provided for @notion_syncFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'Notion 同步失败：{error}'**
+  String notion_syncFailed(Object error);
+
   /// No description provided for @boost_created.
   ///
   /// In zh, this message translates to:
@@ -7113,6 +7383,42 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已投票'**
   String get vote_voted;
+
+  /// No description provided for @sharedIssue_label.
+  ///
+  /// In zh, this message translates to:
+  /// **'俺也一样'**
+  String get sharedIssue_label;
+
+  /// No description provided for @sharedIssue_title.
+  ///
+  /// In zh, this message translates to:
+  /// **'我也遇到了这个问题'**
+  String get sharedIssue_title;
+
+  /// No description provided for @sharedIssue_authorTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'这是你创建的话题'**
+  String get sharedIssue_authorTitle;
+
+  /// No description provided for @sharedIssue_marked.
+  ///
+  /// In zh, this message translates to:
+  /// **'已标记“俺也一样”'**
+  String get sharedIssue_marked;
+
+  /// No description provided for @sharedIssue_unmarked.
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消“俺也一样”'**
+  String get sharedIssue_unmarked;
+
+  /// No description provided for @sharedIssue_rateLimited.
+  ///
+  /// In zh, this message translates to:
+  /// **'操作太频繁，请稍后再试'**
+  String get sharedIssue_rateLimited;
 
   /// No description provided for @preheat_logoutConfirm.
   ///

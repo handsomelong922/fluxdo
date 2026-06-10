@@ -21,6 +21,13 @@ extension _PostFooterBookmarkActions on _PostFooterSectionState {
         _bookmarkReminderAt = null;
       });
       ToastService.showSuccess(S.current.common_bookmarkAdded);
+      unawaited(
+        NotionBookmarkAutoSync.tryTriggerPost(
+          ref: ref,
+          topicId: widget.topicId,
+          postId: widget.post.id,
+        ),
+      );
 
       // 弹出编辑 BottomSheet
       _showBookmarkSheet(bookmarkId);
@@ -76,7 +83,9 @@ extension _PostFooterBookmarkActions on _PostFooterSectionState {
       context,
       bookmarkId: bookmarkId,
       initialName: isEdit ? (_bookmarkName ?? widget.post.bookmarkName) : null,
-      initialReminderAt: isEdit ? (_bookmarkReminderAt ?? widget.post.bookmarkReminderAt) : null,
+      initialReminderAt: isEdit
+          ? (_bookmarkReminderAt ?? widget.post.bookmarkReminderAt)
+          : null,
     );
 
     if (result == null || !mounted) return;
@@ -95,5 +104,4 @@ extension _PostFooterBookmarkActions on _PostFooterSectionState {
       });
     }
   }
-
 }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 import '../../../l10n/s.dart';
+import '../../cf_challenge_service.dart';
 import '../../toast_service.dart';
 import '../exceptions/api_exception.dart';
 
@@ -26,6 +27,13 @@ class ErrorInterceptor extends Interceptor {
       return;
     }
 
+    // CF 盾 403 交给 CfChallengeInterceptor 决定展示形态，避免先弹普通 403。
+    if (statusCode == 403 &&
+        CfChallengeService.isCfChallengeResponse(err.response)) {
+      handler.next(err);
+      return;
+    }
+
     // 判断是否显示错误提示：
     // 1. 如果 extra 中明确指定了 showErrorToast，使用指定的值
     // 2. 否则，操作性请求默认显示
@@ -38,7 +46,8 @@ class ErrorInterceptor extends Interceptor {
     final data = err.response?.data;
     if (data is Map<String, dynamic>) {
       // Discourse API 错误格式
-      errorMessage = data['error'] as String? ??
+      errorMessage =
+          data['error'] as String? ??
           (data['errors'] as List?)?.firstOrNull?.toString();
     }
 
@@ -55,7 +64,9 @@ class ErrorInterceptor extends Interceptor {
     }
     if (statusCode == 502 || statusCode == 503 || statusCode == 504) {
       if (showErrorToast) {
-        ToastService.showError(errorMessage ?? S.current.network_serverUnavailableRetry);
+        ToastService.showError(
+          errorMessage ?? S.current.network_serverUnavailableRetry,
+        );
       }
       throw ServerException(statusCode!);
     }
@@ -104,15 +115,17 @@ class ErrorInterceptor extends Interceptor {
       } catch (_) {}
     }
 
-    final resetValue = headers.value('x-ratelimit-reset') ??
+    final resetValue =
+        headers.value('x-ratelimit-reset') ??
         headers.value('ratelimit-reset') ??
         headers.value('x-rate-limit-reset') ??
         headers.value('X-RateLimit-Reset');
     final resetSeconds = int.tryParse(resetValue ?? '');
     if (resetSeconds != null && resetSeconds > 0) {
       final nowSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final delta =
-          resetSeconds > 1000000000 ? (resetSeconds - nowSeconds) : resetSeconds;
+      final delta = resetSeconds > 1000000000
+          ? (resetSeconds - nowSeconds)
+          : resetSeconds;
       if (delta > 0) return delta;
     }
     return null;

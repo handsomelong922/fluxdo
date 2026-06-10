@@ -53,7 +53,6 @@ class _StickerMarketSheetState extends ConsumerState<StickerMarketSheet> {
     final theme = Theme.of(context);
     final mediaQuery = MediaQuery.of(context);
     final groupsAsync = ref.watch(marketGroupsProvider);
-    final subscribedIds = ref.watch(subscribedStickerIdsProvider);
 
     return Container(
       height: mediaQuery.size.height * 0.8,
@@ -120,10 +119,10 @@ class _StickerMarketSheetState extends ConsumerState<StickerMarketSheet> {
             child: (() {
               final groups = groupsAsync.value;
               if (groups != null) {
-                return _buildGroupList(groups, subscribedIds);
+                return _buildGroupList(groups);
               }
               return groupsAsync.when(
-                data: (groups) => _buildGroupList(groups, subscribedIds),
+                data: (groups) => _buildGroupList(groups),
                 loading: () => const Center(child: LoadingSpinner()),
                 error: (err, stack) => _buildError(),
               );
@@ -156,10 +155,7 @@ class _StickerMarketSheetState extends ConsumerState<StickerMarketSheet> {
     );
   }
 
-  Widget _buildGroupList(
-    List<StickerGroup> groups,
-    List<String> subscribedIds,
-  ) {
+  Widget _buildGroupList(List<StickerGroup> groups) {
     if (groups.isEmpty) {
       return Center(
         child: Text(
@@ -171,14 +167,13 @@ class _StickerMarketSheetState extends ConsumerState<StickerMarketSheet> {
       );
     }
 
-    final subscribedSet = subscribedIds.toSet();
     final hasMore = ref.read(marketGroupsProvider.notifier).hasMore;
     final itemCount = groups.length + (hasMore ? 1 : 0);
 
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.symmetric(vertical: 8),
-      cacheExtent: 200,
+      cacheExtent: 1200,
       itemExtent: 72,
       itemCount: itemCount,
       itemBuilder: (context, index) {
@@ -196,20 +191,7 @@ class _StickerMarketSheetState extends ConsumerState<StickerMarketSheet> {
           );
         }
         final group = groups[index];
-        final isSubscribed = subscribedSet.contains(group.id);
-        return _StickerGroupTile(
-          key: ValueKey(group.id),
-          group: group,
-          isSubscribed: isSubscribed,
-          onToggle: () async {
-            final notifier = ref.read(subscribedStickerIdsProvider.notifier);
-            if (isSubscribed) {
-              await notifier.unsubscribe(group.id);
-            } else {
-              await notifier.subscribe(group.id);
-            }
-          },
-        );
+        return _StickerGroupTile(key: ValueKey(group.id), group: group);
       },
     );
   }
@@ -217,22 +199,27 @@ class _StickerMarketSheetState extends ConsumerState<StickerMarketSheet> {
 
 /// 市场中的分组列表项
 ///
-/// 保持纯渲染组件，避免滚动过程中为每个 item 额外触发 setState。
-class _StickerGroupTile extends StatelessWidget {
+/// 每个 tile 只监听自己的订阅状态，避免整个列表重建。
+class _StickerGroupTile extends ConsumerWidget {
   final StickerGroup group;
-  final bool isSubscribed;
-  final VoidCallback onToggle;
 
-  const _StickerGroupTile({
-    super.key,
-    required this.group,
-    required this.isSubscribed,
-    required this.onToggle,
-  });
+  const _StickerGroupTile({super.key, required this.group});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final isSubscribed = ref.watch(
+      subscribedStickerIdsProvider.select((ids) => ids.contains(group.id)),
+    );
+
+    Future<void> onToggle() async {
+      final notifier = ref.read(subscribedStickerIdsProvider.notifier);
+      if (isSubscribed) {
+        await notifier.unsubscribe(group.id);
+      } else {
+        await notifier.subscribe(group.id);
+      }
+    }
 
     return RepaintBoundary(
       child: ListTile(
@@ -283,6 +270,7 @@ class _StickerGroupTile extends StatelessWidget {
             height: 40,
             memCacheWidth: 80,
             memCacheHeight: 80,
+            thumbnailMode: true,
             fit: BoxFit.cover,
             cacheManager: StickerCacheManager(),
             placeholder: (_) => _buildFallbackIcon(theme),

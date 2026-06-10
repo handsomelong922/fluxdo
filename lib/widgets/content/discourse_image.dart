@@ -125,6 +125,9 @@ class _DiscourseImageState extends State<DiscourseImage> {
     Widget imageWidget;
     if (_isSvg) {
       imageWidget = _buildSvgImage(theme);
+    } else if (AvifImageProvider.isAvifUrl(_resolvedUrl!) ||
+        isNativeAnimatedUrl(_resolvedUrl!)) {
+      imageWidget = _buildProviderImage(theme);
     } else {
       imageWidget = _buildCachedImage(theme);
     }
@@ -136,13 +139,25 @@ class _DiscourseImageState extends State<DiscourseImage> {
 
     // Lightbox
     if (widget.enableLightbox && !_isSvg) {
-      return GestureDetector(
-        onTap: _openLightbox,
-        child: imageWidget,
-      );
+      return GestureDetector(onTap: _openLightbox, child: imageWidget);
     }
 
     return imageWidget;
+  }
+
+  Widget _buildProviderImage(ThemeData theme) {
+    return Image(
+      image: discourseImageProvider(_resolvedUrl!),
+      width: widget.width,
+      height: widget.height,
+      fit: widget.fit,
+      gaplessPlayback: true,
+      frameBuilder: (context, displayChild, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded || frame != null) return displayChild;
+        return _buildPlaceholder(theme);
+      },
+      errorBuilder: (context, error, stack) => _buildErrorWidget(theme),
+    );
   }
 
   Widget _buildCachedImage(ThemeData theme) {
@@ -255,10 +270,11 @@ class _DiscourseImageState extends State<DiscourseImage> {
       context,
       _resolvedUrl!,
       heroTag: widget.heroTag,
-      galleryImages: widget.galleryImages.isNotEmpty ? widget.galleryImages : null,
+      galleryImages: widget.galleryImages.isNotEmpty
+          ? widget.galleryImages
+          : null,
       initialIndex: widget.initialIndex,
       enableShare: true,
     );
   }
-
 }

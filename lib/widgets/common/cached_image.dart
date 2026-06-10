@@ -1,18 +1,19 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:native_animated_image/native_animated_image.dart'
+    show NativeAnimatedImageProvider;
 
-import '../../services/avif_image_provider.dart';
+import '../../services/discourse_cache_manager.dart';
+import '../../services/sticker_thumbnail_provider.dart';
 
 /// 统一的缓存网络图片组件
 ///
-/// 自动处理 AVIF 与普通格式。直接使用 Flutter [Image] + [frameBuilder]，
-/// 不依赖 OctoImage，避免每张图加载时创建 Stack + 2 FadeWidget +
-/// 2 AnimationController 的开销。
+/// 自动处理 AVIF、动图和普通格式。直接使用 Flutter [Image] + [frameBuilder]，
+/// 不依赖 OctoImage，避免每张图加载时创建多层动画包装。
 ///
-/// 当 AVIF 图片设置了 [memCacheWidth]/[memCacheHeight] 时，自动走
-/// PNG 缩略图缓存路径（只解码首帧 → 缩放 → 存 PNG），后续直接读取
-/// PNG 缓存，完全跳过 AV1 解码。未设置尺寸限制时 AVIF 正常播放动画。
+/// [thumbnailMode] 只用于 sticker/emoji grid：动图首帧会被缩放并缓存成 PNG，
+/// 普通帖子图片不要开启，否则动画会变成静态首帧。
 class CachedImage extends StatelessWidget {
   final String url;
   final double? width;
@@ -27,6 +28,9 @@ class CachedImage extends StatelessWidget {
   /// 后续直接走 Flutter 内置 PNG codec（毫秒级），完全跳过 AV1 解码。
   final int? memCacheWidth;
   final int? memCacheHeight;
+
+  /// 仅取第一帧并走 PNG 缩略图缓存。
+  final bool thumbnailMode;
 
   /// 图片加载中显示的占位组件
   final WidgetBuilder? placeholder;
@@ -49,6 +53,7 @@ class CachedImage extends StatelessWidget {
     this.cacheManager,
     this.memCacheWidth,
     this.memCacheHeight,
+    this.thumbnailMode = false,
     this.placeholder,
     this.errorBuilder,
     this.fadeInDuration = const Duration(milliseconds: 300),
@@ -57,32 +62,12 @@ class CachedImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isAvif = url.toLowerCase().endsWith('.avif');
     final hasTargetSize = memCacheWidth != null || memCacheHeight != null;
+    final targetSize = hasTargetSize
+        ? (memCacheWidth ?? memCacheHeight)!
+        : null;
 
-    ImageProvider provider;
-    if (isAvif) {
-      provider = AvifImageProvider(
-        url,
-        cacheManager: cacheManager,
-        // 有目标尺寸 → 首帧 + PNG 缓存（静态缩略图）
-        // 无目标尺寸 → 完整解码（支持动画）
-        singleFrame: hasTargetSize,
-        targetSize: hasTargetSize ? (memCacheWidth ?? memCacheHeight) : null,
-      );
-    } else {
-      provider = CachedNetworkImageProvider(
-        url,
-        cacheManager: cacheManager,
-      );
-      if (hasTargetSize) {
-        provider = ResizeImage(
-          provider,
-          width: memCacheWidth,
-          height: memCacheHeight,
-        );
-      }
-    }
+    final provider = _resolveProvider(hasTargetSize, targetSize);
 
     return Image(
       image: provider,
@@ -93,6 +78,53 @@ class CachedImage extends StatelessWidget {
       frameBuilder: placeholder != null ? _buildFrame : null,
       errorBuilder: errorBuilder ?? _defaultErrorBuilder,
     );
+  }
+
+  ImageProvider _resolveProvider(bool hasTargetSize, int? targetSize) {
+    if (thumbnailMode &&
+        hasTargetSize &&
+        StickerThumbnailProvider.supports(url)) {
+      return StickerThumbnailProvider(
+        url,
+        targetSize: targetSize!,
+        cacheManager: cacheManager,
+      );
+    }
+
+    final lower = url.toLowerCase();
+    if (lower.endsWith('.avif')) {
+      return AvifImageProvider(url, cacheManager: cacheManager);
+    }
+
+    if (lower.endsWith('.gif') ||
+        lower.endsWith('.webp') ||
+        lower.endsWith('.apng')) {
+      final cache = cacheManager ?? DiscourseCacheManager();
+      return NativeAnimatedImageProvider.fromBytesProvider(
+        loader: () async {
+          final file = await cache.getSingleFile(url);
+          final bytes = await file.readAsBytes();
+          if (bytes.isEmpty) {
+            throw Exception('empty image bytes: $url');
+          }
+          return bytes;
+        },
+        tag: url,
+      );
+    }
+
+    ImageProvider provider = CachedNetworkImageProvider(
+      url,
+      cacheManager: cacheManager,
+    );
+    if (hasTargetSize) {
+      provider = ResizeImage(
+        provider,
+        width: memCacheWidth,
+        height: memCacheHeight,
+      );
+    }
+    return provider;
   }
 
   Widget _buildFrame(

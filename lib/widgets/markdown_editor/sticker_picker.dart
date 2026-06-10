@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/sticker.dart';
 import '../../providers/sticker_provider.dart';
 import '../../services/discourse_cache_manager.dart';
+import '../../services/sticker_thumbnail_provider.dart';
 import '../../utils/dialog_utils.dart';
 import '../common/cached_image.dart';
 import '../common/loading_spinner.dart';
@@ -39,7 +40,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
   final ScrollController _tabScrollController = ScrollController();
   final GlobalKey _contentAreaKey = GlobalKey();
   List<GlobalKey> _groupKeys = [];
-  int _activeGroupIndex = 0;
+  final ValueNotifier<int> _activeGroupIndex = ValueNotifier<int>(0);
 
   /// 面板打开时快照，避免实时刷新影响体验
   List<StickerItem>? _recentSnapshot;
@@ -57,12 +58,16 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    stickerPanelOpened();
   }
 
   @override
   void dispose() {
+    stickerPanelClosed();
+    StickerThumbnailProvider.cancelInflight();
     _endPreview();
     _previewNotifier.dispose();
+    _activeGroupIndex.dispose();
     _scrollController.dispose();
     _tabScrollController.dispose();
     super.dispose();
@@ -111,8 +116,8 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
         activeIndex = i;
       }
     }
-    if (_activeGroupIndex != activeIndex) {
-      setState(() => _activeGroupIndex = activeIndex);
+    if (_activeGroupIndex.value != activeIndex) {
+      _activeGroupIndex.value = activeIndex;
       _ensureTabVisible(activeIndex);
     }
   }
@@ -122,7 +127,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
     final ctx = _groupKeys[index].currentContext;
     if (ctx == null) return;
     _isProgrammaticScroll = true;
-    setState(() => _activeGroupIndex = index);
+    _activeGroupIndex.value = index;
     _ensureTabVisible(index);
     await Scrollable.ensureVisible(
       ctx,
@@ -319,7 +324,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
           key: _contentAreaKey,
           child: CustomScrollView(
             controller: _scrollController,
-            cacheExtent: 500,
+            cacheExtent: 1500,
             slivers: _buildSlivers(groups, hasRecent, recentStickers),
           ),
         ),
@@ -333,91 +338,100 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
     const tabSlotWidth = 40.0;
     const tabWidth = 36.0;
     const tabMargin = 2.0;
-    final activeIndex = _activeGroupIndex.clamp(0, totalTabs - 1);
-
-    return Row(
-      children: [
-        Expanded(
-          child: SizedBox(
-            height: 40,
-            child: SingleChildScrollView(
-              controller: _tabScrollController,
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: SizedBox(
-                width: totalTabs * tabSlotWidth,
-                height: 40,
-                child: Stack(
-                  children: [
-                    // 滑动指示器
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                      left: activeIndex * tabSlotWidth + tabMargin,
-                      top: 4,
-                      bottom: 4,
-                      width: tabWidth,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primaryContainer.withValues(
-                            alpha: 0.5,
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                    // Tab 图标
-                    Row(
-                      children: List.generate(totalTabs, (index) {
-                        Widget icon;
-                        if (hasRecent && index == 0) {
-                          icon = Icon(
-                            Icons.access_time,
-                            size: 20,
-                            color: activeIndex == index
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.onSurfaceVariant,
-                          );
-                        } else {
-                          final group = groups[hasRecent ? index - 1 : index];
-                          icon = _buildGroupTabIcon(group);
-                        }
-                        return GestureDetector(
-                          onTap: () => _scrollToGroup(index),
-                          child: SizedBox(
-                            width: tabSlotWidth,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: tabMargin,
-                                vertical: 4,
+    return RepaintBoundary(
+      child: Row(
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: 40,
+              child: SingleChildScrollView(
+                controller: _tabScrollController,
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: SizedBox(
+                  width: totalTabs * tabSlotWidth,
+                  height: 40,
+                  child: Stack(
+                    children: [
+                      ValueListenableBuilder<int>(
+                        valueListenable: _activeGroupIndex,
+                        builder: (_, raw, _) {
+                          final activeIndex = raw.clamp(0, totalTabs - 1);
+                          return AnimatedPositioned(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOut,
+                            left: activeIndex * tabSlotWidth + tabMargin,
+                            top: 4,
+                            bottom: 4,
+                            width: tabWidth,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer
+                                    .withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Center(child: icon),
                             ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ],
+                          );
+                        },
+                      ),
+                      Row(
+                        children: List.generate(totalTabs, (index) {
+                          Widget icon;
+                          if (hasRecent && index == 0) {
+                            icon = ValueListenableBuilder<int>(
+                              valueListenable: _activeGroupIndex,
+                              builder: (_, raw, _) {
+                                final activeIndex = raw.clamp(0, totalTabs - 1);
+                                return Icon(
+                                  Icons.access_time,
+                                  size: 20,
+                                  color: activeIndex == index
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurfaceVariant,
+                                );
+                              },
+                            );
+                          } else {
+                            final group = groups[hasRecent ? index - 1 : index];
+                            icon = _buildGroupTabIcon(group);
+                          }
+                          return GestureDetector(
+                            onTap: () => _scrollToGroup(index),
+                            child: SizedBox(
+                              width: tabSlotWidth,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: tabMargin,
+                                  vertical: 4,
+                                ),
+                                child: Center(child: icon),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        Container(
-          height: 20,
-          width: 1,
-          color: theme.colorScheme.outlineVariant,
-        ),
-        IconButton(
-          icon: Icon(
-            Icons.add_circle_outline,
-            size: 20,
-            color: theme.colorScheme.primary,
+          Container(
+            height: 20,
+            width: 1,
+            color: theme.colorScheme.outlineVariant,
           ),
-          onPressed: _openMarket,
-          tooltip: S.current.sticker_addTooltip,
-        ),
-      ],
+          IconButton(
+            icon: Icon(
+              Icons.add_circle_outline,
+              size: 20,
+              color: theme.colorScheme.primary,
+            ),
+            onPressed: _openMarket,
+            tooltip: S.current.sticker_addTooltip,
+          ),
+        ],
+      ),
     );
   }
 
@@ -432,6 +446,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
           height: 24,
           memCacheWidth: 48,
           memCacheHeight: 48,
+          thumbnailMode: true,
           fit: BoxFit.cover,
           cacheManager: StickerCacheManager(),
           placeholder: (_) => _buildFallbackIcon(group.name),
@@ -641,33 +656,42 @@ class _StickerItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MetaData(
-      metaData: sticker,
-      behavior: HitTestBehavior.opaque,
-      child: GestureDetector(
-        onTap: onTap,
-        onLongPressStart: (_) {
-          final box = context.findRenderObject() as RenderBox;
-          final rect = box.localToGlobal(Offset.zero) & box.size;
-          onPreviewStart(sticker, rect);
-        },
-        onLongPressMoveUpdate: (details) {
-          onPreviewMove(details.globalPosition);
-        },
-        onLongPressEnd: (_) => onPreviewEnd(),
-        onLongPressCancel: onPreviewEnd,
-        child: Padding(
-          padding: const EdgeInsets.all(4.0),
-          child: CachedImage(
-            url: sticker.url,
-            fit: BoxFit.contain,
-            memCacheWidth: 160,
-            memCacheHeight: 160,
-            cacheManager: StickerCacheManager(),
-            errorBuilder: (_, _, _) => Icon(
-              Icons.broken_image_outlined,
-              size: 24,
-              color: Theme.of(context).colorScheme.outline,
+    return RepaintBoundary(
+      child: MetaData(
+        metaData: sticker,
+        behavior: HitTestBehavior.opaque,
+        child: GestureDetector(
+          onTap: onTap,
+          onLongPressStart: (_) {
+            final box = context.findRenderObject() as RenderBox;
+            final rect = box.localToGlobal(Offset.zero) & box.size;
+            onPreviewStart(sticker, rect);
+          },
+          onLongPressMoveUpdate: (details) {
+            onPreviewMove(details.globalPosition);
+          },
+          onLongPressEnd: (_) => onPreviewEnd(),
+          onLongPressCancel: onPreviewEnd,
+          child: Padding(
+            padding: const EdgeInsets.all(4.0),
+            child: CachedImage(
+              url: sticker.url,
+              fit: BoxFit.contain,
+              memCacheWidth: 160,
+              memCacheHeight: 160,
+              thumbnailMode: true,
+              cacheManager: StickerCacheManager(),
+              placeholder: (ctx) => DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              errorBuilder: (_, _, _) => Icon(
+                Icons.broken_image_outlined,
+                size: 24,
+                color: Theme.of(context).colorScheme.outline,
+              ),
             ),
           ),
         ),

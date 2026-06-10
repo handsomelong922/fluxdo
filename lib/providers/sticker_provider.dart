@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_riverpod/legacy.dart';
 
 import '../models/sticker.dart';
+import '../services/discourse_cache_manager.dart' show StickerCacheManager;
 import '../services/sticker_market_service.dart';
+import '../services/sticker_thumbnail_provider.dart';
 import 'theme_provider.dart'; // sharedPreferencesProvider
 
 /// 表情包市场服务 Provider
@@ -23,8 +27,46 @@ final stickerGroupsProvider = FutureProvider<List<StickerGroup>>((ref) async {
 final stickerGroupDetailProvider =
     FutureProvider.family<StickerGroupDetail, String>((ref, groupId) async {
       final service = ref.watch(stickerMarketServiceProvider);
-      return service.getGroupDetail(groupId);
+      final detail = await service.getGroupDetail(groupId);
+      unawaited(_prefetchFirstScreenThumbnails(groupId, detail.emojis));
+      return detail;
     });
+
+String? _activePrefetchGroupId;
+bool _stickerPanelOpen = true;
+
+void stickerPanelOpened() {
+  _stickerPanelOpen = true;
+}
+
+void stickerPanelClosed() {
+  _stickerPanelOpen = false;
+  _activePrefetchGroupId = null;
+}
+
+Future<void> _prefetchFirstScreenThumbnails(
+  String groupId,
+  List<StickerItem> emojis,
+) async {
+  const prefetchCount = 30;
+  const targetSize = 160;
+  final visible = emojis.length <= prefetchCount
+      ? emojis
+      : emojis.sublist(0, prefetchCount);
+  _activePrefetchGroupId = groupId;
+
+  try {
+    await StickerThumbnailProvider.precacheBatch(
+      visible.map((item) => item.url).toList(growable: false),
+      targetSize: targetSize,
+      cacheManager: StickerCacheManager(),
+      shouldContinue: () =>
+          _stickerPanelOpen && _activePrefetchGroupId == groupId,
+    );
+  } catch (e) {
+    debugPrint('[sticker_prefetch] batch failed (group=$groupId): $e');
+  }
+}
 
 /// 市场分组分页加载（供市场浏览面板使用）
 final marketGroupsProvider =
