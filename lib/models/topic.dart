@@ -249,6 +249,7 @@ class Topic {
   final String? bookmarkName; // 书签备注名称
   final DateTime? bookmarkReminderAt; // 书签提醒时间
   final String? bookmarkableType; // 书签类型（Post/Topic）
+  final DateTime? bookmarkCreatedAt; // 收藏创建时间（来自书签列表）
 
   // 已解决问题相关
   final bool hasAcceptedAnswer; // 话题是否有被接受的答案
@@ -286,6 +287,7 @@ class Topic {
     this.bookmarkName,
     this.bookmarkReminderAt,
     this.bookmarkableType,
+    this.bookmarkCreatedAt,
     this.hasAcceptedAnswer = false,
     this.canHaveAnswer = false,
   });
@@ -341,6 +343,9 @@ class Topic {
         json['_bookmark_reminder_at'] as String?,
       ),
       bookmarkableType: json['_bookmarkable_type'] as String?,
+      bookmarkCreatedAt: TimeUtils.parseUtcTime(
+        json['_bookmark_created_at'] as String?,
+      ),
       hasAcceptedAnswer: json['has_accepted_answer'] as bool? ?? false,
       canHaveAnswer: json['can_have_answer'] as bool? ?? false,
     );
@@ -2002,6 +2007,9 @@ class TopicListResponse {
           }
           if (map['reminder_at'] != null) {
             map['_bookmark_reminder_at'] = map['reminder_at'];
+          }
+          if (map['created_at'] != null) {
+            map['_bookmark_created_at'] = map['created_at'];
           }
           if (map['bookmarkable_type'] != null) {
             map['_bookmarkable_type'] = map['bookmarkable_type'];

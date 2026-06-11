@@ -151,6 +151,7 @@ class ExportUtils {
   static Future<List<Post>> fetchPostsForExport({
     required TopicDetail detail,
     required ExportScope scope,
+    bool background = false,
     void Function(int current, int total)? onProgress,
   }) async {
     final postIds = switch (scope) {
@@ -164,6 +165,7 @@ class ExportUtils {
     return _fetchPosts(
       topicId: detail.id,
       postIds: postIds,
+      background: background,
       onProgress: onProgress,
     );
   }
@@ -172,15 +174,17 @@ class ExportUtils {
   static Future<String> renderMarkdown({
     required TopicDetail detail,
     required List<Post> posts,
+    bool background = false,
     void Function(int current, int total)? onProgress,
   }) {
-    return _exportToMarkdown(detail, posts, onProgress);
+    return _exportToMarkdown(detail, posts, onProgress, background: background);
   }
 
   /// 批量获取帖子数据
   static Future<List<Post>> _fetchPosts({
     required int topicId,
     required List<int> postIds,
+    bool background = false,
     void Function(int current, int total)? onProgress,
   }) async {
     final allPosts = <Post>[];
@@ -194,7 +198,11 @@ class ExportUtils {
 
       final batchIds = postIds.skip(i).take(_batchSize).toList();
       try {
-        final postStream = await _service.getPosts(topicId, batchIds);
+        final postStream = await _service.getPosts(
+          topicId,
+          batchIds,
+          background: background,
+        );
         allPosts.addAll(postStream.posts);
         onProgress?.call(allPosts.length, total);
       } catch (e) {
@@ -214,8 +222,9 @@ class ExportUtils {
   static Future<String> _exportToMarkdown(
     TopicDetail detail,
     List<Post> posts,
-    void Function(int current, int total)? onProgress,
-  ) async {
+    void Function(int current, int total)? onProgress, {
+    bool background = false,
+  }) async {
     final buffer = StringBuffer();
 
     // 标题
@@ -245,7 +254,7 @@ class ExportUtils {
       // 尝试获取原始 Markdown，如果失败则使用 cooked
       String? raw;
       try {
-        raw = await _service.getPostRaw(post.id);
+        raw = await _service.getPostRaw(post.id, background: background);
       } catch (e) {
         debugPrint('[ExportUtils] getPostRaw failed for post ${post.id}: $e');
       }

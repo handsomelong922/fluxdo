@@ -31,6 +31,7 @@ Map<String, dynamic> notionExportDatabaseProperties() => {
   'Bookmark ID': {'number': <String, dynamic>{}},
   'Bookmark Name': {'rich_text': <String, dynamic>{}},
   'Bookmark Reminder': {'date': <String, dynamic>{}},
+  'Bookmarked': {'date': <String, dynamic>{}},
 };
 
 Map<String, dynamic> notionExportUpgradeableProperties() {
@@ -80,8 +81,10 @@ class NotionClient {
     String databaseId, {
     required int topicId,
     int? postId,
+    int? postNumber,
     String topicIdProperty = 'Topic ID',
     String postIdProperty = 'Post ID',
+    String postNumberProperty = 'Post Number',
   }) async {
     final filters = <Map<String, dynamic>>[
       {
@@ -93,6 +96,11 @@ class NotionClient {
       filters.add({
         'property': postIdProperty,
         'number': {'equals': postId},
+      });
+    } else if (postNumber != null && postNumber > 0) {
+      filters.add({
+        'property': postNumberProperty,
+        'number': {'equals': postNumber},
       });
     } else {
       filters.add({
@@ -109,10 +117,35 @@ class NotionClient {
       });
     }
 
-    final data = await _post('databases/$databaseId/query', {
+    return _queryFirstPage(databaseId, {
       'filter': {'and': filters},
-      'page_size': 1,
     });
+  }
+
+  Future<String?> queryPageByUrl(String databaseId, String url) {
+    return _queryFirstPage(databaseId, {
+      'filter': {
+        'property': 'URL',
+        'url': {'equals': url},
+      },
+    });
+  }
+
+  Future<String?> queryPageByTitle(String databaseId, String title) {
+    return _queryFirstPage(databaseId, {
+      'filter': {
+        'property': 'Name',
+        'title': {'equals': title},
+      },
+    });
+  }
+
+  Future<String?> _queryFirstPage(
+    String databaseId,
+    Map<String, dynamic> query,
+  ) async {
+    final body = Map<String, dynamic>.from(query)..['page_size'] = 1;
+    final data = await _post('databases/$databaseId/query', body);
     final results = data['results'];
     if (results is! List || results.isEmpty) return null;
     final first = results.first;

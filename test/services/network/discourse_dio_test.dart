@@ -206,6 +206,25 @@ void main() {
       expect(adapter.maxActive, 1);
       expect(adapter.completedRequests, 2);
     });
+
+    test('low priority background requests yield to normal requests', () async {
+      final adapter = _OrderRecordingAdapter(
+        delay: const Duration(milliseconds: 20),
+      );
+      final dio = Dio(BaseOptions(baseUrl: 'https://linux.do'));
+      dio.httpClientAdapter = adapter;
+      dio.interceptors.add(RequestSchedulerInterceptor());
+
+      final first = dio.get('/first');
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+      final low = dio.get('/low', options: Options(extra: {'priority': 'low'}));
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+      final normal = dio.get('/normal');
+
+      await Future.wait([first, low, normal]);
+
+      expect(adapter.completedPaths, ['/first', '/normal', '/low']);
+    });
   });
 }
 
@@ -257,6 +276,33 @@ class _StatusAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     return ResponseBody.fromString('{}', statusCode, headers: headers);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _OrderRecordingAdapter implements HttpClientAdapter {
+  _OrderRecordingAdapter({required this.delay});
+
+  final Duration delay;
+  final List<String> completedPaths = [];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    await Future<void>.delayed(delay);
+    completedPaths.add(options.path);
+    return ResponseBody.fromString(
+      '{}',
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
   }
 
   @override

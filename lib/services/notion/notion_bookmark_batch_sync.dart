@@ -5,6 +5,12 @@ import '../discourse/discourse_service.dart';
 import 'notion_config.dart';
 import 'notion_sync_service.dart';
 
+typedef NotionBookmarkPageFetcher =
+    Future<TopicListResponse> Function(int page);
+typedef NotionBookmarkDuplicateChecker = Future<bool> Function(Topic bookmark);
+typedef NotionBookmarkSyncExecutor =
+    Future<NotionSyncResult> Function(Topic bookmark);
+
 enum NotionBookmarkBatchPhase { fetchBookmarks, syncItem, done }
 
 class NotionBookmarkBatchProgress {
@@ -40,15 +46,24 @@ class NotionBookmarkBatchSync {
     required this.config,
     DiscourseService? discourseService,
     NotionSyncService? notionSyncService,
+    NotionBookmarkPageFetcher? fetchBookmarkPage,
+    NotionBookmarkDuplicateChecker? isAlreadySynced,
+    NotionBookmarkSyncExecutor? syncBookmark,
   }) : _discourseService = discourseService ?? DiscourseService(),
        _notionSyncService =
-           notionSyncService ?? NotionSyncService(config: config);
+           notionSyncService ?? NotionSyncService(config: config),
+       _fetchBookmarkPage = fetchBookmarkPage,
+       _isAlreadySynced = isAlreadySynced,
+       _syncBookmark = syncBookmark;
 
   static const int _maxBookmarkPages = 100;
 
   final NotionConfig config;
   final DiscourseService _discourseService;
   final NotionSyncService _notionSyncService;
+  final NotionBookmarkPageFetcher? _fetchBookmarkPage;
+  final NotionBookmarkDuplicateChecker? _isAlreadySynced;
+  final NotionBookmarkSyncExecutor? _syncBookmark;
 
   Future<NotionBookmarkBatchResult> syncAll({
     void Function(NotionBookmarkBatchProgress progress)? onProgress,
@@ -65,6 +80,8 @@ class NotionBookmarkBatchSync {
         failed: 0,
       );
     }
+    bookmarks.sort(_compareByBookmarkCreatedAt);
+    await _notionSyncService.ensureDatabaseReadyForSync();
 
     var success = 0;
     var skipped = 0;
@@ -82,7 +99,11 @@ class NotionBookmarkBatchSync {
       );
 
       try {
-        final result = await _syncBookmark(bookmark);
+        if (await _bookmarkExistsInNotion(bookmark)) {
+          skipped++;
+          continue;
+        }
+        final result = await _syncSingleBookmark(bookmark);
         if (result.duplicated) {
           skipped++;
         } else {
@@ -125,7 +146,13 @@ class NotionBookmarkBatchSync {
           current: page + 1,
         ),
       );
-      final response = await _discourseService.getUserBookmarks(page: page);
+      final fetcher = _fetchBookmarkPage;
+      final response = fetcher != null
+          ? await fetcher(page)
+          : await _discourseService.getUserBookmarks(
+              page: page,
+              background: true,
+            );
       bookmarks.addAll(response.topics);
       if (response.moreTopicsUrl == null || response.topics.isEmpty) break;
       page++;
@@ -134,12 +161,39 @@ class NotionBookmarkBatchSync {
     return bookmarks;
   }
 
-  Future<NotionSyncResult> _syncBookmark(Topic bookmark) async {
-    final detail = await _discourseService.getTopicDetail(bookmark.id);
+  int _compareByBookmarkCreatedAt(Topic a, Topic b) {
+    final aTime = a.bookmarkCreatedAt ?? a.createdAt;
+    final bTime = b.bookmarkCreatedAt ?? b.createdAt;
+    if (aTime != null && bTime != null) {
+      final byTime = aTime.compareTo(bTime);
+      if (byTime != 0) return byTime;
+    } else if (aTime != null) {
+      return -1;
+    } else if (bTime != null) {
+      return 1;
+    }
+    return (a.bookmarkId ?? 0).compareTo(b.bookmarkId ?? 0);
+  }
+
+  Future<bool> _bookmarkExistsInNotion(Topic bookmark) {
+    final checker = _isAlreadySynced;
+    if (checker != null) return checker(bookmark);
+    return _notionSyncService.isBookmarkAlreadySynced(bookmark);
+  }
+
+  Future<NotionSyncResult> _syncSingleBookmark(Topic bookmark) async {
+    final sync = _syncBookmark;
+    if (sync != null) return sync(bookmark);
+
+    final detail = await _discourseService.getTopicDetail(
+      bookmark.id,
+      background: true,
+    );
     if (_isPostBookmark(bookmark)) {
       final post = await _discourseService.getPostByNumber(
         bookmark.id,
         bookmark.bookmarkedPostNumber!,
+        background: true,
       );
       return _notionSyncService.syncPost(
         detail: detail,
@@ -147,6 +201,7 @@ class NotionBookmarkBatchSync {
         onDuplicate: DuplicateAction.skip,
         source: NotionSyncSource.bookmark,
         bookmark: bookmark,
+        background: true,
       );
     }
 
@@ -156,6 +211,7 @@ class NotionBookmarkBatchSync {
       onDuplicate: DuplicateAction.skip,
       source: NotionSyncSource.bookmark,
       bookmark: bookmark,
+      background: true,
     );
   }
 

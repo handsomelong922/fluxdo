@@ -60,6 +60,7 @@ class NotionSyncService {
     DuplicateAction onDuplicate = DuplicateAction.skip,
     NotionSyncSource source = NotionSyncSource.manualExport,
     Topic? bookmark,
+    bool background = false,
     void Function(NotionSyncProgress progress)? onProgress,
   }) async {
     await _ensureDatabaseSchema();
@@ -70,6 +71,7 @@ class NotionSyncService {
     final posts = await ExportUtils.fetchPostsForExport(
       detail: detail,
       scope: exportScope,
+      background: background,
       onProgress: (current, total) => onProgress?.call(
         NotionSyncProgress(SyncPhase.fetch, current: current, total: total),
       ),
@@ -79,8 +81,16 @@ class NotionSyncService {
     }
 
     onProgress?.call(const NotionSyncProgress(SyncPhase.convert));
-    final blocks = await _buildBlocks(detail: detail, posts: posts);
-    final existingPageId = await _queryTopicPage(detail.id);
+    final blocks = await _buildBlocks(
+      detail: detail,
+      posts: posts,
+      background: background,
+    );
+    final existingPageId = await _queryTopicPage(
+      detail.id,
+      title: detail.title,
+      url: _topicUrl(detail),
+    );
     final duplicated = existingPageId != null;
     if (duplicated) {
       if (onDuplicate == DuplicateAction.skip) {
@@ -118,12 +128,24 @@ class NotionSyncService {
     DuplicateAction onDuplicate = DuplicateAction.skip,
     NotionSyncSource source = NotionSyncSource.manualExport,
     Topic? bookmark,
+    bool background = false,
     void Function(NotionSyncProgress progress)? onProgress,
   }) async {
     await _ensureDatabaseSchema();
     onProgress?.call(const NotionSyncProgress(SyncPhase.convert));
-    final blocks = await _buildBlocks(detail: detail, posts: [post]);
-    final existingPageId = await _queryPostPage(detail.id, post.id);
+    final blocks = await _buildBlocks(
+      detail: detail,
+      posts: [post],
+      background: background,
+    );
+    final existingPageId = await _queryPostPage(
+      detail.id,
+      post.id,
+      postNumber: post.postNumber,
+      title:
+          '${_truncate(detail.title, 160)} - @${post.username} #${post.postNumber}',
+      url: _postUrl(detail, post.postNumber),
+    );
     final duplicated = existingPageId != null;
     if (duplicated) {
       if (onDuplicate == DuplicateAction.skip) {
@@ -192,13 +214,29 @@ class NotionSyncService {
     return first['plain_text']?.toString() ?? '(untitled)';
   }
 
+  Future<void> ensureDatabaseReadyForSync() => _ensureDatabaseSchema();
+
+  Future<bool> isBookmarkAlreadySynced(Topic bookmark) async {
+    final isPost = _isPostBookmark(bookmark);
+    final pageId = isPost
+        ? await _queryBookmarkPostPage(bookmark)
+        : await _queryTopicPage(
+            bookmark.id,
+            title: bookmark.title,
+            url: _bookmarkTopicUrl(bookmark),
+          );
+    return pageId != null;
+  }
+
   Future<List<Map<String, dynamic>>> _buildBlocks({
     required TopicDetail detail,
     required List<Post> posts,
+    bool background = false,
   }) async {
     final markdown = await ExportUtils.renderMarkdown(
       detail: detail,
       posts: posts,
+      background: background,
     );
     final resolved = _preprocessDiscourseBbcode(
       _resolveUploadShortUrls(markdown, posts),
@@ -222,26 +260,89 @@ class NotionSyncService {
         : blocks;
   }
 
-  Future<String?> _queryTopicPage(int topicId) async {
+  Future<String?> _queryTopicPage(
+    int topicId, {
+    String? title,
+    String? url,
+  }) async {
     try {
-      return await _client.queryPage(config.databaseId!, topicId: topicId);
+      final byTopicId = await _client.queryPage(
+        config.databaseId!,
+        topicId: topicId,
+      );
+      if (byTopicId != null) return byTopicId;
     } on NotionApiException catch (error) {
-      if (_looksLikeMissingProperty(error)) return null;
-      rethrow;
+      if (!_looksLikeMissingProperty(error)) rethrow;
     }
+    return _queryByUrlOrTitle(url: url, title: title);
   }
 
-  Future<String?> _queryPostPage(int topicId, int postId) async {
+  Future<String?> _queryPostPage(
+    int topicId,
+    int postId, {
+    int? postNumber,
+    String? title,
+    String? url,
+  }) async {
     try {
-      return await _client.queryPage(
+      final byPostId = await _client.queryPage(
         config.databaseId!,
         topicId: topicId,
         postId: postId,
       );
+      if (byPostId != null) return byPostId;
     } on NotionApiException catch (error) {
       if (!_looksLikeMissingProperty(error)) rethrow;
-      return _client.queryPage(config.databaseId!, topicId: topicId);
     }
+    if (postNumber != null && postNumber > 0) {
+      try {
+        final byPostNumber = await _client.queryPage(
+          config.databaseId!,
+          topicId: topicId,
+          postNumber: postNumber,
+        );
+        if (byPostNumber != null) return byPostNumber;
+      } on NotionApiException catch (error) {
+        if (!_looksLikeMissingProperty(error)) rethrow;
+      }
+    }
+    return _queryByUrlOrTitle(url: url, title: title);
+  }
+
+  Future<String?> _queryBookmarkPostPage(Topic bookmark) async {
+    final postNumber = bookmark.bookmarkedPostNumber;
+    if (postNumber != null && postNumber > 0) {
+      try {
+        final byPostNumber = await _client.queryPage(
+          config.databaseId!,
+          topicId: bookmark.id,
+          postNumber: postNumber,
+        );
+        if (byPostNumber != null) return byPostNumber;
+      } on NotionApiException catch (error) {
+        if (!_looksLikeMissingProperty(error)) rethrow;
+      }
+    }
+    return _queryByUrlOrTitle(url: _bookmarkPostUrl(bookmark), title: null);
+  }
+
+  Future<String?> _queryByUrlOrTitle({String? url, String? title}) async {
+    if (url != null && url.isNotEmpty) {
+      try {
+        final byUrl = await _client.queryPageByUrl(config.databaseId!, url);
+        if (byUrl != null) return byUrl;
+      } on NotionApiException catch (error) {
+        if (!_looksLikeMissingProperty(error)) rethrow;
+      }
+    }
+    if (title != null && title.isNotEmpty) {
+      try {
+        return await _client.queryPageByTitle(config.databaseId!, title);
+      } on NotionApiException catch (error) {
+        if (!_looksLikeMissingProperty(error)) rethrow;
+      }
+    }
+    return null;
   }
 
   Future<_CreatedPage> _createPageWithBlocks({
@@ -337,7 +438,7 @@ class NotionSyncService {
         : detail.postStream.posts.first;
     final author = firstPost?.username ?? '';
     final created = firstPost?.createdAt.toUtc().toIso8601String();
-    final url = '${AppConstants.baseUrl}/t/${detail.slug}/${detail.id}';
+    final url = _topicUrl(detail);
     final properties = <String, dynamic>{
       'Name': {
         'title': [
@@ -384,8 +485,7 @@ class NotionSyncService {
   }) {
     final title =
         '${_truncate(detail.title, 160)} - @${post.username} #${post.postNumber}';
-    final url =
-        '${AppConstants.baseUrl}/t/${detail.slug}/${detail.id}/${post.postNumber}';
+    final url = _postUrl(detail, post.postNumber);
     final properties = <String, dynamic>{
       'Name': {
         'title': [
@@ -443,6 +543,12 @@ class NotionSyncService {
         'date': {'start': reminderAt.toUtc().toIso8601String()},
       };
     }
+    final bookmarkedAt = bookmark.bookmarkCreatedAt;
+    if (bookmarkedAt != null) {
+      properties['Bookmarked'] = {
+        'date': {'start': bookmarkedAt.toUtc().toIso8601String()},
+      };
+    }
   }
 
   Map<String, dynamic> _legacyCompatibleProperties(
@@ -492,6 +598,29 @@ class NotionSyncService {
 
   static String _pageUrlFromId(String pageId) {
     return 'https://www.notion.so/${pageId.replaceAll('-', '')}';
+  }
+
+  static bool _isPostBookmark(Topic bookmark) {
+    return bookmark.bookmarkableType == 'Post' &&
+        bookmark.bookmarkedPostNumber != null;
+  }
+
+  static String _topicUrl(TopicDetail detail) {
+    return '${AppConstants.baseUrl}/t/${detail.slug}/${detail.id}';
+  }
+
+  static String _postUrl(TopicDetail detail, int postNumber) {
+    return '${_topicUrl(detail)}/$postNumber';
+  }
+
+  static String _bookmarkTopicUrl(Topic bookmark) {
+    return '${AppConstants.baseUrl}/t/${bookmark.slug}/${bookmark.id}';
+  }
+
+  static String? _bookmarkPostUrl(Topic bookmark) {
+    final postNumber = bookmark.bookmarkedPostNumber;
+    if (postNumber == null || postNumber <= 0) return null;
+    return '${_bookmarkTopicUrl(bookmark)}/$postNumber';
   }
 
   String _resolveUploadShortUrls(String markdown, List<Post> posts) {

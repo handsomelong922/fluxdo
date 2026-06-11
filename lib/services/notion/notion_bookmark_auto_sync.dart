@@ -55,7 +55,10 @@ class NotionBookmarkAutoSync {
     final handle = ToastService.showDownload(S.current.notion_syncing);
     handle.updateProgress(-1);
     try {
-      final detail = await DiscourseService().getTopicDetail(topicId);
+      final detail = await DiscourseService().getTopicDetail(
+        topicId,
+        background: true,
+      );
       handle.updateFileName(detail.title);
       final service = NotionSyncService(config: config);
       final result = await service.syncTopic(
@@ -63,6 +66,7 @@ class NotionBookmarkAutoSync {
         scope: config.syncScope,
         onDuplicate: DuplicateAction.skip,
         source: NotionSyncSource.bookmark,
+        background: true,
         onProgress: (progress) {
           handle.updateFileName(_progressLabel(detail.title, progress));
           handle.updateProgress(
@@ -104,7 +108,10 @@ class NotionBookmarkAutoSync {
     final handle = ToastService.showDownload(S.current.notion_syncing);
     handle.updateProgress(-1);
     try {
-      final detail = await DiscourseService().getTopicDetail(topicId);
+      final detail = await DiscourseService().getTopicDetail(
+        topicId,
+        background: true,
+      );
       final post = _findPost(detail, postId);
       if (post == null) {
         throw NotionApiException('post #$postId not found in topic detail');
@@ -117,6 +124,7 @@ class NotionBookmarkAutoSync {
         post: post,
         onDuplicate: DuplicateAction.skip,
         source: NotionSyncSource.bookmark,
+        background: true,
         onProgress: (progress) {
           handle.updateFileName(_progressLabel(title, progress));
           handle.updateProgress(

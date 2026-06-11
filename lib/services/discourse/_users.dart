@@ -198,10 +198,7 @@ mixin _UsersMixin on _DiscourseServiceBase {
   }) async {
     await _dio.put(
       '/u/$username/notification_level.json',
-      data: {
-        'notification_level': level,
-        if (expiringAt case final expiringAt?) 'expiring_at': expiringAt,
-      },
+      data: {'notification_level': level, 'expiring_at': ?expiringAt},
     );
   }
 
@@ -254,7 +251,10 @@ mixin _UsersMixin on _DiscourseServiceBase {
   }
 
   /// 获取用户个人书签
-  Future<TopicListResponse> getUserBookmarks({int page = 0}) async {
+  Future<TopicListResponse> getUserBookmarks({
+    int page = 0,
+    bool background = false,
+  }) async {
     final username = await getUsername();
     if (username == null) {
       throw Exception(S.current.error_notLoggedInNoUsername);
@@ -262,6 +262,7 @@ mixin _UsersMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/u/$username/bookmarks.json',
       queryParameters: page > 0 ? {'page': page} : null,
+      options: _backgroundReadOptions(background: background),
     );
     return TopicListResponse.fromJson(response.data);
   }

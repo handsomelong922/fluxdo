@@ -239,6 +239,7 @@ class BookmarksNotifier extends AsyncNotifier<List<Topic>> {
               ? null
               : (reminderAt ?? t.bookmarkReminderAt),
           bookmarkableType: t.bookmarkableType,
+          bookmarkCreatedAt: t.bookmarkCreatedAt,
           hasAcceptedAnswer: t.hasAcceptedAnswer,
           canHaveAnswer: t.canHaveAnswer,
         );

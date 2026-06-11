@@ -118,8 +118,15 @@ mixin _PostsMixin on _DiscourseServiceBase {
   }
 
   /// 通过话题 ID 和楼层编号获取单个帖子
-  Future<Post> getPostByNumber(int topicId, int postNumber) async {
-    final response = await _dio.get('/posts/by_number/$topicId/$postNumber');
+  Future<Post> getPostByNumber(
+    int topicId,
+    int postNumber, {
+    bool background = false,
+  }) async {
+    final response = await _dio.get(
+      '/posts/by_number/$topicId/$postNumber',
+      options: _backgroundReadOptions(background: background),
+    );
     final data = response.data as Map<String, dynamic>;
     return Post.fromJson(data);
   }
@@ -139,9 +146,12 @@ mixin _PostsMixin on _DiscourseServiceBase {
   }
 
   /// 获取帖子原始内容
-  Future<String?> getPostRaw(int postId) async {
+  Future<String?> getPostRaw(int postId, {bool background = false}) async {
     try {
-      final response = await _dio.get('/posts/$postId.json');
+      final response = await _dio.get(
+        '/posts/$postId.json',
+        options: _backgroundReadOptions(background: background),
+      );
       final data = response.data as Map<String, dynamic>?;
       return data?['raw'] as String?;
     } catch (e) {

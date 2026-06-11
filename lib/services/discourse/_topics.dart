@@ -180,6 +180,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     int id, {
     int? postNumber,
     bool trackVisit = false,
+    bool background = false,
     String? filter,
     String? usernameFilters,
     bool filterTopLevelReplies = false,
@@ -198,14 +199,17 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     if (filterTopLevelReplies) {
       queryParams['filter_top_level_replies'] = true;
     }
-    final options = trackVisit
-        ? Options(
-            headers: {
-              'Discourse-Track-View': '1',
-              'Discourse-Track-View-Topic-Id': '$id',
-            },
-          )
-        : null;
+    final options = _backgroundReadOptions(
+      options: trackVisit
+          ? Options(
+              headers: {
+                'Discourse-Track-View': '1',
+                'Discourse-Track-View-Topic-Id': '$id',
+              },
+            )
+          : null,
+      background: background,
+    );
     final response = await _dio.get(
       path,
       queryParameters: queryParams.isNotEmpty ? queryParams : null,
@@ -240,10 +244,15 @@ mixin _TopicsMixin on _DiscourseServiceBase {
   }
 
   /// 批量获取帖子内容
-  Future<PostStream> getPosts(int topicId, List<int> postIds) async {
+  Future<PostStream> getPosts(
+    int topicId,
+    List<int> postIds, {
+    bool background = false,
+  }) async {
     final response = await _dio.get(
       '/t/$topicId/posts.json',
       queryParameters: {'post_ids[]': postIds},
+      options: _backgroundReadOptions(background: background),
     );
     final data = response.data as Map<String, dynamic>;
     final streamJson = data.containsKey('post_stream')
@@ -264,10 +273,12 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     int topicId, {
     required int postNumber,
     required bool asc,
+    bool background = false,
   }) async {
     final response = await _dio.get(
       '/t/$topicId/posts.json',
       queryParameters: {'post_number': postNumber, 'asc': asc},
+      options: _backgroundReadOptions(background: background),
     );
     final data = response.data as Map<String, dynamic>;
     final streamJson = data.containsKey('post_stream')

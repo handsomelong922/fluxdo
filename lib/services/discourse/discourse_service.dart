@@ -59,6 +59,15 @@ part '_templates.dart';
 part '_nested.dart';
 part '_policy.dart';
 
+Options? _backgroundReadOptions({Options? options, bool background = false}) {
+  if (!background) return options;
+  final extra = <String, dynamic>{...?options?.extra};
+  extra['priority'] = 'low';
+  extra['isSilent'] = true;
+  extra['showErrorToast'] = false;
+  return (options ?? Options()).copyWith(extra: extra);
+}
+
 /// 基类，包含所有共享字段
 abstract class _DiscourseServiceBase {
   Dio get _dio;

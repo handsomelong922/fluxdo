@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../l10n/s.dart';
 import '../providers/notion_config_provider.dart';
 import '../services/notion/notion_bookmark_batch_sync.dart';
+import '../services/notion/notion_bookmark_batch_sync_runner.dart';
 import '../services/notion/notion_client.dart';
 import '../services/notion/notion_config.dart';
 import '../services/notion/notion_sync_service.dart';
@@ -31,18 +32,41 @@ class _NotionSettingsPageState extends ConsumerState<NotionSettingsPage> {
   bool _upgrading = false;
   bool _syncingHistory = false;
   NotionBookmarkBatchProgress? _historyProgress;
+  late final NotionBookmarkBatchSyncRunner _historyRunner;
 
   @override
   void initState() {
     super.initState();
+    _historyRunner = NotionBookmarkBatchSyncRunner.instance;
+    _applyHistoryRunnerState(notify: false);
+    _historyRunner.state.addListener(_handleHistoryRunnerState);
     unawaited(ref.read(notionConfigProvider.notifier).ensureLoaded());
   }
 
   @override
   void dispose() {
+    _historyRunner.state.removeListener(_handleHistoryRunnerState);
     _tokenController.dispose();
     _databaseIdController.dispose();
     super.dispose();
+  }
+
+  void _handleHistoryRunnerState() {
+    _applyHistoryRunnerState(notify: true);
+  }
+
+  void _applyHistoryRunnerState({required bool notify}) {
+    final runState = _historyRunner.state.value;
+    void update() {
+      _syncingHistory = runState.isRunning;
+      _historyProgress = runState.progress;
+    }
+
+    if (notify && mounted) {
+      setState(update);
+    } else {
+      update();
+    }
   }
 
   void _syncControllers(NotionConfig config) {
@@ -171,46 +195,10 @@ class _NotionSettingsPageState extends ConsumerState<NotionSettingsPage> {
     }
   }
 
-  Future<void> _syncHistoryBookmarks(NotionConfig config) async {
+  void _syncHistoryBookmarks(NotionConfig config) {
     if (!config.isComplete || _syncingHistory) return;
-    setState(() {
-      _syncingHistory = true;
-      _historyProgress = null;
-    });
-
-    try {
-      final result = await NotionBookmarkBatchSync(config: config).syncAll(
-        onProgress: (progress) {
-          if (!mounted) return;
-          setState(() => _historyProgress = progress);
-        },
-      );
-      if (!mounted) return;
-      if (result.total == 0) {
-        ToastService.show(S.current.notion_historySyncEmpty);
-      } else {
-        ToastService.showSuccess(
-          S.current.notion_historySyncDone(
-            result.success,
-            result.skipped,
-            result.failed,
-          ),
-        );
-      }
-    } on NotionApiException catch (error) {
-      ToastService.showError(S.current.notion_historySyncFailed(error.message));
-    } catch (error) {
-      ToastService.showError(
-        S.current.notion_historySyncFailed(error.toString()),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _syncingHistory = false;
-          _historyProgress = null;
-        });
-      }
-    }
+    _historyRunner.start(config);
+    _applyHistoryRunnerState(notify: true);
   }
 
   Future<String?> _askParentPageId() async {
