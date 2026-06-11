@@ -259,28 +259,45 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
                   itemCount: patterns.length,
                   separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, index) {
-                    return ListTile(
-                      title: SelectableText(
-                        patterns[index],
-                        style: const TextStyle(fontFamily: 'monospace'),
-                      ),
-                      trailing: Wrap(
-                        spacing: 4,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit),
-                            tooltip: '编辑',
-                            onPressed: canEdit ? _enterEditMode : null,
+                    return Stack(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                          child: SelectableText(
+                            patterns[index],
+                            style: const TextStyle(fontFamily: 'monospace'),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            tooltip: '删除',
-                            onPressed: () => ref
-                                .read(keywordFilterProvider.notifier)
-                                .removeAt(index),
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 8,
+                          child: Material(
+                            color: theme.colorScheme.surface.withValues(
+                              alpha: 0.88,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit),
+                                  tooltip: '编辑',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: canEdit ? _enterEditMode : null,
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline),
+                                  tooltip: '删除',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () => ref
+                                      .read(keywordFilterProvider.notifier)
+                                      .removeAt(index),
+                                ),
+                              ],
+                            ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     );
                   },
                 ),

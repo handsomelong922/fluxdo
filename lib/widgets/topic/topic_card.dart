@@ -7,6 +7,7 @@ import '../../providers/discourse_providers.dart';
 import '../../providers/preferences_provider.dart';
 import '../../utils/font_awesome_helper.dart';
 import '../../utils/platform_utils.dart';
+import '../../utils/tag_icon_list.dart';
 import '../../utils/url_helper.dart';
 import '../common/topic_badges.dart';
 import '../common/smart_avatar.dart';
@@ -24,6 +25,7 @@ class TopicCard extends ConsumerWidget {
   final Color? highlightColor;
   final Color? titleColor;
   final bool denseMetadata;
+  final int? maxVisibleTags;
   final Widget? topWidget;
   final Widget? bottomWidget;
 
@@ -36,6 +38,7 @@ class TopicCard extends ConsumerWidget {
     this.highlightColor,
     this.titleColor,
     this.denseMetadata = false,
+    this.maxVisibleTags,
     this.topWidget,
     this.bottomWidget,
   });
@@ -136,89 +139,23 @@ class TopicCard extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // 第1行：标题
-                          Text.rich(
-                            TextSpan(
-                              style: titleStyle,
-                              children: [
-                                if (topic.closed)
-                                  WidgetSpan(
-                                    alignment: PlaceholderAlignment.middle,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(right: 4),
-                                      child: Icon(
-                                        Icons.lock_outline,
-                                        size: 16,
-                                        color: effectiveTitleColor,
-                                      ),
-                                    ),
-                                  ),
-                                if (topic.hasAcceptedAnswer)
-                                  const WidgetSpan(
-                                    alignment: PlaceholderAlignment.middle,
-                                    child: Padding(
-                                      padding: EdgeInsets.only(right: 4),
-                                      child: Icon(
-                                        Icons.check_box,
-                                        size: 16,
-                                        color: Colors.green,
-                                      ),
-                                    ),
-                                  )
-                                else if (topic.canHaveAnswer)
-                                  WidgetSpan(
-                                    alignment: PlaceholderAlignment.middle,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(right: 4),
-                                      child: Icon(
-                                        Icons.check_box_outline_blank,
-                                        size: 16,
-                                        color: theme.colorScheme.outline,
-                                      ),
-                                    ),
-                                  ),
-                                ...EmojiText.buildEmojiSpans(
-                                  context,
-                                  topic.title,
-                                  titleStyle,
-                                ),
-                                // 未读蓝点追加在标题末尾
-                                if (topic.unseen)
-                                  WidgetSpan(
-                                    alignment: PlaceholderAlignment.middle,
-                                    child: Container(
-                                      margin: const EdgeInsets.only(left: 6),
-                                      width: 8,
-                                      height: 8,
-                                      decoration: BoxDecoration(
-                                        color: theme.colorScheme.primary,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                          _buildTitleRow(
+                            context,
+                            theme,
+                            titleStyle,
+                            effectiveTitleColor,
                           ),
 
                           const SizedBox(height: 6),
 
                           // 第2行：分类和标签
-                          SizedBox(
-                            height: badgeLineHeight,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              physics: const NeverScrollableScrollPhysics(),
-                              clipBehavior: Clip.hardEdge,
-                              child: Row(
-                                children: _buildBadges(
-                                  category,
-                                  faIcon,
-                                  logoUrl,
-                                  badgeSize,
-                                ),
-                              ),
-                            ),
+                          _buildBadgeLine(
+                            context,
+                            category,
+                            faIcon,
+                            logoUrl,
+                            badgeSize,
+                            badgeLineHeight,
                           ),
                         ],
                       ),
@@ -247,6 +184,79 @@ class TopicCard extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTitleRow(
+    BuildContext context,
+    ThemeData theme,
+    TextStyle? titleStyle,
+    Color effectiveTitleColor,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              style: titleStyle,
+              children: [
+                if (topic.closed)
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Icon(
+                        Icons.lock_outline,
+                        size: 16,
+                        color: effectiveTitleColor,
+                      ),
+                    ),
+                  ),
+                if (topic.hasAcceptedAnswer)
+                  const WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Padding(
+                      padding: EdgeInsets.only(right: 4),
+                      child: Icon(
+                        Icons.check_box,
+                        size: 16,
+                        color: Colors.green,
+                      ),
+                    ),
+                  )
+                else if (topic.canHaveAnswer)
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Icon(
+                        Icons.check_box_outline_blank,
+                        size: 16,
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ),
+                ...EmojiText.buildEmojiSpans(context, topic.title, titleStyle),
+              ],
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (topic.unseen)
+          Padding(
+            padding: const EdgeInsets.only(left: 6, top: 7),
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -293,21 +303,46 @@ class TopicCard extends ConsumerWidget {
   }) {
     final theme = Theme.of(context);
     return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 48, maxWidth: 72),
+      constraints: const BoxConstraints(minWidth: 56, maxWidth: 86),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (showReplyOrUnread) _buildReplyOrUnread(context),
-          if (showLike) ...[
-            if (showReplyOrUnread) const SizedBox(height: 7),
-            _buildStat(context, Icons.favorite_border_rounded, topic.likeCount),
-          ],
-          SizedBox(height: showReplyOrUnread || showLike ? 7 : 2),
-          RelativeTimeText(
-            dateTime: topic.lastPostedAt,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+          if (showReplyOrUnread || showLike)
+            SizedBox(
+              height: 18,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (showReplyOrUnread) _buildReplyOrUnread(context),
+                    if (showReplyOrUnread && showLike) const SizedBox(width: 7),
+                    if (showLike)
+                      _buildStat(
+                        context,
+                        Icons.favorite_border_rounded,
+                        topic.likeCount,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          SizedBox(height: showReplyOrUnread || showLike ? 5 : 0),
+          SizedBox(
+            height: 16,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: RelativeTimeText(
+                dateTime: topic.lastPostedAt,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.7,
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -388,17 +423,66 @@ class TopicCard extends ConsumerWidget {
     );
   }
 
-  List<Widget> _buildBadges(
+  Widget _buildBadgeLine(
+    BuildContext context,
     Category? category,
     IconData? faIcon,
     String? logoUrl,
     BadgeSize size,
+    double height,
   ) {
-    final badges = <Widget>[];
+    return SizedBox(
+      height: height,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return ClipRect(
+            child: Row(
+              children: _buildBadges(
+                context,
+                category,
+                faIcon,
+                logoUrl,
+                size,
+                constraints.maxWidth,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
-    void addBadge(Widget badge) {
+  List<Widget> _buildBadges(
+    BuildContext context,
+    Category? category,
+    IconData? faIcon,
+    String? logoUrl,
+    BadgeSize size,
+    double maxWidth,
+  ) {
+    final theme = Theme.of(context);
+    final categoryTextStyle =
+        theme.textTheme.labelSmall?.copyWith(
+          fontSize: size.fontSize,
+          fontWeight: FontWeight.w500,
+          color: theme.colorScheme.onSurface,
+        ) ??
+        DefaultTextStyle.of(context).style.copyWith(fontSize: size.fontSize);
+    final tagTextStyle =
+        theme.textTheme.labelSmall?.copyWith(
+          fontSize: size.fontSize,
+          color: theme.colorScheme.onSurfaceVariant,
+        ) ??
+        DefaultTextStyle.of(context).style.copyWith(fontSize: size.fontSize);
+    final badges = <Widget>[];
+    var usedWidth = 0.0;
+
+    void addBadge(Widget badge, double width) {
+      final gap = badges.isEmpty ? 0.0 : 6.0;
+      if (usedWidth + gap + width > maxWidth) return;
       if (badges.isNotEmpty) badges.add(const SizedBox(width: 6));
       badges.add(badge);
+      usedWidth += gap + width;
     }
 
     if (category != null) {
@@ -409,14 +493,70 @@ class TopicCard extends ConsumerWidget {
           logoUrl: logoUrl,
           size: size,
         ),
+        _estimateCategoryBadgeWidth(
+          context,
+          category,
+          faIcon,
+          logoUrl,
+          size,
+          categoryTextStyle,
+        ),
       );
     }
 
-    for (final tag in topic.tags) {
-      addBadge(TagBadge(name: tag.name, size: size));
+    final tags = maxVisibleTags == null
+        ? topic.tags
+        : topic.tags.take(maxVisibleTags!);
+    for (final tag in tags) {
+      addBadge(
+        TagBadge(name: tag.name, size: size),
+        _estimateTagBadgeWidth(context, tag, size, tagTextStyle),
+      );
     }
 
     return badges;
+  }
+
+  double _estimateCategoryBadgeWidth(
+    BuildContext context,
+    Category category,
+    IconData? faIcon,
+    String? logoUrl,
+    BadgeSize size,
+    TextStyle textStyle,
+  ) {
+    final iconWidth = faIcon != null || (logoUrl != null && logoUrl.isNotEmpty)
+        ? size.iconSize
+        : category.readRestricted
+        ? size.iconSize
+        : size.iconSize * 0.6;
+    return size.padding.horizontal +
+        iconWidth +
+        4 +
+        _measureTextWidth(context, category.name, textStyle) +
+        2;
+  }
+
+  double _estimateTagBadgeWidth(
+    BuildContext context,
+    Tag tag,
+    BadgeSize size,
+    TextStyle textStyle,
+  ) {
+    final tagInfo = TagIconList.get(tag.name);
+    return size.padding.horizontal +
+        (tagInfo == null ? 0 : size.iconSize + 4) +
+        _measureTextWidth(context, tag.name, textStyle);
+  }
+
+  double _measureTextWidth(BuildContext context, String text, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    return painter.width;
   }
 }
 

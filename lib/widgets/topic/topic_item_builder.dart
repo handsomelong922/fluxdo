@@ -16,6 +16,7 @@ Widget buildTopicItem({
   Color? highlightColor,
   Color? titleColor,
   bool denseMetadata = false,
+  int? maxVisibleTags,
   Widget? topWidget,
   Widget? bottomWidget,
   List<PreviewAction>? previewActions,
@@ -55,6 +56,7 @@ Widget buildTopicItem({
       bottomWidget: bottomWidget,
       titleColor: titleColor,
       denseMetadata: denseMetadata,
+      maxVisibleTags: maxVisibleTags,
     );
   }
 

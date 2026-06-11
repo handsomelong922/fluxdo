@@ -15,6 +15,7 @@ import '../providers/discourse_providers.dart';
 import '../providers/message_bus_providers.dart';
 import '../providers/selected_topic_provider.dart';
 import '../providers/pinned_categories_provider.dart';
+import '../providers/home_topic_excerpt_provider.dart';
 import 'login_page.dart';
 import 'topic_detail_page/topic_detail_page.dart';
 import 'search_page.dart';
@@ -69,19 +70,6 @@ final fabRefreshModeProvider = StateProvider<bool>((ref) => false);
 final fabRefreshSignalProvider =
     StateNotifierProvider<ScrollToTopNotifier, int>((ref) {
       return ScrollToTopNotifier();
-    });
-
-final homeTopicExcerptProvider = FutureProvider.autoDispose
-    .family<String?, int>((ref, topicId) async {
-      final keepAlive = ref.keepAlive();
-      try {
-        return await ref
-            .watch(discourseServiceProvider)
-            .getTopicFirstPostCooked(topicId, background: true);
-      } catch (_) {
-        keepAlive.close();
-        rethrow;
-      }
     });
 
 /// Header 区域常量
@@ -1406,9 +1394,12 @@ class _TopicListState extends ConsumerState<_TopicList>
     final selectedTopicId = ref.watch(selectedTopicProvider).topicId;
     final preferences = ref.watch(preferencesProvider);
     final enableLongPress = preferences.longPressPreview;
-    final showHomeExcerpt = preferences.homeDetailedTopicList;
+    final isHomeTopicList = widget.categoryId == null;
+    final showHomeExcerpt =
+        isHomeTopicList && preferences.homeDetailedTopicList;
     final homeExcerptLines = preferences.homeExcerptLines;
-    final homeTitleColor = preferences.homeTopicTitleColorValue == 0
+    final homeTitleColor =
+        !isHomeTopicList || preferences.homeTopicTitleColorValue == 0
         ? null
         : Color(preferences.homeTopicTitleColorValue);
 
@@ -1587,6 +1578,7 @@ class _TopicListState extends ConsumerState<_TopicList>
                           highlightColor: color,
                           titleColor: homeTitleColor,
                           denseMetadata: showHomeExcerpt,
+                          maxVisibleTags: isHomeTopicList ? 4 : null,
                           bottomWidget: bottomWidget,
                         );
                       },
@@ -1601,6 +1593,7 @@ class _TopicListState extends ConsumerState<_TopicList>
                     enableLongPress: enableLongPress,
                     titleColor: homeTitleColor,
                     denseMetadata: showHomeExcerpt,
+                    maxVisibleTags: isHomeTopicList ? 4 : null,
                     bottomWidget: bottomWidget,
                   );
                 },
