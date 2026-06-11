@@ -15,11 +15,15 @@ class KeywordFilterPage extends ConsumerStatefulWidget {
 
 class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
   final _controller = TextEditingController();
+  final List<TextEditingController> _editControllers = [];
+  List<String?> _editErrors = const [];
+  bool _isEditing = false;
   String? _errorText;
 
   @override
   void dispose() {
     _controller.dispose();
+    _disposeEditControllers();
     super.dispose();
   }
 
@@ -43,81 +47,85 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
     setState(() => _errorText = null);
   }
 
-  // CUSTOM: Keyword Filter 弹出对话框编辑指定正则
-  Future<void> _editPattern(int index, String oldPattern) async {
-    final editController = TextEditingController(text: oldPattern);
-    String? dialogError;
+  void _enterEditMode() {
+    final patterns = ref.read(keywordFilterProvider);
+    _disposeEditControllers();
+    _editControllers
+      ..clear()
+      ..addAll(patterns.map((pattern) => TextEditingController(text: pattern)));
+    setState(() {
+      _editErrors = List<String?>.filled(_editControllers.length, null);
+      _isEditing = true;
+      _errorText = null;
+    });
+  }
 
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          String? validate(String text) {
-            final t = text.trim();
-            if (t.isEmpty) return '不能为空';
-            if (!KeywordFilterNotifier.isValidRegex(t)) return '无效的正则表达式';
-            return null;
-          }
+  void _cancelEditMode() {
+    _disposeEditControllers();
+    setState(() {
+      _editControllers.clear();
+      _editErrors = const [];
+      _isEditing = false;
+    });
+  }
 
-          void onSave() {
-            final t = editController.text.trim();
-            final err = validate(t);
-            if (err != null) {
-              setDialogState(() => dialogError = err);
-              return;
-            }
-            final ok = ref
-                .read(keywordFilterProvider.notifier)
-                .editAt(index, t);
-            if (!ok) {
-              setDialogState(() => dialogError = '与其它规则重复或保存失败');
-              return;
-            }
-            Navigator.of(ctx).pop(true);
-          }
+  void _removeEditingPattern(int index) {
+    if (index < 0 || index >= _editControllers.length) return;
+    final controller = _editControllers.removeAt(index);
+    controller.dispose();
+    final errors = [..._editErrors]..removeAt(index);
+    setState(() => _editErrors = errors);
+  }
 
-          return AlertDialog(
-            title: const Text('编辑屏蔽规则'),
-            content: TextField(
-              controller: editController,
-              autofocus: true,
-              textInputAction: TextInputAction.done,
-              onChanged: (_) {
-                if (dialogError != null) {
-                  setDialogState(() => dialogError = null);
-                }
-              },
-              onSubmitted: (_) => onSave(),
-              decoration: InputDecoration(
-                hintText: '输入新的正则表达式',
-                errorText: dialogError,
-                border: const OutlineInputBorder(),
-                isDense: true,
-              ),
-              style: const TextStyle(fontFamily: 'monospace'),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('取消'),
-              ),
-              FilledButton(onPressed: onSave, child: const Text('保存')),
-            ],
-          );
-        },
-      ),
-    );
+  void _saveEditingPatterns() {
+    final values = _editControllers.map((c) => c.text.trim()).toList();
+    final errors = List<String?>.filled(values.length, null);
+    final seen = <String, int>{};
 
-    editController.dispose();
-    if (saved == true && mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('规则已更新'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+    for (var i = 0; i < values.length; i++) {
+      final value = values[i];
+      if (value.isEmpty) {
+        errors[i] = '不能为空';
+      } else if (!KeywordFilterNotifier.isValidRegex(value)) {
+        errors[i] = '无效的正则表达式';
+      } else if (seen.containsKey(value)) {
+        errors[i] = '与第 ${seen[value]! + 1} 条重复';
+      } else {
+        seen[value] = i;
+      }
+    }
+
+    if (errors.any((error) => error != null)) {
+      setState(() => _editErrors = errors);
+      return;
+    }
+
+    final ok = ref
+        .read(keywordFilterProvider.notifier)
+        .replaceAllPatterns(values);
+    if (!ok) {
+      setState(() {
+        _editErrors = List<String?>.filled(values.length, '与其它规则重复或保存失败');
+      });
+      return;
+    }
+
+    _disposeEditControllers();
+    setState(() {
+      _editControllers.clear();
+      _editErrors = const [];
+      _isEditing = false;
+    });
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('规则已保存'), duration: Duration(seconds: 1)),
+      );
+  }
+
+  void _disposeEditControllers() {
+    for (final controller in _editControllers) {
+      controller.dispose();
     }
   }
 
@@ -125,9 +133,27 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final patterns = ref.watch(keywordFilterProvider);
+    final canEdit = patterns.isNotEmpty;
+    final itemCount = _isEditing ? _editControllers.length : patterns.length;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('关键词屏蔽')),
+      appBar: AppBar(
+        title: const Text('关键词屏蔽'),
+        actions: [
+          if (_isEditing) ...[
+            TextButton.icon(
+              onPressed: _saveEditingPatterns,
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('保存'),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: '取消编辑',
+              onPressed: _cancelEditMode,
+            ),
+          ],
+        ],
+      ),
       body: Column(
         children: [
           Padding(
@@ -138,17 +164,21 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
                 Expanded(
                   child: TextField(
                     controller: _controller,
+                    enabled: !_isEditing,
                     decoration: InputDecoration(
-                      hintText: '输入正则表达式，例如 广告|推广',
+                      hintText: _isEditing ? '编辑中请先保存或取消' : '输入正则表达式，例如 广告|推广',
                       errorText: _errorText,
                       border: const OutlineInputBorder(),
                       isDense: true,
                     ),
-                    onSubmitted: (_) => _addPattern(),
+                    onSubmitted: _isEditing ? null : (_) => _addPattern(),
                   ),
                 ),
                 const SizedBox(width: 8),
-                FilledButton(onPressed: _addPattern, child: const Text('添加')),
+                FilledButton(
+                  onPressed: _isEditing ? null : _addPattern,
+                  child: const Text('添加'),
+                ),
               ],
             ),
           ),
@@ -166,7 +196,7 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
           ),
           const Divider(height: 1),
           Expanded(
-            child: patterns.isEmpty
+            child: itemCount == 0
                 ? Center(
                     child: Text(
                       '尚未添加屏蔽规则',
@@ -176,10 +206,12 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
                     ),
                   )
                 : ListView.separated(
-                    itemCount: patterns.length,
+                    itemCount: itemCount,
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, index) {
-                      final pattern = patterns[index];
+                      final pattern = _isEditing
+                          ? _editControllers[index].text
+                          : patterns[index];
                       return Padding(
                         padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                         child: Column(
@@ -188,24 +220,53 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit),
-                                  tooltip: '编辑',
-                                  onPressed: () => _editPattern(index, pattern),
-                                ),
+                                if (!_isEditing)
+                                  IconButton(
+                                    icon: const Icon(Icons.edit),
+                                    tooltip: '编辑',
+                                    onPressed: canEdit ? _enterEditMode : null,
+                                  ),
                                 IconButton(
                                   icon: const Icon(Icons.delete_outline),
                                   tooltip: '删除',
-                                  onPressed: () => ref
-                                      .read(keywordFilterProvider.notifier)
-                                      .removeAt(index),
+                                  onPressed: _isEditing
+                                      ? () => _removeEditingPattern(index)
+                                      : () => ref
+                                            .read(
+                                              keywordFilterProvider.notifier,
+                                            )
+                                            .removeAt(index),
                                 ),
                               ],
                             ),
-                            SelectableText(
-                              pattern,
-                              style: const TextStyle(fontFamily: 'monospace'),
-                            ),
+                            if (_isEditing)
+                              TextField(
+                                controller: _editControllers[index],
+                                minLines: 1,
+                                maxLines: 3,
+                                decoration: InputDecoration(
+                                  labelText: '规则 ${index + 1}',
+                                  errorText: index < _editErrors.length
+                                      ? _editErrors[index]
+                                      : null,
+                                  border: const OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                                style: const TextStyle(fontFamily: 'monospace'),
+                                onChanged: (_) {
+                                  if (index < _editErrors.length &&
+                                      _editErrors[index] != null) {
+                                    final errors = [..._editErrors];
+                                    errors[index] = null;
+                                    setState(() => _editErrors = errors);
+                                  }
+                                },
+                              )
+                            else
+                              SelectableText(
+                                pattern,
+                                style: const TextStyle(fontFamily: 'monospace'),
+                              ),
                           ],
                         ),
                       );

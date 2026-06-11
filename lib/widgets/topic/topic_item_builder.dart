@@ -14,6 +14,8 @@ Widget buildTopicItem({
   required VoidCallback onTap,
   required bool enableLongPress,
   Color? highlightColor,
+  Color? titleColor,
+  bool denseMetadata = false,
   Widget? topWidget,
   Widget? bottomWidget,
   List<PreviewAction>? previewActions,
@@ -26,11 +28,11 @@ Widget buildTopicItem({
       onTap: onTap,
       onLongPress: enableLongPress
           ? () => TopicPreviewDialog.show(
-                context,
-                topic: topic,
-                onOpen: onTap,
-                actions: previewActions,
-              )
+              context,
+              topic: topic,
+              onOpen: onTap,
+              actions: previewActions,
+            )
           : null,
       isSelected: isSelected,
       highlightColor: highlightColor,
@@ -41,23 +43,27 @@ Widget buildTopicItem({
       onTap: onTap,
       onLongPress: enableLongPress
           ? () => TopicPreviewDialog.show(
-                context,
-                topic: topic,
-                onOpen: onTap,
-                actions: previewActions,
-              )
+              context,
+              topic: topic,
+              onOpen: onTap,
+              actions: previewActions,
+            )
           : null,
       isSelected: isSelected,
       highlightColor: highlightColor,
       topWidget: topWidget,
       bottomWidget: bottomWidget,
+      titleColor: titleColor,
+      denseMetadata: denseMetadata,
     );
   }
 
   if (!Responsive.isMobile(context)) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: Breakpoints.maxContentWidth),
+        constraints: const BoxConstraints(
+          maxWidth: Breakpoints.maxContentWidth,
+        ),
         child: child,
       ),
     );

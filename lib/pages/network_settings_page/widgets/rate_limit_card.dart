@@ -47,6 +47,25 @@ class RateLimitCard extends ConsumerWidget {
               suffix: context.l10n.networkSettings_windowSecondsSuffix,
               onChanged: (v) => notifier.setWindowSeconds(v),
             ),
+            const Divider(height: 1, indent: 56),
+            _SliderTile(
+              icon: Icons.hourglass_bottom_rounded,
+              label: '请求最小间隔',
+              value: prefs.minRequestIntervalMs,
+              min: 0,
+              max: 1000,
+              suffix: 'ms',
+              onChanged: (v) => notifier.setMinRequestIntervalMs(v),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(56, 0, 16, 8),
+              child: Text(
+                '并发数控制同时请求数量，窗口上限控制一段时间内的请求总量；最小间隔用于削平瞬时突发，调高后更不容易触发 429，但列表加载会更稳更慢。',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
           ],
         ),
       ),

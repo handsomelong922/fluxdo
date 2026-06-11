@@ -124,26 +124,6 @@ flutter:
     - assets/certs/
     - assets/polyfill/
 
-  fonts:
-    - family: MiSans
-      fonts:
-        - asset: assets/fonts/MiSans-Regular.ttf
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

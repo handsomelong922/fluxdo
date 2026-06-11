@@ -71,6 +71,35 @@ List<SettingsGroup> buildPreferencesGroups(BuildContext context) {
       ],
     ),
     SettingsGroup(
+      title: '首页列表',
+      icon: Icons.view_agenda_outlined,
+      items: [
+        SwitchModel(
+          id: 'homeDetailedTopicList',
+          title: '首页详细展示',
+          subtitle: '开启后在首页话题卡片中显示主帖摘要',
+          icon: Icons.subject_rounded,
+          getValue: (ref) =>
+              ref.watch(preferencesProvider).homeDetailedTopicList,
+          onChanged: (ref, v) => ref
+              .read(preferencesProvider.notifier)
+              .setHomeDetailedTopicList(v),
+        ),
+        IntSliderModel(
+          id: 'homeExcerptLines',
+          title: '首页摘要行数',
+          subtitle: '详细展示开启后生效，最多显示主帖前 1-10 行',
+          icon: Icons.format_line_spacing_rounded,
+          min: 1,
+          max: 10,
+          valueSuffix: '行',
+          getValue: (ref) => ref.watch(preferencesProvider).homeExcerptLines,
+          onChanged: (ref, v) =>
+              ref.read(preferencesProvider.notifier).setHomeExcerptLines(v),
+        ),
+      ],
+    ),
+    SettingsGroup(
       title: l10n.preferences_editor,
       icon: Icons.edit_note_rounded,
       items: [

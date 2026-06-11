@@ -11,6 +11,7 @@ import '../services/app_error_handler.dart';
 import '../services/discourse/discourse_service.dart';
 import '../services/toast_service.dart';
 import '../utils/time_utils.dart';
+import '../utils/html_excerpt.dart';
 import '../widgets/bookmark/bookmark_edit_sheet.dart';
 import '../widgets/search/searchable_app_bar.dart';
 import '../widgets/search/user_content_search_view.dart';
@@ -41,7 +42,9 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _searchNotifier = ref.read(userContentSearchProvider(SearchInType.bookmarks).notifier);
+    _searchNotifier = ref.read(
+      userContentSearchProvider(SearchInType.bookmarks).notifier,
+    );
   }
 
   @override
@@ -65,7 +68,8 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
     final progress = raw < 0 ? 0.0 : raw;
     final current = ref.read(navScrollProgressProvider(NavEntryIds.bookmarks));
     final atZero = progress == 0 && current != 0;
-    final crossed = (progress >= navScrollIconThreshold) !=
+    final crossed =
+        (progress >= navScrollIconThreshold) !=
         (current >= navScrollIconThreshold);
     if (!atZero && !crossed && (progress - current).abs() < 4.0) return;
     ref.read(navScrollProgressProvider(NavEntryIds.bookmarks).notifier).state =
@@ -83,18 +87,20 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
         builder: (_) => TopicDetailPage(
           topicId: topic.id,
           // 帖子书签跳转到被书签的帖子，话题书签使用最后阅读位置
-          scrollToPostNumber: topic.bookmarkedPostNumber ?? topic.lastReadPostNumber,
+          scrollToPostNumber:
+              topic.bookmarkedPostNumber ?? topic.lastReadPostNumber,
         ),
       ),
     );
   }
 
   @override
-
   @override
   Widget build(BuildContext context) {
     final bookmarksAsync = ref.watch(bookmarksProvider);
-    final searchState = ref.watch(userContentSearchProvider(SearchInType.bookmarks));
+    final searchState = ref.watch(
+      userContentSearchProvider(SearchInType.bookmarks),
+    );
 
     // 嵌入底栏时响应快捷动作（仅活跃 tab 响应）
     ref.listen(navActionBusProvider, (_, event) {
@@ -129,7 +135,9 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
       onPopInvokedWithResult: (bool didPop, dynamic result) {
         if (!didPop) {
           // 搜索模式下按返回键，退出搜索而不是退出页面
-          ref.read(userContentSearchProvider(SearchInType.bookmarks).notifier).exitSearchMode();
+          ref
+              .read(userContentSearchProvider(SearchInType.bookmarks).notifier)
+              .exitSearchMode();
         }
       },
       child: Scaffold(
@@ -171,13 +179,14 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
 
   /// 卡片顶部色带：书签名称、提醒时间
   Widget? _buildBookmarkTopBar(BuildContext context, Topic topic) {
-    final hasName = topic.bookmarkName != null && topic.bookmarkName!.isNotEmpty;
+    final hasName =
+        topic.bookmarkName != null && topic.bookmarkName!.isNotEmpty;
     final hasReminder = topic.bookmarkReminderAt != null;
     if (!hasName && !hasReminder) return null;
 
     final colorScheme = Theme.of(context).colorScheme;
-    final isExpired = hasReminder &&
-        topic.bookmarkReminderAt!.isBefore(DateTime.now());
+    final isExpired =
+        hasReminder && topic.bookmarkReminderAt!.isBefore(DateTime.now());
     final bgColor = isExpired
         ? colorScheme.errorContainer.withValues(alpha: 0.5)
         : colorScheme.secondaryContainer.withValues(alpha: 0.6);
@@ -219,11 +228,7 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
             ],
           ],
         ),
-        style: TextStyle(
-          fontSize: 12,
-          color: fgColor,
-          height: 1.3,
-        ),
+        style: TextStyle(fontSize: 12, color: fgColor, height: 1.3),
       ),
     );
   }
@@ -231,7 +236,7 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
   /// 卡片底部：摘要
   Widget? _buildBookmarkExcerpt(BuildContext context, Topic topic) {
     if (topic.excerpt == null) return null;
-    final cleaned = _cleanExcerpt(topic.excerpt!);
+    final cleaned = cleanHtmlExcerpt(topic.excerpt!);
     if (cleaned.isEmpty) return null;
 
     final colorScheme = Theme.of(context).colorScheme;
@@ -245,21 +250,6 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
     );
-  }
-
-  /// 清理 excerpt 中的 HTML 标签和实体
-  String _cleanExcerpt(String html) {
-    return html
-        .replaceAll(RegExp(r'<[^>]*>'), '')
-        .replaceAll('&hellip;', '...')
-        .replaceAll('&amp;', '&')
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&#39;', "'")
-        .replaceAll('&nbsp;', ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
   }
 
   List<PreviewAction> _buildPreviewActions(Topic topic) {
@@ -321,10 +311,9 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
     try {
       await DiscourseService().clearBookmarkReminder(bookmarkId);
       if (!mounted) return;
-      ref.read(bookmarksProvider.notifier).updateBookmarkMeta(
-        bookmarkId,
-        clearReminderAt: true,
-      );
+      ref
+          .read(bookmarksProvider.notifier)
+          .updateBookmarkMeta(bookmarkId, clearReminderAt: true);
       ToastService.showSuccess(S.current.bookmarks_reminderCancelled);
     } on DioException catch (_) {
       // 网络错误已由 ErrorInterceptor 处理
@@ -359,9 +348,16 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.bookmark_border, size: 64, color: Colors.grey),
+                  const Icon(
+                    Icons.bookmark_border,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(height: 16),
-                  Text(context.l10n.bookmarks_empty, style: const TextStyle(color: Colors.grey)),
+                  Text(
+                    context.l10n.bookmarks_empty,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
                 ],
               ),
             );
@@ -394,11 +390,18 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.refresh, size: 16, color: Theme.of(context).colorScheme.primary),
+                            Icon(
+                              Icons.refresh,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               context.l10n.common_loadFailedTapRetry,
-                              style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.primary),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                             ),
                           ],
                         ),
@@ -416,7 +419,9 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
               }
 
               final topic = topics[index];
-              final enableLongPress = ref.watch(preferencesProvider).longPressPreview;
+              final enableLongPress = ref
+                  .watch(preferencesProvider)
+                  .longPressPreview;
               return buildTopicItem(
                 context: context,
                 topic: topic,
@@ -433,11 +438,8 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
           );
         },
         loading: () => const TopicListSkeleton(),
-        error: (error, stack) => ErrorView(
-          error: error,
-          stackTrace: stack,
-          onRetry: _onRefresh,
-        ),
+        error: (error, stack) =>
+            ErrorView(error: error, stackTrace: stack, onRetry: _onRefresh),
       ),
     );
   }

@@ -44,6 +44,7 @@ import '../services/toast_service.dart';
 import '../services/navigation/app_route_observer.dart';
 import '../services/navigation/pop_passthrough_material_page_route.dart';
 import '../utils/dialog_utils.dart';
+import '../utils/html_excerpt.dart';
 import '../utils/platform_utils.dart';
 
 class ScrollToTopNotifier extends StateNotifier<int> {
@@ -1390,6 +1391,13 @@ class _TopicListState extends ConsumerState<_TopicList>
     }
 
     final selectedTopicId = ref.watch(selectedTopicProvider).topicId;
+    final preferences = ref.watch(preferencesProvider);
+    final enableLongPress = preferences.longPressPreview;
+    final showHomeExcerpt = preferences.homeDetailedTopicList;
+    final homeExcerptLines = preferences.homeExcerptLines;
+    final homeTitleColor = preferences.homeTopicTitleColorValue == 0
+        ? null
+        : Color(preferences.homeTopicTitleColorValue);
 
     // 桌面端：注册 J/K/Enter 导航到主面板快捷键
     if (PlatformUtils.isDesktop && isCurrentTab) {
@@ -1529,12 +1537,12 @@ class _TopicListState extends ConsumerState<_TopicList>
                   }
 
                   final topic = topics[topicIndex];
-                  final enableLongPress = ref
-                      .watch(preferencesProvider)
-                      .longPressPreview;
                   final shouldHighlight = _highlightedTopicIds.contains(
                     topic.id,
                   );
+                  final bottomWidget = showHomeExcerpt
+                      ? _buildHomeExcerpt(context, topic, homeExcerptLines)
+                      : null;
 
                   if (shouldHighlight) {
                     final theme = Theme.of(context);
@@ -1564,6 +1572,9 @@ class _TopicListState extends ConsumerState<_TopicList>
                           onTap: () => _openTopic(topic),
                           enableLongPress: enableLongPress,
                           highlightColor: color,
+                          titleColor: homeTitleColor,
+                          denseMetadata: showHomeExcerpt,
+                          bottomWidget: bottomWidget,
                         );
                       },
                     );
@@ -1575,6 +1586,9 @@ class _TopicListState extends ConsumerState<_TopicList>
                     isSelected: topic.id == selectedTopicId,
                     onTap: () => _openTopic(topic),
                     enableLongPress: enableLongPress,
+                    titleColor: homeTitleColor,
+                    denseMetadata: showHomeExcerpt,
+                    bottomWidget: bottomWidget,
                   );
                 },
               ),
@@ -1697,6 +1711,25 @@ class _TopicListState extends ConsumerState<_TopicList>
           ),
         ),
       ),
+    );
+  }
+
+  Widget? _buildHomeExcerpt(BuildContext context, Topic topic, int maxLines) {
+    final excerpt = topic.excerpt;
+    if (excerpt == null || excerpt.isEmpty) return null;
+    final cleaned = cleanHtmlExcerpt(excerpt);
+    if (cleaned.isEmpty) return null;
+
+    final colorScheme = Theme.of(context).colorScheme;
+    return Text(
+      cleaned,
+      style: TextStyle(
+        fontSize: 12,
+        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.72),
+        height: 1.35,
+      ),
+      maxLines: maxLines.clamp(1, 10).toInt(),
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

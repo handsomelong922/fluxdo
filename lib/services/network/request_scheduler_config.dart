@@ -14,6 +14,9 @@ class RequestSchedulerConfig {
   /// 滑动窗口时长，单位秒（默认 3）
   static int windowSeconds = 3;
 
+  /// 同一 host 相邻请求发出的最小间隔，单位毫秒（默认 250）
+  static int minIntervalMs = 250;
+
   static DateTime? _serverCooldownUntil;
 
   /// 服务端返回 429 后暂停新请求，避免自动刷新继续把限流窗口顶满。

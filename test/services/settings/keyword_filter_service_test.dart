@@ -3,32 +3,36 @@ import 'package:fluxdo/services/settings/keyword_filter_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  group('KeywordFilterNotifier', () {
-    test('matches compiled regex rules case-insensitively', () async {
-      SharedPreferences.setMockInitialValues({
-        'custom_keyword_filter_patterns': ['福利|抽奖'],
-      });
-      final prefs = await SharedPreferences.getInstance();
-      final notifier = KeywordFilterNotifier(prefs);
-
-      expect(notifier.matches('今天有福利'), isTrue);
-      expect(notifier.matches('普通话题'), isFalse);
-    });
-
-    test('rebuilds compiled rules after edits and removals', () async {
+  group('KeywordFilterNotifier.replaceAllPatterns', () {
+    test('persists normalized valid patterns', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final notifier = KeywordFilterNotifier(prefs);
 
-      expect(notifier.add('foo'), isTrue);
-      expect(notifier.matches('FOO'), isTrue);
+      final ok = notifier.replaceAllPatterns(['  广告  ', '推广|营销']);
 
-      expect(notifier.editAt(0, 'bar'), isTrue);
-      expect(notifier.matches('FOO'), isFalse);
-      expect(notifier.matches('bar'), isTrue);
-
-      notifier.remove('bar');
-      expect(notifier.matches('bar'), isFalse);
+      expect(ok, isTrue);
+      expect(notifier.state, ['广告', '推广|营销']);
+      expect(prefs.getStringList('custom_keyword_filter_patterns'), [
+        '广告',
+        '推广|营销',
+      ]);
     });
+
+    test(
+      'rejects invalid or duplicated patterns without changing state',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final notifier = KeywordFilterNotifier(prefs);
+        notifier.replaceAllPatterns(['广告']);
+
+        expect(notifier.replaceAllPatterns(['广告', '广告']), isFalse);
+        expect(notifier.state, ['广告']);
+
+        expect(notifier.replaceAllPatterns(['[']), isFalse);
+        expect(notifier.state, ['广告']);
+      },
+    );
   });
 }

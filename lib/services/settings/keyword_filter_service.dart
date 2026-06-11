@@ -68,6 +68,23 @@ class KeywordFilterNotifier extends StateNotifier<List<String>> {
     return true;
   }
 
+  /// 批量替换所有规则。
+  /// 返回是否保存成功（空、非法正则、重复项均会拒绝）。
+  bool replaceAllPatterns(List<String> patterns) {
+    final normalized = <String>[];
+    final seen = <String>{};
+    for (final pattern in patterns) {
+      final trimmed = pattern.trim();
+      if (trimmed.isEmpty || !isValidRegex(trimmed)) return false;
+      if (!seen.add(trimmed)) return false;
+      normalized.add(trimmed);
+    }
+    state = normalized;
+    _rebuildCompiledPatterns();
+    _save();
+    return true;
+  }
+
   /// 按值删除
   void remove(String pattern) {
     if (!state.contains(pattern)) return;

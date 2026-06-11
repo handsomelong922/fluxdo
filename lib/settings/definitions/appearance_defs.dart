@@ -144,6 +144,21 @@ List<SettingsGroup> buildAppearanceGroups(BuildContext context) {
       ],
     ),
 
+    // ── 首页标题颜色 ───────────────────────────────────────────────
+    SettingsGroup(
+      title: '首页标题颜色',
+      icon: Icons.format_color_text_rounded,
+      wrapInCard: false,
+      items: [
+        CustomModel(
+          id: 'homeTopicTitleColor',
+          title: '首页标题颜色',
+          subtitle: '只影响首页话题列表',
+          builder: (context, ref) => const _HomeTitleColorSection(),
+        ),
+      ],
+    ),
+
     // ── 应用图标（仅 iOS/Android）────────────────────────────────
     SettingsGroup(
       title: l10n.appearance_appIcon,
@@ -195,51 +210,6 @@ List<SettingsGroup> buildAppearanceGroups(BuildContext context) {
               );
             },
           ),
-        ),
-      ],
-    ),
-
-    // ── 字体 ──────────────────────────────────────────────────────
-    SettingsGroup(
-      title: l10n.appearance_font,
-      icon: Icons.font_download_outlined,
-      items: [
-        CustomModel(
-          id: 'font',
-          title: l10n.appearance_font,
-          builder: (context, ref) {
-            final fontFamily = ref.watch(
-              themeProvider.select((s) => s.fontFamily),
-            );
-            final l10n = context.l10n;
-            final options = <(String, AppFontFamily)>[
-              (l10n.appearance_fontSystem, AppFontFamily.system),
-              ('MiSans', AppFontFamily.miSans),
-            ];
-
-            return RadioGroup<AppFontFamily>(
-              groupValue: fontFamily,
-              onChanged: (value) {
-                if (value != null) {
-                  ref.read(themeProvider.notifier).setFontFamily(value);
-                }
-              },
-              child: Column(
-                children: [
-                  for (final (label, ff) in options)
-                    RadioListTile<AppFontFamily>(
-                      title: Text(
-                        label,
-                        style: ff == AppFontFamily.miSans
-                            ? const TextStyle(fontFamily: 'MiSans')
-                            : null,
-                      ),
-                      value: ff,
-                    ),
-                ],
-              ),
-            );
-          },
         ),
       ],
     ),
@@ -454,6 +424,277 @@ class _DisplayModeData {
   final DisplayMode active;
 
   const _DisplayModeData({required this.modes, required this.active});
+}
+
+class _HomeTitleColorSection extends ConsumerWidget {
+  const _HomeTitleColorSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colorValue = ref.watch(
+      preferencesProvider.select((p) => p.homeTopicTitleColorValue),
+    );
+    final selectedColor = colorValue == 0 ? null : Color(colorValue);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '只影响首页话题列表。设为默认时，标题继续按未读/已读状态显示原来的颜色。',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _HomeTitleColorOption(
+              label: '默认',
+              selected: selectedColor == null,
+              onTap: () => ref
+                  .read(preferencesProvider.notifier)
+                  .setHomeTopicTitleColorValue(0),
+            ),
+            for (final color in ThemeNotifier.presetColors)
+              _HomeTitleColorOption(
+                color: color,
+                selected: selectedColor?.toARGB32() == color.toARGB32(),
+                onTap: () => ref
+                    .read(preferencesProvider.notifier)
+                    .setHomeTopicTitleColorValue(color.toARGB32()),
+              ),
+            _HomeTitleColorOption(
+              label: selectedColor == null ? '自定义' : _hexOf(selectedColor),
+              color: selectedColor ?? theme.colorScheme.primary,
+              selected:
+                  selectedColor != null &&
+                  !ThemeNotifier.presetColors.any(
+                    (color) => color.toARGB32() == selectedColor.toARGB32(),
+                  ),
+              icon: Icons.edit_outlined,
+              onTap: () => _showHomeTitleColorPicker(context, ref),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  static Future<void> _showHomeTitleColorPicker(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final currentValue = ref.read(preferencesProvider).homeTopicTitleColorValue;
+    final initialColor = currentValue == 0
+        ? Theme.of(context).colorScheme.primary
+        : Color(currentValue);
+    final controller = TextEditingController(text: _hexOf(initialColor));
+    String? errorText;
+
+    int? parseHex(String value) {
+      final normalized = value.trim().replaceFirst('#', '');
+      if (!RegExp(r'^[0-9a-fA-F]{6}$').hasMatch(normalized)) return null;
+      return int.parse('FF$normalized', radix: 16);
+    }
+
+    final picked = await showAppBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final parsed = parseHex(controller.text);
+            final preview = Color(parsed ?? initialColor.toARGB32());
+            final theme = Theme.of(context);
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      '首页标题颜色',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: preview,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: theme.colorScheme.outlineVariant,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextField(
+                            controller: controller,
+                            decoration: InputDecoration(
+                              labelText: 'HEX 颜色',
+                              prefixText: '#',
+                              errorText: errorText,
+                              border: const OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            textCapitalization: TextCapitalization.characters,
+                            style: const TextStyle(fontFamily: 'monospace'),
+                            onChanged: (_) {
+                              if (errorText != null) {
+                                setSheetState(() => errorText = null);
+                              } else {
+                                setSheetState(() {});
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        for (final color in ThemeNotifier.presetColors)
+                          InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () {
+                              controller.text = _hexOf(color);
+                              setSheetState(() => errorText = null);
+                            },
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: theme.colorScheme.outlineVariant,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      onPressed: () {
+                        final value = parseHex(controller.text);
+                        if (value == null) {
+                          setSheetState(() => errorText = '请输入 6 位十六进制颜色');
+                          return;
+                        }
+                        Navigator.pop(sheetContext, value);
+                      },
+                      icon: const Icon(Icons.check),
+                      label: Text(context.l10n.common_confirm),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (picked != null) {
+      await ref
+          .read(preferencesProvider.notifier)
+          .setHomeTopicTitleColorValue(picked);
+    }
+    Future.delayed(const Duration(milliseconds: 350), controller.dispose);
+  }
+
+  static String _hexOf(Color color) =>
+      color.toARGB32().toRadixString(16).substring(2).toUpperCase();
+}
+
+class _HomeTitleColorOption extends StatelessWidget {
+  final String? label;
+  final Color? color;
+  final bool selected;
+  final IconData? icon;
+  final VoidCallback onTap;
+
+  const _HomeTitleColorOption({
+    this.label,
+    this.color,
+    required this.selected,
+    this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final foreground = color == null
+        ? theme.colorScheme.onSurfaceVariant
+        : ThemeData.estimateBrightnessForColor(color!) == Brightness.dark
+        ? Colors.white
+        : Colors.black;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 76,
+        height: 52,
+        decoration: BoxDecoration(
+          color: color ?? theme.colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (label != null)
+              Text(
+                label!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: color == null
+                      ? theme.colorScheme.onSurfaceVariant
+                      : foreground,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            if (icon != null)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Icon(icon, size: 14, color: foreground),
+              ),
+            if (selected)
+              Positioned(
+                left: 6,
+                top: 6,
+                child: Icon(Icons.check_circle, size: 16, color: foreground),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ── 语言选择器辅助函数 ───────────────────────────────────────────

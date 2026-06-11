@@ -168,21 +168,25 @@ void main() {
     late int previousMaxConcurrent;
     late int previousMaxPerWindow;
     late int previousWindowSeconds;
+    late int previousMinIntervalMs;
 
     setUp(() {
       previousMaxConcurrent = RequestSchedulerConfig.maxConcurrent;
       previousMaxPerWindow = RequestSchedulerConfig.maxPerWindow;
       previousWindowSeconds = RequestSchedulerConfig.windowSeconds;
+      previousMinIntervalMs = RequestSchedulerConfig.minIntervalMs;
       RequestSchedulerInterceptor.resetSharedStateForTesting();
       RequestSchedulerConfig.maxConcurrent = 1;
       RequestSchedulerConfig.maxPerWindow = 100;
       RequestSchedulerConfig.windowSeconds = 1;
+      RequestSchedulerConfig.minIntervalMs = 0;
     });
 
     tearDown(() {
       RequestSchedulerConfig.maxConcurrent = previousMaxConcurrent;
       RequestSchedulerConfig.maxPerWindow = previousMaxPerWindow;
       RequestSchedulerConfig.windowSeconds = previousWindowSeconds;
+      RequestSchedulerConfig.minIntervalMs = previousMinIntervalMs;
       RequestSchedulerInterceptor.resetSharedStateForTesting();
     });
 
@@ -225,7 +229,52 @@ void main() {
 
       expect(adapter.completedPaths, ['/first', '/normal', '/low']);
     });
+
+    test(
+      'spaces consecutive requests by configured minimum interval',
+      () async {
+        RequestSchedulerConfig.maxConcurrent = 10;
+        RequestSchedulerConfig.minIntervalMs = 35;
+        final adapter = _StartTimeRecordingAdapter();
+        final dio = Dio(BaseOptions(baseUrl: 'https://linux.do'));
+        dio.httpClientAdapter = adapter;
+        dio.interceptors.add(RequestSchedulerInterceptor());
+
+        await Future.wait([dio.get('/first'), dio.get('/second')]);
+
+        expect(adapter.startTimes, hasLength(2));
+        expect(
+          adapter.startTimes[1]
+              .difference(adapter.startTimes[0])
+              .inMilliseconds,
+          greaterThanOrEqualTo(25),
+        );
+      },
+    );
   });
+}
+
+class _StartTimeRecordingAdapter implements HttpClientAdapter {
+  final List<DateTime> startTimes = [];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    startTimes.add(DateTime.now());
+    return ResponseBody.fromString(
+      '{}',
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }
 
 class _ConcurrencyRecordingAdapter implements HttpClientAdapter {

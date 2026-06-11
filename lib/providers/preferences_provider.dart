@@ -48,6 +48,15 @@ class AppPreferences {
   /// 在话题列表中隐藏头像
   final bool hideTopicListAvatars;
 
+  /// 首页话题列表显示主帖摘要
+  final bool homeDetailedTopicList;
+
+  /// 首页话题摘要最大显示行数
+  final int homeExcerptLines;
+
+  /// 首页话题标题自定义颜色；0 表示跟随默认样式
+  final int homeTopicTitleColorValue;
+
   /// 减少帖子详情和用户主页加载时的占位动画
   final bool reduceLoadingAnimations;
 
@@ -93,6 +102,9 @@ class AppPreferences {
   /// 滑动窗口时长（秒）
   final int windowSeconds;
 
+  /// 同一 host 相邻请求发出的最小间隔（毫秒）
+  final int minRequestIntervalMs;
+
   /// 底栏：单击已选中 tab 执行的动作
   final NavTapAction bottomSingleTapAction;
 
@@ -121,6 +133,9 @@ class AppPreferences {
     required this.hideBarOnScroll,
     required this.preferStaticAvatars,
     required this.hideTopicListAvatars,
+    required this.homeDetailedTopicList,
+    required this.homeExcerptLines,
+    required this.homeTopicTitleColorValue,
     required this.reduceLoadingAnimations,
     required this.pageTransition,
     required this.clearCacheOnExit,
@@ -136,6 +151,7 @@ class AppPreferences {
     required this.maxConcurrent,
     required this.maxPerWindow,
     required this.windowSeconds,
+    required this.minRequestIntervalMs,
     required this.bottomSingleTapAction,
     required this.bottomDoubleTapAction,
     required this.bottomNavIds,
@@ -158,6 +174,9 @@ class AppPreferences {
     bool? hideBarOnScroll,
     bool? preferStaticAvatars,
     bool? hideTopicListAvatars,
+    bool? homeDetailedTopicList,
+    int? homeExcerptLines,
+    int? homeTopicTitleColorValue,
     bool? reduceLoadingAnimations,
     AppPageTransition? pageTransition,
     bool? clearCacheOnExit,
@@ -173,6 +192,7 @@ class AppPreferences {
     int? maxConcurrent,
     int? maxPerWindow,
     int? windowSeconds,
+    int? minRequestIntervalMs,
     NavTapAction? bottomSingleTapAction,
     NavTapAction? bottomDoubleTapAction,
     List<String>? bottomNavIds,
@@ -197,6 +217,11 @@ class AppPreferences {
       hideBarOnScroll: hideBarOnScroll ?? this.hideBarOnScroll,
       preferStaticAvatars: preferStaticAvatars ?? this.preferStaticAvatars,
       hideTopicListAvatars: hideTopicListAvatars ?? this.hideTopicListAvatars,
+      homeDetailedTopicList:
+          homeDetailedTopicList ?? this.homeDetailedTopicList,
+      homeExcerptLines: homeExcerptLines ?? this.homeExcerptLines,
+      homeTopicTitleColorValue:
+          homeTopicTitleColorValue ?? this.homeTopicTitleColorValue,
       reduceLoadingAnimations:
           reduceLoadingAnimations ?? this.reduceLoadingAnimations,
       pageTransition: pageTransition ?? this.pageTransition,
@@ -217,6 +242,7 @@ class AppPreferences {
       maxConcurrent: maxConcurrent ?? this.maxConcurrent,
       maxPerWindow: maxPerWindow ?? this.maxPerWindow,
       windowSeconds: windowSeconds ?? this.windowSeconds,
+      minRequestIntervalMs: minRequestIntervalMs ?? this.minRequestIntervalMs,
       bottomSingleTapAction:
           bottomSingleTapAction ?? this.bottomSingleTapAction,
       bottomDoubleTapAction:
@@ -247,6 +273,10 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _hideBarOnScrollKey = 'pref_hide_bar_on_scroll';
   static const String _preferStaticAvatarsKey = 'pref_prefer_static_avatars';
   static const String _hideTopicListAvatarsKey = 'pref_hide_topic_list_avatars';
+  static const String _homeDetailedTopicListKey =
+      'pref_home_detailed_topic_list';
+  static const String _homeExcerptLinesKey = 'pref_home_excerpt_lines';
+  static const String _homeTopicTitleColorKey = 'pref_home_topic_title_color';
   static const String _reduceLoadingAnimationsKey =
       'pref_reduce_loading_animations';
   static const String _pageTransitionKey = 'pref_page_transition';
@@ -268,6 +298,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _maxConcurrentKey = 'pref_max_concurrent';
   static const String _maxPerWindowKey = 'pref_max_per_window';
   static const String _windowSecondsKey = 'pref_window_seconds';
+  static const String _minRequestIntervalMsKey = 'pref_min_request_interval_ms';
   static const String _bottomSingleTapActionKey =
       'pref_bottom_single_tap_action';
   static const String _bottomDoubleTapActionKey =
@@ -302,6 +333,12 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           preferStaticAvatars: _prefs.getBool(_preferStaticAvatarsKey) ?? false,
           hideTopicListAvatars:
               _prefs.getBool(_hideTopicListAvatarsKey) ?? false,
+          homeDetailedTopicList:
+              _prefs.getBool(_homeDetailedTopicListKey) ?? false,
+          homeExcerptLines: (_prefs.getInt(_homeExcerptLinesKey) ?? 5)
+              .clamp(1, 10)
+              .toInt(),
+          homeTopicTitleColorValue: _prefs.getInt(_homeTopicTitleColorKey) ?? 0,
           reduceLoadingAnimations:
               _prefs.getBool(_reduceLoadingAnimationsKey) ?? true,
           pageTransition: AppPageTransition.fromStorageKey(
@@ -323,6 +360,9 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           maxConcurrent: _prefs.getInt(_maxConcurrentKey) ?? 3,
           maxPerWindow: _prefs.getInt(_maxPerWindowKey) ?? 6,
           windowSeconds: _prefs.getInt(_windowSecondsKey) ?? 3,
+          minRequestIntervalMs: (_prefs.getInt(_minRequestIntervalMsKey) ?? 250)
+              .clamp(0, 2000)
+              .toInt(),
           bottomSingleTapAction: NavTapActionX.fromStorageKey(
             _prefs.getString(_bottomSingleTapActionKey),
             fallback: NavTapAction.scrollToTop,
@@ -437,6 +477,22 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     await _prefs.setBool(_hideTopicListAvatarsKey, enabled);
   }
 
+  Future<void> setHomeDetailedTopicList(bool enabled) async {
+    state = state.copyWith(homeDetailedTopicList: enabled);
+    await _prefs.setBool(_homeDetailedTopicListKey, enabled);
+  }
+
+  Future<void> setHomeExcerptLines(int value) async {
+    final clamped = value.clamp(1, 10).toInt();
+    state = state.copyWith(homeExcerptLines: clamped);
+    await _prefs.setInt(_homeExcerptLinesKey, clamped);
+  }
+
+  Future<void> setHomeTopicTitleColorValue(int value) async {
+    state = state.copyWith(homeTopicTitleColorValue: value);
+    await _prefs.setInt(_homeTopicTitleColorKey, value);
+  }
+
   Future<void> setReduceLoadingAnimations(bool enabled) async {
     state = state.copyWith(reduceLoadingAnimations: enabled);
     await _prefs.setBool(_reduceLoadingAnimationsKey, enabled);
@@ -514,6 +570,13 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     RequestSchedulerConfig.windowSeconds = clamped;
   }
 
+  Future<void> setMinRequestIntervalMs(int value) async {
+    final clamped = value.clamp(0, 2000).toInt();
+    state = state.copyWith(minRequestIntervalMs: clamped);
+    await _prefs.setInt(_minRequestIntervalMsKey, clamped);
+    RequestSchedulerConfig.minIntervalMs = clamped;
+  }
+
   Future<void> setBottomSingleTapAction(NavTapAction action) async {
     state = state.copyWith(bottomSingleTapAction: action);
     await _prefs.setString(_bottomSingleTapActionKey, action.toStorageKey());
@@ -540,6 +603,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     RequestSchedulerConfig.maxConcurrent = state.maxConcurrent;
     RequestSchedulerConfig.maxPerWindow = state.maxPerWindow;
     RequestSchedulerConfig.windowSeconds = state.windowSeconds;
+    RequestSchedulerConfig.minIntervalMs = state.minRequestIntervalMs;
   }
 
   /// 当前竖屏锁定状态（供视频播放器等无法访问 ref 的组件使用）

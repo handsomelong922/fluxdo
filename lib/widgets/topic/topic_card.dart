@@ -22,6 +22,8 @@ class TopicCard extends ConsumerWidget {
   final VoidCallback? onLongPress;
   final bool isSelected;
   final Color? highlightColor;
+  final Color? titleColor;
+  final bool denseMetadata;
   final Widget? topWidget;
   final Widget? bottomWidget;
 
@@ -32,6 +34,8 @@ class TopicCard extends ConsumerWidget {
     this.onLongPress,
     this.isSelected = false,
     this.highlightColor,
+    this.titleColor,
+    this.denseMetadata = false,
     this.topWidget,
     this.bottomWidget,
   });
@@ -43,6 +47,16 @@ class TopicCard extends ConsumerWidget {
     final unreadTitleColor = theme.brightness == Brightness.light
         ? Colors.black
         : theme.colorScheme.onSurface;
+    final effectiveTitleColor =
+        titleColor ??
+        (isUnread ? unreadTitleColor : theme.colorScheme.onSurfaceVariant);
+    final titleStyle = theme.textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w500,
+      height: 1.3,
+      color: effectiveTitleColor,
+    );
+    final badgeSize = denseMetadata ? BadgeSize.dense : BadgeSize.compact;
+    final badgeLineHeight = denseMetadata ? 21.0 : 24.0;
     // 依赖头像策略开关，确保切换“优先静态头像”后卡片立即重建。
     ref.watch(preferencesProvider.select((p) => p.preferStaticAvatars));
     final hideTopicListAvatars = ref.watch(
@@ -114,7 +128,7 @@ class TopicCard extends ConsumerWidget {
                       ),
                       const SizedBox(width: 10),
                     ],
-                    // 右侧：两行内容
+                    // 右侧：标题、标签和可选摘要
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -126,16 +140,7 @@ class TopicCard extends ConsumerWidget {
                               Expanded(
                                 child: Text.rich(
                                   TextSpan(
-                                    style: theme.textTheme.titleMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w500,
-                                          height: 1.3,
-                                          color: isUnread
-                                              ? unreadTitleColor
-                                              : theme
-                                                    .colorScheme
-                                                    .onSurfaceVariant,
-                                        ),
+                                    style: titleStyle,
                                     children: [
                                       if (topic.closed)
                                         WidgetSpan(
@@ -148,11 +153,7 @@ class TopicCard extends ConsumerWidget {
                                             child: Icon(
                                               Icons.lock_outline,
                                               size: 16,
-                                              color: isUnread
-                                                  ? unreadTitleColor
-                                                  : theme
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
+                                              color: effectiveTitleColor,
                                             ),
                                           ),
                                         ),
@@ -189,15 +190,7 @@ class TopicCard extends ConsumerWidget {
                                       ...EmojiText.buildEmojiSpans(
                                         context,
                                         topic.title,
-                                        theme.textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.w500,
-                                          height: 1.3,
-                                          color: isUnread
-                                              ? unreadTitleColor
-                                              : theme
-                                                    .colorScheme
-                                                    .onSurfaceVariant,
-                                        ),
+                                        titleStyle,
                                       ),
                                       // 未读蓝点追加在标题末尾
                                       if (topic.unseen)
@@ -239,20 +232,22 @@ class TopicCard extends ConsumerWidget {
                             children: [
                               // 左侧：分类和标签
                               Expanded(
-                                child: Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: [
-                                    if (category != null)
-                                      CategoryBadge(
-                                        category: category,
-                                        faIcon: faIcon,
-                                        logoUrl: logoUrl,
+                                child: SizedBox(
+                                  height: badgeLineHeight,
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    clipBehavior: Clip.hardEdge,
+                                    child: Row(
+                                      children: _buildBadges(
+                                        category,
+                                        faIcon,
+                                        logoUrl,
+                                        badgeSize,
                                       ),
-                                    ...topic.tags.map(
-                                      (tag) => TagBadge(name: tag.name),
                                     ),
-                                  ],
+                                  ),
                                 ),
                               ),
                               // 右侧：点赞 + 时间
@@ -418,6 +413,37 @@ class TopicCard extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  List<Widget> _buildBadges(
+    Category? category,
+    IconData? faIcon,
+    String? logoUrl,
+    BadgeSize size,
+  ) {
+    final badges = <Widget>[];
+
+    void addBadge(Widget badge) {
+      if (badges.isNotEmpty) badges.add(const SizedBox(width: 6));
+      badges.add(badge);
+    }
+
+    if (category != null) {
+      addBadge(
+        CategoryBadge(
+          category: category,
+          faIcon: faIcon,
+          logoUrl: logoUrl,
+          size: size,
+        ),
+      );
+    }
+
+    for (final tag in topic.tags) {
+      addBadge(TagBadge(name: tag.name, size: size));
+    }
+
+    return badges;
   }
 }
 

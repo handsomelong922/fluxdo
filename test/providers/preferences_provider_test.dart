@@ -2,11 +2,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/models/avatar_url_policy.dart';
 import 'package:fluxdo/navigation/page_transition_preferences.dart';
 import 'package:fluxdo/providers/preferences_provider.dart';
+import 'package:fluxdo/services/network/request_scheduler_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   tearDown(() {
     AvatarUrlPolicy.setPreferStaticAvatars(false);
+    RequestSchedulerConfig.maxConcurrent = 3;
+    RequestSchedulerConfig.maxPerWindow = 6;
+    RequestSchedulerConfig.windowSeconds = 3;
+    RequestSchedulerConfig.minIntervalMs = 250;
   });
 
   group('PreferencesNotifier settings', () {
@@ -68,10 +73,15 @@ void main() {
       expect(notifier.state.showSignatures, isTrue);
       expect(notifier.state.preferStaticAvatars, isFalse);
       expect(notifier.state.hideTopicListAvatars, isFalse);
+      expect(notifier.state.homeDetailedTopicList, isFalse);
+      expect(notifier.state.homeExcerptLines, 5);
+      expect(notifier.state.homeTopicTitleColorValue, 0);
       expect(notifier.state.reduceLoadingAnimations, isTrue);
+      expect(notifier.state.minRequestIntervalMs, 250);
       expect(notifier.state.pageTransition, AppPageTransition.platform);
       expect(notifier.state.clipboardTopicLinkDetection, isFalse);
       expect(AvatarUrlPolicy.preferStaticAvatars, isFalse);
+      expect(RequestSchedulerConfig.minIntervalMs, 250);
     });
 
     test('persists switch and clamps minimum replies', () async {
@@ -186,6 +196,35 @@ void main() {
       expect(notifier.state.preferStaticAvatars, isFalse);
       expect(AvatarUrlPolicy.preferStaticAvatars, isFalse);
       expect(prefs.getBool('pref_prefer_static_avatars'), isFalse);
+    });
+
+    test('persists home topic list display preferences', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final notifier = PreferencesNotifier(prefs);
+
+      await notifier.setHomeDetailedTopicList(true);
+      await notifier.setHomeExcerptLines(99);
+      await notifier.setHomeTopicTitleColorValue(0xFF336699);
+
+      expect(notifier.state.homeDetailedTopicList, isTrue);
+      expect(notifier.state.homeExcerptLines, 10);
+      expect(notifier.state.homeTopicTitleColorValue, 0xFF336699);
+      expect(prefs.getBool('pref_home_detailed_topic_list'), isTrue);
+      expect(prefs.getInt('pref_home_excerpt_lines'), 10);
+      expect(prefs.getInt('pref_home_topic_title_color'), 0xFF336699);
+    });
+
+    test('persists request interval preference and syncs scheduler', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final notifier = PreferencesNotifier(prefs);
+
+      await notifier.setMinRequestIntervalMs(3000);
+
+      expect(notifier.state.minRequestIntervalMs, 2000);
+      expect(prefs.getInt('pref_min_request_interval_ms'), 2000);
+      expect(RequestSchedulerConfig.minIntervalMs, 2000);
     });
   });
 }

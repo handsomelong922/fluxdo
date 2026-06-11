@@ -73,28 +73,41 @@ class _RateLimiter {
     if (RequestSchedulerConfig.serverCooldownRemaining > Duration.zero) {
       return false;
     }
-    _evict(DateTime.now());
-    return _timestamps.length < RequestSchedulerConfig.maxPerWindow;
+    final now = DateTime.now();
+    _evict(now);
+    return _timestamps.length < RequestSchedulerConfig.maxPerWindow &&
+        _minIntervalRemaining(now) <= Duration.zero;
   }
 
   /// 需要等待的时间（队列未满时返回 Duration.zero）
   Duration get waitDuration {
     final serverCooldown = RequestSchedulerConfig.serverCooldownRemaining;
-    if (serverCooldown > Duration.zero) return serverCooldown;
     final now = DateTime.now();
     _evict(now);
-    if (_timestamps.length < RequestSchedulerConfig.maxPerWindow) {
-      return Duration.zero;
+    var wait = serverCooldown;
+    if (_timestamps.length >= RequestSchedulerConfig.maxPerWindow) {
+      // 最早的时间戳 + 窗口大小 - 当前时间
+      final windowWait = _timestamps.first
+          .add(Duration(seconds: RequestSchedulerConfig.windowSeconds))
+          .difference(now);
+      if (windowWait > wait) wait = windowWait;
     }
-    // 最早的时间戳 + 窗口大小 - 当前时间
-    return _timestamps.first
-        .add(Duration(seconds: RequestSchedulerConfig.windowSeconds))
-        .difference(now);
+    final intervalWait = _minIntervalRemaining(now);
+    if (intervalWait > wait) wait = intervalWait;
+    return wait;
   }
 
   /// 记录一个请求发出
   void record() {
     _timestamps.add(DateTime.now());
+  }
+
+  Duration _minIntervalRemaining(DateTime now) {
+    final intervalMs = RequestSchedulerConfig.minIntervalMs;
+    if (intervalMs <= 0 || _timestamps.isEmpty) return Duration.zero;
+    final elapsed = now.difference(_timestamps.last);
+    final remaining = Duration(milliseconds: intervalMs) - elapsed;
+    return remaining > Duration.zero ? remaining : Duration.zero;
   }
 }
 
