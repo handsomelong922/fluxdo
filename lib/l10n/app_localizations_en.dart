@@ -281,12 +281,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearance_languageZhCN => '简体中文';
 
   @override
-  String get appearance_languageZhHK => '繁體中文（香港）';
-
-  @override
-  String get appearance_languageZhTW => '繁體中文（台灣）';
-
-  @override
   String get appearance_large => 'Large';
 
   @override

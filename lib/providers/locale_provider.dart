@@ -15,7 +15,11 @@ class LocaleNotifier extends StateNotifier<Locale?> {
     final saved = prefs.getString(_localeKey);
     if (saved == null || saved == 'system') return null;
     final parts = saved.split('_');
-    return Locale(parts[0], parts.length > 1 ? parts[1] : null);
+    return switch (parts.first) {
+      'zh' => const Locale('zh'),
+      'en' => const Locale('en'),
+      _ => null,
+    };
   }
 
   Future<void> setLocale(Locale? locale) async {
@@ -23,10 +27,7 @@ class LocaleNotifier extends StateNotifier<Locale?> {
     if (locale == null) {
       await _prefs.setString(_localeKey, 'system');
     } else {
-      final code = locale.countryCode != null
-          ? '${locale.languageCode}_${locale.countryCode}'
-          : locale.languageCode;
-      await _prefs.setString(_localeKey, code);
+      await _prefs.setString(_localeKey, locale.languageCode);
     }
   }
 }

@@ -707,10 +707,8 @@ void _showLanguagePicker(
   final l10n = context.l10n;
   final options = <(String, Locale?)>[
     (l10n.appearance_languageSystem, null),
-    (l10n.appearance_languageZhCN, const Locale('zh', 'CN')),
-    (l10n.appearance_languageZhTW, const Locale('zh', 'TW')),
-    (l10n.appearance_languageZhHK, const Locale('zh', 'HK')),
-    (l10n.appearance_languageEn, const Locale('en', 'US')),
+    (l10n.appearance_languageZhCN, const Locale('zh')),
+    (l10n.appearance_languageEn, const Locale('en')),
   ];
 
   showAppBottomSheet<void>(
@@ -749,12 +747,12 @@ void _showLanguagePicker(
 String _localeLabel(dynamic l10n, Locale? locale) {
   if (locale == null) return l10n.appearance_languageSystem;
   switch ('${locale.languageCode}_${locale.countryCode}') {
+    case 'zh_null':
     case 'zh_CN':
-      return l10n.appearance_languageZhCN;
     case 'zh_TW':
-      return l10n.appearance_languageZhTW;
     case 'zh_HK':
-      return l10n.appearance_languageZhHK;
+      return l10n.appearance_languageZhCN;
+    case 'en_null':
     case 'en_US':
       return l10n.appearance_languageEn;
     default:
@@ -764,6 +762,8 @@ String _localeLabel(dynamic l10n, Locale? locale) {
 
 String _localeKey(Locale? locale) {
   if (locale == null) return 'system';
+  if (locale.languageCode == 'zh') return 'zh';
+  if (locale.languageCode == 'en') return 'en';
   return locale.countryCode != null
       ? '${locale.languageCode}_${locale.countryCode}'
       : locale.languageCode;

@@ -328,9 +328,10 @@ Future<void> main() async {
   final savedLocale = prefs.getString('pref_locale');
   if (savedLocale != null && savedLocale != 'system') {
     final parts = savedLocale.split('_');
-    AiL10n.configureLocale(
-      Locale(parts[0], parts.length > 1 ? parts[1] : null),
-    );
+    final languageCode = parts.first;
+    if (languageCode == 'zh' || languageCode == 'en') {
+      AiL10n.configureLocale(Locale(languageCode));
+    }
   }
 
   // 过滤 Flutter 框架已知 bug（https://github.com/flutter/flutter/issues/115787）

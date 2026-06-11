@@ -96,8 +96,6 @@ abstract class AppLocalizations {
   static const List<Locale> supportedLocales = <Locale>[
     Locale('en'),
     Locale('zh'),
-    Locale('zh', 'HK'),
-    Locale('zh', 'TW'),
   ];
 
   /// No description provided for @about_appLogs.
@@ -609,18 +607,6 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'简体中文'**
   String get appearance_languageZhCN;
-
-  /// No description provided for @appearance_languageZhHK.
-  ///
-  /// In zh, this message translates to:
-  /// **'繁體中文（香港）'**
-  String get appearance_languageZhHK;
-
-  /// No description provided for @appearance_languageZhTW.
-  ///
-  /// In zh, this message translates to:
-  /// **'繁體中文（台灣）'**
-  String get appearance_languageZhTW;
 
   /// No description provided for @appearance_large.
   ///
@@ -11808,20 +11794,6 @@ class _AppLocalizationsDelegate
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
-  // Lookup logic when language+country codes are specified.
-  switch (locale.languageCode) {
-    case 'zh':
-      {
-        switch (locale.countryCode) {
-          case 'HK':
-            return AppLocalizationsZhHk();
-          case 'TW':
-            return AppLocalizationsZhTw();
-        }
-        break;
-      }
-  }
-
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
     case 'en':

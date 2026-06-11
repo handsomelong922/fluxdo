@@ -22,15 +22,16 @@ void main(List<String> args) {
 
   // 支持的 locale 列表，排序稳定
   const templateLocale = 'zh';
-  const locales = ['zh', 'en', 'zh_HK', 'zh_TW'];
+  const locales = ['zh', 'en'];
 
   // 1. 扫描模块目录
-  final modules = modulesDir
-      .listSync()
-      .whereType<Directory>()
-      .map((d) => d.uri.pathSegments.where((s) => s.isNotEmpty).last)
-      .toList()
-    ..sort();
+  final modules =
+      modulesDir
+          .listSync()
+          .whereType<Directory>()
+          .map((d) => d.uri.pathSegments.where((s) => s.isNotEmpty).last)
+          .toList()
+        ..sort();
 
   if (modules.isEmpty) {
     stderr.writeln('[ERROR] 未找到任何模块目录');
@@ -49,8 +50,7 @@ void main(List<String> args) {
   final warnings = <String>[];
 
   for (final module in modules) {
-    final moduleDir =
-        Directory(_join(modulesDir.path, module));
+    final moduleDir = Directory(_join(modulesDir.path, module));
 
     for (final locale in locales) {
       final file = _findArbFile(moduleDir, module, locale);
@@ -79,7 +79,8 @@ void main(List<String> args) {
         if (!key.startsWith('@') && locale == templateLocale) {
           if (globalKeyMap.containsKey(key)) {
             errors.add(
-                'Key "$key" 重复: 出现在模块 "${globalKeyMap[key]}" 和 "$module" 中');
+              'Key "$key" 重复: 出现在模块 "${globalKeyMap[key]}" 和 "$module" 中',
+            );
           }
           globalKeyMap[key] = module;
         }
@@ -118,8 +119,10 @@ void main(List<String> args) {
 
   // 统计
   final keyCount = globalKeyMap.length;
-  stdout.writeln('[OK] 校验通过: ${modules.length} 个模块, $keyCount 个 key, '
-      '${locales.length} 种语言');
+  stdout.writeln(
+    '[OK] 校验通过: ${modules.length} 个模块, $keyCount 个 key, '
+    '${locales.length} 种语言',
+  );
 
   if (checkOnly) {
     exit(0);
