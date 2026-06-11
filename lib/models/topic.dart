@@ -1,4 +1,6 @@
 // 帖子数据模型
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
 import '../l10n/s.dart';
 import '../utils/time_utils.dart';
@@ -1969,7 +1971,8 @@ class TopicListResponse {
 
   TopicListResponse({required this.topics, this.moreTopicsUrl});
 
-  factory TopicListResponse.fromJson(Map<String, dynamic> json) {
+  factory TopicListResponse.fromJson(Object? source) {
+    final json = _normalizeJson(source);
     // Parse users map
     final usersJson = json['users'] as List<dynamic>? ?? [];
     final userMap = {
@@ -1977,7 +1980,7 @@ class TopicListResponse {
         (u['id'] as int): TopicUser.fromJson(u as Map<String, dynamic>),
     };
 
-    final topicList = json['topic_list'] as Map<String, dynamic>?;
+    final topicList = _normalizeOptionalJson(json['topic_list'], 'topic_list');
     List<dynamic> topicsJson = [];
     String? moreTopicsUrl;
 
@@ -1986,8 +1989,10 @@ class TopicListResponse {
       moreTopicsUrl = topicList['more_topics_url'] as String?;
     } else if (json.containsKey('user_bookmark_list')) {
       // 处理 /u/{username}/bookmarks.json 格式
-      final userBookmarkList =
-          json['user_bookmark_list'] as Map<String, dynamic>?;
+      final userBookmarkList = _normalizeOptionalJson(
+        json['user_bookmark_list'],
+        'user_bookmark_list',
+      );
       if (userBookmarkList != null) {
         final bookmarks = userBookmarkList['bookmarks'] as List<dynamic>? ?? [];
         moreTopicsUrl = userBookmarkList['more_bookmarks_url'] as String?;
@@ -2097,6 +2102,53 @@ class TopicListResponse {
       moreTopicsUrl: moreTopicsUrl,
     );
   }
+
+  static Map<String, dynamic> _normalizeJson(Object? source) {
+    final json = _tryNormalizeJsonMap(source);
+    if (json != null) return json;
+    throw FormatException('话题列表响应格式异常: ${_describeTopicListPayload(source)}');
+  }
+
+  static Map<String, dynamic>? _normalizeOptionalJson(
+    Object? source,
+    String fieldName,
+  ) {
+    if (source == null) return null;
+    final json = _tryNormalizeJsonMap(source);
+    if (json != null) return json;
+    throw FormatException(
+      '话题列表字段 $fieldName 格式异常: ${_describeTopicListPayload(source)}',
+    );
+  }
+
+  static Map<String, dynamic>? _tryNormalizeJsonMap(Object? source) {
+    if (source is Map<String, dynamic>) return source;
+    if (source is Map) return source.cast<String, dynamic>();
+    if (source is String) {
+      final text = source.trim();
+      if (text.isEmpty) return null;
+      try {
+        final decoded = jsonDecode(text);
+        if (decoded is Map<String, dynamic>) return decoded;
+        if (decoded is Map) return decoded.cast<String, dynamic>();
+      } on FormatException {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+String _describeTopicListPayload(Object? source) {
+  if (source == null) return 'null';
+  if (source is String) {
+    final compact = source.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final preview = compact.length > 120
+        ? '${compact.substring(0, 120)}...'
+        : compact;
+    return 'String("$preview")';
+  }
+  return source.runtimeType.toString();
 }
 
 /// 举报类型

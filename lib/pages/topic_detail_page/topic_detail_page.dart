@@ -1019,6 +1019,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final detailAsync = ref.watch(topicDetailProvider(params));
     final detail = detailAsync.value;
     final notifier = ref.read(topicDetailProvider(params).notifier);
+    final nestedParams = NestedTopicParams(topicId: widget.topicId);
+    final primedNestedAsync = _isNestedView
+        ? ref.watch(nestedTopicProvider(nestedParams))
+        : null;
 
     _maybeSwitchToMasterDetail(canShowDetailPane, detail);
 
@@ -1178,6 +1182,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       notifier,
       isLoggedIn,
       topContentInset: contentTopInset,
+      primedNestedAsync: primedNestedAsync,
     );
     final topicScaffold = Scaffold(
       extendBodyBehindAppBar: true,
@@ -1344,6 +1349,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     TopicDetailNotifier notifier,
     bool isLoggedIn, {
     double topContentInset = 0,
+    AsyncValue<NestedTopicState>? primedNestedAsync,
   }) {
     final params = _params;
     final searchState = ref.watch(topicSearchProvider(widget.topicId));
@@ -1426,6 +1432,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         isLoggedIn,
         topContentInset: topContentInset,
         searchHighlightQuery: searchQuery,
+        primedNestedAsync: primedNestedAsync,
       );
     }
 
@@ -1553,6 +1560,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     bool isLoggedIn, {
     double topContentInset = 0,
     String? searchHighlightQuery,
+    AsyncValue<NestedTopicState>? primedNestedAsync,
   }) {
     final posts = detail.postStream.posts;
     final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
@@ -1607,7 +1615,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     // 嵌套视图模式
     if (_isNestedView) {
       final nestedParams = NestedTopicParams(topicId: widget.topicId);
-      final nestedAsync = ref.watch(nestedTopicProvider(nestedParams));
+      final AsyncValue<NestedTopicState> nestedAsync =
+          primedNestedAsync ?? ref.watch(nestedTopicProvider(nestedParams));
 
       Widget nestedView = nestedAsync.when(
         loading: () => PostListSkeleton(
