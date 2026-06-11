@@ -71,6 +71,19 @@ final fabRefreshSignalProvider =
       return ScrollToTopNotifier();
     });
 
+final homeTopicExcerptProvider = FutureProvider.autoDispose
+    .family<String?, int>((ref, topicId) async {
+      final keepAlive = ref.keepAlive();
+      try {
+        return await ref
+            .watch(discourseServiceProvider)
+            .getTopicFirstPostCooked(topicId, background: true);
+      } catch (_) {
+        keepAlive.close();
+        rethrow;
+      }
+    });
+
 /// Header 区域常量
 const _searchBarHeight = 56.0;
 const _tabRowHeight = 36.0;
@@ -1716,9 +1729,44 @@ class _TopicListState extends ConsumerState<_TopicList>
 
   Widget? _buildHomeExcerpt(BuildContext context, Topic topic, int maxLines) {
     final excerpt = topic.excerpt;
-    if (excerpt == null || excerpt.isEmpty) return null;
-    final cleaned = cleanHtmlExcerpt(excerpt);
-    if (cleaned.isEmpty) return null;
+    if (excerpt != null && excerpt.isNotEmpty) {
+      return _HomeExcerptText(html: excerpt, maxLines: maxLines);
+    }
+
+    return _HomeExcerptLoader(topicId: topic.id, maxLines: maxLines);
+  }
+}
+
+class _HomeExcerptLoader extends ConsumerWidget {
+  final int topicId;
+  final int maxLines;
+
+  const _HomeExcerptLoader({required this.topicId, required this.maxLines});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncExcerpt = ref.watch(homeTopicExcerptProvider(topicId));
+    return asyncExcerpt.when(
+      data: (html) {
+        if (html == null || html.isEmpty) return const SizedBox.shrink();
+        return _HomeExcerptText(html: html, maxLines: maxLines);
+      },
+      error: (_, _) => const SizedBox.shrink(),
+      loading: () => _HomeExcerptPlaceholder(maxLines: maxLines),
+    );
+  }
+}
+
+class _HomeExcerptText extends StatelessWidget {
+  final String html;
+  final int maxLines;
+
+  const _HomeExcerptText({required this.html, required this.maxLines});
+
+  @override
+  Widget build(BuildContext context) {
+    final cleaned = cleanHtmlExcerpt(html);
+    if (cleaned.isEmpty) return const SizedBox.shrink();
 
     final colorScheme = Theme.of(context).colorScheme;
     return Text(
@@ -1730,6 +1778,36 @@ class _TopicListState extends ConsumerState<_TopicList>
       ),
       maxLines: maxLines.clamp(1, 10).toInt(),
       overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+class _HomeExcerptPlaceholder extends StatelessWidget {
+  final int maxLines;
+
+  const _HomeExcerptPlaceholder({required this.maxLines});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(
+      context,
+    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.12);
+    final visibleLines = maxLines.clamp(1, 3).toInt();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < visibleLines; i++) ...[
+          Container(
+            height: 10,
+            width: i == visibleLines - 1 ? 180 : double.infinity,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(5),
+            ),
+          ),
+          if (i != visibleLines - 1) const SizedBox(height: 6),
+        ],
+      ],
     );
   }
 }
