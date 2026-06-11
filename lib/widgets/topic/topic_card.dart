@@ -244,18 +244,6 @@ class TopicCard extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (topic.unseen)
-          Padding(
-            padding: const EdgeInsets.only(left: 6, top: 7),
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
       ],
     );
   }
@@ -303,12 +291,45 @@ class TopicCard extends ConsumerWidget {
   }) {
     final theme = Theme.of(context);
     return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 56, maxWidth: 86),
+      constraints: const BoxConstraints(minWidth: 58, maxWidth: 88),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (showReplyOrUnread || showLike)
+          SizedBox(
+            height: 18,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (topic.unseen) ...[
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                  ],
+                  RelativeTimeText(
+                    dateTime: topic.lastPostedAt,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.7,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (showReplyOrUnread || showLike) ...[
+            const SizedBox(height: 5),
             SizedBox(
               height: 18,
               child: FittedBox(
@@ -329,22 +350,7 @@ class TopicCard extends ConsumerWidget {
                 ),
               ),
             ),
-          SizedBox(height: showReplyOrUnread || showLike ? 5 : 0),
-          SizedBox(
-            height: 16,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: RelativeTimeText(
-                dateTime: topic.lastPostedAt,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(
-                    alpha: 0.7,
-                  ),
-                ),
-              ),
-            ),
-          ),
+          ],
         ],
       ),
     );

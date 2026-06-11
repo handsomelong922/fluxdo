@@ -75,6 +75,7 @@ void main() {
       expect(notifier.state.hideTopicListAvatars, isFalse);
       expect(notifier.state.homeDetailedTopicList, isFalse);
       expect(notifier.state.homeExcerptLines, 5);
+      expect(notifier.state.homeExcerptBatchSize, 3);
       expect(notifier.state.homeTopicTitleColorValue, 0);
       expect(notifier.state.reduceLoadingAnimations, isTrue);
       expect(notifier.state.minRequestIntervalMs, 250);
@@ -205,13 +206,16 @@ void main() {
 
       await notifier.setHomeDetailedTopicList(true);
       await notifier.setHomeExcerptLines(99);
+      await notifier.setHomeExcerptBatchSize(99);
       await notifier.setHomeTopicTitleColorValue(0xFF336699);
 
       expect(notifier.state.homeDetailedTopicList, isTrue);
       expect(notifier.state.homeExcerptLines, 10);
+      expect(notifier.state.homeExcerptBatchSize, 8);
       expect(notifier.state.homeTopicTitleColorValue, 0xFF336699);
       expect(prefs.getBool('pref_home_detailed_topic_list'), isTrue);
       expect(prefs.getInt('pref_home_excerpt_lines'), 10);
+      expect(prefs.getInt('pref_home_excerpt_batch_size'), 8);
       expect(prefs.getInt('pref_home_topic_title_color'), 0xFF336699);
     });
 

@@ -54,6 +54,9 @@ class AppPreferences {
   /// 首页话题摘要最大显示行数
   final int homeExcerptLines;
 
+  /// 首页主帖摘要同时加载数量
+  final int homeExcerptBatchSize;
+
   /// 首页话题标题自定义颜色；0 表示跟随默认样式
   final int homeTopicTitleColorValue;
 
@@ -135,6 +138,7 @@ class AppPreferences {
     required this.hideTopicListAvatars,
     required this.homeDetailedTopicList,
     required this.homeExcerptLines,
+    required this.homeExcerptBatchSize,
     required this.homeTopicTitleColorValue,
     required this.reduceLoadingAnimations,
     required this.pageTransition,
@@ -176,6 +180,7 @@ class AppPreferences {
     bool? hideTopicListAvatars,
     bool? homeDetailedTopicList,
     int? homeExcerptLines,
+    int? homeExcerptBatchSize,
     int? homeTopicTitleColorValue,
     bool? reduceLoadingAnimations,
     AppPageTransition? pageTransition,
@@ -220,6 +225,7 @@ class AppPreferences {
       homeDetailedTopicList:
           homeDetailedTopicList ?? this.homeDetailedTopicList,
       homeExcerptLines: homeExcerptLines ?? this.homeExcerptLines,
+      homeExcerptBatchSize: homeExcerptBatchSize ?? this.homeExcerptBatchSize,
       homeTopicTitleColorValue:
           homeTopicTitleColorValue ?? this.homeTopicTitleColorValue,
       reduceLoadingAnimations:
@@ -276,6 +282,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _homeDetailedTopicListKey =
       'pref_home_detailed_topic_list';
   static const String _homeExcerptLinesKey = 'pref_home_excerpt_lines';
+  static const String _homeExcerptBatchSizeKey = 'pref_home_excerpt_batch_size';
   static const String _homeTopicTitleColorKey = 'pref_home_topic_title_color';
   static const String _reduceLoadingAnimationsKey =
       'pref_reduce_loading_animations';
@@ -337,6 +344,9 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
               _prefs.getBool(_homeDetailedTopicListKey) ?? false,
           homeExcerptLines: (_prefs.getInt(_homeExcerptLinesKey) ?? 5)
               .clamp(1, 10)
+              .toInt(),
+          homeExcerptBatchSize: (_prefs.getInt(_homeExcerptBatchSizeKey) ?? 3)
+              .clamp(1, 8)
               .toInt(),
           homeTopicTitleColorValue: _prefs.getInt(_homeTopicTitleColorKey) ?? 0,
           reduceLoadingAnimations:
@@ -486,6 +496,12 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     final clamped = value.clamp(1, 10).toInt();
     state = state.copyWith(homeExcerptLines: clamped);
     await _prefs.setInt(_homeExcerptLinesKey, clamped);
+  }
+
+  Future<void> setHomeExcerptBatchSize(int value) async {
+    final clamped = value.clamp(1, 8).toInt();
+    state = state.copyWith(homeExcerptBatchSize: clamped);
+    await _prefs.setInt(_homeExcerptBatchSizeKey, clamped);
   }
 
   Future<void> setHomeTopicTitleColorValue(int value) async {

@@ -1,13 +1,19 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'discourse_providers.dart';
+import 'preferences_provider.dart';
 
 typedef TopicExcerptFetcher = Future<String?> Function(int topicId);
 
 final homeTopicExcerptLoaderProvider = Provider<HomeTopicExcerptLoader>((ref) {
+  final batchSize = ref.watch(
+    preferencesProvider.select((p) => p.homeExcerptBatchSize),
+  );
   final loader = HomeTopicExcerptLoader(
+    maxConcurrentRequests: batchSize,
     fetchExcerpt: (topicId) => ref
         .read(discourseServiceProvider)
         .getTopicFirstPostCooked(topicId, background: true),
@@ -33,12 +39,14 @@ class HomeTopicExcerptLoader {
     required TopicExcerptFetcher fetchExcerpt,
     int maxCacheEntries = 160,
     Duration cacheTtl = const Duration(minutes: 30),
-    Duration minRequestInterval = const Duration(milliseconds: 350),
+    int maxConcurrentRequests = 3,
+    Duration minRequestInterval = const Duration(milliseconds: 120),
     Duration failureCooldown = const Duration(seconds: 45),
     Duration requestTimeout = const Duration(seconds: 8),
   }) : _fetchExcerpt = fetchExcerpt,
        _maxCacheEntries = maxCacheEntries,
        _cacheTtl = cacheTtl,
+       _maxConcurrentRequests = maxConcurrentRequests.clamp(1, 8).toInt(),
        _minRequestInterval = minRequestInterval,
        _failureCooldown = failureCooldown,
        _requestTimeout = requestTimeout;
@@ -46,6 +54,7 @@ class HomeTopicExcerptLoader {
   final TopicExcerptFetcher _fetchExcerpt;
   final int _maxCacheEntries;
   final Duration _cacheTtl;
+  final int _maxConcurrentRequests;
   final Duration _minRequestInterval;
   final Duration _failureCooldown;
   final Duration _requestTimeout;
@@ -53,9 +62,11 @@ class HomeTopicExcerptLoader {
   final _cache = <int, _CachedExcerpt>{};
   final _inFlight = <int, Future<String?>>{};
   final _failureUntil = <int, DateTime>{};
+  final _pendingQueue = Queue<_QueuedExcerpt>();
 
-  Future<void> _queueTail = Future<void>.value();
+  Future<void> _startSlotTail = Future<void>.value();
   DateTime? _lastRequestStartedAt;
+  int _activeRequests = 0;
   bool _disposed = false;
 
   Future<String?> load(int topicId) {
@@ -80,18 +91,37 @@ class HomeTopicExcerptLoader {
     });
     _inFlight[topicId] = future;
 
-    _queueTail = _queueTail
-        .then((_) => _runQueued(topicId, completer))
-        .catchError((_) {});
+    _pendingQueue.add(_QueuedExcerpt(topicId, completer));
+    _pumpQueue();
 
     return future;
   }
 
   void dispose() {
     _disposed = true;
+    for (final queued in _pendingQueue) {
+      _completeIfNeeded(queued.completer, null);
+    }
+    _pendingQueue.clear();
     _cache.clear();
     _inFlight.clear();
     _failureUntil.clear();
+  }
+
+  void _pumpQueue() {
+    if (_disposed) return;
+
+    while (_activeRequests < _maxConcurrentRequests &&
+        _pendingQueue.isNotEmpty) {
+      final queued = _pendingQueue.removeFirst();
+      _activeRequests++;
+      unawaited(
+        _runQueued(queued.topicId, queued.completer).whenComplete(() {
+          _activeRequests--;
+          _pumpQueue();
+        }),
+      );
+    }
   }
 
   Future<void> _runQueued(int topicId, Completer<String?> completer) async {
@@ -113,13 +143,12 @@ class HomeTopicExcerptLoader {
       return;
     }
 
-    await _waitForRequestSlot();
+    await _reserveRequestStartSlot();
     if (_disposed) {
       _completeIfNeeded(completer, null);
       return;
     }
 
-    _lastRequestStartedAt = DateTime.now();
     try {
       final excerpt = await _fetchExcerpt(topicId).timeout(_requestTimeout);
       if (excerpt != null && excerpt.trim().isNotEmpty) {
@@ -132,15 +161,20 @@ class HomeTopicExcerptLoader {
     }
   }
 
-  Future<void> _waitForRequestSlot() async {
-    final lastStarted = _lastRequestStartedAt;
-    if (lastStarted == null || _minRequestInterval <= Duration.zero) return;
-
-    final elapsed = DateTime.now().difference(lastStarted);
-    final remaining = _minRequestInterval - elapsed;
-    if (remaining > Duration.zero) {
-      await Future<void>.delayed(remaining);
-    }
+  Future<void> _reserveRequestStartSlot() {
+    final slot = _startSlotTail.then((_) async {
+      final lastStarted = _lastRequestStartedAt;
+      if (lastStarted != null && _minRequestInterval > Duration.zero) {
+        final elapsed = DateTime.now().difference(lastStarted);
+        final remaining = _minRequestInterval - elapsed;
+        if (remaining > Duration.zero) {
+          await Future<void>.delayed(remaining);
+        }
+      }
+      _lastRequestStartedAt = DateTime.now();
+    });
+    _startSlotTail = slot.catchError((_) {});
+    return slot;
   }
 
   String? _readCache(int topicId) {
@@ -173,4 +207,11 @@ class _CachedExcerpt {
 
   final String excerpt;
   final DateTime createdAt;
+}
+
+class _QueuedExcerpt {
+  const _QueuedExcerpt(this.topicId, this.completer);
+
+  final int topicId;
+  final Completer<String?> completer;
 }

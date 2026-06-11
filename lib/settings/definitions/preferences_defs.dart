@@ -97,6 +97,19 @@ List<SettingsGroup> buildPreferencesGroups(BuildContext context) {
           onChanged: (ref, v) =>
               ref.read(preferencesProvider.notifier).setHomeExcerptLines(v),
         ),
+        IntSliderModel(
+          id: 'homeExcerptBatchSize',
+          title: '首页摘要同时加载数',
+          subtitle: '控制主帖摘要补齐速度；数值越大越快，过高可能增加 429 风险',
+          icon: Icons.speed_rounded,
+          min: 1,
+          max: 8,
+          valueSuffix: '个',
+          getValue: (ref) =>
+              ref.watch(preferencesProvider).homeExcerptBatchSize,
+          onChanged: (ref, v) =>
+              ref.read(preferencesProvider.notifier).setHomeExcerptBatchSize(v),
+        ),
       ],
     ),
     SettingsGroup(

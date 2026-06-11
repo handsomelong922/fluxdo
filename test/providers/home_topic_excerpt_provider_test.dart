@@ -48,6 +48,7 @@ void main() {
   test('HomeTopicExcerptLoader spaces queued requests', () async {
     final starts = <DateTime>[];
     final loader = HomeTopicExcerptLoader(
+      maxConcurrentRequests: 2,
       minRequestInterval: const Duration(milliseconds: 20),
       fetchExcerpt: (topicId) async {
         starts.add(DateTime.now());
@@ -63,6 +64,54 @@ void main() {
       starts[1].difference(starts[0]).inMilliseconds,
       greaterThanOrEqualTo(15),
     );
+  });
+
+  test('HomeTopicExcerptLoader starts a small batch concurrently', () async {
+    final release = Completer<void>();
+    final firstBatchStarted = Completer<void>();
+    final starts = <int>[];
+    final loader = HomeTopicExcerptLoader(
+      maxConcurrentRequests: 3,
+      minRequestInterval: Duration.zero,
+      fetchExcerpt: (topicId) async {
+        starts.add(topicId);
+        if (starts.length == 3 && !firstBatchStarted.isCompleted) {
+          firstBatchStarted.complete();
+        }
+        await release.future;
+        return '<p>topic $topicId</p>';
+      },
+    );
+    addTearDown(loader.dispose);
+
+    final futures = [loader.load(1), loader.load(2), loader.load(3)];
+
+    await firstBatchStarted.future.timeout(const Duration(milliseconds: 100));
+    expect(starts, unorderedEquals([1, 2, 3]));
+
+    release.complete();
+    await Future.wait(futures);
+  });
+
+  test('HomeTopicExcerptLoader limits active requests to batch size', () async {
+    var active = 0;
+    var maxActive = 0;
+    final loader = HomeTopicExcerptLoader(
+      maxConcurrentRequests: 2,
+      minRequestInterval: Duration.zero,
+      fetchExcerpt: (topicId) async {
+        active++;
+        if (active > maxActive) maxActive = active;
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        active--;
+        return '<p>topic $topicId</p>';
+      },
+    );
+    addTearDown(loader.dispose);
+
+    await Future.wait([loader.load(1), loader.load(2), loader.load(3)]);
+
+    expect(maxActive, 2);
   });
 
   test('HomeTopicExcerptLoader times out stalled requests', () async {
