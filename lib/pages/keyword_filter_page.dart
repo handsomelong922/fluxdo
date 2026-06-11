@@ -15,15 +15,15 @@ class KeywordFilterPage extends ConsumerStatefulWidget {
 
 class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
   final _controller = TextEditingController();
-  final List<TextEditingController> _editControllers = [];
-  List<String?> _editErrors = const [];
+  final _editController = TextEditingController();
   bool _isEditing = false;
   String? _errorText;
+  String? _editErrorText;
 
   @override
   void dispose() {
     _controller.dispose();
-    _disposeEditControllers();
+    _editController.dispose();
     super.dispose();
   }
 
@@ -49,72 +49,76 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
 
   void _enterEditMode() {
     final patterns = ref.read(keywordFilterProvider);
-    _disposeEditControllers();
-    _editControllers
-      ..clear()
-      ..addAll(patterns.map((pattern) => TextEditingController(text: pattern)));
+    _editController.text = patterns.join('\n');
     setState(() {
-      _editErrors = List<String?>.filled(_editControllers.length, null);
       _isEditing = true;
       _errorText = null;
+      _editErrorText = null;
     });
   }
 
   void _cancelEditMode() {
-    _disposeEditControllers();
+    _editController.clear();
     setState(() {
-      _editControllers.clear();
-      _editErrors = const [];
       _isEditing = false;
+      _editErrorText = null;
     });
   }
 
-  void _removeEditingPattern(int index) {
-    if (index < 0 || index >= _editControllers.length) return;
-    final controller = _editControllers.removeAt(index);
-    controller.dispose();
-    final errors = [..._editErrors]..removeAt(index);
-    setState(() => _editErrors = errors);
-  }
-
   void _saveEditingPatterns() {
-    final values = _editControllers.map((c) => c.text.trim()).toList();
-    final errors = List<String?>.filled(values.length, null);
-    final seen = <String, int>{};
-
-    for (var i = 0; i < values.length; i++) {
-      final value = values[i];
-      if (value.isEmpty) {
-        errors[i] = '不能为空';
-      } else if (!KeywordFilterNotifier.isValidRegex(value)) {
-        errors[i] = '无效的正则表达式';
-      } else if (seen.containsKey(value)) {
-        errors[i] = '与第 ${seen[value]! + 1} 条重复';
-      } else {
-        seen[value] = i;
+    if (_editController.text.trim().isEmpty) {
+      final ok = ref
+          .read(keywordFilterProvider.notifier)
+          .replaceAllPatterns(const []);
+      if (!ok) {
+        setState(() => _editErrorText = '保存失败');
+        return;
       }
+      _editController.clear();
+      setState(() {
+        _isEditing = false;
+        _editErrorText = null;
+      });
+      return;
     }
 
-    if (errors.any((error) => error != null)) {
-      setState(() => _editErrors = errors);
-      return;
+    final lines = _editController.text.split(RegExp(r'\r?\n'));
+    final values = <String>[];
+    final seen = <String, int>{};
+
+    for (var i = 0; i < lines.length; i++) {
+      final value = lines[i].trim();
+      if (value.isEmpty) {
+        setState(() => _editErrorText = '第 ${i + 1} 行不能为空');
+        return;
+      }
+      if (!KeywordFilterNotifier.isValidRegex(value)) {
+        setState(() => _editErrorText = '第 ${i + 1} 行不是有效的正则表达式');
+        return;
+      }
+      final duplicateLine = seen[value];
+      if (duplicateLine != null) {
+        setState(
+          () => _editErrorText = '第 ${i + 1} 行与第 ${duplicateLine + 1} 行重复',
+        );
+        return;
+      }
+      seen[value] = i;
+      values.add(value);
     }
 
     final ok = ref
         .read(keywordFilterProvider.notifier)
         .replaceAllPatterns(values);
     if (!ok) {
-      setState(() {
-        _editErrors = List<String?>.filled(values.length, '与其它规则重复或保存失败');
-      });
+      setState(() => _editErrorText = '与其它规则重复或保存失败');
       return;
     }
 
-    _disposeEditControllers();
+    _editController.clear();
     setState(() {
-      _editControllers.clear();
-      _editErrors = const [];
       _isEditing = false;
+      _editErrorText = null;
     });
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -123,22 +127,15 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
       );
   }
 
-  void _disposeEditControllers() {
-    for (final controller in _editControllers) {
-      controller.dispose();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final patterns = ref.watch(keywordFilterProvider);
     final canEdit = patterns.isNotEmpty;
-    final itemCount = _isEditing ? _editControllers.length : patterns.length;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('关键词屏蔽'),
+        title: Text(_isEditing ? '编辑屏蔽规则' : '关键词屏蔽'),
         actions: [
           if (_isEditing) ...[
             TextButton.icon(
@@ -154,127 +151,141 @@ class _KeywordFilterPageState extends ConsumerState<KeywordFilterPage> {
           ],
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    enabled: !_isEditing,
-                    decoration: InputDecoration(
-                      hintText: _isEditing ? '编辑中请先保存或取消' : '输入正则表达式，例如 广告|推广',
-                      errorText: _errorText,
-                      border: const OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    onSubmitted: _isEditing ? null : (_) => _addPattern(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: _isEditing ? null : _addPattern,
-                  child: const Text('添加'),
-                ),
-              ],
+      body: _isEditing
+          ? _buildFullscreenEditor(theme)
+          : _buildRuleList(theme, patterns, canEdit),
+    );
+  }
+
+  Widget _buildFullscreenEditor(ThemeData theme) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '每行一条正则规则。删除某一行即可移除规则，保存时会统一校验。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '命中标题的帖子将不会显示在列表中（大小写不敏感）',
+            if (_editErrorText != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _editErrorText!,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: theme.colorScheme.error,
                 ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Expanded(
+              child: TextField(
+                controller: _editController,
+                expands: true,
+                minLines: null,
+                maxLines: null,
+                textAlignVertical: TextAlignVertical.top,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                  hintText: '广告|推广\n(?i)spam\n不想看到的关键词',
+                ),
+                style: const TextStyle(fontFamily: 'monospace', height: 1.35),
+                onChanged: (_) {
+                  if (_editErrorText != null) {
+                    setState(() => _editErrorText = null);
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRuleList(ThemeData theme, List<String> patterns, bool canEdit) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  decoration: InputDecoration(
+                    hintText: '输入正则表达式，例如 广告|推广',
+                    errorText: _errorText,
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onSubmitted: (_) => _addPattern(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(onPressed: _addPattern, child: const Text('添加')),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '命中标题的帖子将不会显示在列表中（大小写不敏感）',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ),
-          const Divider(height: 1),
-          Expanded(
-            child: itemCount == 0
-                ? Center(
-                    child: Text(
-                      '尚未添加屏蔽规则',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: patterns.isEmpty
+              ? Center(
+                  child: Text(
+                    '尚未添加屏蔽规则',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
-                  )
-                : ListView.separated(
-                    itemCount: itemCount,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final pattern = _isEditing
-                          ? _editControllers[index].text
-                          : patterns[index];
-                      return Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                if (!_isEditing)
-                                  IconButton(
-                                    icon: const Icon(Icons.edit),
-                                    tooltip: '编辑',
-                                    onPressed: canEdit ? _enterEditMode : null,
-                                  ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline),
-                                  tooltip: '删除',
-                                  onPressed: _isEditing
-                                      ? () => _removeEditingPattern(index)
-                                      : () => ref
-                                            .read(
-                                              keywordFilterProvider.notifier,
-                                            )
-                                            .removeAt(index),
-                                ),
-                              ],
-                            ),
-                            if (_isEditing)
-                              TextField(
-                                controller: _editControllers[index],
-                                minLines: 1,
-                                maxLines: 3,
-                                decoration: InputDecoration(
-                                  labelText: '规则 ${index + 1}',
-                                  errorText: index < _editErrors.length
-                                      ? _editErrors[index]
-                                      : null,
-                                  border: const OutlineInputBorder(),
-                                  isDense: true,
-                                ),
-                                style: const TextStyle(fontFamily: 'monospace'),
-                                onChanged: (_) {
-                                  if (index < _editErrors.length &&
-                                      _editErrors[index] != null) {
-                                    final errors = [..._editErrors];
-                                    errors[index] = null;
-                                    setState(() => _editErrors = errors);
-                                  }
-                                },
-                              )
-                            else
-                              SelectableText(
-                                pattern,
-                                style: const TextStyle(fontFamily: 'monospace'),
-                              ),
-                          ],
-                        ),
-                      );
-                    },
                   ),
-          ),
-        ],
-      ),
+                )
+              : ListView.separated(
+                  itemCount: patterns.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    return ListTile(
+                      title: SelectableText(
+                        patterns[index],
+                        style: const TextStyle(fontFamily: 'monospace'),
+                      ),
+                      trailing: Wrap(
+                        spacing: 4,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit),
+                            tooltip: '编辑',
+                            onPressed: canEdit ? _enterEditMode : null,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            tooltip: '删除',
+                            onPressed: () => ref
+                                .read(keywordFilterProvider.notifier)
+                                .removeAt(index),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }
