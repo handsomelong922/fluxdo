@@ -62,6 +62,8 @@ class TopicCard extends ConsumerWidget {
     final hideTopicListAvatars = ref.watch(
       preferencesProvider.select((p) => p.hideTopicListAvatars),
     );
+    final showReplyOrUnread = topic.unread > 0 || _replyCount > 0;
+    final showLike = topic.likeCount > 0;
     // 全部读完：进入过话题且没有未读帖子
     final isFullyRead =
         !topic.unseen && topic.unread == 0 && topic.lastReadPostNumber != null;
@@ -133,159 +135,99 @@ class TopicCard extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // 第1行：标题 + 回复数/未读数
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text.rich(
-                                  TextSpan(
-                                    style: titleStyle,
-                                    children: [
-                                      if (topic.closed)
-                                        WidgetSpan(
-                                          alignment:
-                                              PlaceholderAlignment.middle,
-                                          child: Padding(
-                                            padding: const EdgeInsets.only(
-                                              right: 4,
-                                            ),
-                                            child: Icon(
-                                              Icons.lock_outline,
-                                              size: 16,
-                                              color: effectiveTitleColor,
-                                            ),
-                                          ),
-                                        ),
-                                      if (topic.hasAcceptedAnswer)
-                                        WidgetSpan(
-                                          alignment:
-                                              PlaceholderAlignment.middle,
-                                          child: Padding(
-                                            padding: const EdgeInsets.only(
-                                              right: 4,
-                                            ),
-                                            child: Icon(
-                                              Icons.check_box,
-                                              size: 16,
-                                              color: Colors.green,
-                                            ),
-                                          ),
-                                        )
-                                      else if (topic.canHaveAnswer)
-                                        WidgetSpan(
-                                          alignment:
-                                              PlaceholderAlignment.middle,
-                                          child: Padding(
-                                            padding: const EdgeInsets.only(
-                                              right: 4,
-                                            ),
-                                            child: Icon(
-                                              Icons.check_box_outline_blank,
-                                              size: 16,
-                                              color: theme.colorScheme.outline,
-                                            ),
-                                          ),
-                                        ),
-                                      ...EmojiText.buildEmojiSpans(
-                                        context,
-                                        topic.title,
-                                        titleStyle,
+                          // 第1行：标题
+                          Text.rich(
+                            TextSpan(
+                              style: titleStyle,
+                              children: [
+                                if (topic.closed)
+                                  WidgetSpan(
+                                    alignment: PlaceholderAlignment.middle,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(right: 4),
+                                      child: Icon(
+                                        Icons.lock_outline,
+                                        size: 16,
+                                        color: effectiveTitleColor,
                                       ),
-                                      // 未读蓝点追加在标题末尾
-                                      if (topic.unseen)
-                                        WidgetSpan(
-                                          alignment:
-                                              PlaceholderAlignment.middle,
-                                          child: Container(
-                                            margin: const EdgeInsets.only(
-                                              left: 6,
-                                            ),
-                                            width: 8,
-                                            height: 8,
-                                            decoration: BoxDecoration(
-                                              color: theme.colorScheme.primary,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
+                                    ),
                                   ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                                if (topic.hasAcceptedAnswer)
+                                  const WidgetSpan(
+                                    alignment: PlaceholderAlignment.middle,
+                                    child: Padding(
+                                      padding: EdgeInsets.only(right: 4),
+                                      child: Icon(
+                                        Icons.check_box,
+                                        size: 16,
+                                        color: Colors.green,
+                                      ),
+                                    ),
+                                  )
+                                else if (topic.canHaveAnswer)
+                                  WidgetSpan(
+                                    alignment: PlaceholderAlignment.middle,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(right: 4),
+                                      child: Icon(
+                                        Icons.check_box_outline_blank,
+                                        size: 16,
+                                        color: theme.colorScheme.outline,
+                                      ),
+                                    ),
+                                  ),
+                                ...EmojiText.buildEmojiSpans(
+                                  context,
+                                  topic.title,
+                                  titleStyle,
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              // 右上角：回复数或未读数
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: _buildReplyOrUnread(context),
-                              ),
-                            ],
+                                // 未读蓝点追加在标题末尾
+                                if (topic.unseen)
+                                  WidgetSpan(
+                                    alignment: PlaceholderAlignment.middle,
+                                    child: Container(
+                                      margin: const EdgeInsets.only(left: 6),
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
 
                           const SizedBox(height: 6),
 
-                          // 第2行：分类+标签（左） + 点赞+时间（右）
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // 左侧：分类和标签
-                              Expanded(
-                                child: SizedBox(
-                                  height: badgeLineHeight,
-                                  child: SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    clipBehavior: Clip.hardEdge,
-                                    child: Row(
-                                      children: _buildBadges(
-                                        category,
-                                        faIcon,
-                                        logoUrl,
-                                        badgeSize,
-                                      ),
-                                    ),
-                                  ),
+                          // 第2行：分类和标签
+                          SizedBox(
+                            height: badgeLineHeight,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              physics: const NeverScrollableScrollPhysics(),
+                              clipBehavior: Clip.hardEdge,
+                              child: Row(
+                                children: _buildBadges(
+                                  category,
+                                  faIcon,
+                                  logoUrl,
+                                  badgeSize,
                                 ),
                               ),
-                              // 右侧：点赞 + 时间
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (topic.likeCount > 0) ...[
-                                    _buildStat(
-                                      context,
-                                      Icons.favorite_border_rounded,
-                                      topic.likeCount,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      '·',
-                                      style: theme.textTheme.labelSmall
-                                          ?.copyWith(
-                                            color: theme
-                                                .colorScheme
-                                                .onSurfaceVariant
-                                                .withValues(alpha: 0.5),
-                                          ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                  ],
-                                  RelativeTimeText(
-                                    dateTime: topic.lastPostedAt,
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant
-                                          .withValues(alpha: 0.7),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                            ),
                           ),
                         ],
                       ),
+                    ),
+                    const SizedBox(width: 10),
+                    _buildTrailingMeta(
+                      context,
+                      showReplyOrUnread: showReplyOrUnread,
+                      showLike: showLike,
                     ),
                   ],
                 ),
@@ -342,6 +284,37 @@ class TopicCard extends ConsumerWidget {
   }
 
   /// 回复数/未读数切换
+  int get _replyCount => (topic.postsCount - 1).clamp(0, 999999).toInt();
+
+  Widget _buildTrailingMeta(
+    BuildContext context, {
+    required bool showReplyOrUnread,
+    required bool showLike,
+  }) {
+    final theme = Theme.of(context);
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 48, maxWidth: 72),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showReplyOrUnread) _buildReplyOrUnread(context),
+          if (showLike) ...[
+            if (showReplyOrUnread) const SizedBox(height: 7),
+            _buildStat(context, Icons.favorite_border_rounded, topic.likeCount),
+          ],
+          SizedBox(height: showReplyOrUnread || showLike ? 7 : 2),
+          RelativeTimeText(
+            dateTime: topic.lastPostedAt,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildReplyOrUnread(BuildContext context) {
     final theme = Theme.of(context);
     if (topic.unread > 0) {
@@ -362,7 +335,7 @@ class TopicCard extends ConsumerWidget {
       );
     } else {
       // 回复数：带热度颜色
-      final replies = (topic.postsCount - 1).clamp(0, 999999);
+      final replies = _replyCount;
       if (replies <= 0) return const SizedBox.shrink();
       final heatColor = _replyHeatColor(topic, theme);
       return _buildStat(
