@@ -491,14 +491,10 @@ class _HomeTitleColorSection extends ConsumerWidget {
     final initialColor = currentValue == 0
         ? Theme.of(context).colorScheme.primary
         : Color(currentValue);
-    final controller = TextEditingController(text: _hexOf(initialColor));
-    String? errorText;
-
-    int? parseHex(String value) {
-      final normalized = value.trim().replaceFirst('#', '');
-      if (!RegExp(r'^[0-9a-fA-F]{6}$').hasMatch(normalized)) return null;
-      return int.parse('FF$normalized', radix: 16);
-    }
+    final initialHsv = HSVColor.fromColor(initialColor);
+    var hue = initialHsv.hue;
+    var saturation = initialHsv.saturation;
+    var value = initialHsv.value;
 
     final picked = await showAppBottomSheet<int>(
       context: context,
@@ -507,9 +503,17 @@ class _HomeTitleColorSection extends ConsumerWidget {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
-            final parsed = parseHex(controller.text);
-            final preview = Color(parsed ?? initialColor.toARGB32());
+            final preview = HSVColor.fromAHSV(
+              1.0,
+              hue,
+              saturation,
+              value,
+            ).toColor();
             final theme = Theme.of(context);
+            final textColor =
+                ThemeData.estimateBrightnessForColor(preview) == Brightness.dark
+                ? Colors.white
+                : Colors.black;
 
             return SafeArea(
               child: Padding(
@@ -525,78 +529,80 @@ class _HomeTitleColorSection extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            color: preview,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: theme.colorScheme.outlineVariant,
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: preview,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '首页帖子标题预览',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: textColor,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextField(
-                            controller: controller,
-                            decoration: InputDecoration(
-                              labelText: 'HEX 颜色',
-                              prefixText: '#',
-                              errorText: errorText,
-                              border: const OutlineInputBorder(),
-                              isDense: true,
+                          const SizedBox(height: 8),
+                          Text(
+                            '#${_hexOf(preview)}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: textColor.withValues(alpha: 0.75),
+                              fontFamily: 'monospace',
                             ),
-                            textCapitalization: TextCapitalization.characters,
-                            style: const TextStyle(fontFamily: 'monospace'),
-                            onChanged: (_) {
-                              if (errorText != null) {
-                                setSheetState(() => errorText = null);
-                              } else {
-                                setSheetState(() {});
-                              }
-                            },
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    _HueBar(
+                      hue: hue,
+                      onChanged: (nextHue) {
+                        setSheetState(() => hue = nextHue);
+                      },
                     ),
                     const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        for (final color in ThemeNotifier.presetColors)
-                          InkWell(
-                            borderRadius: BorderRadius.circular(18),
-                            onTap: () {
-                              controller.text = _hexOf(color);
-                              setSheetState(() => errorText = null);
-                            },
-                            child: Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: color,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: theme.colorScheme.outlineVariant,
-                                ),
-                              ),
-                            ),
-                          ),
+                    _GradientSlider(
+                      label: 'S',
+                      value: saturation,
+                      thumbColor: HSVColor.fromAHSV(
+                        1,
+                        hue,
+                        saturation,
+                        1,
+                      ).toColor(),
+                      gradientColors: [
+                        HSVColor.fromAHSV(1, hue, 0, value).toColor(),
+                        HSVColor.fromAHSV(1, hue, 1, value).toColor(),
                       ],
+                      onChanged: (nextSaturation) {
+                        setSheetState(() => saturation = nextSaturation);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _GradientSlider(
+                      label: 'B',
+                      value: value,
+                      thumbColor: preview,
+                      gradientColors: [
+                        HSVColor.fromAHSV(1, hue, saturation, 0).toColor(),
+                        HSVColor.fromAHSV(1, hue, saturation, 1).toColor(),
+                      ],
+                      onChanged: (nextValue) {
+                        setSheetState(() => value = nextValue);
+                      },
                     ),
                     const SizedBox(height: 24),
                     FilledButton.icon(
                       onPressed: () {
-                        final value = parseHex(controller.text);
-                        if (value == null) {
-                          setSheetState(() => errorText = '请输入 6 位十六进制颜色');
-                          return;
-                        }
-                        Navigator.pop(sheetContext, value);
+                        Navigator.pop(sheetContext, preview.toARGB32());
                       },
                       icon: const Icon(Icons.check),
                       label: Text(context.l10n.common_confirm),
@@ -615,7 +621,6 @@ class _HomeTitleColorSection extends ConsumerWidget {
           .read(preferencesProvider.notifier)
           .setHomeTopicTitleColorValue(picked);
     }
-    Future.delayed(const Duration(milliseconds: 350), controller.dispose);
   }
 
   static String _hexOf(Color color) =>
