@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/discourse_providers.dart';
@@ -428,6 +430,26 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     });
 
     await _performSearch();
+  }
+
+  Future<void> _openTopicResult(SearchPost searchPost) async {
+    final topic = searchPost.topic;
+    if (topic == null) return;
+
+    FocusManager.instance.primaryFocus?.unfocus();
+    _focusNode.unfocus();
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TopicDetailPage(
+          topicId: topic.id,
+          scrollToPostNumber: searchPost.postNumber,
+        ),
+      ),
+    );
+    if (mounted) {
+      _focusNode.unfocus();
+    }
   }
 
   void _clearSearch() {
@@ -867,39 +889,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           .longPressPreview;
                       return SearchPostCard(
                         post: searchPost,
-                        onTap: () {
-                          final topic = searchPost.topic;
-                          if (topic != null) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => TopicDetailPage(
-                                  topicId: topic.id,
-                                  scrollToPostNumber: searchPost.postNumber,
-                                ),
-                              ),
-                            );
-                          }
-                        },
+                        onTap: () => unawaited(_openTopicResult(searchPost)),
                         onLongPress: enableLongPress
                             ? () => SearchPreviewDialog.show(
                                 context,
                                 post: searchPost,
-                                onOpen: () {
-                                  final topic = searchPost.topic;
-                                  if (topic != null) {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => TopicDetailPage(
-                                          topicId: topic.id,
-                                          scrollToPostNumber:
-                                              searchPost.postNumber,
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
+                                onOpen: () =>
+                                    unawaited(_openTopicResult(searchPost)),
                               )
                             : null,
                       );

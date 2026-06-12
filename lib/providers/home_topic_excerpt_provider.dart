@@ -2,11 +2,15 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// ignore: depend_on_referenced_packages
+import 'package:flutter_riverpod/legacy.dart';
 
 import 'discourse_providers.dart';
 import 'preferences_provider.dart';
 
 typedef TopicExcerptFetcher = Future<String?> Function(int topicId);
+
+final homeTopicExcerptPausedProvider = StateProvider<bool>((ref) => false);
 
 final homeTopicExcerptLoaderProvider = Provider<HomeTopicExcerptLoader>((ref) {
   final batchSize = ref.watch(
@@ -67,6 +71,7 @@ class HomeTopicExcerptLoader {
   Future<void> _startSlotTail = Future<void>.value();
   DateTime? _lastRequestStartedAt;
   int _activeRequests = 0;
+  bool _paused = false;
   bool _disposed = false;
 
   Future<String?> load(int topicId) {
@@ -108,8 +113,15 @@ class HomeTopicExcerptLoader {
     _failureUntil.clear();
   }
 
+  void setPaused(bool paused) {
+    if (_disposed || _paused == paused) return;
+    _paused = paused;
+    if (!_paused) _pumpQueue();
+  }
+
   void _pumpQueue() {
     if (_disposed) return;
+    if (_paused) return;
 
     while (_activeRequests < _maxConcurrentRequests &&
         _pendingQueue.isNotEmpty) {

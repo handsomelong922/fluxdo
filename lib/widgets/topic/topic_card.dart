@@ -317,7 +317,7 @@ class TopicCard extends ConsumerWidget {
                     const SizedBox(width: 5),
                   ],
                   RelativeTimeText(
-                    dateTime: topic.lastPostedAt,
+                    dateTime: topic.createdAt ?? topic.lastPostedAt,
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant.withValues(
                         alpha: 0.7,

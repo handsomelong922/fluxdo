@@ -114,6 +114,32 @@ void main() {
     expect(maxActive, 2);
   });
 
+  test(
+    'HomeTopicExcerptLoader waits while paused and resumes queued work',
+    () async {
+      var calls = 0;
+      final loader = HomeTopicExcerptLoader(
+        minRequestInterval: Duration.zero,
+        fetchExcerpt: (topicId) async {
+          calls++;
+          return '<p>topic $topicId</p>';
+        },
+      );
+      addTearDown(loader.dispose);
+
+      loader.setPaused(true);
+      final future = loader.load(11);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+
+      expect(calls, 0);
+
+      loader.setPaused(false);
+
+      expect(await future, '<p>topic 11</p>');
+      expect(calls, 1);
+    },
+  );
+
   test('HomeTopicExcerptLoader times out stalled requests', () async {
     final loader = HomeTopicExcerptLoader(
       minRequestInterval: Duration.zero,

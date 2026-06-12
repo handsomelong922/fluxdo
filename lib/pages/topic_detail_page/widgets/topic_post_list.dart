@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
@@ -139,7 +141,8 @@ class TopicPostList extends StatefulWidget {
 
 class _TopicPostListState extends State<TopicPostList> {
   int? _lastReportedPostNumber;
-  bool _isThrottled = false;
+  Timer? _visiblePostUpdateTimer;
+  bool _visiblePostUpdateFrameScheduled = false;
   List<_PostRenderSegment> _renderSegments = const [];
   Map<int, int> _postIndexToScrollIndex = const {};
   Map<int, int> _scrollIndexToPostNumber = const {};
@@ -170,6 +173,12 @@ class _TopicPostListState extends State<TopicPostList> {
       _inlineRepliesStateByPostId.clear();
       _renderSegmentsSignature = null;
     }
+  }
+
+  @override
+  void dispose() {
+    _visiblePostUpdateTimer?.cancel();
+    super.dispose();
   }
 
   // 便捷 getter，简化 widget.xxx 访问
@@ -323,18 +332,40 @@ class _TopicPostListState extends State<TopicPostList> {
     // 先调用原有的滚动通知处理
     final result = onScrollNotification(notification);
 
-    // 在滚动更新时检测可见帖子（节流 16ms）
-    if (notification is ScrollUpdateNotification && !_isThrottled) {
-      _isThrottled = true;
-      Future.delayed(const Duration(milliseconds: 16), () {
-        if (mounted) {
-          _isThrottled = false;
-          _updateFirstVisiblePost();
-        }
-      });
+    if (notification is ScrollUpdateNotification) {
+      _scheduleVisiblePostUpdate();
+    } else if (notification is ScrollEndNotification) {
+      _scheduleVisiblePostUpdate(immediate: true);
     }
 
     return result;
+  }
+
+  void _scheduleVisiblePostUpdate({bool immediate = false}) {
+    if (immediate) {
+      _visiblePostUpdateTimer?.cancel();
+      _visiblePostUpdateTimer = null;
+      _scheduleVisiblePostUpdateFrame();
+      return;
+    }
+
+    if (_visiblePostUpdateTimer != null || _visiblePostUpdateFrameScheduled) {
+      return;
+    }
+
+    _visiblePostUpdateTimer = Timer(const Duration(milliseconds: 80), () {
+      _visiblePostUpdateTimer = null;
+      _scheduleVisiblePostUpdateFrame();
+    });
+  }
+
+  void _scheduleVisiblePostUpdateFrame() {
+    if (_visiblePostUpdateFrameScheduled) return;
+    _visiblePostUpdateFrameScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _visiblePostUpdateFrameScheduled = false;
+      if (mounted) _updateFirstVisiblePost();
+    });
   }
 
   String _segmentKey(_PostRenderSegment segment) {
