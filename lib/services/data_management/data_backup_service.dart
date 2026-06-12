@@ -17,20 +17,39 @@ class DataBackupService {
   /// 需要备份的 key 前缀
   static const _backupKeyPrefixes = [
     'pref_', // 偏好设置
-    'ai_', // AI 模型配置（API Key 在 SecureStorage 中，不会被导出）
+    'ai_', // AI 模型服务配置（API Key 单独从 SecureStorage 导出）
     'theme_', // 主题设置
+    'custom_', // 用户自定义屏蔽、AI 提示词等
     'doh_', // DOH 网络设置
     'http_proxy_', // 代理设置
+    'upstream_proxy_', // 上游代理协议/加密设置
+    'rhttp_', // rhttp 网络引擎设置
+    'webview_adapter_', // WebView 网络适配器设置
+    'hcaptcha_accessibility_', // hCaptcha 无障碍设置
+    'notion_', // Notion 同步配置
+    'ldc_reward_', // LDC 打赏凭证
     'topic_sort_', // 话题排序
     'search_', // 搜索设置
   ];
 
-  /// 需要排除的 key 前缀（AI 聊天记录属于缓存数据，不备份）
+  /// 需要排除的 key 前缀（聊天记录、缓存和运行时状态不备份）
   static const _excludeKeyPrefixes = [
+    '__secure_fallback__',
     'ai_chat_session_messages_',
     'ai_chat_topic_sessions_',
     'ai_chat_all_sessions_index',
     'ai_apikey_',
+    'search_ai_chat_',
+    'sticker_market_index',
+    'sticker_market_page_',
+    'sticker_market_group_',
+    'topic_reading_state_',
+    'home_topic_excerpt_cache_',
+    'update_cache',
+    'update_etag',
+    'fingerprint_',
+    'ldc_user_info',
+    'cdk_user_info',
   ];
 
   /// 需要备份的完整 key
@@ -38,7 +57,18 @@ class DataBackupService {
     'seed_color',
     'use_dynamic_color',
     'read_later_items',
+    'web_bookmarks',
     'pinned_category_ids',
+    'topic_new_subset',
+    'auto_check_update',
+    'developer_mode',
+    'auth_log_enabled',
+    'eruda_enabled',
+    'cert_use_per_device',
+    'ldc_enabled',
+    'cdk_enabled',
+    'sticker_market_base_url',
+    'sticker_subscribed_groups',
   ];
 
   /// 判断 key 是否应该被备份

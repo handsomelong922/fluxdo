@@ -1774,6 +1774,11 @@ class _HomeExcerptLoader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cached = ref.read(homeTopicExcerptLoaderProvider).peekCached(topicId);
+    if (cached != null && cached.trim().isNotEmpty) {
+      return _HomeExcerptText(html: cached, maxLines: maxLines);
+    }
+
     final paused = ref.watch(homeTopicExcerptPausedProvider);
     if (paused) {
       return _HomeExcerptPlaceholder(maxLines: maxLines);

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/providers/home_topic_excerpt_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   test(
@@ -139,6 +141,75 @@ void main() {
       expect(calls, 1);
     },
   );
+
+  test(
+    'HomeTopicExcerptLoader keeps cached excerpts visible while paused',
+    () async {
+      final loader = HomeTopicExcerptLoader(
+        minRequestInterval: Duration.zero,
+        fetchExcerpt: (topicId) async => '<p>topic $topicId</p>',
+      );
+      addTearDown(loader.dispose);
+
+      expect(await loader.load(11), '<p>topic 11</p>');
+
+      loader.setPaused(true);
+
+      expect(loader.peekCached(11), '<p>topic 11</p>');
+    },
+  );
+
+  test(
+    'HomeTopicExcerptLoader reuses persistent cache after recreation',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      var calls = 0;
+
+      final firstLoader = HomeTopicExcerptLoader(
+        minRequestInterval: Duration.zero,
+        persistentCache: HomeTopicExcerptPersistentCache(prefs),
+        fetchExcerpt: (topicId) async {
+          calls++;
+          return '<p>topic $topicId</p>';
+        },
+      );
+
+      expect(await firstLoader.load(42), '<p>topic 42</p>');
+      await Future<void>.delayed(Duration.zero);
+      firstLoader.dispose();
+
+      final secondLoader = HomeTopicExcerptLoader(
+        minRequestInterval: Duration.zero,
+        persistentCache: HomeTopicExcerptPersistentCache(prefs),
+        fetchExcerpt: (_) async {
+          calls++;
+          throw StateError('should not fetch when persistent cache is valid');
+        },
+      );
+      addTearDown(secondLoader.dispose);
+
+      expect(await secondLoader.load(42), '<p>topic 42</p>');
+      expect(calls, 1);
+    },
+  );
+
+  test('HomeTopicExcerptPersistentCache drops expired entries', () async {
+    final oldCachedAt = DateTime.now()
+        .subtract(const Duration(days: 2))
+        .millisecondsSinceEpoch;
+    SharedPreferences.setMockInitialValues({
+      HomeTopicExcerptPersistentCache.storageKey: jsonEncode({
+        '42': {'excerpt': '<p>old</p>', 'cachedAt': oldCachedAt},
+      }),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final cache = HomeTopicExcerptPersistentCache(prefs);
+
+    expect(cache.read(42, const Duration(days: 1)), isNull);
+    await Future<void>.delayed(Duration.zero);
+    expect(prefs.getString(HomeTopicExcerptPersistentCache.storageKey), isNull);
+  });
 
   test('HomeTopicExcerptLoader times out stalled requests', () async {
     final loader = HomeTopicExcerptLoader(
