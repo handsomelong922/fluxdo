@@ -3,9 +3,19 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/providers/home_topic_excerpt_provider.dart';
+import 'package:fluxdo/providers/preferences_provider.dart';
+import 'package:fluxdo/services/network/request_scheduler_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  tearDown(() {
+    RequestSchedulerConfig.maxConcurrent = 3;
+    RequestSchedulerConfig.maxPerWindow = 6;
+    RequestSchedulerConfig.windowSeconds = 3;
+    RequestSchedulerConfig.minIntervalMs = 250;
+    RequestSchedulerConfig.resetServerCooldownForTesting();
+  });
+
   test(
     'HomeTopicExcerptLoader deduplicates concurrent requests and caches',
     () async {
@@ -116,34 +126,23 @@ void main() {
     expect(maxActive, 2);
   });
 
-  test(
-    'HomeTopicExcerptLoader waits while paused and resumes queued work',
-    () async {
-      var calls = 0;
-      final loader = HomeTopicExcerptLoader(
-        minRequestInterval: Duration.zero,
-        fetchExcerpt: (topicId) async {
-          calls++;
-          return '<p>topic $topicId</p>';
-        },
-      );
-      addTearDown(loader.dispose);
+  test('home excerpt batch size reserves a foreground request slot', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final notifier = PreferencesNotifier(prefs);
 
-      loader.setPaused(true);
-      final future = loader.load(11);
-      await Future<void>.delayed(const Duration(milliseconds: 5));
+    await notifier.setMaxConcurrent(3);
+    await notifier.setHomeExcerptBatchSize(8);
 
-      expect(calls, 0);
+    expect(resolveHomeExcerptBatchSize(notifier.state), 2);
 
-      loader.setPaused(false);
+    await notifier.setMaxConcurrent(1);
 
-      expect(await future, '<p>topic 11</p>');
-      expect(calls, 1);
-    },
-  );
+    expect(resolveHomeExcerptBatchSize(notifier.state), 1);
+  });
 
   test(
-    'HomeTopicExcerptLoader keeps cached excerpts visible while paused',
+    'HomeTopicExcerptLoader exposes cached excerpts synchronously',
     () async {
       final loader = HomeTopicExcerptLoader(
         minRequestInterval: Duration.zero,
@@ -152,8 +151,6 @@ void main() {
       addTearDown(loader.dispose);
 
       expect(await loader.load(11), '<p>topic 11</p>');
-
-      loader.setPaused(true);
 
       expect(loader.peekCached(11), '<p>topic 11</p>');
     },

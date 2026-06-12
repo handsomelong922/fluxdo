@@ -2,9 +2,8 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// ignore: depend_on_referenced_packages
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'discourse_providers.dart';
@@ -13,11 +12,9 @@ import 'theme_provider.dart';
 
 typedef TopicExcerptFetcher = Future<String?> Function(int topicId);
 
-final homeTopicExcerptPausedProvider = StateProvider<bool>((ref) => false);
-
 final homeTopicExcerptLoaderProvider = Provider<HomeTopicExcerptLoader>((ref) {
   final batchSize = ref.watch(
-    preferencesProvider.select((p) => p.homeExcerptBatchSize),
+    preferencesProvider.select(resolveHomeExcerptBatchSize),
   );
   final persistentCache = HomeTopicExcerptPersistentCache(
     ref.watch(sharedPreferencesProvider),
@@ -47,6 +44,16 @@ final homeTopicExcerptProvider = FutureProvider.autoDispose
       }
       return excerpt;
     });
+
+@visibleForTesting
+int resolveHomeExcerptBatchSize(AppPreferences preferences) {
+  final foregroundHeadroom = preferences.maxConcurrent > 1
+      ? preferences.maxConcurrent - 1
+      : 1;
+  return preferences.homeExcerptBatchSize > foregroundHeadroom
+      ? foregroundHeadroom
+      : preferences.homeExcerptBatchSize;
+}
 
 class HomeTopicExcerptLoader {
   static const defaultCacheTtl = Duration(days: 1);
@@ -86,7 +93,6 @@ class HomeTopicExcerptLoader {
   Future<void> _startSlotTail = Future<void>.value();
   DateTime? _lastRequestStartedAt;
   int _activeRequests = 0;
-  bool _paused = false;
   bool _disposed = false;
 
   String? peekCached(int topicId) {
@@ -124,24 +130,22 @@ class HomeTopicExcerptLoader {
 
   void dispose() {
     _disposed = true;
-    for (final queued in _pendingQueue) {
-      _completeIfNeeded(queued.completer, null);
-    }
-    _pendingQueue.clear();
+    _cancelPendingRequests();
     _cache.clear();
     _inFlight.clear();
     _failureUntil.clear();
   }
 
-  void setPaused(bool paused) {
-    if (_disposed || _paused == paused) return;
-    _paused = paused;
-    if (!_paused) _pumpQueue();
+  void _cancelPendingRequests() {
+    for (final queued in _pendingQueue) {
+      _inFlight.remove(queued.topicId);
+      _completeIfNeeded(queued.completer, null);
+    }
+    _pendingQueue.clear();
   }
 
   void _pumpQueue() {
     if (_disposed) return;
-    if (_paused) return;
 
     while (_activeRequests < _maxConcurrentRequests &&
         _pendingQueue.isNotEmpty) {

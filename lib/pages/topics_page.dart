@@ -1230,7 +1230,6 @@ class _TopicListState extends ConsumerState<_TopicList>
     with AutomaticKeepAliveClientMixin {
   final _refreshIndicatorKey = GlobalKey<RefreshIndicatorState>();
   bool _isLoadingNewTopics = false;
-  Timer? _resumeExcerptLoadingTimer;
 
   /// 需要高亮的话题 IDs（loadBefore 插入后设置，渐变消失后清除）
   final Set<int> _highlightedTopicIds = {};
@@ -1247,38 +1246,11 @@ class _TopicListState extends ConsumerState<_TopicList>
   @override
   bool get wantKeepAlive => true;
 
-  @override
-  void dispose() {
-    _resumeExcerptLoadingTimer?.cancel();
-    super.dispose();
-  }
-
   /// 列表区域顶部圆角
   static const _topBorderRadius = BorderRadius.only(
     topLeft: Radius.circular(12),
     topRight: Radius.circular(12),
   );
-
-  void _setHomeExcerptLoadingPaused(bool paused) {
-    if (widget.categoryId != null) return;
-
-    _resumeExcerptLoadingTimer?.cancel();
-    if (paused) {
-      if (!ref.read(homeTopicExcerptPausedProvider)) {
-        ref.read(homeTopicExcerptPausedProvider.notifier).state = true;
-      }
-      ref.read(homeTopicExcerptLoaderProvider).setPaused(true);
-      return;
-    }
-
-    _resumeExcerptLoadingTimer = Timer(const Duration(milliseconds: 180), () {
-      if (!mounted) return;
-      ref.read(homeTopicExcerptLoaderProvider).setPaused(false);
-      if (ref.read(homeTopicExcerptPausedProvider)) {
-        ref.read(homeTopicExcerptPausedProvider.notifier).state = false;
-      }
-    });
-  }
 
   void scrollToTop() {
     final controller = PrimaryScrollController.maybeOf(context);
@@ -1504,13 +1476,6 @@ class _TopicListState extends ConsumerState<_TopicList>
             borderRadius: _topBorderRadius,
             child: NotificationListener<ScrollNotification>(
               onNotification: (notification) {
-                if (notification.metrics.axis == Axis.vertical) {
-                  if (notification is ScrollStartNotification) {
-                    _setHomeExcerptLoadingPaused(true);
-                  } else if (notification is ScrollEndNotification) {
-                    _setHomeExcerptLoadingPaused(false);
-                  }
-                }
                 if (notification.depth == 0 &&
                     notification is ScrollUpdateNotification &&
                     notification.metrics.pixels >=
@@ -1777,11 +1742,6 @@ class _HomeExcerptLoader extends ConsumerWidget {
     final cached = ref.read(homeTopicExcerptLoaderProvider).peekCached(topicId);
     if (cached != null && cached.trim().isNotEmpty) {
       return _HomeExcerptText(html: cached, maxLines: maxLines);
-    }
-
-    final paused = ref.watch(homeTopicExcerptPausedProvider);
-    if (paused) {
-      return _HomeExcerptPlaceholder(maxLines: maxLines);
     }
 
     final asyncExcerpt = ref.watch(homeTopicExcerptProvider(topicId));
