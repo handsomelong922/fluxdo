@@ -87,7 +87,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
     final newPosts = [...currentPosts];
     newPosts[index] = finalPost;
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       currentDetail.copyWith(
         postStream: PostStream(
           posts: newPosts,
@@ -112,7 +112,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
         .where((id) => id != postId)
         .toList();
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       currentDetail.copyWith(
         postsCount: currentDetail.postsCount - 1,
         postStream: PostStream(
@@ -190,7 +190,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
             .toList()
           ..sort((a, b) => a.postNumber.compareTo(b.postNumber));
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       currentDetail.copyWith(
         postStream: PostStream(
           posts: newPosts,
@@ -224,7 +224,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
 
       final newPostsCount = currentDetail.postsCount + 1;
 
-      state = AsyncValue.data(
+      _setDataAndCache(
         currentDetail.copyWith(
           postsCount: newPostsCount,
           postStream: PostStream(
@@ -242,7 +242,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
 
       return true;
     } else {
-      state = AsyncValue.data(
+      _setDataAndCache(
         currentDetail.copyWith(
           postsCount: currentDetail.postsCount + 1,
           postStream: PostStream(
@@ -283,7 +283,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
     final newPosts = [...currentPosts];
     newPosts[index] = post;
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       currentDetail.copyWith(
         postStream: PostStream(
           posts: newPosts,
@@ -319,7 +319,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
       }
     }
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       currentDetail.copyWith(
         title: title ?? currentDetail.title,
         categoryId: categoryId ?? currentDetail.categoryId,
@@ -336,7 +336,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
     final currentDetail = state.value;
     if (currentDetail == null) return;
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       currentDetail.copyWith(voteCount: newVoteCount, userVoted: userVoted),
     );
   }
@@ -349,7 +349,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
     final currentDetail = state.value;
     if (currentDetail == null) return;
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       currentDetail.copyWith(
         sharedIssueCount: newCount,
         userCreatedSharedIssue:
@@ -369,7 +369,9 @@ extension PostUpdateMethods on TopicDetailNotifier {
           .setTopicNotificationLevel(currentDetail.id, level);
       if (!ref.mounted) return;
 
-      state = AsyncValue.data(currentDetail.copyWith(notificationLevel: level));
+      _setDataAndCache(
+        currentDetail.copyWith(notificationLevel: level),
+      );
     } catch (e) {
       debugPrint('[TopicDetail] 更新订阅级别失败: $e');
       rethrow;
@@ -380,7 +382,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
   void updateNotificationLevelLocally(TopicNotificationLevel level) {
     final currentDetail = state.value;
     if (currentDetail == null) return;
-    state = AsyncValue.data(currentDetail.copyWith(notificationLevel: level));
+    _setDataAndCache(currentDetail.copyWith(notificationLevel: level));
   }
 
   /// 应用话题统计更新（用于 MessageBus stats 消息）
@@ -388,7 +390,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
     final currentDetail = state.value;
     if (currentDetail == null) return;
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       currentDetail.copyWith(
         postsCount: stats.postsCount ?? currentDetail.postsCount,
         likeCount: stats.likeCount ?? currentDetail.likeCount,
@@ -407,7 +409,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
     final newBookmarkId = await service.bookmarkTopic(currentDetail.id);
     if (!ref.mounted) throw Exception(S.current.error_providerDisposed);
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       currentDetail.copyWith(bookmarked: true, bookmarkId: newBookmarkId),
     );
     return newBookmarkId;
@@ -425,7 +427,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
     await service.deleteBookmark(bookmarkId);
     if (!ref.mounted) return;
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       currentDetail.copyWith(
         bookmarked: false,
         clearBookmarkId: true,
@@ -445,7 +447,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
     final currentDetail = state.value;
     if (currentDetail == null) return;
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       currentDetail.copyWith(
         bookmarkName: name,
         bookmarkReminderAt: reminderAt,
@@ -491,7 +493,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
       );
       if (!ref.mounted) return;
       // 只更新元数据，保留当前帖子列表
-      state = AsyncValue.data(
+      _setDataAndCache(
         currentDetail.copyWith(
           title: newDetail.title,
           slug: newDetail.slug,

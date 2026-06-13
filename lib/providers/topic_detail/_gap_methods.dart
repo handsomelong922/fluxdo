@@ -66,7 +66,7 @@ extension GapMethods on TopicDetailNotifier {
         ),
       );
 
-      state = AsyncValue.data(
+      _setDataAndCache(
         _applyUserFilter(
           updatedDetail.copyWith(
             postStream: PostStream(
@@ -143,7 +143,7 @@ extension GapMethods on TopicDetailNotifier {
         after: newAfter,
       );
 
-      state = AsyncValue.data(
+      _setDataAndCache(
         _applyUserFilter(
           updatedDetail.copyWith(
             postStream: PostStream(
@@ -172,7 +172,7 @@ extension GapMethods on TopicDetailNotifier {
 
     final updatedGaps = PostStreamGaps(before: newBefore, after: newAfter);
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       detail.copyWith(
         postStream: PostStream(
           posts: detail.postStream.posts,

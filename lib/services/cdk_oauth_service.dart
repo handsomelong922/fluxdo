@@ -5,7 +5,6 @@ import 'network/discourse_dio.dart';
 import 'network/exceptions/oauth_exception.dart';
 import '../pages/oauth_webview_page.dart';
 import '../l10n/s.dart';
-import '../utils/dialog_utils.dart';
 import 'oauth_flow_helper.dart';
 import '../models/cdk_user_info.dart';
 
@@ -72,6 +71,16 @@ class CdkOAuthService {
     return authorize(context);
   }
 
+  Future<bool> reauthorizeSilently() async {
+    try {
+      await logout();
+    } catch (_) {
+      // 忽略登出错误，不阻塞后续静默授权。
+    }
+    await OAuthFlowHelper.humanGap(minMs: 600, maxMs: 1200);
+    return authorizeSilently();
+  }
+
   Future<bool> authorize(BuildContext context) async {
     final authUrl = await _loadAuthUrl();
     await OAuthFlowHelper.humanGap(minMs: 800, maxMs: 1500);
@@ -88,19 +97,36 @@ class CdkOAuthService {
       return _authorizeWithWebView(context, authUrl);
     }
 
-    final confirmed = await showAppDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const _AuthDialog(),
-    );
-
-    if (confirmed != true) return false;
     try {
       await _approveAndCallback(approveLink);
       return true;
     } on _OAuthNeedsWebViewFallback {
       if (!context.mounted) return false;
       return _authorizeWithWebView(context, authUrl);
+    }
+  }
+
+  Future<bool> authorizeSilently() async {
+    try {
+      final authUrl = await _loadAuthUrl();
+      await OAuthFlowHelper.humanGap(minMs: 400, maxMs: 900);
+      final response = await _loadAuthPage(authUrl);
+
+      if (await _tryCallbackFromLocation(response.headers.value('location'))) {
+        return true;
+      }
+
+      final approveLink = _extractApproveLink(response.data);
+      if (approveLink == null) {
+        return false;
+      }
+
+      await _approveAndCallback(approveLink);
+      return true;
+    } on _OAuthNeedsWebViewFallback {
+      return false;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -215,26 +241,4 @@ class CdkOAuthService {
 
 class _OAuthNeedsWebViewFallback implements Exception {
   const _OAuthNeedsWebViewFallback();
-}
-
-class _AuthDialog extends StatelessWidget {
-  const _AuthDialog();
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(context.l10n.auth_cdkConfirmTitle),
-      content: Text(context.l10n.auth_cdkConfirmMessage),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text(context.l10n.common_deny),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: Text(context.l10n.common_allow),
-        ),
-      ],
-    );
-  }
 }

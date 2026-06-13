@@ -80,6 +80,9 @@ extension LoadingMethods on TopicDetailNotifier {
         state = AsyncValue.data(state.requireValue);
       } else {
         state = result;
+        if (result.hasValue) {
+          _cacheTopicDetail(result.requireValue);
+        }
       }
     } finally {
       _isLoadingPrevious = false;
@@ -172,6 +175,9 @@ extension LoadingMethods on TopicDetailNotifier {
         state = AsyncValue.data(state.requireValue);
       } else {
         state = result;
+        if (result.hasValue) {
+          _cacheTopicDetail(result.requireValue);
+        }
       }
     } finally {
       _isLoadingMore = false;
@@ -203,18 +209,17 @@ extension LoadingMethods on TopicDetailNotifier {
 
     // 将 post ID 加入 stream 并更新 postsCount（本地即时更新，无需请求）
     final newStream = [...currentStream, postId];
-    state = AsyncValue.data(
-      _applyUserFilter(
-        currentDetail.copyWith(
-          postsCount: currentDetail.postsCount + 1,
-          postStream: PostStream(
-            posts: currentDetail.postStream.posts,
-            stream: newStream,
-            gaps: currentDetail.postStream.gaps,
-          ),
+    final nextDetail = _applyUserFilter(
+      currentDetail.copyWith(
+        postsCount: currentDetail.postsCount + 1,
+        postStream: PostStream(
+          posts: currentDetail.postStream.posts,
+          stream: newStream,
+          gaps: currentDetail.postStream.gaps,
         ),
       ),
     );
+    _setDataAndCache(nextDetail);
     _updateBoundaryState(state.requireValue.postStream.posts, newStream);
 
     // 对齐 Discourse loadedAllPosts：收到新帖前已加载到底部时才批量拉取新帖子内容，
@@ -284,7 +289,7 @@ extension LoadingMethods on TopicDetailNotifier {
         nextDetail.postStream.stream,
       );
 
-      state = AsyncValue.data(nextDetail);
+      _setDataAndCache(nextDetail);
     } catch (e) {
       // 失败时将 post IDs 放回队列
       _pendingNewPostIds.insertAll(0, postIds);
@@ -328,6 +333,9 @@ extension LoadingMethods on TopicDetailNotifier {
     });
     if (!ref.mounted) return;
     state = result;
+    if (result.hasValue) {
+      _cacheTopicDetail(result.requireValue);
+    }
   }
 
   /// 刷新当前话题详情（保持列表可见）
@@ -358,6 +366,9 @@ extension LoadingMethods on TopicDetailNotifier {
     });
     if (!ref.mounted) return;
     state = result;
+    if (result.hasValue) {
+      _cacheTopicDetail(result.requireValue);
+    }
   }
 
   /// 加载指定楼层的帖子（用于跳转）
@@ -409,7 +420,7 @@ extension LoadingMethods on TopicDetailNotifier {
       );
 
       if (!ref.mounted) return -1;
-      state = AsyncValue.data(filteredDetail);
+      _setDataAndCache(filteredDetail);
 
       return filteredDetail.postStream.posts.indexWhere(
         (p) => p.postNumber == postNumber,

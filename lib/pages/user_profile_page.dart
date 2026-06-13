@@ -183,15 +183,29 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
 
     try {
       final service = ref.read(discourseServiceProvider);
+      final targetFollowed = !_isFollowed;
       if (_isFollowed) {
         await service.unfollowUser(_user!.username);
       } else {
         await service.followUser(_user!.username);
       }
 
+      User? refreshedUser;
+      try {
+        refreshedUser = await service.getUser(_user!.username);
+      } catch (_) {
+        // 关注操作已成功，资料刷新失败时先按目标状态更新按钮；
+        // 下次进入用户页会再次从服务端校准。
+      }
+
       if (mounted) {
         setState(() {
-          _isFollowed = !_isFollowed;
+          if (refreshedUser != null) {
+            _user = refreshedUser;
+            _isFollowed = refreshedUser.isFollowed ?? targetFollowed;
+          } else {
+            _isFollowed = targetFollowed;
+          }
         });
       }
     } on DioException catch (_) {

@@ -175,7 +175,8 @@ mixin _UsersMixin on _DiscourseServiceBase {
   /// 关注用户
   Future<void> followUser(String username) async {
     try {
-      await _dio.put('/follow/$username');
+      final encodedUsername = Uri.encodeComponent(username);
+      await _dio.put('/follow/$encodedUsername.json');
     } on DioException catch (e) {
       _throwApiError(e);
     }
@@ -184,7 +185,8 @@ mixin _UsersMixin on _DiscourseServiceBase {
   /// 取消关注用户
   Future<void> unfollowUser(String username) async {
     try {
-      await _dio.delete('/follow/$username');
+      final encodedUsername = Uri.encodeComponent(username);
+      await _dio.delete('/follow/$encodedUsername.json');
     } on DioException catch (e) {
       _throwApiError(e);
     }

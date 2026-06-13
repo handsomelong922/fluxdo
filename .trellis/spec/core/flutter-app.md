@@ -1,0 +1,122 @@
+# Flutter App Guidelines
+
+## Layer Boundaries
+
+- UI pages live in `lib/pages/`; reusable UI belongs in `lib/widgets/`.
+- Riverpod providers live in `lib/providers/` and should own state orchestration rather than pushing business logic into widgets.
+- Business/network/storage behavior belongs in `lib/services/`, `lib/models/`, and focused local packages.
+- Keep local packages independent from the app shell. If a package needs host behavior, expose a callback or extension point instead of importing app pages or services.
+
+Evidence:
+- `lib/pages/topic_detail_page/`
+- `lib/providers/topic_detail_provider.dart`
+- `lib/providers/topic_detail/`
+- `lib/services/network/`
+- `packages/`
+- `.trellis/spec/guides/cross-layer-thinking-guide.md`
+
+## UI And Interaction Changes
+
+- Preserve stable viewport/layout dimensions during scroll-linked animations; prefer paint-level transforms, opacity, or clipping over changing scaffold slot height while dragging.
+- When overlays, sheets, or routes visually exit, ensure they do not keep intercepting pointer input after the active layer below should be interactive.
+- For established app surfaces, follow existing Material/Riverpod/component patterns instead of introducing a new visual framework.
+- Check text overflow and hit targets on both mobile and desktop sizes when changing compact controls.
+
+Evidence:
+- `lib/pages/topic_detail_page/`
+- `lib/widgets/common/`
+- `.trellis/spec/guides/cross-layer-thinking-guide.md`
+
+## State And Async Behavior
+
+- Optional anchors, linked posts, restored scroll targets, and search hits must have terminal fallback states. Do not keep the base page in a permanent loading state while waiting for an optional target.
+- Keep ordinary search, AI search, and forum-authenticated retrieval paths separate unless the task explicitly combines them.
+- When adding preference-dependent behavior, centralize interpretation in a provider/helper when more than one widget needs it.
+- Startup preloading that provides first-screen data must remain part of the gate that reveals the home page when the UI expects to synchronously consume that cache. Do not convert `PreloadedDataService().ensureLoaded()` into an unawaited warm-up without also changing the home topic provider contract; otherwise the app can show the home shell before `topicList` is available, trigger duplicate `/latest.json` requests, and leave the user on skeleton loading.
+- Initial topic-list backfill for filtered results must not block the first visible page. Return page 0 as soon as it is processed, then append any "fill to minimum visible count" pages in the background or through normal load-more flow.
+
+## Scenario: Topic Detail Snapshot Cache
+
+### 1. Scope / Trigger
+- Trigger: changing topic-detail reopen behavior, Riverpod family keys, route `instanceId`, post stream loading, or detail-page stale-while-revalidate caching.
+
+### 2. Signatures
+- Provider identity remains `TopicDetailParams(topicId, postNumber?, instanceId)`.
+- Cache lookup key is `topicId + current username`; route `instanceId` is not part of the cache key.
+- Cache service contract:
+  - `read(topicId, username?, targetPostNumber?) -> TopicDetailCacheEntry?`
+  - `write(TopicDetail, username?)`
+  - `shouldRevalidate(entry, targetPostNumber?) -> bool`
+
+### 3. Contracts
+- Do not remove `instanceId` from `TopicDetailParams` equality/hashCode; it isolates route-local UI state, scroll targets, filters, and MessageBus ownership.
+- Cache complete `TopicDetail` snapshots, including the currently loaded `postStream.posts` and `postStream.stream`, so reopen can render the same visible detail immediately.
+- Use a hard TTL of 1 day for snapshot validity and a shorter soft TTL for background refresh.
+- A snapshot may render immediately only when the requested `targetPostNumber` is null or already present in `postStream.posts`.
+- Filtered views (`summary`, author-only, top-level-only) must not overwrite the normal unfiltered topic cache.
+- New replies and volatile action state must be reconciled by background refresh or MessageBus/local mutation updates; cached data is a fast first paint, not an authority for 24 hours.
+
+### 4. Validation & Error Matrix
+- Cache miss -> load via normal `getTopicDetail` path.
+- Hard-expired cache -> discard and load via normal path.
+- Soft-stale cache -> render snapshot, then refresh in the background.
+- Target post missing from snapshot -> treat as cache miss to avoid opening the wrong scroll window.
+- Background refresh failure -> keep the rendered cached detail and log/debug only; do not replace the page with a global error.
+- User changes -> use a different username cache bucket; do not leak action/bookmark state between users.
+
+### 5. Good/Base/Bad Cases
+- Good: keep route `instanceId`, read a `topicId + username` snapshot, render immediately, refresh after soft TTL.
+- Base: cache only in memory when full model serialization is unavailable; add disk persistence later only with explicit model/raw-JSON contracts.
+- Bad: remove `instanceId` to force provider reuse, cache filtered views over normal detail, or skip refresh for a whole day.
+
+### 6. Tests Required
+- Unit-test cache hit/miss, user isolation, hard TTL, soft revalidation, target-post miss, and LRU eviction.
+- Provider tests should assert cached detail renders before a stale background refresh result when a fake service is available.
+- Regression-test that target-post routes do not use snapshots missing that post number.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+```dart
+class TopicDetailParams {
+  int get hashCode => topicId;
+}
+```
+
+#### Correct
+```dart
+final cached = cache.read(
+  arg.topicId,
+  username: currentUsername,
+  targetPostNumber: arg.postNumber,
+);
+if (cached != null) {
+  unawaited(refreshIfStale());
+  return cached.detail;
+}
+```
+
+## Link Launching
+
+- For external links, do not use `canLaunchUrl(uri)` as a hard gate before `launchUrl`. On Android and iOS it can return false because of package visibility/query limits even when launching would work, which makes content links appear unresponsive.
+- Preferred pattern: call `launchUrl(uri, mode: LaunchMode.externalApplication)` directly, check the returned bool, catch platform errors, and show a visible failure hint when no handler is available.
+- Linux.do internal links must continue through `launchContentLink` internal branches first: user links, topic links (`/t`, `/n`, `/topic`), post short links, CDK links, uploads, and same-prefix internal URLs should not be converted into generic external links.
+
+Evidence:
+- `lib/providers/topic_detail/`
+- `lib/providers/search_ai_chat_provider.dart`
+- `lib/utils/link_launcher.dart`
+- `.trellis/spec/guides/code-reuse-thinking-guide.md`
+- `.trellis/spec/guides/cross-layer-thinking-guide.md`
+
+## Local Packages
+
+- Avoid adding app-shell imports to reusable packages under `packages/`.
+- Preserve package API boundaries; inject host-specific widgets or navigation behavior from the app layer.
+- Run package-local checks when changing a package with its own `pubspec.yaml`.
+
+Evidence:
+- `packages/ai_model_manager/`
+- `packages/enhanced_cookie_jar/`
+- `packages/flutter_inappwebview_linux/`
+- `.trellis/spec/guides/cross-layer-thinking-guide.md`

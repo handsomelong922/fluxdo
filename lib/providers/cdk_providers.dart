@@ -79,7 +79,7 @@ class CdkUserInfoNotifier extends AsyncNotifier<CdkUserInfo?> {
     return userInfo;
   }
 
-  Future<void> refresh() async {
+  Future<void> refresh({bool reauthorizeSilently = false}) async {
     final previousData = state.value;
     // ignore: invalid_use_of_internal_member
     state = const AsyncLoading<CdkUserInfo?>().copyWithPrevious(state);
@@ -88,6 +88,19 @@ class CdkUserInfoNotifier extends AsyncNotifier<CdkUserInfo?> {
       state = AsyncValue.data(result);
     } catch (e, st) {
       if (e is OAuthExpiredException) {
+        if (reauthorizeSilently) {
+          final service = CdkOAuthService();
+          final authorized = await service.reauthorizeSilently();
+          if (authorized) {
+            try {
+              final result = await _fetchUserInfo();
+              state = AsyncValue.data(result);
+              return;
+            } catch (_) {
+              // 静默重新授权后仍无法读取信息，按过期处理并清理缓存。
+            }
+          }
+        }
         // 登录态过期：清除缓存并立即反映到 UI
         final prefs = await SharedPreferences.getInstance();
         await _clearCache(prefs);

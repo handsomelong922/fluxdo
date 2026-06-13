@@ -6,6 +6,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/network/cookie/webview_cookie_priming.dart';
+import '../services/cdk_oauth_service.dart';
 import '../services/toast_service.dart';
 import '../services/webview_settings.dart';
 import '../services/windows_webview_environment_service.dart';
@@ -52,7 +53,6 @@ class _CdkPageState extends State<CdkPage> {
   late final Future<void> _cookieSyncFuture;
   bool _isLoading = true;
   double _progress = 0;
-  bool _canGoBack = false;
   String _currentUrl = '';
   String? _loadError;
 
@@ -110,11 +110,9 @@ class _CdkPageState extends State<CdkPage> {
             ],
           ),
           leading: IconButton(
-            icon: Icon(_canGoBack ? Icons.arrow_back_rounded : Icons.close),
+            icon: const Icon(Icons.close),
             onPressed: _handleBackNavigation,
-            tooltip: _canGoBack
-                ? context.l10n.webview_goBack
-                : context.l10n.common_close,
+            tooltip: context.l10n.common_close,
           ),
           actions: [
             IconButton(
@@ -211,10 +209,8 @@ class _CdkPageState extends State<CdkPage> {
                     },
                     onLoadStop: (controller, url) async {
                       await WebViewSettings.injectScrollFix(controller);
-                      final canGoBack = await controller.canGoBack();
                       setState(() {
                         _isLoading = false;
-                        _canGoBack = canGoBack;
                         _currentUrl = url?.toString() ?? _currentUrl;
                       });
                     },
@@ -235,9 +231,7 @@ class _CdkPageState extends State<CdkPage> {
                       });
                     },
                     onUpdateVisitedHistory: (controller, url, _) async {
-                      final canGoBack = await controller.canGoBack();
                       setState(() {
-                        _canGoBack = canGoBack;
                         _currentUrl = url?.toString() ?? _currentUrl;
                       });
                     },
@@ -292,21 +286,14 @@ class _CdkPageState extends State<CdkPage> {
     if (widget.url.isNotEmpty) {
       await WebViewCookiePriming.instance.prime(widget.url);
     }
-    if (widget.url.isNotEmpty) {
+    final uri = Uri.tryParse(widget.url);
+    if (uri != null && isTrustedCdkWebViewHost(uri.host)) {
+      await CdkOAuthService().authorizeSilently();
       await WebViewCookiePriming.instance.prime(widget.url);
     }
   }
 
   Future<void> _handleBackNavigation() async {
-    final controller = _controller;
-    if (controller == null) {
-      if (mounted) Navigator.of(context).pop();
-      return;
-    }
-    if (await controller.canGoBack()) {
-      await controller.goBack();
-      return;
-    }
     if (mounted) Navigator.of(context).pop();
   }
 

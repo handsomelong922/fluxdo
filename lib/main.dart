@@ -67,6 +67,7 @@ import 'services/windows_webview_environment_service.dart';
 import 'models/user.dart';
 import 'constants.dart';
 import 'providers/connectivity_provider.dart';
+import 'providers/cdk_providers.dart';
 import 'utils/dialog_utils.dart';
 import 'utils/time_utils.dart';
 
@@ -626,6 +627,11 @@ class _MainPageState extends ConsumerState<MainPage>
           debugPrint('[MainPage] 启动 UI 任务失败: $e\n$s');
         }),
       );
+      unawaited(
+        _refreshEnabledCdkService().catchError((Object e, StackTrace s) {
+          debugPrint('[MainPage] CDK 启动刷新失败: $e\n$s');
+        }),
+      );
     });
     // 监听登录失效事件
     _authErrorSub = ref.listenManual<AsyncValue<String>>(authErrorProvider, (
@@ -717,6 +723,14 @@ class _MainPageState extends ConsumerState<MainPage>
     }
 
     await _checkClipboardTopicLink();
+  }
+
+  Future<void> _refreshEnabledCdkService() async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (!(prefs.getBool('cdk_enabled') ?? false)) return;
+    await ref
+        .read(cdkUserInfoProvider.notifier)
+        .refresh(reauthorizeSilently: true);
   }
 
   Future<void> _showCrashlyticsNotice() async {
@@ -886,6 +900,11 @@ class _MainPageState extends ConsumerState<MainPage>
         ConnectivityService().check();
         // 恢复 cf_clearance 自动续期监控
         CfClearanceRefreshService().resume();
+        unawaited(
+          _refreshEnabledCdkService().catchError((Object e, StackTrace s) {
+            debugPrint('[MainPage] CDK 恢复刷新失败: $e\n$s');
+          }),
+        );
         unawaited(_checkClipboardTopicLink());
       });
     }

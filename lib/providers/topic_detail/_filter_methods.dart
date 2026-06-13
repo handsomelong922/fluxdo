@@ -66,7 +66,7 @@ extension FilterMethods on TopicDetailNotifier {
         ? stream
         : [firstPost.id, ...stream];
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       _applyUserFilter(
         detail.copyWith(
           postStream: PostStream(
@@ -122,6 +122,9 @@ extension FilterMethods on TopicDetailNotifier {
     });
     if (!ref.mounted) return;
     state = result;
+    if (result.hasValue) {
+      _cacheTopicDetail(result.requireValue);
+    }
   }
 
   /// 使用当前 filter 重新加载数据
@@ -151,6 +154,9 @@ extension FilterMethods on TopicDetailNotifier {
     });
     if (!ref.mounted) return;
     state = result;
+    if (result.hasValue) {
+      _cacheTopicDetail(result.requireValue);
+    }
   }
 
   /// 过滤模式下根据 stream ID 加载更多帖子
@@ -222,6 +228,9 @@ extension FilterMethods on TopicDetailNotifier {
         state = AsyncValue.data(state.requireValue);
       } else {
         state = result;
+        if (result.hasValue) {
+          _cacheTopicDetail(result.requireValue);
+        }
       }
     } finally {
       _isLoadingMore = false;
@@ -295,6 +304,9 @@ extension FilterMethods on TopicDetailNotifier {
         state = AsyncValue.data(state.requireValue);
       } else {
         state = result;
+        if (result.hasValue) {
+          _cacheTopicDetail(result.requireValue);
+        }
       }
     } finally {
       _isLoadingPrevious = false;

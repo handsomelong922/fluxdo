@@ -5,6 +5,16 @@ import '../../common/emoji_text.dart';
 import '../../../services/discourse_cache_manager.dart';
 import 'boost_content.dart';
 
+double _singleBoostTextMaxWidth(BuildContext context) {
+  final screenWidth = MediaQuery.sizeOf(context).width;
+  return (screenWidth - 116).clamp(96.0, 220.0).toDouble();
+}
+
+double _groupedBoostTextMaxWidth(BuildContext context) {
+  final screenWidth = MediaQuery.sizeOf(context).width;
+  return (screenWidth - 160).clamp(88.0, 180.0).toDouble();
+}
+
 /// 单个 Boost 气泡
 class BoostBubble extends StatelessWidget {
   final Boost? boost;
@@ -103,15 +113,16 @@ class BoostBubble extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 220),
+                constraints: BoxConstraints(
+                  maxWidth: _singleBoostTextMaxWidth(context),
+                ),
                 child: EmojiText(
                   displayText,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface,
                     height: 1.2,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  softWrap: true,
                 ),
               ),
             ],
@@ -171,15 +182,16 @@ class _GroupedBoostBubble extends StatelessWidget {
               _AvatarStack(users: avatars, onAvatarTap: onAvatarTap),
               const SizedBox(width: 4),
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 180),
+                constraints: BoxConstraints(
+                  maxWidth: _groupedBoostTextMaxWidth(context),
+                ),
                 child: EmojiText(
                   displayText,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface,
                     height: 1.2,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  softWrap: true,
                 ),
               ),
               const SizedBox(width: 6),

@@ -362,7 +362,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   /// 将已生成的话题摘要作为当前会话上下文，方便用户继续追问。
   Future<void> continueFromSummary(
       String topicTitle, String summaryText) async {
-    final summary = summaryText.trim();
+    final summary = _sanitizeSummaryMarkdown(summaryText).trim();
     if (summary.isEmpty) return;
 
     stopGeneration();
@@ -381,13 +381,13 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
         AiChatMessage(
           id: _uuid.v4(),
           role: ChatRole.user,
-          content: '请基于这份话题摘要继续对话：\n\n$summary',
+          content: '请基于这份话题摘要继续对话。',
           createdAt: DateTime.now(),
         ),
         AiChatMessage(
           id: _uuid.v4(),
           role: ChatRole.assistant,
-          content: '我已读取这份摘要，可以继续围绕这个话题回答你的问题。',
+          content: summary,
           createdAt: DateTime.now(),
         ),
       ],
@@ -395,6 +395,14 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
     );
 
     await _saveToStorage();
+  }
+
+  String _sanitizeSummaryMarkdown(String raw) {
+    return raw
+        .replaceAll('\u2028', '\n')
+        .replaceAll('\u2029', '\n')
+        .replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]'), '')
+        .replaceAll(RegExp('[\u202A-\u202E\u2066-\u2069\uFEFF]'), '');
   }
 
   /// 发送消息

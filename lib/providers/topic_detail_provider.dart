@@ -7,6 +7,7 @@ import '../l10n/s.dart';
 import '../models/topic.dart';
 import '../services/preloaded_data_service.dart';
 import '../services/settings/content_filter_service.dart'; // CUSTOM: User Filter
+import '../services/topic_detail_cache_service.dart';
 import 'core_providers.dart';
 import 'message_bus/models.dart';
 
@@ -87,6 +88,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   bool _isLoadingMore = false;
   bool _isLoadMoreFailed = false;
   bool _isLoadPreviousFailed = false;
+  String? _cacheUsername;
   String? _filter; // 当前过滤模式（如 'summary' 表示热门回复）
   String? _usernameFilter; // 当前用户名过滤（如只看题主）
   bool _filterTopLevelReplies = false; // 只看顶层回复
@@ -144,7 +146,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     final newPosts = [...currentPosts];
     newPosts[index] = newPost;
 
-    state = AsyncValue.data(
+    _setDataAndCache(
       currentDetail.copyWith(
         postStream: PostStream(
           posts: newPosts,
@@ -165,6 +167,37 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   Post _applyUserFilterToPost(Post post) {
     final filter = ref.read(contentFilterProvider.notifier);
     return filter.applyUserFilterToPost(post);
+  }
+
+  void _cacheTopicDetail(TopicDetail detail) {
+    if (_isFilteredMode) return;
+    final username = _cacheUsername;
+    if (username == null) return;
+    ref
+        .read(topicDetailCacheServiceProvider)
+        .write(detail, username: username);
+  }
+
+  void _setDataAndCache(TopicDetail detail) {
+    _cacheTopicDetail(detail);
+    state = AsyncValue.data(detail);
+  }
+
+  Future<void> _refreshCachedTopicDetail() async {
+    try {
+      final detail = await _loadInitialTopicDetailWithRetry(background: true);
+      if (!ref.mounted) return;
+
+      _cacheTopicDetail(detail);
+      final filteredDetail = _applyUserFilter(detail);
+      _updateBoundaryState(
+        filteredDetail.postStream.posts,
+        filteredDetail.postStream.stream,
+      );
+      state = AsyncValue.data(filteredDetail);
+    } catch (e) {
+      debugPrint('[TopicDetailNotifier] 后台刷新缓存话题失败: $e');
+    }
   }
 
   @override
@@ -193,7 +226,34 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     _hasMoreBefore = true;
     _isLoadMoreFailed = false;
     _isLoadPreviousFailed = false;
+    _cacheUsername = ref.read(currentUserProvider).value?.username;
+
+    final cacheService = ref.read(topicDetailCacheServiceProvider);
+    final username = _cacheUsername;
+    final cachedEntry = username == null
+        ? null
+        : cacheService.read(
+            arg.topicId,
+            username: username,
+            targetPostNumber: arg.postNumber,
+          );
+    if (cachedEntry != null) {
+      final cachedDetail = _applyUserFilter(cachedEntry.detail);
+      _updateBoundaryState(
+        cachedDetail.postStream.posts,
+        cachedDetail.postStream.stream,
+      );
+      if (cacheService.shouldRevalidate(
+        cachedEntry,
+        targetPostNumber: arg.postNumber,
+      )) {
+        unawaited(_refreshCachedTopicDetail());
+      }
+      return cachedDetail;
+    }
+
     final detail = await _loadInitialTopicDetailWithRetry();
+    _cacheTopicDetail(detail);
 
     final filteredDetail = _applyUserFilter(detail);
     _updateBoundaryState(
@@ -204,7 +264,9 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     return filteredDetail;
   }
 
-  Future<TopicDetail> _loadInitialTopicDetailWithRetry() async {
+  Future<TopicDetail> _loadInitialTopicDetailWithRetry({
+    bool background = false,
+  }) async {
     final service = ref.read(discourseServiceProvider);
     Object? lastError;
     StackTrace? lastStackTrace;
@@ -227,6 +289,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
           arg.topicId,
           postNumber: arg.postNumber,
           trackVisit: false,
+          background: background,
         );
       } catch (error, stackTrace) {
         lastError = error;
@@ -249,3 +312,9 @@ final topicDetailProvider = AsyncNotifierProvider.family
     .autoDispose<TopicDetailNotifier, TopicDetail, TopicDetailParams>(
       TopicDetailNotifier.new,
     );
+
+final topicDetailCacheServiceProvider = Provider<TopicDetailCacheService>((ref) {
+  final service = TopicDetailCacheService();
+  ref.onDispose(service.clear);
+  return service;
+});
