@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
-import 'package:flutter_avif/flutter_avif.dart' as fa;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:native_animated_image/native_animated_image.dart'
     show NativeAnimatedImageException, NativeAnimatedImageFfi;
@@ -41,14 +40,20 @@ class StickerThumbnailProvider extends ImageProvider<StickerThumbnailProvider> {
     this.cacheManager,
   });
 
+  /// 主动 cancel 所有 in-flight thumbnail decode。
+  ///
+  /// sticker panel dispose 时调用。Bumps 一个 generation counter,
+  /// `_decodeFirstFrameImage` 内的多个 await 检查点会发现 mismatch 立即抛
+  /// `_ThumbnailCancelled` 退出 —— 排队中的解码任务全部作废,panel 关闭后
+  /// 不再占用解码资源。已经在跑的单张解码不可中断,但跑完即停。
+  static void cancelInflight() {
+    _bumpThumbnailGeneration();
+  }
+
   final String url;
   final int targetSize;
   final double scale;
   final BaseCacheManager? cacheManager;
-
-  static void cancelInflight() {
-    _thumbnailGeneration++;
-  }
 
   static bool supports(String url) {
     try {
@@ -72,9 +77,14 @@ class StickerThumbnailProvider extends ImageProvider<StickerThumbnailProvider> {
     required BaseCacheManager cacheManager,
     bool Function()? shouldContinue,
   }) async {
+    // Phase 1: 过滤掉不支持 / 已 cache / in-flight 的 URL,异步拉 bytes。
+    // AVIF 跟非 AVIF 分开:走不同的解码 backend(AVIF → flutter_avif FFI,
+    // 其余 → Rust worker pool),且各自独立限流。
+    //
+    // 关键:用**实际 magic bytes** 而不是 URL 后缀分流。CDN 给的 .gif/.webp
+    // URL 实际内容可能是 AVIF,只看后缀会让 AVIF bytes 进 Rust → crash。
     final pendingNonAvif = <(String, Uint8List)>[];
-    var skippedAvif = 0;
-
+    final pendingAvifUrls = <String>[];
     for (final url in urls) {
       if (shouldContinue != null && !shouldContinue()) return;
       if (!supports(url)) continue;
@@ -89,7 +99,7 @@ class StickerThumbnailProvider extends ImageProvider<StickerThumbnailProvider> {
         final file = await cacheManager.getSingleFile(url);
         final bytes = await file.readAsBytes();
         if (_bytesLookLikeAvif(bytes)) {
-          skippedAvif++;
+          pendingAvifUrls.add(url);
         } else {
           pendingNonAvif.add((url, bytes));
         }
@@ -102,7 +112,7 @@ class StickerThumbnailProvider extends ImageProvider<StickerThumbnailProvider> {
       if (shouldContinue != null && !shouldContinue()) return;
       final reply = await _DecoderWorkerPool.instance.decode(entry.$2);
       if (reply == null) continue;
-      await _writeThumbnailFromReply(
+      await _writeThumbnailFromRustOrFallback(
         url: entry.$1,
         bytes: entry.$2,
         reply: reply,
@@ -111,8 +121,65 @@ class StickerThumbnailProvider extends ImageProvider<StickerThumbnailProvider> {
       );
     }
 
-    if (skippedAvif > 0) {
-      debugPrint('[StickerThumbnail] skip AVIF batch prefetch: $skippedAvif');
+    // Phase 2B: AVIF — 经 [precache] 逐张预热(内部 `_pendingThumbnailTasks`
+    // 去重,与 grid widget 触发的现场解码互不重复;`_avifSemaphore(4)` 限流)。
+    //
+    // 历史:这里曾经完全跳过 AVIF prefetch —— 当时 `fa.decodeAvif` 被认为
+    // 走 method channel 全帧 marshal 阻塞主 isolate。现在两个前提都变了:
+    // flutter_avif 3.x 是 FFI + native port 异步(解码在 native 线程),
+    // 且缩略图改为单帧解码([AvifImageProvider.decodeFirstFrame]),主
+    // isolate 每张只剩一次单帧 RGBA 解包,毫秒级 → 放心预热。
+    //
+    // shouldContinue 在每张之间检查(切组 / 关 panel 立即停);已在跑的
+    // 单张解码由 generation 检查点兜底取消(见 [cancelInflight])。
+    for (final url in pendingAvifUrls) {
+      if (shouldContinue != null && !shouldContinue()) return;
+      try {
+        await precache(url, targetSize: targetSize, cacheManager: cacheManager);
+      } on _ThumbnailCancelled {
+        return;
+      } catch (e) {
+        debugPrint('[StickerThumbnail] avif prefetch failed $url: $e');
+      }
+    }
+  }
+
+  static Future<void> _writeThumbnailFromRustOrFallback({
+    required String url,
+    required Uint8List bytes,
+    required _DecodeReply reply,
+    required int targetSize,
+    required BaseCacheManager cacheManager,
+  }) async {
+    ui.Image? srcImage;
+    try {
+      if (reply.rgba != null) {
+        srcImage = await _rgbaToUiImage(reply.rgba!, reply.width, reply.height);
+      } else if (reply.unsupported) {
+        // Rust 不识别 → Flutter codec(静态 webp / png / jpeg)
+        try {
+          srcImage = await _decodeFirstFrameViaFlutterCodec(bytes);
+        } catch (e) {
+          debugPrint('[StickerThumbnail] both decoders failed $url: $e');
+          return;
+        }
+      } else {
+        // decode error or cancelled
+        return;
+      }
+      final displayImage =
+          (srcImage.width > targetSize || srcImage.height > targetSize)
+              ? await _resize(srcImage, targetSize)
+              : srcImage;
+      await _cacheThumbnail(
+        cacheManager,
+        _thumbnailCacheKey(url, targetSize),
+        displayImage,
+      );
+      _knownThumbnailKeys.add(_thumbnailCacheKey(url, targetSize));
+      if (displayImage != srcImage) displayImage.dispose();
+    } finally {
+      srcImage?.dispose();
     }
   }
 
@@ -157,7 +224,18 @@ class StickerThumbnailProvider extends ImageProvider<StickerThumbnailProvider> {
     StickerThumbnailProvider key,
     ImageDecoderCallback decode,
   ) {
-    return OneFrameImageStreamCompleter(_loadThumbnail(key));
+    return OneFrameImageStreamCompleter(
+      _loadThumbnail(key).catchError((Object e, StackTrace st) {
+        // 失败的 completer 不能留在 ImageCache —— 否则同 key 的后续 Image
+        // 直接复用错误结果,永久裂图直到重启(NetworkImage 官方实现同款 evict)。
+        // evict 后下次 rebuild 自动重试;面板关闭触发的 _ThumbnailCancelled
+        // 也走这里,重开面板即重解。
+        scheduleMicrotask(() {
+          PaintingBinding.instance.imageCache.evict(key);
+        });
+        Error.throwWithStackTrace(e, st);
+      }),
+    );
   }
 
   Future<ImageInfo> _loadThumbnail(StickerThumbnailProvider key) async {
@@ -197,14 +275,46 @@ class StickerThumbnailProvider extends ImageProvider<StickerThumbnailProvider> {
   int get hashCode => Object.hash(url, targetSize, scale);
 }
 
-final _avifSemaphore = _Semaphore(1);
+// ==================== Internal helpers ====================
+
+/// AVIF 解码并发。
+///
+/// flutter_avif 3.x 是 **FFI + native port 异步**:AV1 解码跑在 native
+/// 线程,主 isolate 只承担"单帧 RGBA 解包 + decodeImageFromPixels"
+/// (配合 [AvifImageProvider.decodeFirstFrame] 单帧解码,每张就一次,
+/// 毫秒级)。早期"method channel 全帧 marshal 阻塞主线程必须限 1 并发"
+/// 的约束已不存在,放开到 4 让首开 30 张 AVIF 从串行 3-9s 变成秒级。
+final _avifSemaphore = _Semaphore(4);
+
+/// 非 AVIF (GIF / WebP / APNG) 解码并发。decode 走 `_DecoderWorkerPool`
+/// (long-lived worker isolate)在后台串行,主 isolate 只做轻量 ui.Image
+/// 创建,可以放开并发到 8。
+///
+/// 关键:跟 AVIF 用**独立** semaphore,AVIF 慢不会阻塞 GIF/WebP/APNG 解码。
 final _nonAvifSemaphore = _Semaphore(8);
 final _pendingThumbnailTasks = <String, Future<void>>{};
 final _knownThumbnailKeys = <String>{};
+
+/// 生成号 — 每次 [StickerThumbnailProvider.cancelInflight] 调用 ++,
+/// `_decodeFirstFrameImage` 内部 await 链的多个检查点都 captures 起始号,
+/// 任意 await 后比对发现 mismatch → throw 立即 abort。
+///
+/// 关键场景:用户打开 sticker panel,30 张缩略图同时 enqueue 排队解码。
+/// 用户 0.5s 内关闭 panel,还在排队的 task 应该立即作废,不再占用解码
+/// 资源(否则"关闭面板还在后台解码")。已经在跑的单张解码不可中断,
+/// 但跑完即停。
 int _thumbnailGeneration = 0;
+
+/// 主动 cancel 当前所有 in-flight thumbnail decode。
+/// `_decodeFirstFrameImage` 内部检查 generation,mismatch 即 throw 退出。
+void _bumpThumbnailGeneration() {
+  _thumbnailGeneration++;
+}
 
 class _ThumbnailCancelled implements Exception {
   const _ThumbnailCancelled();
+  @override
+  String toString() => 'sticker thumbnail decode cancelled';
 }
 
 String _thumbnailCacheKey(String url, int targetSize) {
@@ -269,6 +379,8 @@ Future<ui.Image> _decodeFirstFrameImage({
   final isAvif = _bytesLookLikeAvif(bytes);
   final semaphore = isAvif ? _avifSemaphore : _nonAvifSemaphore;
   await semaphore.acquire();
+  // 拿到 semaphore 槽后再检查 — 关 panel 后排队中的任务在这里立即
+  // release 槽 + abort,不再发起新的解码;已经在跑的解码跑完即停。
   try {
     checkCancel();
     final src = await _decodeFirstFrame(url, bytes);
@@ -286,13 +398,7 @@ Future<ui.Image> _decodeFirstFrameImage({
 
 Future<ui.Image> _decodeFirstFrame(String url, Uint8List bytes) async {
   if (_bytesLookLikeAvif(bytes)) {
-    final frames = await fa.decodeAvif(bytes);
-    if (frames.isEmpty) throw StateError('AVIF has no frames: $url');
-    final first = frames.first.image;
-    for (var i = 1; i < frames.length; i++) {
-      frames[i].image.dispose();
-    }
-    return first;
+    return _decodeAvifFirstFrame(bytes, url);
   }
 
   final reply = await _DecoderWorkerPool.instance.decode(bytes);
@@ -304,35 +410,9 @@ Future<ui.Image> _decodeFirstFrame(String url, Uint8List bytes) async {
   return _rgbaToUiImage(reply.rgba!, reply.width, reply.height);
 }
 
-Future<void> _writeThumbnailFromReply({
-  required String url,
-  required Uint8List bytes,
-  required _DecodeReply reply,
-  required int targetSize,
-  required BaseCacheManager cacheManager,
-}) async {
-  ui.Image? src;
-  ui.Image? display;
-  try {
-    if (reply.rgba != null) {
-      src = await _rgbaToUiImage(reply.rgba!, reply.width, reply.height);
-    } else if (reply.unsupported) {
-      src = await _decodeFirstFrameViaFlutterCodec(bytes);
-    } else {
-      return;
-    }
-    display = (src.width > targetSize || src.height > targetSize)
-        ? await _resize(src, targetSize)
-        : src;
-    final key = _thumbnailCacheKey(url, targetSize);
-    await _cacheThumbnail(cacheManager, key, display);
-    _knownThumbnailKeys.add(key);
-  } catch (e) {
-    debugPrint('[StickerThumbnail] write failed $url: $e');
-  } finally {
-    if (display != null && display != src) display.dispose();
-    src?.dispose();
-  }
+Future<ui.Image> _decodeAvifFirstFrame(Uint8List bytes, String url) async {
+  // 增量解码:只解第 1 帧立即 dispose,不像 fa.decodeAvif 全帧解完丢 N-1 帧
+  return AvifImageProvider.decodeFirstFrame(bytes);
 }
 
 Future<ui.Image> _decodeFirstFrameViaFlutterCodec(Uint8List bytes) async {

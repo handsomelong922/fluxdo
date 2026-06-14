@@ -63,7 +63,13 @@ class _StickerPickerState extends ConsumerState<StickerPicker>
 
   @override
   void dispose() {
+    // 关键:让正在跑的 prefetch batch 立即作废,panel 关闭后不再继续
+    // 后台解码新的缩略图。
     stickerPanelClosed();
+    // 还要 cancel 所有 in-flight 单 URL thumbnail decode(用户点开 panel
+    // 时可见 cell 触发的 _loadThumbnail 队列,即使 widget unmount,内部
+    // future 仍在排队等解码)。bump generation → 所有 await 检查点 throw
+    // _ThumbnailCancelled。
     StickerThumbnailProvider.cancelInflight();
     _endPreview();
     _previewNotifier.dispose();
