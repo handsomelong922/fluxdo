@@ -49,14 +49,51 @@ class RawCookieWriterFallback {
     }
   }
 
+  /// 删除指定 name 的所有变体。
+  ///
+  /// 优先：用 `getCookies` 枚举真实 cookie，按各自真实 (domain, path) 精确删
+  /// （与 [countCookiesByName] 对齐，确保"数得到的一定删得到"）。
+  /// 兜底：旧 WebView 枚举不到字段 / getCookies 失败时，回退到穷举候选组合。
   Future<int> nukeAllVariants({
     required String url,
     required String name,
     required List<String?> domainCandidates,
     required List<String> pathCandidates,
   }) async {
-    var deleted = 0;
     final webUri = WebUri(url);
+
+    try {
+      final cookies = await _cookieManager.getCookies(url: webUri);
+      final matching = cookies.where((c) => c.name == name).toList();
+      if (matching.isNotEmpty) {
+        var deleted = 0;
+        for (final c in matching) {
+          try {
+            final ok = await _cookieManager.deleteCookie(
+              url: webUri,
+              name: name,
+              path: c.path ?? '/',
+              domain: c.domain,
+            );
+            if (ok) deleted++;
+          } catch (e) {
+            debugPrint(
+              '[RawCookieWriterFallback] deleteCookie(real $name, '
+              '${c.domain}, ${c.path}) failed: $e',
+            );
+          }
+        }
+        return deleted;
+      }
+    } catch (e) {
+      debugPrint(
+        '[RawCookieWriterFallback] enumerate for nuke failed, '
+        'fallback to candidates: $e',
+      );
+    }
+
+    // 兜底：穷举 (domainCandidates × pathCandidates)。
+    var deleted = 0;
     for (final domain in domainCandidates) {
       for (final path in pathCandidates) {
         try {

@@ -586,11 +586,18 @@ class _CfChallengePageState extends State<CfChallengePage> {
   }
 
   /// 将关键 cookie 从 WebView 同步到 CookieJar
-  Future<void> _syncLiveCookiesToCookieJar() async {
+  ///
+  /// [freshClearance] challenge 确认的 fresh cf_clearance 值；传入后只接受该值
+  /// 写入 jar（排除 WebView 残留旧变体），并以 trusted 升 version 盖过旧值。
+  Future<void> _syncLiveCookiesToCookieJar({String? freshClearance}) async {
     await BoundarySyncService.instance.syncFromWebView(
       currentUrl: widget.verifyUrl,
       controller: _controller,
       cookieNames: const {'cf_clearance'},
+      trusted: true,
+      acceptValues: freshClearance != null && freshClearance.isNotEmpty
+          ? {'cf_clearance': freshClearance}
+          : null,
     );
   }
 
@@ -693,12 +700,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
         success: true,
         reason: 'new cf_clearance detected and page passed challenge',
       );
-      await _syncLiveCookiesToCookieJar();
-      await BoundarySyncService.instance.syncFromWebView(
-        currentUrl: widget.verifyUrl,
-        controller: _controller,
-        cookieNames: {'cf_clearance'},
-      );
+      await _syncLiveCookiesToCookieJar(freshClearance: cookieValue);
       // 验证 cf_clearance 是否真正写入了 CookieJar
       final synced = await CookieJarService().getCfClearance();
       if (synced != null && synced.isNotEmpty) {
@@ -794,12 +796,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
             success: true,
             reason: 'no challenge but new cf_clearance detected',
           );
-          await _syncLiveCookiesToCookieJar();
-          await BoundarySyncService.instance.syncFromWebView(
-            currentUrl: widget.verifyUrl,
-            controller: _controller,
-            cookieNames: {'cf_clearance'},
-          );
+          await _syncLiveCookiesToCookieJar(freshClearance: cookieValue);
           _timeoutTimer?.cancel();
           if (mounted) _finish(true);
         } else {
@@ -843,12 +840,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
         success: true,
         reason: 'polling detected new cf_clearance',
       );
-      await _syncLiveCookiesToCookieJar();
-      await BoundarySyncService.instance.syncFromWebView(
-        currentUrl: widget.verifyUrl,
-        controller: _controller,
-        cookieNames: {'cf_clearance'},
-      );
+      await _syncLiveCookiesToCookieJar(freshClearance: cookieValue);
       _timeoutTimer?.cancel();
       if (mounted) _finish(true);
     } catch (e) {
