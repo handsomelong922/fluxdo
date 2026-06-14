@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart';
-import 'package:html/parser.dart' as html_parser;
 
 import '../../constants.dart';
 import '../../models/topic.dart';
 import '../../utils/export_utils.dart';
+import '../discourse/discourse_service.dart';
+import '../preloaded_data_service.dart';
 import 'markdown_to_notion_blocks.dart';
 import 'notion_client.dart';
 import 'notion_config.dart';
+import 'notion_upload_url_resolver.dart';
 
 enum DuplicateAction { skip, overwrite }
 
@@ -44,15 +46,20 @@ class NotionSyncResult {
 }
 
 class NotionSyncService {
-  NotionSyncService({required this.config, NotionClient? client})
-    : assert(config.isComplete, 'NotionConfig must be complete'),
-      _client = client ?? NotionClient(config.integrationToken!);
+  NotionSyncService({
+    required this.config,
+    NotionClient? client,
+    DiscourseService? discourseService,
+  }) : assert(config.isComplete, 'NotionConfig must be complete'),
+       _client = client ?? NotionClient(config.integrationToken!),
+       _discourseService = discourseService ?? DiscourseService();
 
   static const int _childrenPerRequest = 100;
   static const Duration _requestGap = Duration(milliseconds: 350);
 
   final NotionConfig config;
   final NotionClient _client;
+  final DiscourseService _discourseService;
 
   Future<NotionSyncResult> syncTopic({
     required TopicDetail detail,
@@ -239,7 +246,7 @@ class NotionSyncService {
       background: background,
     );
     final resolved = _preprocessDiscourseBbcode(
-      _resolveUploadShortUrls(markdown, posts),
+      await _resolveUploadShortUrls(markdown),
     );
     final blocks = markdownToNotionBlocks(resolved);
     return blocks.isEmpty
@@ -623,55 +630,26 @@ class NotionSyncService {
     return '${_bookmarkTopicUrl(bookmark)}/$postNumber';
   }
 
-  String _resolveUploadShortUrls(String markdown, List<Post> posts) {
-    final perPostUrls = posts
-        .map((post) => _extractCookedImageUrls(post.cooked))
-        .toList();
-    final segments = markdown.split(RegExp(r'\n---\n'));
-    if (segments.length < 2) {
-      return _replaceUploadInChunk(
-        markdown,
-        perPostUrls.expand((e) => e).toList(),
-      );
-    }
-    final output = <String>[segments.first];
-    var postIndex = 0;
-    for (var i = 1; i < segments.length; i++) {
-      final urls = postIndex < perPostUrls.length
-          ? perPostUrls[postIndex]
-          : const <String>[];
-      output.add(_replaceUploadInChunk(segments[i], urls));
-      postIndex++;
-    }
-    return output.join('\n---\n');
-  }
+  Future<String> _resolveUploadShortUrls(String markdown) async {
+    final shortUrls = collectNotionUploadShortUrls(markdown);
+    if (shortUrls.isEmpty) return markdown;
 
-  String _replaceUploadInChunk(String chunk, List<String> urls) {
-    if (urls.isEmpty || !chunk.contains('upload://')) return chunk;
-    final queue = List<String>.from(urls);
-    return chunk.replaceAllMapped(RegExp(r'upload://[^\s\)\]<>"]+'), (match) {
-      return queue.isEmpty ? match.group(0)! : queue.removeAt(0);
-    });
-  }
-
-  List<String> _extractCookedImageUrls(String cooked) {
-    if (cooked.isEmpty) return const [];
-    final fragment = html_parser.parseFragment(cooked);
-    final urls = <String>[];
-    for (final image in fragment.querySelectorAll('img')) {
-      final className = image.attributes['class'] ?? '';
-      if (className.contains('emoji')) continue;
-      String? source;
-      final parent = image.parent;
-      if (parent != null && parent.localName == 'a') {
-        source = parent.attributes['href'];
+    await _discourseService.lookupUrls(shortUrls.toList());
+    final resolvedUploads = <String, ResolvedUploadUrl>{};
+    for (final shortUrl in shortUrls) {
+      final resolved = await _discourseService.resolveShortUpload(shortUrl);
+      if (resolved != null) {
+        resolvedUploads[shortUrl] = resolved;
       }
-      source ??= image.attributes['src'];
-      if (source == null || source.isEmpty) continue;
-      if (source.startsWith('//')) source = 'https:$source';
-      urls.add(source);
     }
-    return urls;
+
+    final secureUploads =
+        PreloadedDataService().siteSettingsSync?['secure_uploads'] == true;
+    return replaceNotionUploadShortUrls(
+      markdown,
+      resolvedUploads,
+      secureUploads: secureUploads,
+    );
   }
 
   String _preprocessDiscourseBbcode(String raw) {
