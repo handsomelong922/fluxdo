@@ -259,7 +259,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                           _entry(
                             1,
                             Text(
-                              'Linux.do',
+                              'LINUX.DO',
                               textAlign: TextAlign.center,
                               style: theme.textTheme.headlineMedium?.copyWith(
                                 fontWeight: FontWeight.w700,
@@ -277,7 +277,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                 color: scheme.onSurfaceVariant.withValues(
                                   alpha: 0.85,
                                 ),
-                                letterSpacing: 2,
+                                letterSpacing: 1.5,
                                 fontWeight: FontWeight.w400,
                               ),
                             ),
