@@ -130,8 +130,18 @@ Future<void> _applyAndroidDisplayMode(SharedPreferences prefs) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // sticker / emoji / avatar 会产生大量小图，默认 100MB/1000 项太容易淘汰。
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 800 * 1024 * 1024;
+  // Flutter ImageCache 默认 100 MB / 1000 项。两个上限任一超过就 LRU evict。
+  //
+  // sticker / emoji 场景非常吃缓存:用户订阅 10+ 个表情包 group(每 group
+  // 100-300 张)+ Discourse 自带几千个 emoji + 头像 + 贴内图,加起来很容易
+  // 超过 5000 项,触发 LRU evict 后滚回去就要重新解码,用户感知卡顿。
+  //
+  // 256 MB / 30000 项:emoji thumbnail(64px)~16 KB、sticker thumbnail
+  // (160px)~100 KB,256 MB 足够装下"全部 emoji + 几个 sticker group +
+  // 当前贴图"。之前调过 800 MB,但中端 Android 机上内存压力换来系统级
+  // GC / LMK 卡顿,得不偿失 —— 磁盘 PNG 缩略图缓存命中本来就是毫秒级,
+  // evict 的重解成本远比内存压力的代价低。
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 256 * 1024 * 1024;
   PaintingBinding.instance.imageCache.maximumSize = 30000;
 
   // 启用 Edge-to-Edge 模式（小白条沉浸式）
