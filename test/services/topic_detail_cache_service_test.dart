@@ -9,10 +9,7 @@ void main() {
 
     setUp(() {
       now = DateTime.utc(2026, 6, 13, 10);
-      cache = TopicDetailCacheService(
-        maxEntries: 2,
-        now: () => now,
-      );
+      cache = TopicDetailCacheService(maxEntries: 2, now: () => now);
     });
 
     test('returns cached detail for the same topic and user', () {
@@ -25,8 +22,14 @@ void main() {
     });
 
     test('keeps entries isolated by username', () {
-      cache.write(_detail(topicId: 42, title: 'alice'), username: 'alice');
-      cache.write(_detail(topicId: 42, title: 'bob'), username: 'bob');
+      cache.write(
+        _detail(topicId: 42, postNumbers: [1], title: 'alice'),
+        username: 'alice',
+      );
+      cache.write(
+        _detail(topicId: 42, postNumbers: [1], title: 'bob'),
+        username: 'bob',
+      );
 
       expect(cache.read(42, username: 'alice')?.detail.title, 'alice');
       expect(cache.read(42, username: 'bob')?.detail.title, 'bob');
