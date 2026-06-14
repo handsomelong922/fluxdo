@@ -217,15 +217,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   left: 4,
                   child: _entry(
                     0,
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_rounded),
+                    AmbientIconButton(
+                      icon: Icons.arrow_back_rounded,
                       tooltip: '返回',
-                      style: IconButton.styleFrom(
-                        backgroundColor: scheme.surface.withValues(alpha: 0.3),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
                       onPressed: () => Navigator.of(context).maybePop(),
                     ),
                   ),
@@ -236,17 +230,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                     right: 4,
                     child: _entry(
                       0,
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded),
+                      AmbientIconButton(
+                        icon: Icons.delete_outline_rounded,
                         tooltip: '清除保存的账号',
-                        style: IconButton.styleFrom(
-                          backgroundColor: scheme.surface.withValues(
-                            alpha: 0.3,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
                         onPressed: _clearSavedCredentials,
                       ),
                     ),
