@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../pages/topic_detail_page/topic_detail_page.dart';
+import '../services/navigation/topic_detail_route.dart';
 
 void openInternalTopicLink(
   BuildContext context, {
@@ -21,13 +21,11 @@ void openInternalTopicLink(
   }
 
   Navigator.of(context).push(
-    MaterialPageRoute(
-      builder: (_) => TopicDetailPage(
-        topicId: targetTopicId,
-        initialTitle: topicSlug,
-        scrollToPostNumber: postNumber,
-        initialNestedView: initialNestedView,
-      ),
+    buildTopicDetailRoute<void>(
+      topicId: targetTopicId,
+      initialTitle: topicSlug,
+      scrollToPostNumber: postNumber,
+      initialNestedView: initialNestedView,
     ),
   );
 }

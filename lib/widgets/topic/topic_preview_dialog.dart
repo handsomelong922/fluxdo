@@ -11,7 +11,7 @@ import '../../utils/font_awesome_helper.dart';
 import '../../utils/share_utils.dart';
 import '../../utils/url_helper.dart';
 import '../../services/discourse_cache_manager.dart';
-import '../../pages/topic_detail_page/topic_detail_page.dart';
+import '../../services/navigation/topic_detail_route.dart';
 import '../common/loading_spinner.dart';
 import '../common/relative_time_text.dart';
 import '../../utils/dialog_utils.dart';
@@ -272,13 +272,11 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
             (topicId, topicSlug, postNumber, {initialNestedView}) {
               Navigator.of(context).pop();
               Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => TopicDetailPage(
-                    topicId: topicId,
-                    initialTitle: topicSlug,
-                    scrollToPostNumber: postNumber,
-                    initialNestedView: initialNestedView,
-                  ),
+                buildTopicDetailRoute<void>(
+                  topicId: topicId,
+                  initialTitle: topicSlug,
+                  scrollToPostNumber: postNumber,
+                  initialNestedView: initialNestedView,
                 ),
               );
             },

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/s.dart';
 import '../../models/topic.dart';
-import '../../pages/topic_detail_page/topic_detail_page.dart';
+import '../../services/navigation/topic_detail_route.dart';
 import '../../services/topic_ai/topic_ai_context_service.dart';
 import '../../services/topic_ai/topic_ai_summary_cache_service.dart';
 import '../../services/topic_ai/topic_ai_summary_service.dart';
@@ -291,13 +291,11 @@ class _TopicSummaryWidgetState extends ConsumerState<TopicSummaryWidget> {
                     widget.onJumpToPost!(postNumber);
                   } else {
                     Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => TopicDetailPage(
-                          topicId: linkTopicId,
-                          initialTitle: topicSlug,
-                          scrollToPostNumber: postNumber,
-                          initialNestedView: initialNestedView,
-                        ),
+                      buildTopicDetailRoute<void>(
+                        topicId: linkTopicId,
+                        initialTitle: topicSlug,
+                        scrollToPostNumber: postNumber,
+                        initialNestedView: initialNestedView,
                       ),
                     );
                   }

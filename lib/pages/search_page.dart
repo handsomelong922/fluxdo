@@ -13,9 +13,9 @@ import '../widgets/search/search_ai_chat_card.dart';
 import '../widgets/search/search_post_card.dart';
 import '../widgets/search/search_preview_dialog.dart';
 import '../providers/preferences_provider.dart';
-import 'topic_detail_page/topic_detail_page.dart';
 import 'package:dio/dio.dart';
 import '../services/app_error_handler.dart';
+import '../services/navigation/topic_detail_route.dart';
 import '../l10n/s.dart';
 import 'user_profile_page.dart';
 import '../utils/dialog_utils.dart';
@@ -440,11 +440,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     _focusNode.unfocus();
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => TopicDetailPage(
-          topicId: topic.id,
-          scrollToPostNumber: searchPost.postNumber,
-        ),
+      buildTopicDetailRoute<void>(
+        topicId: topic.id,
+        scrollToPostNumber: searchPost.postNumber,
       ),
     );
     if (mounted) {

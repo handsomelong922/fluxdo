@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../l10n/s.dart';
 import '../../models/topic.dart';
-import '../../pages/topic_detail_page/topic_detail_page.dart';
+import '../../services/navigation/topic_detail_route.dart';
 import '../../utils/discourse_url_parser.dart';
 
 /// 帖子相关链接组件
@@ -75,11 +75,9 @@ class _PostLinksState extends State<PostLinks>
     final topicInfo = DiscourseUrlParser.parseTopic(link.url);
     if (topicInfo != null) {
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => TopicDetailPage(
-            topicId: topicInfo.topicId,
-            initialTitle: link.title,
-          ),
+        buildTopicDetailRoute<void>(
+          topicId: topicInfo.topicId,
+          initialTitle: link.title,
         ),
       );
     }

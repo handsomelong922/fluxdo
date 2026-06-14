@@ -5,7 +5,7 @@ import '../../models/search_filter.dart';
 import '../../providers/user_content_search_provider.dart';
 import '../../utils/dialog_utils.dart';
 import '../common/loading_spinner.dart';
-import '../../pages/topic_detail_page/topic_detail_page.dart';
+import '../../services/navigation/topic_detail_route.dart';
 import 'search_filter_panel.dart';
 import 'search_post_card.dart';
 import 'search_preview_dialog.dart';
@@ -54,31 +54,41 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
   }
 
   void _onClearCategory() {
-    final notifier = ref.read(userContentSearchProvider(widget.inType).notifier);
+    final notifier = ref.read(
+      userContentSearchProvider(widget.inType).notifier,
+    );
     notifier.setCategory();
     _refreshIfHasQuery();
   }
 
   void _onRemoveTag(String tag) {
-    final notifier = ref.read(userContentSearchProvider(widget.inType).notifier);
+    final notifier = ref.read(
+      userContentSearchProvider(widget.inType).notifier,
+    );
     notifier.removeTag(tag);
     _refreshIfHasQuery();
   }
 
   void _onClearStatus() {
-    final notifier = ref.read(userContentSearchProvider(widget.inType).notifier);
+    final notifier = ref.read(
+      userContentSearchProvider(widget.inType).notifier,
+    );
     notifier.setStatus(null);
     _refreshIfHasQuery();
   }
 
   void _onClearDateRange() {
-    final notifier = ref.read(userContentSearchProvider(widget.inType).notifier);
+    final notifier = ref.read(
+      userContentSearchProvider(widget.inType).notifier,
+    );
     notifier.setDateRange();
     _refreshIfHasQuery();
   }
 
   void _onClearAll() {
-    final notifier = ref.read(userContentSearchProvider(widget.inType).notifier);
+    final notifier = ref.read(
+      userContentSearchProvider(widget.inType).notifier,
+    );
     notifier.clearFilters();
     _refreshIfHasQuery();
   }
@@ -114,13 +124,17 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
     if (searchState.query.isEmpty && searchState.results.isEmpty) {
       return Column(
         children: [
-          if (filterBar != null) filterBar,
+          ?filterBar,
           Expanded(
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.search, size: 64, color: theme.colorScheme.outline),
+                  Icon(
+                    Icons.search,
+                    size: 64,
+                    color: theme.colorScheme.outline,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     widget.emptySearchHint,
@@ -140,7 +154,7 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
     if (searchState.isLoading && searchState.results.isEmpty) {
       return Column(
         children: [
-          if (filterBar != null) filterBar,
+          ?filterBar,
           const Expanded(child: Center(child: LoadingSpinner())),
         ],
       );
@@ -150,15 +164,22 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
     if (searchState.error != null && searchState.results.isEmpty) {
       return Column(
         children: [
-          if (filterBar != null) filterBar,
+          ?filterBar,
           Expanded(
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
+                  Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: theme.colorScheme.error,
+                  ),
                   const SizedBox(height: 16),
-                  Text(context.l10n.search_error, style: theme.textTheme.titleMedium),
+                  Text(
+                    context.l10n.search_error,
+                    style: theme.textTheme.titleMedium,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     searchState.error!,
@@ -179,13 +200,17 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
     if (searchState.results.isEmpty) {
       return Column(
         children: [
-          if (filterBar != null) filterBar,
+          ?filterBar,
           Expanded(
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.search_off, size: 64, color: theme.colorScheme.outline),
+                  Icon(
+                    Icons.search_off,
+                    size: 64,
+                    color: theme.colorScheme.outline,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     context.l10n.search_noResults,
@@ -211,14 +236,17 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
     // 搜索结果
     return Column(
       children: [
-        if (filterBar != null) filterBar,
+        ?filterBar,
         // 结果数量
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
               Text(
-                context.l10n.search_resultCount(searchState.results.length, searchState.hasMore ? '+' : ''),
+                context.l10n.search_resultCount(
+                  searchState.results.length,
+                  searchState.hasMore ? '+' : '',
+                ),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.outline,
                 ),
@@ -230,7 +258,8 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
           child: ListView.builder(
             controller: _scrollController,
             padding: const EdgeInsets.all(16),
-            itemCount: searchState.results.length + (searchState.isLoading ? 1 : 0),
+            itemCount:
+                searchState.results.length + (searchState.isLoading ? 1 : 0),
             itemBuilder: (context, index) {
               if (index == searchState.results.length) {
                 return const Padding(
@@ -240,7 +269,9 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
               }
 
               final post = searchState.results[index];
-              final enableLongPress = ref.watch(preferencesProvider).longPressPreview;
+              final enableLongPress = ref
+                  .watch(preferencesProvider)
+                  .longPressPreview;
               return SearchPostCard(
                 post: post,
                 onTap: () {
@@ -248,34 +279,30 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
                   if (topic != null) {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => TopicDetailPage(
-                          topicId: topic.id,
-                          scrollToPostNumber: post.postNumber,
-                        ),
+                      buildTopicDetailRoute<void>(
+                        topicId: topic.id,
+                        scrollToPostNumber: post.postNumber,
                       ),
                     );
                   }
                 },
                 onLongPress: enableLongPress
                     ? () => SearchPreviewDialog.show(
-                          context,
-                          post: post,
-                          onOpen: () {
-                            final topic = post.topic;
-                            if (topic != null) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => TopicDetailPage(
-                                    topicId: topic.id,
-                                    scrollToPostNumber: post.postNumber,
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                        )
+                        context,
+                        post: post,
+                        onOpen: () {
+                          final topic = post.topic;
+                          if (topic != null) {
+                            Navigator.push(
+                              context,
+                              buildTopicDetailRoute<void>(
+                                topicId: topic.id,
+                                scrollToPostNumber: post.postNumber,
+                              ),
+                            );
+                          }
+                        },
+                      )
                     : null,
               );
             },

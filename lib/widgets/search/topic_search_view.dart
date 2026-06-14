@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/s.dart';
 import '../../providers/topic_search_provider.dart';
 import '../common/loading_spinner.dart';
-import '../../pages/topic_detail_page/topic_detail_page.dart';
+import '../../services/navigation/topic_detail_route.dart';
 import 'search_post_card.dart';
 
 /// 话题内搜索结果视图
@@ -14,11 +14,7 @@ class TopicSearchView extends ConsumerStatefulWidget {
   /// 跳转到指定帖子的回调（用于话题内跳转）
   final void Function(int postNumber)? onJumpToPost;
 
-  const TopicSearchView({
-    super.key,
-    required this.topicId,
-    this.onJumpToPost,
-  });
+  const TopicSearchView({super.key, required this.topicId, this.onJumpToPost});
 
   @override
   ConsumerState<TopicSearchView> createState() => _TopicSearchViewState();
@@ -132,7 +128,10 @@ class _TopicSearchViewState extends ConsumerState<TopicSearchView> {
           child: Row(
             children: [
               Text(
-                context.l10n.search_resultCount(searchState.results.length, searchState.hasMore ? '+' : ''),
+                context.l10n.search_resultCount(
+                  searchState.results.length,
+                  searchState.hasMore ? '+' : '',
+                ),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.outline,
                 ),
@@ -167,11 +166,9 @@ class _TopicSearchViewState extends ConsumerState<TopicSearchView> {
                     if (topic != null) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => TopicDetailPage(
-                            topicId: topic.id,
-                            scrollToPostNumber: post.postNumber,
-                          ),
+                        buildTopicDetailRoute<void>(
+                          topicId: topic.id,
+                          scrollToPostNumber: post.postNumber,
                         ),
                       );
                     }

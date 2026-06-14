@@ -21,10 +21,12 @@ Evidence:
 - When overlays, sheets, or routes visually exit, ensure they do not keep intercepting pointer input after the active layer below should be interactive.
 - For established app surfaces, follow existing Material/Riverpod/component patterns instead of introducing a new visual framework.
 - Check text overflow and hit targets on both mobile and desktop sizes when changing compact controls.
+- Open in-app `TopicDetailPage` routes through `buildTopicDetailRoute(...)` from `lib/services/navigation/topic_detail_route.dart` unless the caller deliberately needs different route semantics. This preserves the same horizontal swipe-back behavior used by the home topic list for search results, internal topic links, preview dialogs, AI summaries, and multi-level topic chains.
 
 Evidence:
 - `lib/pages/topic_detail_page/`
 - `lib/widgets/common/`
+- `lib/services/navigation/topic_detail_route.dart`
 - `.trellis/spec/guides/cross-layer-thinking-guide.md`
 
 ## State And Async Behavior

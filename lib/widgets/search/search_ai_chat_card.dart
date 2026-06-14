@@ -6,8 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/search_result.dart';
 import '../../pages/ai_model_service_page.dart';
-import '../../pages/topic_detail_page/topic_detail_page.dart';
 import '../../providers/search_ai_chat_provider.dart';
+import '../../services/navigation/topic_detail_route.dart';
 import '../../services/settings/ai_prompt_settings_service.dart';
 import '../../utils/time_utils.dart';
 import '../common/dismissible_popup_menu.dart';
@@ -111,13 +111,11 @@ class _SearchAiChatCardState extends ConsumerState<SearchAiChatCard> {
     bool? initialNestedView,
   }) {
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => TopicDetailPage(
-          topicId: topicId,
-          initialTitle: topicSlug,
-          scrollToPostNumber: postNumber,
-          initialNestedView: initialNestedView,
-        ),
+      buildTopicDetailRoute<void>(
+        topicId: topicId,
+        initialTitle: topicSlug,
+        scrollToPostNumber: postNumber,
+        initialNestedView: initialNestedView,
       ),
     );
   }
