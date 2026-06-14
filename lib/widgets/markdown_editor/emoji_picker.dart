@@ -277,7 +277,7 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
             // 面板挂载那一帧多 build ~100 个 cell(InkWell+Tooltip+Image),
             // 直接加重"打开面板顿一下"。emoji 是小 PNG + 磁盘索引 O(1),
             // 加载本身很快,800px(~2 屏)足够掩护滚动。
-            scrollCacheExtent: ScrollCacheExtent.pixels(800),
+            cacheExtent: 800,
             slivers: _buildSlivers(
               emojiGroups,
               groupKeys,
