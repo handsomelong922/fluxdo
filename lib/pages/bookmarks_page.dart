@@ -21,7 +21,7 @@ import '../widgets/topic/topic_preview_dialog.dart';
 import '../widgets/common/error_view.dart';
 import '../l10n/s.dart';
 import '../widgets/desktop_refresh_indicator.dart';
-import 'topic_detail_page/topic_detail_page.dart';
+import '../services/navigation/topic_detail_route.dart';
 
 /// 我的书签页面
 class BookmarksPage extends ConsumerStatefulWidget {
@@ -83,13 +83,11 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
   void _onItemTap(Topic topic) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => TopicDetailPage(
-          topicId: topic.id,
-          // 帖子书签跳转到被书签的帖子，话题书签使用最后阅读位置
-          scrollToPostNumber:
-              topic.bookmarkedPostNumber ?? topic.lastReadPostNumber,
-        ),
+      buildTopicDetailRoute(
+        topicId: topic.id,
+        // 帖子书签跳转到被书签的帖子，话题书签使用最后阅读位置
+        scrollToPostNumber:
+            topic.bookmarkedPostNumber ?? topic.lastReadPostNumber,
       ),
     );
   }

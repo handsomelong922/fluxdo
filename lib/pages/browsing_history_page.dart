@@ -13,7 +13,7 @@ import '../providers/preferences_provider.dart';
 import '../widgets/common/error_view.dart';
 import '../l10n/s.dart';
 import '../widgets/desktop_refresh_indicator.dart';
-import 'topic_detail_page/topic_detail_page.dart';
+import '../services/navigation/topic_detail_route.dart';
 
 /// 浏览历史页面
 class BrowsingHistoryPage extends ConsumerStatefulWidget {
@@ -73,11 +73,9 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
   void _onItemTap(Topic topic) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => TopicDetailPage(
-          topicId: topic.id,
-          scrollToPostNumber: topic.lastReadPostNumber,
-        ),
+      buildTopicDetailRoute(
+        topicId: topic.id,
+        scrollToPostNumber: topic.lastReadPostNumber,
       ),
     );
   }
