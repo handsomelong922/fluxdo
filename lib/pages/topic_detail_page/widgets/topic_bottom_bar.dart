@@ -81,12 +81,8 @@ class TopicBottomBar extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const SizedBox(width: 6),
-                  // 回到顶部
-                  IconButton(
-                    onPressed: onScrollToTop,
-                    icon: const Icon(Icons.vertical_align_top),
-                    tooltip: context.l10n.topicDetail_scrollToTop,
-                  ),
+                  // 添加/编辑书签
+                  _buildBookmarkButton(context, theme),
                   // 筛选
                   if (_hasActiveFilter)
                     _buildActiveFilterChip(context, theme)
@@ -94,8 +90,12 @@ class TopicBottomBar extends StatelessWidget {
                     _buildFilterMenuButton(context, theme),
                   // 分享菜单
                   _buildShareMenu(context, theme),
-                  // 添加/编辑书签
-                  _buildBookmarkButton(context, theme),
+                  // 回到顶部
+                  IconButton(
+                    onPressed: onScrollToTop,
+                    icon: const Icon(Icons.vertical_align_top),
+                    tooltip: context.l10n.topicDetail_scrollToTop,
+                  ),
                   const SizedBox(width: 6),
                 ],
               ),
