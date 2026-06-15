@@ -55,6 +55,7 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
   double _progress = 0;
   bool _canGoBack = false;
   bool _canGoForward = false;
+  bool _isExiting = false;
   late final Future<void> _cookieSyncFuture;
 
   /// 对话框期间用静态截图盖住 WebView，避免 BackdropFilter 对
@@ -137,7 +138,7 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
           ),
           leading: Center(
             child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
+              onTap: _popWithExitSnapshot,
               behavior: HitTestBehavior.opaque,
               child: Container(
                 width: 32,
@@ -531,7 +532,7 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
   Future<void> _handleBackNavigation() async {
     final controller = _controller;
     if (controller == null) {
-      if (mounted) Navigator.of(context).pop();
+      await _popWithExitSnapshot();
       return;
     }
     final canGoBack = await controller.canGoBack();
@@ -539,7 +540,28 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
       await controller.goBack();
       return;
     }
-    if (mounted) Navigator.of(context).pop();
+    await _popWithExitSnapshot();
+  }
+
+  Future<void> _popWithExitSnapshot() async {
+    if (_isExiting) return;
+    _isExiting = true;
+
+    Uint8List? snapshot;
+    try {
+      snapshot = await _controller?.takeScreenshot();
+    } catch (_) {
+      snapshot = null;
+    }
+
+    if (!mounted) return;
+    if (snapshot != null && _webViewSnapshot == null) {
+      setState(() => _webViewSnapshot = snapshot);
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+    }
+
+    Navigator.of(context).pop();
   }
 
   Future<void> _copyUrl() async {
