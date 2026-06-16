@@ -90,7 +90,7 @@ class NotionSyncService {
     }
 
     onProgress?.call(const NotionSyncProgress(SyncPhase.convert));
-    final blocks = await _buildBlocks(
+    final content = await _buildContent(
       detail: detail,
       posts: posts,
       background: background,
@@ -119,8 +119,9 @@ class NotionSyncService {
         detail,
         source: source,
         bookmark: bookmark,
+        attachments: content.attachments,
       ),
-      blocks: blocks,
+      blocks: content.blocks,
       onProgress: onProgress,
     );
     return NotionSyncResult(
@@ -142,7 +143,7 @@ class NotionSyncService {
   }) async {
     await _ensureDatabaseSchema();
     onProgress?.call(const NotionSyncProgress(SyncPhase.convert));
-    final blocks = await _buildBlocks(
+    final content = await _buildContent(
       detail: detail,
       posts: [post],
       background: background,
@@ -174,12 +175,13 @@ class NotionSyncService {
       post,
       source: source,
       bookmark: bookmark,
+      attachments: content.attachments,
     );
     _CreatedPage result;
     try {
       result = await _createPageWithBlocks(
         properties: properties,
-        blocks: blocks,
+        blocks: content.blocks,
         onProgress: onProgress,
       );
     } on NotionApiException catch (error) {
@@ -187,7 +189,7 @@ class NotionSyncService {
       properties = Map<String, dynamic>.from(properties)..remove('Post ID');
       result = await _createPageWithBlocks(
         properties: properties,
-        blocks: blocks,
+        blocks: content.blocks,
         onProgress: onProgress,
       );
     }
@@ -237,7 +239,7 @@ class NotionSyncService {
     return pageId != null;
   }
 
-  Future<List<Map<String, dynamic>>> _buildBlocks({
+  Future<_NotionContent> _buildContent({
     required TopicDetail detail,
     required List<Post> posts,
     bool background = false,
@@ -258,7 +260,7 @@ class NotionSyncService {
       resolved,
       uploadedFiles: uploadedFiles,
     );
-    return blocks.isEmpty
+    final resolvedBlocks = blocks.isEmpty
         ? [
             {
               'object': 'block',
@@ -274,6 +276,10 @@ class NotionSyncService {
             },
           ]
         : blocks;
+    return _NotionContent(
+      blocks: resolvedBlocks,
+      attachments: _dedupeUploadedFiles(uploadedFiles.values),
+    );
   }
 
   Future<String?> _queryTopicPage(
@@ -448,6 +454,7 @@ class NotionSyncService {
     TopicDetail detail, {
     required NotionSyncSource source,
     Topic? bookmark,
+    Iterable<NotionUploadedFile> attachments = const [],
   }) {
     final firstPost = detail.postStream.posts.isEmpty
         ? null
@@ -489,6 +496,7 @@ class NotionSyncService {
         'date': {'start': DateTime.now().toUtc().toIso8601String()},
       },
     };
+    _addAttachmentProperties(properties, attachments);
     _addBookmarkProperties(properties, bookmark);
     return properties;
   }
@@ -498,6 +506,7 @@ class NotionSyncService {
     Post post, {
     required NotionSyncSource source,
     Topic? bookmark,
+    Iterable<NotionUploadedFile> attachments = const [],
   }) {
     final title =
         '${_truncate(detail.title, 160)} - @${post.username} #${post.postNumber}';
@@ -537,8 +546,18 @@ class NotionSyncService {
         'date': {'start': DateTime.now().toUtc().toIso8601String()},
       },
     };
+    _addAttachmentProperties(properties, attachments);
     _addBookmarkProperties(properties, bookmark);
     return properties;
+  }
+
+  void _addAttachmentProperties(
+    Map<String, dynamic> properties,
+    Iterable<NotionUploadedFile> attachments,
+  ) {
+    final files = buildNotionFilesPropertyItems(attachments);
+    if (files.isEmpty) return;
+    properties['Attachments'] = {'files': files};
   }
 
   void _addBookmarkProperties(
@@ -701,6 +720,19 @@ class NotionSyncService {
     return uploadedFiles;
   }
 
+  List<NotionUploadedFile> _dedupeUploadedFiles(
+    Iterable<NotionUploadedFile> files,
+  ) {
+    final result = <NotionUploadedFile>[];
+    final seen = <String>{};
+    for (final file in files) {
+      if (seen.add(file.fileUploadId)) {
+        result.add(file);
+      }
+    }
+    return result;
+  }
+
   List<_AttachmentLink> _collectAttachmentLinks(String markdown) {
     final matches = RegExp(
       r'\[([^\]]*\|attachment)\]\(([^)\s]+)(?:\s+"[^"]*")?\)',
@@ -743,6 +775,27 @@ class _CreatedPage {
 
   final String pageId;
   final String pageUrl;
+}
+
+class _NotionContent {
+  const _NotionContent({required this.blocks, required this.attachments});
+
+  final List<Map<String, dynamic>> blocks;
+  final List<NotionUploadedFile> attachments;
+}
+
+@visibleForTesting
+List<Map<String, dynamic>> buildNotionFilesPropertyItems(
+  Iterable<NotionUploadedFile> attachments,
+) {
+  return [
+    for (final attachment in attachments)
+      {
+        'name': attachment.filename,
+        'type': 'file_upload',
+        'file_upload': {'id': attachment.fileUploadId},
+      },
+  ];
 }
 
 class _AttachmentLink {

@@ -83,6 +83,69 @@ Evidence:
 - `lib/widgets/content/discourse_html_content/`
 - `lib/pages/topic_detail_page/`
 
+## Scenario: Notion Attachment File Uploads
+
+### 1. Scope / Trigger
+- Trigger: changing Notion export database schema, Discourse attachment persistence, `file_uploads`, or Markdown-to-Notion file blocks.
+
+### 2. Signatures
+- Database property: `Attachments: { files: {} }`.
+- Page property value: `Attachments.files[] = { name, type: "file_upload", file_upload: { id } }`.
+- Block value: `file.type = "file_upload"` with `file.file_upload.id`.
+- API version: requests containing `file_upload` in either page properties or block children must use Notion-Version `2026-03-11`.
+
+### 3. Contracts
+- `notionExportDatabaseProperties()` and `notionExportUpgradeableProperties()` must both include `Attachments`.
+- `NotionSyncService` downloads Discourse attachment links, uploads successful files through `NotionClient.uploadSinglePartFile()`, and writes the same uploaded file ids into both content blocks and the `Attachments` database property.
+- Failed single-file downloads/uploads are skipped with debug logging and must not fail the entire page sync.
+- Legacy schema fallback may drop `Attachments` only after schema upgrade/create fails with a missing-property validation error.
+
+### 4. Validation & Error Matrix
+- Missing `Attachments` column -> `upgradeDatabase()` adds the files property before sync.
+- Page properties or children contain `file_upload` -> create/append request uses Notion-Version `2026-03-11`.
+- Attachment exceeds direct upload limit or download fails -> omit that file property item and continue syncing remaining content.
+- Notion missing-property validation after upgrade failure -> retry with legacy-compatible properties.
+
+### 5. Good/Base/Bad Cases
+- Good: attachment link becomes a Notion file block and also appears in the database `Attachments` files column.
+- Base: no attachments produce no `Attachments` page property.
+- Bad: storing only the original download URL in the database column, or checking only children for `file_upload` while properties still use the old Notion version.
+
+### 6. Tests Required
+- Assert export/upgrade database properties contain `Attachments.files`.
+- Assert page creation with property-level `file_upload` sends Notion-Version `2026-03-11`.
+- Assert uploaded attachments build `{ type: "file_upload", file_upload: { id } }` files property items.
+- Assert Markdown attachment links still convert to Notion file blocks when upload metadata is available.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+```dart
+await client.createPage(
+  databaseId: databaseId,
+  properties: {'Attachments': {'files': [{'external': {'url': url}}]}},
+);
+```
+
+#### Correct
+```dart
+final uploadId = await client.uploadSinglePartFile(...);
+await client.createPage(
+  databaseId: databaseId,
+  properties: {
+    'Attachments': {
+      'files': [
+        {
+          'name': filename,
+          'type': 'file_upload',
+          'file_upload': {'id': uploadId},
+        },
+      ],
+    },
+  },
+);
+```
+
 ## Verification
 
 - For network/time changes, run targeted analysis on changed Dart files and search for forbidden direct parsing:

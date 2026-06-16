@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -34,6 +32,7 @@ Map<String, dynamic> notionExportDatabaseProperties() => {
   'Bookmark Name': {'rich_text': <String, dynamic>{}},
   'Bookmark Reminder': {'date': <String, dynamic>{}},
   'Bookmarked': {'date': <String, dynamic>{}},
+  'Attachments': {'files': <String, dynamic>{}},
 };
 
 Map<String, dynamic> notionExportUpgradeableProperties() {
@@ -168,7 +167,8 @@ class NotionClient {
         'properties': properties,
         if (children != null && children.isNotEmpty) 'children': children,
       },
-      notionVersion: _containsFileUpload(children)
+      notionVersion:
+          _containsFileUpload(properties) || _containsFileUpload(children)
           ? _fileUploadNotionVersion
           : null,
     );
@@ -216,15 +216,11 @@ class NotionClient {
     required String contentType,
     required Uint8List bytes,
   }) async {
-    final upload = await _post(
-      'file_uploads',
-      {
-        'mode': 'single_part',
-        'filename': filename,
-        'content_type': contentType,
-      },
-      notionVersion: _fileUploadNotionVersion,
-    );
+    final upload = await _post('file_uploads', {
+      'mode': 'single_part',
+      'filename': filename,
+      'content_type': contentType,
+    }, notionVersion: _fileUploadNotionVersion);
     final id = upload['id']?.toString();
     if (id == null || id.isEmpty) {
       throw NotionApiException('No file upload id in Notion response');
