@@ -106,6 +106,7 @@ class _PostRepliesSheetContentState
 
   @override
   void dispose() {
+    QuoteSelectionHelper.updateSelectionActive(null);
     _screenTrack.stop();
     super.dispose();
   }
@@ -503,6 +504,7 @@ class _PostRepliesSheetContentState
             compact: true,
             onSelectionChanged: (content) {
               _lastSelectedContent = content;
+              QuoteSelectionHelper.updateSelectionActive(content?.plainText);
               _lastCodeSelectionContext = content == null
                   ? null
                   : CodeSelectionContextTracker.instance.current;

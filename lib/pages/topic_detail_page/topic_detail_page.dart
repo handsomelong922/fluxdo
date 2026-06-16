@@ -37,6 +37,7 @@ import '../../services/navigation/app_route_observer.dart';
 import '../../services/navigation/pop_passthrough_material_page_route.dart';
 import '../../widgets/content/lazy_load_scope.dart';
 import '../../widgets/post/post_item_skeleton.dart';
+import '../../widgets/post/post_item/quote_selection_helper.dart';
 import '../../widgets/post/post_replies_sheet.dart';
 import '../../widgets/post/reply_sheet.dart';
 import '../../widgets/topic/topic_progress.dart';
@@ -448,6 +449,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
   @override
   void dispose() {
+    QuoteSelectionHelper.updateSelectionActive(null);
     if (_route != null) {
       appRouteObserver.unsubscribe(this);
     }
@@ -1266,10 +1268,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           context,
         );
 
-    Widget buildPageView(bool lockAiSwipe) {
+    Widget buildPageView(bool lockAiSwipe, bool lockTextSelection) {
       return PageView(
         controller: _pageController,
-        physics: isSearchMode || lockAiSwipe
+        physics: isSearchMode || lockAiSwipe || lockTextSelection
             ? const NeverScrollableScrollPhysics()
             : const ClampingScrollPhysics(),
         onPageChanged: (page) {
@@ -1305,13 +1307,22 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
 
     if (horizontalPopGestureActive == null) {
-      return buildPageView(false);
+      return ValueListenableBuilder<bool>(
+        valueListenable: QuoteSelectionHelper.selectionActiveListenable,
+        builder: (context, isSelectionActive, _) =>
+            buildPageView(false, isSelectionActive),
+      );
     }
 
     return ValueListenableBuilder<bool>(
-      valueListenable: horizontalPopGestureActive,
-      builder: (context, isHorizontalPopActive, _) =>
-          buildPageView(isHorizontalPopActive),
+      valueListenable: QuoteSelectionHelper.selectionActiveListenable,
+      builder: (context, isSelectionActive, _) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: horizontalPopGestureActive,
+          builder: (context, isHorizontalPopActive, _) =>
+              buildPageView(isHorizontalPopActive, isSelectionActive),
+        );
+      },
     );
   }
 

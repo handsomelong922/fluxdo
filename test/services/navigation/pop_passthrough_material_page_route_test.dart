@@ -488,4 +488,32 @@ void main() {
     expect(route.animation!.value, 1.0);
     expect(find.text('detail'), findsOneWidget);
   });
+
+  testWidgets('横向返回 blocker 激活时右滑不会触发返回动画', (tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    final blocker = ValueNotifier<bool>(true);
+    addTearDown(blocker.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const Text('home')),
+    );
+
+    final route = PopPassthroughMaterialPageRoute<void>(
+      enableHorizontalPopGesture: true,
+      horizontalPopGestureBlocker: blocker,
+      builder: (_) => const Text('detail'),
+    );
+    navigatorKey.currentState!.push(route);
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(const Offset(400, 300));
+    await gesture.moveBy(const Offset(520, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(route.animation!.value, 1.0);
+    expect(find.text('detail'), findsOneWidget);
+    expect(find.text('home'), findsNothing);
+  });
 }

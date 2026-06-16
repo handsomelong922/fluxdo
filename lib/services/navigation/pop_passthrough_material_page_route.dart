@@ -16,9 +16,11 @@ class PopPassthroughMaterialPageRoute<T> extends MaterialPageRoute<T> {
     super.traversalEdgeBehavior,
     super.directionalTraversalEdgeBehavior,
     this.enableHorizontalPopGesture = false,
+    this.horizontalPopGestureBlocker,
   });
 
   final bool enableHorizontalPopGesture;
+  final ValueListenable<bool>? horizontalPopGestureBlocker;
   final ValueNotifier<bool> _ignorePointersAfterPop = ValueNotifier(false);
   final ValueNotifier<bool> _horizontalPopGestureActive = ValueNotifier(false);
 
@@ -88,7 +90,10 @@ class PopPassthroughMaterialPageRoute<T> extends MaterialPageRoute<T> {
     );
 
     if (enableHorizontalPopGesture && !fullscreenDialog) {
-      result = _HorizontalPopGestureDetector<T>(route: this, child: result);
+      result = _HorizontalPopGestureDetector<T>(
+        route: this,
+        child: result,
+      );
     }
 
     return result;
@@ -196,6 +201,7 @@ class _HorizontalPopGestureDetectorState<T>
     if (!widget.route.popGestureEnabled || _pointer != null) {
       return;
     }
+    if (widget.route.horizontalPopGestureBlocker?.value == true) return;
 
     _pointer = event.pointer;
     _initialPosition = event.position;
@@ -217,6 +223,11 @@ class _HorizontalPopGestureDetectorState<T>
 
     final offset = event.position - initialPosition;
     if (!_active) {
+      if (widget.route.horizontalPopGestureBlocker?.value == true) {
+        _resetPointer(event.pointer);
+        return;
+      }
+
       if (_shouldReject(offset)) {
         _resetPointer(event.pointer);
         return;

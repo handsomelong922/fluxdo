@@ -202,14 +202,15 @@ class _PostItemState extends ConsumerState<PostItem> {
                           initialNestedView: initialNestedView,
                         );
                       },
-                  onSelectionChanged: widget.onQuoteSelection != null
-                      ? (content) {
-                          _lastSelectedContent = content;
-                          _lastCodeSelectionContext = content == null
-                              ? null
-                              : CodeSelectionContextTracker.instance.current;
-                        }
-                      : null,
+                  onSelectionChanged: (content) {
+                    _lastSelectedContent = content;
+                    QuoteSelectionHelper.updateSelectionActive(
+                      content?.plainText,
+                    );
+                    _lastCodeSelectionContext = content == null
+                        ? null
+                        : CodeSelectionContextTracker.instance.current;
+                  },
                   contextMenuBuilder: widget.onQuoteSelection != null
                       ? (context, state) {
                           final items = QuoteSelectionHelper.buildMenuItems(

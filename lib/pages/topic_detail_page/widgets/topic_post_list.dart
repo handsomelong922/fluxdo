@@ -555,6 +555,7 @@ class _TopicPostListState extends State<TopicPostList> {
     return SelectionArea(
       onSelectionChanged: (content) {
         _lastLongPostSelectedContent = content;
+        QuoteSelectionHelper.updateSelectionActive(content?.plainText);
         _lastLongCodeSelectionContext =
             CodeSelectionContextTracker.instance.current;
         if (content == null) {

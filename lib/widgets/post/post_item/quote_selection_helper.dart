@@ -9,9 +9,20 @@ import '../../../utils/html_to_markdown.dart';
 import '../../../utils/quote_builder.dart';
 
 typedef QuoteSelectionCallback = void Function(String selectedText, Post post);
+typedef SearchSelectionCallback = void Function(String selectedText);
 
 class QuoteSelectionHelper {
   const QuoteSelectionHelper._();
+
+  static final ValueNotifier<bool> selectionActiveListenable =
+      ValueNotifier<bool>(false);
+
+  static bool get isSelectionActive => selectionActiveListenable.value;
+
+  static void updateSelectionActive(String? plainText) {
+    selectionActiveListenable.value =
+        plainText != null && plainText.trim().isNotEmpty;
+  }
 
   static String buildQuoteSelectionText(
     String plainText, {
@@ -36,12 +47,17 @@ class QuoteSelectionHelper {
     required int topicId,
     CodeSelectionContext? fallbackCodeContext,
   }) {
-    final codePayload = CodeSelectionContextTracker.instance.decodePayload(selectedText);
+    final codePayload = CodeSelectionContextTracker.instance.decodePayload(
+      selectedText,
+    );
     final plainSelectedText = codePayload?.text ?? selectedText;
     final codeContext = codePayload?.context ?? fallbackCodeContext;
     String markdown;
 
-    final htmlFragment = HtmlTextMapper.extractHtml(post.cooked, plainSelectedText);
+    final htmlFragment = HtmlTextMapper.extractHtml(
+      post.cooked,
+      plainSelectedText,
+    );
     if (htmlFragment != null) {
       markdown = HtmlToMarkdown.convert(htmlFragment);
       if (markdown.trim().isEmpty) {
@@ -79,18 +95,44 @@ class QuoteSelectionHelper {
     required VoidCallback hideToolbar,
     required int topicId,
     QuoteSelectionCallback? onQuoteSelection,
+    SearchSelectionCallback? onSearchSelection,
     CodeSelectionContext? codeContext,
   }) {
-    if (onQuoteSelection == null ||
-        post == null ||
-        plainText == null ||
-        plainText.trim().isEmpty) {
+    final hasSelectedText = plainText != null && plainText.trim().isNotEmpty;
+    if (!hasSelectedText) {
+      return baseItems;
+    }
+
+    if (onSearchSelection == null &&
+        (onQuoteSelection == null || post == null)) {
       return baseItems;
     }
 
     final items = List<ContextMenuButtonItem>.from(baseItems);
+    if (onSearchSelection != null) {
+      items.insert(
+        0,
+        ContextMenuButtonItem(
+          label: S.current.common_search,
+          onPressed: () {
+            onSearchSelection(plainText.trim());
+            hideToolbar();
+          },
+        ),
+      );
+    }
+
+    if (onQuoteSelection == null || post == null) {
+      return items;
+    }
+
+    if (plainText.trim().isEmpty) {
+      return items;
+    }
+
+    final quoteInsertIndex = onSearchSelection == null ? 0 : 1;
     items.insert(
-      0,
+      quoteInsertIndex,
       ContextMenuButtonItem(
         label: S.current.common_quote,
         onPressed: () {
@@ -106,7 +148,7 @@ class QuoteSelectionHelper {
       ),
     );
     items.insert(
-      1,
+      quoteInsertIndex + 1,
       ContextMenuButtonItem(
         label: S.current.common_copyQuote,
         onPressed: () {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../pages/topic_detail_page/topic_detail_page.dart';
+import '../../widgets/post/post_item/quote_selection_helper.dart';
 import 'pop_passthrough_material_page_route.dart';
 
 Route<T> buildTopicDetailRoute<T>({
@@ -13,6 +14,7 @@ Route<T> buildTopicDetailRoute<T>({
 }) {
   return PopPassthroughMaterialPageRoute<T>(
     enableHorizontalPopGesture: true,
+    horizontalPopGestureBlocker: QuoteSelectionHelper.selectionActiveListenable,
     builder: (_) => TopicDetailPage(
       topicId: topicId,
       initialTitle: initialTitle,
