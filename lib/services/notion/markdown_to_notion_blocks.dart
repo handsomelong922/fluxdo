@@ -4,7 +4,22 @@ import '../../utils/url_helper.dart';
 
 const int _richTextMaxLength = 1800;
 
-List<Map<String, dynamic>> markdownToNotionBlocks(String source) {
+class NotionUploadedFile {
+  const NotionUploadedFile({
+    required this.fileUploadId,
+    required this.filename,
+    required this.sourceUrl,
+  });
+
+  final String fileUploadId;
+  final String filename;
+  final String sourceUrl;
+}
+
+List<Map<String, dynamic>> markdownToNotionBlocks(
+  String source, {
+  Map<String, NotionUploadedFile> uploadedFiles = const {},
+}) {
   if (source.trim().isEmpty) return const [];
   final document = md.Document(
     extensionSet: md.ExtensionSet.gitHubFlavored,
@@ -15,12 +30,15 @@ List<Map<String, dynamic>> markdownToNotionBlocks(String source) {
   );
   final blocks = <Map<String, dynamic>>[];
   for (final node in nodes) {
-    blocks.addAll(_nodeToBlocks(node));
+    blocks.addAll(_nodeToBlocks(node, uploadedFiles: uploadedFiles));
   }
   return blocks;
 }
 
-List<Map<String, dynamic>> _nodeToBlocks(md.Node node) {
+List<Map<String, dynamic>> _nodeToBlocks(
+  md.Node node, {
+  required Map<String, NotionUploadedFile> uploadedFiles,
+}) {
   if (node is md.Text) {
     return [
       _paragraph([_textRich(node.text)]),
@@ -39,7 +57,7 @@ List<Map<String, dynamic>> _nodeToBlocks(md.Node node) {
     case 'h6':
       return [_heading(3, _inlineRich(node.children))];
     case 'p':
-      return _paragraphToBlocks(node);
+      return _paragraphToBlocks(node, uploadedFiles: uploadedFiles);
     case 'hr':
       return [
         {'object': 'block', 'type': 'divider', 'divider': <String, dynamic>{}},
@@ -63,12 +81,20 @@ List<Map<String, dynamic>> _nodeToBlocks(md.Node node) {
   }
 }
 
-List<Map<String, dynamic>> _paragraphToBlocks(md.Element paragraph) {
+List<Map<String, dynamic>> _paragraphToBlocks(
+  md.Element paragraph, {
+  required Map<String, NotionUploadedFile> uploadedFiles,
+}) {
   final children = paragraph.children ?? const <md.Node>[];
   final hasImage = children.any(
     (node) => node is md.Element && node.tag == 'img',
   );
-  if (!hasImage) return [_paragraph(_inlineRich(children))];
+  final hasUploadedAttachment = children.any(
+    (node) => _uploadedAttachmentForNode(node, uploadedFiles) != null,
+  );
+  if (!hasImage && !hasUploadedAttachment) {
+    return [_paragraph(_inlineRich(children))];
+  }
 
   final blocks = <Map<String, dynamic>>[];
   final buffer = <md.Node>[];
@@ -86,7 +112,15 @@ List<Map<String, dynamic>> _paragraphToBlocks(md.Element paragraph) {
   }
 
   for (final node in children) {
-    if (node is md.Element && node.tag == 'img') {
+    final attachment = _uploadedAttachmentForNode(node, uploadedFiles);
+    if (attachment != null) {
+      flushText();
+      blocks.add(_fileBlock(attachment));
+    } else if (node is md.Text &&
+        _isAttachmentSizeText(node.textContent) &&
+        blocks.isNotEmpty) {
+      continue;
+    } else if (node is md.Element && node.tag == 'img') {
       flushText();
       final url = node.attributes['src'];
       if (url != null && url.isNotEmpty) {
@@ -98,6 +132,21 @@ List<Map<String, dynamic>> _paragraphToBlocks(md.Element paragraph) {
   }
   flushText();
   return blocks.isEmpty ? [_paragraph(const [])] : blocks;
+}
+
+NotionUploadedFile? _uploadedAttachmentForNode(
+  md.Node node,
+  Map<String, NotionUploadedFile> uploadedFiles,
+) {
+  if (node is! md.Element || node.tag != 'a') return null;
+  if (!node.textContent.contains('|attachment')) return null;
+  final href = node.attributes['href'];
+  if (href == null || href.isEmpty) return null;
+  return uploadedFiles[href] ?? uploadedFiles[UrlHelper.resolveUrl(href)];
+}
+
+bool _isAttachmentSizeText(String text) {
+  return RegExp(r'^\s*\([^)]+\)\s*$').hasMatch(text);
 }
 
 Map<String, dynamic> _quoteBlock(md.Element node) {
@@ -529,6 +578,18 @@ Map<String, dynamic> _imageBlock(String url, {String? alt}) {
       'type': 'external',
       'external': {'url': normalized},
       if (alt != null && alt.isNotEmpty) 'caption': [_textRich(alt)],
+    },
+  };
+}
+
+Map<String, dynamic> _fileBlock(NotionUploadedFile file) {
+  return {
+    'object': 'block',
+    'type': 'file',
+    'file': {
+      'type': 'file_upload',
+      'file_upload': {'id': file.fileUploadId},
+      'caption': [_textRich(file.filename)],
     },
   };
 }

@@ -27,6 +27,18 @@ class ResolvedUploadUrl {
   }
 }
 
+class DownloadedUploadFile {
+  const DownloadedUploadFile({
+    required this.bytes,
+    required this.filename,
+    required this.contentType,
+  });
+
+  final Uint8List bytes;
+  final String filename;
+  final String contentType;
+}
+
 /// 上传结果
 class UploadResult {
   final String shortUrl;
@@ -171,6 +183,103 @@ mixin _UploadsMixin on _DiscourseServiceBase {
       debugPrint('[DiscourseService] Download image failed: $e, url: $url');
       return null;
     }
+  }
+
+  /// 下载上传附件，供导出/Notion 同步持久化附件使用。
+  Future<DownloadedUploadFile?> downloadUploadFile(
+    String url, {
+    String? suggestedFilename,
+    int maxBytes = 20 * 1024 * 1024,
+    bool background = false,
+  }) async {
+    final resolvedUrl = UrlHelper.resolveUrl(url);
+    try {
+      final response = await _dio.get<List<int>>(
+        resolvedUrl,
+        options: _backgroundReadOptions(
+          background: background,
+          options: Options(
+            responseType: ResponseType.bytes,
+            extra: {
+              'skipCsrf': true,
+              'skipAuthCheck': true,
+              'showErrorToast': false,
+            },
+          ),
+        ),
+      );
+
+      final data = response.data;
+      if (data == null || data.isEmpty) {
+        debugPrint('[DiscourseService] Empty upload file data: $resolvedUrl');
+        return null;
+      }
+      if (data.length > maxBytes) {
+        debugPrint(
+          '[DiscourseService] Upload file too large for Notion: '
+          '${data.length} bytes, url: $resolvedUrl',
+        );
+        return null;
+      }
+
+      final contentType =
+          response.headers.value('content-type')?.split(';').first.trim();
+      final filename =
+          _filenameFromContentDisposition(
+            response.headers.value('content-disposition'),
+          ) ??
+          _sanitizeFilename(suggestedFilename) ??
+          _filenameFromUrl(resolvedUrl) ??
+          'attachment';
+
+      return DownloadedUploadFile(
+        bytes: Uint8List.fromList(data),
+        filename: filename,
+        contentType: (contentType == null || contentType.isEmpty)
+            ? 'application/octet-stream'
+            : contentType,
+      );
+    } catch (e) {
+      debugPrint(
+        '[DiscourseService] Download upload file failed: '
+        '$e, url: $resolvedUrl',
+      );
+      return null;
+    }
+  }
+
+  String? _filenameFromContentDisposition(String? header) {
+    if (header == null || header.isEmpty) return null;
+    final utf8Match = RegExp(
+      r'''filename\*=UTF-8''([^;]+)''',
+      caseSensitive: false,
+    ).firstMatch(header);
+    if (utf8Match != null) {
+      return _sanitizeFilename(
+        Uri.decodeComponent(utf8Match.group(1)!.replaceAll('"', '')),
+      );
+    }
+
+    final match = RegExp(
+      r'''filename="?([^";]+)"?''',
+      caseSensitive: false,
+    ).firstMatch(header);
+    if (match == null) return null;
+    return _sanitizeFilename(match.group(1));
+  }
+
+  String? _filenameFromUrl(String url) {
+    final uri = Uri.tryParse(url);
+    final segment = uri == null || uri.pathSegments.isEmpty
+        ? null
+        : uri.pathSegments.last;
+    return _sanitizeFilename(segment);
+  }
+
+  String? _sanitizeFilename(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
   }
 
   /// 验证图片数据是否有效

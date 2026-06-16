@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -73,6 +75,7 @@ class NotionClient {
           );
 
   static const String _notionVersion = '2022-06-28';
+  static const String _fileUploadNotionVersion = '2026-03-11';
 
   final String token;
   final Dio _dio;
@@ -158,18 +161,30 @@ class NotionClient {
     required Map<String, dynamic> properties,
     List<Map<String, dynamic>>? children,
   }) {
-    return _post('pages', {
-      'parent': {'database_id': databaseId},
-      'properties': properties,
-      if (children != null && children.isNotEmpty) 'children': children,
-    });
+    return _post(
+      'pages',
+      {
+        'parent': {'database_id': databaseId},
+        'properties': properties,
+        if (children != null && children.isNotEmpty) 'children': children,
+      },
+      notionVersion: _containsFileUpload(children)
+          ? _fileUploadNotionVersion
+          : null,
+    );
   }
 
   Future<Map<String, dynamic>> appendBlockChildren(
     String blockId,
     List<Map<String, dynamic>> children,
   ) {
-    return _patch('blocks/$blockId/children', {'children': children});
+    return _patch(
+      'blocks/$blockId/children',
+      {'children': children},
+      notionVersion: _containsFileUpload(children)
+          ? _fileUploadNotionVersion
+          : null,
+    );
   }
 
   Future<Map<String, dynamic>> archivePage(String pageId) {
@@ -194,6 +209,44 @@ class NotionClient {
 
   Future<Map<String, dynamic>> retrieveDatabase(String databaseId) {
     return _get('databases/$databaseId');
+  }
+
+  Future<String> uploadSinglePartFile({
+    required String filename,
+    required String contentType,
+    required Uint8List bytes,
+  }) async {
+    final upload = await _post(
+      'file_uploads',
+      {
+        'mode': 'single_part',
+        'filename': filename,
+        'content_type': contentType,
+      },
+      notionVersion: _fileUploadNotionVersion,
+    );
+    final id = upload['id']?.toString();
+    if (id == null || id.isEmpty) {
+      throw NotionApiException('No file upload id in Notion response');
+    }
+
+    final response = await _request(
+      () => _dio.post<dynamic>(
+        'file_uploads/$id/send',
+        data: FormData.fromMap({
+          'file': MultipartFile.fromBytes(bytes, filename: filename),
+        }),
+        options: Options(
+          contentType: Headers.multipartFormDataContentType,
+          headers: {'Notion-Version': _fileUploadNotionVersion},
+        ),
+      ),
+    );
+    final status = response['status']?.toString();
+    if (status != null && status != 'uploaded') {
+      throw NotionApiException('Notion file upload status is $status');
+    }
+    return id;
   }
 
   Future<bool> hasProperty(String databaseId, String propertyName) async {
@@ -247,12 +300,37 @@ class NotionClient {
     return _request(() => _dio.get<dynamic>(path));
   }
 
-  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) {
-    return _request(() => _dio.post<dynamic>(path, data: body));
+  Future<Map<String, dynamic>> _post(
+    String path,
+    Map<String, dynamic> body, {
+    String? notionVersion,
+  }) {
+    return _request(
+      () => _dio.post<dynamic>(
+        path,
+        data: body,
+        options: _versionOptions(notionVersion),
+      ),
+    );
   }
 
-  Future<Map<String, dynamic>> _patch(String path, Map<String, dynamic> body) {
-    return _request(() => _dio.patch<dynamic>(path, data: body));
+  Future<Map<String, dynamic>> _patch(
+    String path,
+    Map<String, dynamic> body, {
+    String? notionVersion,
+  }) {
+    return _request(
+      () => _dio.patch<dynamic>(
+        path,
+        data: body,
+        options: _versionOptions(notionVersion),
+      ),
+    );
+  }
+
+  Options? _versionOptions(String? notionVersion) {
+    if (notionVersion == null) return null;
+    return Options(headers: {'Notion-Version': notionVersion});
   }
 
   Future<Map<String, dynamic>> _request(
@@ -301,5 +379,18 @@ class NotionClient {
       return <String, dynamic>{};
     }
     throw NotionApiException('Notion API rate-limited too long');
+  }
+
+  static bool _containsFileUpload(Object? value) {
+    if (value is Map) {
+      if (value['type'] == 'file_upload' || value.containsKey('file_upload')) {
+        return true;
+      }
+      return value.values.any(_containsFileUpload);
+    }
+    if (value is Iterable) {
+      return value.any(_containsFileUpload);
+    }
+    return false;
   }
 }

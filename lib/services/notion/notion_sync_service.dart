@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../constants.dart';
 import '../../models/topic.dart';
 import '../../utils/export_utils.dart';
+import '../../utils/url_helper.dart';
 import '../discourse/discourse_service.dart';
 import '../preloaded_data_service.dart';
 import 'markdown_to_notion_blocks.dart';
@@ -55,6 +56,7 @@ class NotionSyncService {
        _discourseService = discourseService ?? DiscourseService();
 
   static const int _childrenPerRequest = 100;
+  static const int _maxDirectUploadBytes = 20 * 1024 * 1024;
   static const Duration _requestGap = Duration(milliseconds: 350);
 
   final NotionConfig config;
@@ -248,7 +250,14 @@ class NotionSyncService {
     final resolved = _preprocessDiscourseBbcode(
       await _resolveUploadShortUrls(markdown),
     );
-    final blocks = markdownToNotionBlocks(resolved);
+    final uploadedFiles = await _uploadAttachmentFiles(
+      resolved,
+      background: background,
+    );
+    final blocks = markdownToNotionBlocks(
+      resolved,
+      uploadedFiles: uploadedFiles,
+    );
     return blocks.isEmpty
         ? [
             {
@@ -652,6 +661,68 @@ class NotionSyncService {
     );
   }
 
+  Future<Map<String, NotionUploadedFile>> _uploadAttachmentFiles(
+    String markdown, {
+    required bool background,
+  }) async {
+    final attachments = _collectAttachmentLinks(markdown);
+    if (attachments.isEmpty) return const {};
+
+    final uploadedFiles = <String, NotionUploadedFile>{};
+    for (final attachment in attachments) {
+      try {
+        final downloaded = await _discourseService.downloadUploadFile(
+          attachment.url,
+          suggestedFilename: attachment.filename,
+          maxBytes: _maxDirectUploadBytes,
+          background: background,
+        );
+        if (downloaded == null) continue;
+
+        final fileUploadId = await _client.uploadSinglePartFile(
+          filename: downloaded.filename,
+          contentType: downloaded.contentType,
+          bytes: downloaded.bytes,
+        );
+        final uploaded = NotionUploadedFile(
+          fileUploadId: fileUploadId,
+          filename: downloaded.filename,
+          sourceUrl: attachment.normalizedUrl,
+        );
+        uploadedFiles[attachment.url] = uploaded;
+        uploadedFiles[attachment.normalizedUrl] = uploaded;
+      } catch (error, stackTrace) {
+        debugPrint(
+          '[NotionSync] upload attachment failed: '
+          '${attachment.url}, error: $error\n$stackTrace',
+        );
+      }
+    }
+    return uploadedFiles;
+  }
+
+  List<_AttachmentLink> _collectAttachmentLinks(String markdown) {
+    final matches = RegExp(
+      r'\[([^\]]*\|attachment)\]\(([^)\s]+)(?:\s+"[^"]*")?\)',
+    ).allMatches(markdown);
+    final result = <_AttachmentLink>[];
+    final seen = <String>{};
+    for (final match in matches) {
+      final label = match.group(1) ?? '';
+      final url = match.group(2) ?? '';
+      if (url.isEmpty || !seen.add(url)) continue;
+      final filename = label.split('|').first.trim();
+      result.add(
+        _AttachmentLink(
+          filename: filename.isEmpty ? 'attachment' : filename,
+          url: url,
+          normalizedUrl: UrlHelper.resolveUrl(url),
+        ),
+      );
+    }
+    return result;
+  }
+
   String _preprocessDiscourseBbcode(String raw) {
     final detailsRegex = RegExp(
       r'\[details(?:=([^\]]*))?\](.*?)\[/details\]',
@@ -672,4 +743,16 @@ class _CreatedPage {
 
   final String pageId;
   final String pageUrl;
+}
+
+class _AttachmentLink {
+  const _AttachmentLink({
+    required this.filename,
+    required this.url,
+    required this.normalizedUrl,
+  });
+
+  final String filename;
+  final String url;
+  final String normalizedUrl;
 }
