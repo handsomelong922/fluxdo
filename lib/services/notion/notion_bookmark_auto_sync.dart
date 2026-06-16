@@ -23,9 +23,17 @@ class NotionBookmarkAutoSync {
     required WidgetRef ref,
     required int topicId,
   }) async {
-    final config = await _resolveActiveConfig(ref);
+    final configNotifier = ref.read(notionConfigProvider.notifier);
+    final historyNotifier = ref.read(exportHistoryProvider.notifier);
+    final config = await _resolveActiveConfig(configNotifier);
     if (config == null) return;
-    unawaited(_runTopic(ref: ref, topicId: topicId, config: config));
+    unawaited(
+      _runTopic(
+        historyNotifier: historyNotifier,
+        topicId: topicId,
+        config: config,
+      ),
+    );
   }
 
   static Future<void> tryTriggerPost({
@@ -33,22 +41,31 @@ class NotionBookmarkAutoSync {
     required int topicId,
     required int postId,
   }) async {
-    final config = await _resolveActiveConfig(ref);
+    final configNotifier = ref.read(notionConfigProvider.notifier);
+    final historyNotifier = ref.read(exportHistoryProvider.notifier);
+    final config = await _resolveActiveConfig(configNotifier);
     if (config == null) return;
     unawaited(
-      _runPost(ref: ref, topicId: topicId, postId: postId, config: config),
+      _runPost(
+        historyNotifier: historyNotifier,
+        topicId: topicId,
+        postId: postId,
+        config: config,
+      ),
     );
   }
 
-  static Future<NotionConfig?> _resolveActiveConfig(WidgetRef ref) async {
-    await ref.read(notionConfigProvider.notifier).ensureLoaded();
-    final config = ref.read(notionConfigProvider);
+  static Future<NotionConfig?> _resolveActiveConfig(
+    NotionConfigNotifier configNotifier,
+  ) async {
+    await configNotifier.ensureLoaded();
+    final config = configNotifier.current;
     if (!config.autoSyncOnBookmark || !config.isComplete) return null;
     return config;
   }
 
   static Future<void> _runTopic({
-    required WidgetRef ref,
+    required ExportHistoryNotifier historyNotifier,
     required int topicId,
     required NotionConfig config,
   }) async {
@@ -74,19 +91,17 @@ class NotionBookmarkAutoSync {
           );
         },
       );
-      ref
-          .read(exportHistoryProvider.notifier)
-          .add(
-            _historyItem(
-              detail: detail,
-              title: detail.title,
-              scope: config.syncScope == NotionSyncScope.firstPostOnly
-                  ? ExportScope.firstPostOnly
-                  : ExportScope.allPosts,
-              pageUrl: result.pageUrl,
-              postCount: result.postCount,
-            ),
-          );
+      historyNotifier.add(
+        _historyItem(
+          detail: detail,
+          title: detail.title,
+          scope: config.syncScope == NotionSyncScope.firstPostOnly
+              ? ExportScope.firstPostOnly
+              : ExportScope.allPosts,
+          pageUrl: result.pageUrl,
+          postCount: result.postCount,
+        ),
+      );
       handle.dismiss();
       ToastService.showSuccess(S.current.notion_syncSucceed);
     } on NotionApiException catch (error) {
@@ -100,7 +115,7 @@ class NotionBookmarkAutoSync {
   }
 
   static Future<void> _runPost({
-    required WidgetRef ref,
+    required ExportHistoryNotifier historyNotifier,
     required int topicId,
     required int postId,
     required NotionConfig config,
@@ -132,17 +147,15 @@ class NotionBookmarkAutoSync {
           );
         },
       );
-      ref
-          .read(exportHistoryProvider.notifier)
-          .add(
-            _historyItem(
-              detail: detail,
-              title: title,
-              scope: ExportScope.firstPostOnly,
-              pageUrl: result.pageUrl,
-              postCount: 1,
-            ),
-          );
+      historyNotifier.add(
+        _historyItem(
+          detail: detail,
+          title: title,
+          scope: ExportScope.firstPostOnly,
+          pageUrl: result.pageUrl,
+          postCount: 1,
+        ),
+      );
       handle.dismiss();
       ToastService.showSuccess(S.current.notion_syncSucceed);
     } on NotionApiException catch (error) {

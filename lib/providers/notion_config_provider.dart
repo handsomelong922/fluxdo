@@ -47,6 +47,8 @@ class NotionConfigNotifier extends StateNotifier<NotionConfig> {
   final Future<String?> Function() _resolveAccountId;
   String? _accountId;
 
+  NotionConfig get current => state;
+
   void onAccountIdResolved(String accountId) {
     if (_accountId == accountId) return;
     _accountId = accountId;
