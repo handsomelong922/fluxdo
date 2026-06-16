@@ -90,10 +90,7 @@ class PopPassthroughMaterialPageRoute<T> extends MaterialPageRoute<T> {
     );
 
     if (enableHorizontalPopGesture && !fullscreenDialog) {
-      result = _HorizontalPopGestureDetector<T>(
-        route: this,
-        child: result,
-      );
+      result = _HorizontalPopGestureDetector<T>(route: this, child: result);
     }
 
     return result;
@@ -218,16 +215,20 @@ class _HorizontalPopGestureDetectorState<T>
       event.timeStamp,
       event.position,
     );
+
+    if (widget.route.horizontalPopGestureBlocker?.value == true) {
+      if (_active) {
+        _popController?.cancel();
+      }
+      _resetPointer(event.pointer);
+      return;
+    }
+
     final initialPosition = _initialPosition;
     if (initialPosition == null) return;
 
     final offset = event.position - initialPosition;
     if (!_active) {
-      if (widget.route.horizontalPopGestureBlocker?.value == true) {
-        _resetPointer(event.pointer);
-        return;
-      }
-
       if (_shouldReject(offset)) {
         _resetPointer(event.pointer);
         return;
@@ -379,6 +380,24 @@ class _HorizontalPopGestureController<T> {
       }
       _navigator.didStopUserGesture();
     }
+  }
+
+  void cancel() {
+    const curve = Curves.fastEaseInToSlowEaseOut;
+    _controller.animateTo(
+      1.0,
+      duration: _horizontalPopSettleDuration,
+      curve: curve,
+    );
+
+    late AnimationStatusListener listener;
+    listener = (status) {
+      if (status.isAnimating) return;
+      route._horizontalPopGestureActive.value = false;
+      _navigator.didStopUserGesture();
+      _controller.removeStatusListener(listener);
+    };
+    _controller.addStatusListener(listener);
   }
 }
 

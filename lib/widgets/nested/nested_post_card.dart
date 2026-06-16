@@ -10,6 +10,7 @@ import '../../pages/user_profile_page.dart';
 import '../../utils/topic_link_navigation.dart';
 import '../../utils/time_utils.dart';
 import '../content/discourse_html_content/chunked/chunked_html_content.dart';
+import '../post/post_item/quote_selection_helper.dart';
 import '../post/post_signature.dart';
 import '../post/post_item/widgets/accepted_solution_marker.dart';
 import '../post/post_item/widgets/post_footer_section/post_footer_section.dart';
@@ -562,6 +563,9 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           post: post,
           topicId: widget.topicId,
           searchHighlightQuery: widget.searchHighlightQuery,
+          onSelectionChanged: (content) {
+            QuoteSelectionHelper.updateSelectionActive(content?.plainText);
+          },
           onInternalLinkTap:
               (targetTopicId, topicSlug, postNumber, {initialNestedView}) {
                 openInternalTopicLink(
