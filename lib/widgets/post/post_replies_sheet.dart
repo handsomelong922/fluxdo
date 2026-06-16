@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/s.dart';
 import '../../utils/dialog_utils.dart';
 import '../../models/topic.dart';
+import '../../pages/search_page.dart';
 import '../../providers/discourse_providers.dart';
 import '../../services/app_error_handler.dart';
 import '../../services/discourse/discourse_service.dart';
@@ -509,23 +510,28 @@ class _PostRepliesSheetContentState
                   ? null
                   : CodeSelectionContextTracker.instance.current;
             },
-            contextMenuBuilder: _isLoggedIn
-                ? (context, state) {
-                    final items = QuoteSelectionHelper.buildMenuItems(
-                      baseItems: state.contextMenuButtonItems,
-                      plainText: _lastSelectedContent?.plainText,
-                      post: post,
-                      hideToolbar: state.hideToolbar,
-                      topicId: widget.topicId,
-                      onQuoteSelection: _handleQuoteSelection,
-                      codeContext: _lastCodeSelectionContext,
-                    );
-                    return AdaptiveTextSelectionToolbar.buttonItems(
-                      anchors: state.contextMenuAnchors,
-                      buttonItems: items,
-                    );
-                  }
-                : null,
+            contextMenuBuilder: (context, state) {
+              final items = QuoteSelectionHelper.buildMenuItems(
+                baseItems: state.contextMenuButtonItems,
+                plainText: _lastSelectedContent?.plainText,
+                post: post,
+                hideToolbar: state.hideToolbar,
+                topicId: widget.topicId,
+                onQuoteSelection: _isLoggedIn ? _handleQuoteSelection : null,
+                onSearchSelection: (text) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => SearchPage(initialQuery: text),
+                    ),
+                  );
+                },
+                codeContext: _lastCodeSelectionContext,
+              );
+              return AdaptiveTextSelectionToolbar.buttonItems(
+                anchors: state.contextMenuAnchors,
+                buttonItems: items,
+              );
+            },
           ),
         ),
         SelectionContainer.disabled(

@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:scroll_to_index/scroll_to_index.dart';
 import '../../../l10n/s.dart';
 import '../../../models/topic.dart';
+import '../../../pages/search_page.dart';
 import '../../../providers/message_bus_providers.dart';
 import '../../../services/toast_service.dart';
 import '../../../utils/code_selection_context.dart';
@@ -564,18 +565,6 @@ class _TopicPostListState extends State<TopicPostList> {
         }
       },
       contextMenuBuilder: (context, state) {
-        final plainText = _lastLongPostSelectedContent?.plainText;
-        final canQuote =
-            onQuoteSelection != null &&
-            _activeLongSelectionPost != null &&
-            plainText != null &&
-            plainText.isNotEmpty;
-        if (!canQuote) {
-          return AdaptiveTextSelectionToolbar.buttonItems(
-            anchors: state.contextMenuAnchors,
-            buttonItems: state.contextMenuButtonItems,
-          );
-        }
         final items = QuoteSelectionHelper.buildMenuItems(
           baseItems: state.contextMenuButtonItems,
           plainText: _lastLongPostSelectedContent?.plainText,
@@ -583,6 +572,11 @@ class _TopicPostListState extends State<TopicPostList> {
           hideToolbar: state.hideToolbar,
           topicId: detail.id,
           onQuoteSelection: onQuoteSelection,
+          onSearchSelection: (text) {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => SearchPage(initialQuery: text)),
+            );
+          },
           codeContext: _lastLongCodeSelectionContext,
         );
         return AdaptiveTextSelectionToolbar.buttonItems(

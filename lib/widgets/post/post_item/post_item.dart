@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/topic.dart';
 import '../../../l10n/s.dart';
+import '../../../pages/search_page.dart';
 import '../../../providers/preferences_provider.dart';
 import '../../../utils/code_selection_context.dart';
 import '../../../utils/topic_link_navigation.dart';
@@ -211,23 +212,28 @@ class _PostItemState extends ConsumerState<PostItem> {
                         ? null
                         : CodeSelectionContextTracker.instance.current;
                   },
-                  contextMenuBuilder: widget.onQuoteSelection != null
-                      ? (context, state) {
-                          final items = QuoteSelectionHelper.buildMenuItems(
-                            baseItems: state.contextMenuButtonItems,
-                            plainText: _lastSelectedContent?.plainText,
-                            post: post,
-                            hideToolbar: state.hideToolbar,
-                            topicId: widget.topicId,
-                            onQuoteSelection: widget.onQuoteSelection,
-                            codeContext: _lastCodeSelectionContext,
-                          );
-                          return AdaptiveTextSelectionToolbar.buttonItems(
-                            anchors: state.contextMenuAnchors,
-                            buttonItems: items,
-                          );
-                        }
-                      : null,
+                  contextMenuBuilder: (context, state) {
+                    final items = QuoteSelectionHelper.buildMenuItems(
+                      baseItems: state.contextMenuButtonItems,
+                      plainText: _lastSelectedContent?.plainText,
+                      post: post,
+                      hideToolbar: state.hideToolbar,
+                      topicId: widget.topicId,
+                      onQuoteSelection: widget.onQuoteSelection,
+                      onSearchSelection: (text) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => SearchPage(initialQuery: text),
+                          ),
+                        );
+                      },
+                      codeContext: _lastCodeSelectionContext,
+                    );
+                    return AdaptiveTextSelectionToolbar.buttonItems(
+                      anchors: state.contextMenuAnchors,
+                      buttonItems: items,
+                    );
+                  },
                 ),
               ),
             ),
