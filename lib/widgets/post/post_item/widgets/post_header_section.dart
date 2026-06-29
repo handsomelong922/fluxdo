@@ -8,6 +8,8 @@ import 'package:dio/dio.dart';
 import '../../../../services/app_error_handler.dart';
 import '../../../../services/discourse/discourse_service.dart';
 import '../../../common/relative_time_text.dart';
+import '../../post_revision/edits_indicator.dart';
+import '../../post_revision/revision_modal.dart';
 import '../../small_action_item.dart';
 import 'post_header.dart';
 import 'post_reply_history.dart';
@@ -29,6 +31,10 @@ class PostHeaderSection extends ConsumerStatefulWidget {
 
   /// 隐藏回复指示的目标帖子号（回复此帖时不显示指示器）
   final int? hideReplyToPostNumber;
+
+  /// wiki 首版没有历史时，点击编辑指示器可直接进入编辑器。
+  final VoidCallback? onEditWiki;
+
   const PostHeaderSection({
     super.key,
     required this.post,
@@ -40,6 +46,7 @@ class PostHeaderSection extends ConsumerStatefulWidget {
     this.disableReplyHistory = false,
     this.onReplyIndicatorTap,
     this.hideReplyToPostNumber,
+    this.onEditWiki,
   });
 
   @override
@@ -258,50 +265,67 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Stack(
-                      clipBehavior: Clip.none,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        RelativeTimeText(
-                          dateTime: post.createdAt,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant
-                                .withValues(alpha: 0.8),
-                            fontSize: 11,
+                        if (post.showEditsIndicator) ...[
+                          EditsIndicator(
+                            post: post,
+                            onShowHistory: () => showPostRevisionSheet(
+                              context: context,
+                              postId: post.id,
+                            ),
+                            onEnterEditor: widget.onEditWiki,
                           ),
-                        ),
-                        Positioned(
-                          right: -6,
-                          top: -2,
-                          child: Consumer(
-                            builder: (context, ref, _) {
-                              final sessionState = ref.watch(
-                                topicSessionProvider(widget.topicId),
-                              );
-                              final isNew = !widget.post.read;
-                              final isReadInSession = sessionState
-                                  .readPostNumbers
-                                  .contains(widget.post.postNumber);
-                              final show = isNew && !isReadInSession;
+                          const SizedBox(width: 4),
+                        ],
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            RelativeTimeText(
+                              dateTime: post.displayDate,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.8),
+                                fontSize: 11,
+                              ),
+                            ),
+                            Positioned(
+                              right: -6,
+                              top: -2,
+                              child: Consumer(
+                                builder: (context, ref, _) {
+                                  final sessionState = ref.watch(
+                                    topicSessionProvider(widget.topicId),
+                                  );
+                                  final isNew = !widget.post.read;
+                                  final isReadInSession = sessionState
+                                      .readPostNumbers
+                                      .contains(widget.post.postNumber);
+                                  final show = isNew && !isReadInSession;
 
-                              return AnimatedOpacity(
-                                opacity: show ? 1.0 : 0.0,
-                                duration: const Duration(milliseconds: 500),
-                                curve: Curves.easeOut,
-                                child: Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: theme.colorScheme.surface,
-                                      width: 1,
+                                  return AnimatedOpacity(
+                                    opacity: show ? 1.0 : 0.0,
+                                    duration: const Duration(milliseconds: 500),
+                                    curve: Curves.easeOut,
+                                    child: Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: theme.colorScheme.surface,
+                                          width: 1,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

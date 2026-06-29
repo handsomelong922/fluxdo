@@ -20,6 +20,7 @@ import '../../models/mention_user.dart';
 import '../../models/draft.dart';
 import '../../models/invite_link.dart';
 import '../../models/template.dart';
+import '../../models/post_revision.dart';
 
 import '../../constants.dart';
 import '../../providers/message_bus_providers.dart';
@@ -62,6 +63,7 @@ part '_drafts.dart';
 part '_templates.dart';
 part '_nested.dart';
 part '_policy.dart';
+part '_revisions.dart';
 
 Options? _backgroundReadOptions({Options? options, bool background = false}) {
   if (!background) return options;
@@ -131,7 +133,8 @@ class DiscourseService extends _DiscourseServiceBase
         _DraftsMixin,
         _TemplatesMixin,
         _NestedMixin,
-        _PolicyMixin {
+        _PolicyMixin,
+        _RevisionsMixin {
   static const String baseUrl = AppConstants.baseUrl;
   static const String _usernameKey = 'linux_do_username';
   static const _summaryCacheDuration = Duration(minutes: 5);

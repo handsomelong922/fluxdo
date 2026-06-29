@@ -480,6 +480,21 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
           parent = parent.parent;
         }
 
+        final classes = element.classes;
+        final isDiffIns =
+            element.localName == 'ins' || classes.contains('diff-ins');
+        final isDiffDel =
+            element.localName == 'del' || classes.contains('diff-del');
+        if (isDiffIns || isDiffDel) {
+          return {
+            'background-color': isDiffIns
+                ? (isDark ? '#0f6b3a55' : '#c8f7c855')
+                : (isDark ? '#7f1d1d55' : '#fecaca55'),
+            'color': 'inherit',
+            'text-decoration': isDiffDel ? 'line-through' : 'none',
+          };
+        }
+
         // img 垂直居中（与 Discourse 一致：img { vertical-align: middle }）
         if (element.localName == 'img') {
           if (element.classes.contains('emoji')) {

@@ -148,6 +148,7 @@ class _PostItemState extends ConsumerState<PostItem> {
                 showStamp: _acceptedAnswer,
                 padding: EdgeInsets.zero,
                 onJumpToPost: widget.onJumpToPost,
+                onEditWiki: widget.onEdit,
               ),
             ),
             const SizedBox(height: 12),

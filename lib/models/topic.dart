@@ -707,6 +707,14 @@ class Post {
   final int? policyAcceptedByCount;
   final int? policyNotAcceptedByCount;
 
+  // 编辑历史
+  final int version;
+  final int? publicVersion;
+  final bool canViewEditHistory;
+  final bool wiki;
+  final DateTime? lastWikiEdit;
+  final String? editReason;
+
   Post({
     required this.id,
     this.topicId,
@@ -776,6 +784,12 @@ class Post {
     this.policyNotAcceptedBy,
     this.policyAcceptedByCount,
     this.policyNotAcceptedByCount,
+    this.version = 1,
+    this.publicVersion,
+    this.canViewEditHistory = false,
+    this.wiki = false,
+    this.lastWikiEdit,
+    this.editReason,
   });
 
   factory Post.fromJson(Map<String, dynamic> json) {
@@ -895,6 +909,14 @@ class Post {
           .toList(),
       policyAcceptedByCount: json['policy_accepted_by_count'] as int?,
       policyNotAcceptedByCount: json['policy_not_accepted_by_count'] as int?,
+      version: json['version'] as int? ?? 1,
+      publicVersion: json['public_version'] as int?,
+      canViewEditHistory: json['can_view_edit_history'] as bool? ?? false,
+      wiki: json['wiki'] as bool? ?? false,
+      lastWikiEdit: TimeUtils.parseUtcTime(json['last_wiki_edit'] as String?),
+      editReason: (json['edit_reason'] as String?)?.isNotEmpty == true
+          ? json['edit_reason'] as String
+          : null,
     );
   }
 
@@ -909,6 +931,13 @@ class Post {
 
   /// 帖子是否已被删除
   bool get isDeleted => deletedAt != null;
+
+  DateTime get displayDate =>
+      (wiki && lastWikiEdit != null) ? lastWikiEdit! : createdAt;
+
+  bool get showEditsIndicator => version > 1 || wiki;
+
+  int get editsCount => version > 1 ? version - 1 : 0;
 
   @override
   bool operator ==(Object other) =>
@@ -936,7 +965,13 @@ class Post {
           currentUserReaction == other.currentUserReaction &&
           listEquals(boosts, other.boosts) &&
           canBoost == other.canBoost &&
-          signatureCooked == other.signatureCooked;
+          signatureCooked == other.signatureCooked &&
+          version == other.version &&
+          publicVersion == other.publicVersion &&
+          canViewEditHistory == other.canViewEditHistory &&
+          wiki == other.wiki &&
+          lastWikiEdit == other.lastWikiEdit &&
+          editReason == other.editReason;
 
   @override
   int get hashCode => Object.hash(
@@ -948,6 +983,8 @@ class Post {
     hidden,
     canBoost,
     signatureCooked,
+    version,
+    wiki,
   );
 
   /// 复制并修改部分字段
@@ -1022,6 +1059,14 @@ class Post {
     List<PolicyUser>? policyNotAcceptedBy,
     int? policyAcceptedByCount,
     int? policyNotAcceptedByCount,
+    int? version,
+    int? publicVersion,
+    bool? canViewEditHistory,
+    bool? wiki,
+    DateTime? lastWikiEdit,
+    bool clearLastWikiEdit = false,
+    String? editReason,
+    bool clearEditReason = false,
   }) {
     return Post(
       id: id ?? this.id,
@@ -1099,6 +1144,14 @@ class Post {
           policyAcceptedByCount ?? this.policyAcceptedByCount,
       policyNotAcceptedByCount:
           policyNotAcceptedByCount ?? this.policyNotAcceptedByCount,
+      version: version ?? this.version,
+      publicVersion: publicVersion ?? this.publicVersion,
+      canViewEditHistory: canViewEditHistory ?? this.canViewEditHistory,
+      wiki: wiki ?? this.wiki,
+      lastWikiEdit: clearLastWikiEdit
+          ? null
+          : (lastWikiEdit ?? this.lastWikiEdit),
+      editReason: clearEditReason ? null : (editReason ?? this.editReason),
     );
   }
 }
