@@ -8,7 +8,7 @@ import '../../utils/svg_utils.dart';
 /// 智能头像组件
 ///
 /// 使用 CachedNetworkImage 加载图片，自动支持 GIF 动画。
-/// 当图片解码失败时，检测内容是否为 SVG 并渲染。
+/// 静态头像会先检测缓存内容是否为 SVG，避免伪装成 PNG 的 SVG 进入位图解码器。
 class SmartAvatar extends StatefulWidget {
   final String? imageUrl;
   final double radius;
@@ -34,10 +34,10 @@ class SmartAvatar extends StatefulWidget {
 class _SmartAvatarState extends State<SmartAvatar> {
   static final DiscourseCacheManager _cacheManager = DiscourseCacheManager();
 
-  // 当检测到 SVG 时存储内容
   String? _svgContent;
   bool _isSvgDetected = false;
   String? _lastResolvedImageUrl;
+  Future<String?>? _svgProbeFuture;
 
   @override
   void didUpdateWidget(SmartAvatar oldWidget) {
@@ -46,6 +46,32 @@ class _SmartAvatarState extends State<SmartAvatar> {
       // URL 变化时重置 SVG 状态
       _svgContent = null;
       _isSvgDetected = false;
+      _svgProbeFuture = null;
+    }
+  }
+
+  Future<String?>? _createSvgProbeFuture(String imageUrl) {
+    if (imageUrl.isEmpty ||
+        AvifImageProvider.isAvifUrl(imageUrl) ||
+        isNativeAnimatedUrl(imageUrl)) {
+      return null;
+    }
+    return _loadSvgContentIfPresent(imageUrl);
+  }
+
+  Future<String?> _loadSvgContentIfPresent(String imageUrl) async {
+    try {
+      // 只查缓存元信息，不主动触发下载；下载仍交给 CachedNetworkImage。
+      final fileInfo = await _cacheManager.getFileFromCache(imageUrl);
+      if (fileInfo == null) return null;
+      // flutter_cache_manager 会按 Content-Type 给 SVG 缓存文件起名。
+      // 这里先信任响应头，伪装成 PNG 的 SVG 交给 errorWidget 兜底嗅探。
+      if (!fileInfo.file.path.toLowerCase().endsWith('.svg')) return null;
+      final bytes = await fileInfo.file.readAsBytes();
+      if (bytes.isEmpty) return null;
+      return SvgUtils.sanitize(SvgUtils.decodeSvgBytes(bytes));
+    } catch (_) {
+      return null;
     }
   }
 
@@ -79,6 +105,7 @@ class _SmartAvatarState extends State<SmartAvatar> {
       _lastResolvedImageUrl = imageUrl;
       _svgContent = null;
       _isSvgDetected = false;
+      _svgProbeFuture = _createSvgProbeFuture(imageUrl);
     }
 
     Widget child;
@@ -94,45 +121,62 @@ class _SmartAvatarState extends State<SmartAvatar> {
       );
     } else if (AvifImageProvider.isAvifUrl(imageUrl) ||
         isNativeAnimatedUrl(imageUrl)) {
-      child = Image(
-        image: discourseImageProvider(imageUrl),
-        width: innerSize,
-        height: innerSize,
-        fit: BoxFit.cover,
-        gaplessPlayback: true,
-        frameBuilder: (context, displayChild, frame, wasSynchronouslyLoaded) {
-          if (wasSynchronouslyLoaded || frame != null) return displayChild;
-          return _buildLoading(fgColor, innerRadius);
-        },
-        errorBuilder: (context, error, stack) =>
-            _buildFallback(fgColor, innerRadius),
+      child = RepaintBoundary(
+        child: Image(
+          image: discourseImageProvider(imageUrl),
+          width: innerSize,
+          height: innerSize,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          frameBuilder: (context, displayChild, frame, wasSynchronouslyLoaded) {
+            if (wasSynchronouslyLoaded || frame != null) return displayChild;
+            return _buildLoading(fgColor, innerRadius);
+          },
+          errorBuilder: (context, error, stack) =>
+              _buildFallback(fgColor, innerRadius),
+        ),
       );
     } else {
-      // 使用 CachedNetworkImage，解码失败时检测 SVG
-      child = CachedNetworkImage(
-        imageUrl: imageUrl,
-        cacheManager: _cacheManager,
-        width: innerSize,
-        height: innerSize,
-        fit: BoxFit.cover,
-        fadeInDuration: const Duration(milliseconds: 150),
-        fadeOutDuration: const Duration(milliseconds: 150),
-        placeholder: (context, url) => _buildLoading(fgColor, innerRadius),
-        errorWidget: (context, url, error) => _SvgFallbackBuilder(
-          imageUrl: imageUrl,
-          cacheManager: _cacheManager,
-          size: innerSize,
-          onSvgDetected: (svgContent) {
-            // 缓存 SVG 内容，下次直接渲染
-            if (mounted) {
-              setState(() {
-                _svgContent = svgContent;
-                _isSvgDetected = true;
-              });
-            }
-          },
-          fallback: _buildFallback(fgColor, innerRadius),
-        ),
+      child = FutureBuilder<String?>(
+        future: _svgProbeFuture,
+        builder: (context, snapshot) {
+          final svgContent = snapshot.data;
+          if (svgContent != null) {
+            return _buildSvg(svgContent, innerSize) ??
+                _buildFallback(fgColor, innerRadius);
+          }
+
+          if (snapshot.connectionState != ConnectionState.done) {
+            return _buildLoading(fgColor, innerRadius);
+          }
+
+          // 使用 CachedNetworkImage，解码失败时检测 SVG。
+          return CachedNetworkImage(
+            imageUrl: imageUrl,
+            cacheManager: _cacheManager,
+            width: innerSize,
+            height: innerSize,
+            fit: BoxFit.cover,
+            fadeInDuration: const Duration(milliseconds: 150),
+            fadeOutDuration: const Duration(milliseconds: 150),
+            placeholder: (context, url) => _buildLoading(fgColor, innerRadius),
+            errorWidget: (context, url, error) => _SvgFallbackBuilder(
+              imageUrl: imageUrl,
+              cacheManager: _cacheManager,
+              size: innerSize,
+              onSvgDetected: (detectedSvgContent) {
+                // 缓存 SVG 内容，下次直接渲染。
+                if (mounted) {
+                  setState(() {
+                    _svgContent = detectedSvgContent;
+                    _isSvgDetected = true;
+                  });
+                }
+              },
+              fallback: _buildFallback(fgColor, innerRadius),
+            ),
+          );
+        },
       );
     }
 
@@ -163,15 +207,24 @@ class _SmartAvatarState extends State<SmartAvatar> {
     return avatar;
   }
 
+  Widget? _buildSvg(String svgContent, double size) {
+    try {
+      final si = ScalableImage.fromSvgString(svgContent, warnF: (_) {});
+      return SizedBox(
+        width: size,
+        height: size,
+        child: ScalableImageWidget(si: si, fit: BoxFit.cover),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   Widget _buildLoading(Color fgColor, double radius) {
-    return Center(
-      child: SizedBox(
-        width: radius * 0.6,
-        height: radius * 0.6,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: fgColor.withValues(alpha: 0.5),
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: fgColor.withValues(alpha: 0.08),
       ),
     );
   }
@@ -234,8 +287,8 @@ class _SvgFallbackBuilderState extends State<_SvgFallbackBuilder> {
 
       if (bytes.isEmpty || !mounted) return;
 
-      if (_isSvgContent(bytes)) {
-        final svgString = SvgUtils.sanitize(String.fromCharCodes(bytes));
+      if (SvgUtils.isSvgBytes(bytes)) {
+        final svgString = SvgUtils.sanitize(SvgUtils.decodeSvgBytes(bytes));
         if (mounted) {
           setState(() {
             _svgContent = svgString;
@@ -255,36 +308,19 @@ class _SvgFallbackBuilderState extends State<_SvgFallbackBuilder> {
     }
   }
 
-  /// 通过内容嗅探检测是否为 SVG
-  bool _isSvgContent(List<int> bytes) {
-    if (bytes.length < 5) return false;
-
-    // 跳过可能的 BOM 和空白字符
-    int start = 0;
-    while (start < bytes.length &&
-        (bytes[start] <= 32 ||
-            bytes[start] == 0xEF ||
-            bytes[start] == 0xBB ||
-            bytes[start] == 0xBF)) {
-      start++;
-    }
-
-    if (start >= bytes.length - 4) return false;
-
-    // 检查是否以 <svg 或 <?xml 开头
-    final prefix = String.fromCharCodes(bytes.sublist(start, start + 5));
-    return prefix.startsWith('<svg') || prefix.startsWith('<?xml');
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_svgContent != null) {
-      final si = ScalableImage.fromSvgString(_svgContent!, warnF: (_) {});
-      return SizedBox(
-        width: widget.size,
-        height: widget.size,
-        child: ScalableImageWidget(si: si, fit: BoxFit.cover),
-      );
+      try {
+        final si = ScalableImage.fromSvgString(_svgContent!, warnF: (_) {});
+        return SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: ScalableImageWidget(si: si, fit: BoxFit.cover),
+        );
+      } catch (_) {
+        return widget.fallback;
+      }
     }
 
     if (!_checked) {
