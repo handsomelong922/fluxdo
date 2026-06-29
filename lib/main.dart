@@ -17,7 +17,6 @@ import 'providers/discourse_providers.dart';
 import 'providers/locale_provider.dart';
 import 'providers/message_bus_providers.dart';
 import 'services/auth_issue_notice_service.dart';
-import 'services/discourse/discourse_service.dart';
 import 'providers/app_state_refresher.dart';
 import 'services/highlighter_service.dart';
 import 'widgets/common/notification_icon_button.dart';
@@ -27,7 +26,6 @@ import 'services/network/cookie/csrf_token_service.dart';
 import 'services/network/cookie/cookie_devtools_extension.dart';
 import 'services/network/cookie/cookie_jar_service.dart';
 import 'services/network/cookie/cookie_store_observer.dart';
-import 'services/network/cookie/webview_cookie_priming.dart';
 import 'services/network/adapters/cronet_fallback_service.dart';
 import 'services/local_notification_service.dart';
 import 'services/data_management/cache_size_service.dart';
@@ -46,6 +44,7 @@ import 'services/network/vpn_auto_toggle_service.dart';
 import 'services/hcaptcha_accessibility_service.dart';
 import 'services/network/doh_proxy/proxy_certificate.dart';
 import 'services/cf_challenge_logger.dart';
+import 'services/browser_trust_coordinator.dart';
 import 'services/cf_clearance_refresh_service.dart';
 import 'services/fingerprint_service.dart';
 import 'services/update_service.dart';
@@ -244,15 +243,8 @@ Future<void> main() async {
   await WebViewAdapterSettingsService.instance.initialize(prefs);
   // Eruda 调试控制台开关（默认关闭）
   await ErudaSettingsService.instance.initialize(prefs);
-  // v0.4.0: 启动时执行 WV cookie 重灌 (取代 RawSetCookieQueue + 启动自检)
-  unawaited(
-    WebViewCookiePriming.instance.prime(AppConstants.baseUrl).catchError((
-      Object e,
-      StackTrace _,
-    ) {
-      debugPrint('[Main] WebView cookie priming 失败: $e');
-    }),
-  );
+  // 启动期浏览器信任准备由 BrowserTrustCoordinator 统一编排。
+  BrowserTrustCoordinator.instance.prepareStartup(reason: 'startup');
   try {
     final rhttp = await Future.any([
       _initRhttp(),
@@ -307,11 +299,11 @@ Future<void> main() async {
     unawaited(_applyAndroidDisplayMode(prefs));
   }
 
-  // 提前触发预加载数据请求，与 runApp 并行执行
-  // PreheatGate 中的 ensureLoaded() 会复用这个已在进行的请求
+  // 提前触发预加载数据请求，与 runApp 并行执行。
+  // PreheatGate 中的 ensurePreloaded() 会复用这个已在进行的请求。
   unawaited(
-    PreloadedDataService()
-        .ensureLoaded()
+    BrowserTrustCoordinator.instance
+        .ensurePreloaded(reason: 'startup')
         .then((_) {
           if (PreloadedDataService().currentUserSync != null) {
             unawaited(FingerprintService.instance.collectAndReport());
@@ -636,8 +628,7 @@ class _MainPageState extends ConsumerState<MainPage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // 标记应用已就绪（MainPage 在 PreheatGate 之后才挂载）
       ref.read(appReadyProvider.notifier).state = true;
-      DiscourseService().setNavigatorContext(context);
-      PreloadedDataService().setNavigatorContext(context);
+      BrowserTrustCoordinator.instance.setNavigatorContext(context);
 
       // 初始化 Deep Link 服务
       DeepLinkService.instance.initialize(context);
@@ -682,16 +673,23 @@ class _MainPageState extends ConsumerState<MainPage>
       next,
     ) {
       next.whenData((_) {
-        if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
           AppStateRefresher.refreshAll(ref);
-        }
+        });
       });
     });
     _currentUserSub = ref.listenManual<AsyncValue<User?>>(currentUserProvider, (
-      _,
+      previous,
       next,
     ) {
+      final previousUser = previous?.value;
       final user = next.value;
+      if (previousUser == null && user != null) {
+        BrowserTrustCoordinator.instance.startClearanceRefresh(
+          reason: 'current_user_ready',
+        );
+      }
       if (user != null && !_messageBusInitialized) {
         _messageBusInitialized = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -902,7 +900,7 @@ class _MainPageState extends ConsumerState<MainPage>
       _resumeDebounceTimer?.cancel();
       _resumeDebounceTimer = null;
       _enterBackground();
-      CfClearanceRefreshService().pause();
+      BrowserTrustCoordinator.instance.pauseForBackground();
     } else if (state == AppLifecycleState.resumed) {
       // 延迟执行，避免系统配置变更（主题切换等）触发的假 resume
       _resumeDebounceTimer?.cancel();
@@ -922,8 +920,7 @@ class _MainPageState extends ConsumerState<MainPage>
         NetworkSettingsService.instance.ensureProxyAlive();
         // 回到前台时主动检查连通性（等同 Discourse 的 visibilitychange）
         ConnectivityService().check();
-        // 恢复 cf_clearance 自动续期监控
-        CfClearanceRefreshService().resume();
+        BrowserTrustCoordinator.instance.resumeFromBackground(reason: 'resume');
         unawaited(
           _refreshEnabledCdkService().catchError((Object e, StackTrace s) {
             debugPrint('[MainPage] CDK 恢复刷新失败: $e\n$s');

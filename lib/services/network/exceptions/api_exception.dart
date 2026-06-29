@@ -35,6 +35,7 @@ class CfChallengeException implements Exception {
   final bool userCancelled;
   final bool inCooldown;
   final bool requiresManualAction;
+  final bool silentBlockedDuringChallenge;
 
   /// 原始错误（用于调试，保留验证/重试失败的实际原因）
   final Object? cause;
@@ -42,6 +43,7 @@ class CfChallengeException implements Exception {
     this.userCancelled = false,
     this.inCooldown = false,
     this.requiresManualAction = false,
+    this.silentBlockedDuringChallenge = false,
     this.cause,
   });
 

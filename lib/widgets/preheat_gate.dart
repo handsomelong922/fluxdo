@@ -8,7 +8,7 @@ import '../l10n/s.dart';
 import '../pages/about_page.dart';
 import '../pages/network_settings_page/network_settings_page.dart';
 import '../providers/app_icon_provider.dart';
-import '../services/preloaded_data_service.dart';
+import '../services/browser_trust_coordinator.dart';
 import '../services/discourse/discourse_service.dart';
 import '../services/emoji_handler.dart';
 import '../services/log/log_writer.dart';
@@ -64,7 +64,9 @@ class _PreheatGateState extends State<PreheatGate> {
 
       // 进入首页前完成 HTML 预加载，确保首屏话题列表能同步消费
       // data-preloaded 中的 topicList，避免首页再发 /latest.json 后长时间骨架屏。
-      await PreloadedDataService().ensureLoaded();
+      await BrowserTrustCoordinator.instance.ensurePreloaded(
+        reason: 'preheat_gate',
+      );
       unawaited(DiscourseService().getEnabledReactions());
       EmojiHandler().init();
 
@@ -128,7 +130,7 @@ class _PreheatGateState extends State<PreheatGate> {
       builder: (context, snapshot) {
         // 无论加载状态如何，都设置 context
         // 避免 CF 验证等待 context 而 context 等待加载完成导致的死锁
-        PreloadedDataService().setNavigatorContext(context);
+        BrowserTrustCoordinator.instance.setNavigatorContext(context);
 
         Widget currentWidget;
         if (snapshot.connectionState != ConnectionState.done) {

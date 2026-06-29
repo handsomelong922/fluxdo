@@ -20,6 +20,7 @@ class CookieFullInfo {
     this.isHttpOnly,
     this.expiresMillis,
     this.sameSite,
+    this.isPartitioned,
   });
 
   final String name;
@@ -43,6 +44,10 @@ class CookieFullInfo {
   /// null 表示未设置或平台无法获取。
   final String? sameSite;
 
+  /// 是否为 CHIPS Partitioned cookie。
+  /// null 表示平台无法获取该字段。
+  final bool? isPartitioned;
+
   /// 是否为 host-only cookie（[domain] 缺失则视为 host-only）。
   ///
   /// 注意：在 Android 旧设备上，[domain] 可能因为 API 限制而为 null，
@@ -60,6 +65,7 @@ class CookieFullInfo {
       isHttpOnly: cookie.isHttpOnly,
       expiresMillis: cookie.expiresDate,
       sameSite: cookie.sameSite?.toNativeValue(),
+      isPartitioned: null,
     );
   }
 
@@ -81,6 +87,6 @@ class CookieFullInfo {
     return 'CookieFullInfo(name=$name, valueLength=${value.length}, '
         'domain=$domain, path=$path, hostOnly=$isHostOnly, '
         'secure=$isSecure, httpOnly=$isHttpOnly, expires=$expiresMillis, '
-        'sameSite=$sameSite)';
+        'sameSite=$sameSite, partitioned=$isPartitioned)';
   }
 }

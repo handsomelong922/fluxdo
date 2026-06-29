@@ -119,6 +119,11 @@ class SelfHealingInterceptor extends Interceptor {
       return false;
     }
 
+    if (response.requestOptions.uri.host.toLowerCase() !=
+        CookieJarService.appBaseHost) {
+      return false;
+    }
+
     final status = response.statusCode ?? 0;
     final hasLoggedOutHeader =
         response.headers.value('discourse-logged-out')?.isNotEmpty == true;

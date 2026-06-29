@@ -23,6 +23,47 @@ class BoundarySyncService {
   final CookieJarService _jar = CookieJarService();
   final PlatformCookieStrategy _strategy = PlatformCookieStrategy.create();
 
+  Future<String?> readCookieValueFromWebView({
+    String? currentUrl,
+    InAppWebViewController? controller,
+    required String name,
+    bool allowLowConfidenceSessionCookies = false,
+  }) async {
+    final url = currentUrl ?? AppConstants.baseUrl;
+    final uri = Uri.parse(url);
+    final host = uri.host;
+
+    if (io.Platform.isWindows && controller != null) {
+      return _jar.readCookieValueFromController(
+        controller,
+        name,
+        currentUrl: url,
+      );
+    }
+
+    final webViewCookies = await _strategy.readCookiesFromWebView(
+      _jar.webViewCookieManager,
+      url,
+    );
+    final matches = <Cookie>[];
+    for (final cookie in webViewCookies) {
+      final value = cookie.value?.toString() ?? '';
+      if (cookie.name != name || value.isEmpty) continue;
+      if (CookieJarService.sessionCookieNames.contains(cookie.name) &&
+          _isLowConfidenceWebViewCookie(cookie) &&
+          !allowLowConfidenceSessionCookies) {
+        continue;
+      }
+      matches.add(cookie);
+    }
+    if (matches.isEmpty) return null;
+
+    final selected = CookieJarService.sessionCookieNames.contains(name)
+        ? _selectBestSessionCookie(matches, host)
+        : matches.first;
+    return selected?.value?.toString();
+  }
+
   /// 从 WebView 读 cookie 写入 jar。
   ///
   /// [currentUrl] 当前页面 URL，用于确定读取哪个域名的 cookie。
@@ -34,6 +75,7 @@ class BoundarySyncService {
     String? currentUrl,
     InAppWebViewController? controller,
     Set<String>? cookieNames,
+    Set<String>? excludeCookieNames,
     Iterable<String>? additionalUrls,
     bool allowLowConfidenceSessionCookies = false,
     int? requestGeneration,
@@ -61,6 +103,8 @@ class BoundarySyncService {
           currentUrl: url,
           readUrls: readUrls,
           cookieNames: cookieNames,
+          excludeCookieNames: excludeCookieNames,
+          acceptValues: acceptValues,
           trusted: trusted,
         );
         if (synced > 0) {
@@ -96,6 +140,10 @@ class BoundarySyncService {
         final value = wc.value?.toString() ?? '';
         if (value.isEmpty) continue;
         if (cookieNames != null && !cookieNames.contains(wc.name)) continue;
+        if (excludeCookieNames != null &&
+            excludeCookieNames.contains(wc.name)) {
+          continue;
+        }
         // challenge 场景：只接受确认的 fresh 值，排除 WebView 残留的旧变体。
         final onlyValue = acceptValues?[wc.name];
         if (onlyValue != null && value != onlyValue) continue;
@@ -134,6 +182,9 @@ class BoundarySyncService {
         final isSessionCookie = CookieJarService.sessionCookieNames.contains(
           wc.name,
         );
+        final isHostOnlyCookie = CookieJarService.hostOnlyCookieNames.contains(
+          wc.name,
+        );
         final lowConfidenceSnapshot = _isLowConfidenceWebViewCookie(wc);
         if (isSessionCookie &&
             lowConfidenceSnapshot &&
@@ -146,7 +197,7 @@ class BoundarySyncService {
         String? domain;
         final rawDomain = wc.domain?.trim();
         final shouldForceSessionHostOnly =
-            io.Platform.isAndroid && isSessionCookie;
+            io.Platform.isAndroid && isHostOnlyCookie;
         if (shouldForceSessionHostOnly) {
           domain = null;
           if (rawDomain != null && rawDomain.isNotEmpty) {
@@ -166,8 +217,9 @@ class BoundarySyncService {
           // host-only cookie 的裸 host 填到 domain 字段，不能当作
           // Domain= 透传，否则 _t / _forum_session 会泄到子域名。
           domain = null;
-        } else if (isSessionCookie) {
-          // 会话 Cookie 缺失 domain 时，保持 host-only 语义，不再放大到子域名。
+        } else if (isHostOnlyCookie) {
+          // 主域 host-only Cookie 缺失 domain 时，保持 host-only 语义，
+          // 不再放大到子域名。
           domain = null;
         } else {
           // 旧 Android（GET_COOKIE_INFO 不支持）：domain 为 null
@@ -208,6 +260,17 @@ class BoundarySyncService {
 
         if (wc.expiresDate != null) {
           cookie.expires = DateTime.fromMillisecondsSinceEpoch(wc.expiresDate!);
+        }
+
+        if (isSessionCookie &&
+            await _isSameSessionCookieAlreadyInJar(
+              name: wc.name,
+              value: value,
+              domain: domain,
+              path: cookie.path ?? '/',
+              requestHost: host,
+            )) {
+          continue;
         }
 
         toSave.add(cookie);
@@ -342,6 +405,26 @@ class BoundarySyncService {
     score += cookie.path?.length ?? 1;
     score += value.length;
     return score;
+  }
+
+  Future<bool> _isSameSessionCookieAlreadyInJar({
+    required String name,
+    required String value,
+    required String? domain,
+    required String path,
+    required String requestHost,
+  }) async {
+    final existing = await _jar.getCanonicalCookie(name);
+    if (existing == null || existing.value != value) return false;
+    if (existing.path != path) return false;
+
+    final nextHostOnly = domain == null || domain.trim().isEmpty;
+    if (existing.hostOnly != nextHostOnly) return false;
+
+    final nextDomain = nextHostOnly
+        ? requestHost.toLowerCase()
+        : CookieJarService.normalizeWebViewCookieDomain(domain);
+    return existing.normalizedDomain == nextDomain;
   }
 
   void _logDuplicateSessionCookies({

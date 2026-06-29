@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart' as dio;
 import 'package:http/http.dart' as http;
 import '../constants.dart';
+import 'network/adapters/webview_http_adapter.dart';
 import 'network/discourse_dio.dart';
 
 /// 包装 Dio 的 http.BaseClient 实现，供 flutter_cache_manager 下载图片/文件。
@@ -96,12 +97,22 @@ class DioHttpClient extends http.BaseClient {
         bodyBytes = Uint8List.fromList(bytes);
       }
 
+      final isMainDomain = _isMainDomain(request.url);
+      final extra = <String, dynamic>{};
+      if (isMainDomain) {
+        extra[WebViewHttpAdapter.resourceKindExtraKey] =
+            WebViewHttpAdapter.resourceKindImage;
+        extra[WebViewHttpAdapter.cookieModeExtraKey] =
+            WebViewHttpAdapter.cookieModeReadOnly;
+      }
+
       final response = await _selectDio(request.url).request<dio.ResponseBody>(
         request.url.toString(),
         options: dio.Options(
           method: request.method,
           headers: headers,
           responseType: dio.ResponseType.stream,
+          extra: extra,
           // 接受所有状态码，让调用方处理
           validateStatus: (status) => true,
         ),

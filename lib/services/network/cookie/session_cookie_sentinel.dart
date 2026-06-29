@@ -317,13 +317,13 @@ class SessionCookieSentinel {
     }
 
     final after = await _writer.countCookiesByName(url, name);
-    if (after == 0) {
+    if (after == 0 || await _residualIsAcceptable(url, name, 0)) {
       _markSweepSuccess(name);
       final result = SweepResult(
         name: name,
         status: SweepStatus.swept,
         variantsBefore: variantsBefore,
-        variantsAfter: 0,
+        variantsAfter: after,
         elapsed: stopwatch.elapsed,
       );
       _eventController.add(SweepCompleted(result: result));
@@ -333,13 +333,19 @@ class SessionCookieSentinel {
         name: name,
         intent: 'delete',
         variantsBefore: variantsBefore,
-        variantsAfter: 0,
+        variantsAfter: after,
         elapsedMs: stopwatch.elapsedMilliseconds,
       );
       return result;
     }
 
-    return await _doNuclearReset(url, name, variantsBefore, stopwatch);
+    return await _doNuclearReset(
+      url,
+      name,
+      SweepIntent.delete,
+      variantsBefore,
+      stopwatch,
+    );
   }
 
   Future<SweepResult> _sweepEnsureUnique({
@@ -395,7 +401,7 @@ class SessionCookieSentinel {
     }
 
     final after = await _writer.countCookiesByName(url, name);
-    if (after <= 1) {
+    if (after <= 1 || await _residualIsAcceptable(url, name, 1)) {
       _markSweepSuccess(name);
 
       // 反向同步 jar（仅当 winner 来自 webview，避免覆写 jar 的最新值）
@@ -425,7 +431,46 @@ class SessionCookieSentinel {
       return result;
     }
 
-    return await _doNuclearReset(url, name, variantsBefore, stopwatch);
+    return await _doNuclearReset(
+      url,
+      name,
+      SweepIntent.ensureUnique,
+      variantsBefore,
+      stopwatch,
+    );
+  }
+
+  static const _chipsCookieNames = {'cf_clearance'};
+
+  Future<bool> _residualIsAcceptable(
+    String url,
+    String name,
+    int expectedMaxAfter,
+  ) async {
+    if (!_chipsCookieNames.contains(name)) return false;
+    final variants = (await _writer.getAllCookieInfos(
+      url,
+    )).where((cookie) => cookie.name == name).toList(growable: false);
+    if (variants.isEmpty) return true;
+
+    final partitioned = variants
+        .where((cookie) => cookie.isPartitioned == true)
+        .length;
+    final nonPartitioned = variants.length - partitioned;
+    final acceptByPartition = nonPartitioned <= expectedMaxAfter;
+    final firstValue = variants.first.value;
+    final acceptBySameValue = variants.every(
+      (cookie) => cookie.value == firstValue,
+    );
+    final accepted = acceptByPartition || acceptBySameValue;
+    if (accepted) {
+      debugPrint(
+        '[Sentinel] residual $name accepted: total=${variants.length} '
+        'partitioned=$partitioned nonPartitioned=$nonPartitioned '
+        'byPartition=$acceptByPartition bySameValue=$acceptBySameValue',
+      );
+    }
+    return accepted;
   }
 
   /// 执行删除：穷举 (domain, path) 组合。
@@ -704,6 +749,7 @@ class SessionCookieSentinel {
   Future<SweepResult> _doNuclearReset(
     String url,
     String name,
+    SweepIntent intent,
     int variantsBefore,
     Stopwatch stopwatch,
   ) async {
@@ -721,7 +767,11 @@ class SessionCookieSentinel {
       totalElapsedMs: nuclear.elapsed.inMilliseconds,
     );
     final after = await _writer.countCookiesByName(url, name);
-    final status = nuclear.success
+    final expectedMaxAfter = intent == SweepIntent.delete ? 0 : 1;
+    final targetSatisfied =
+        after <= expectedMaxAfter ||
+        await _residualIsAcceptable(url, name, expectedMaxAfter);
+    final status = targetSatisfied
         ? SweepStatus.nuclearReset
         : SweepStatus.failed;
     final result = SweepResult(
@@ -732,14 +782,30 @@ class SessionCookieSentinel {
       elapsed: stopwatch.elapsed,
     );
     _eventController.add(SweepCompleted(result: result));
-    if (!nuclear.success) {
+    if (targetSatisfied) {
+      CookieLogger.sweep(
+        event: 'swept',
+        url: url,
+        name: name,
+        intent: intent.name,
+        variantsBefore: variantsBefore,
+        variantsAfter: after,
+        reason: nuclear.success
+            ? 'nuclear reset restored target'
+            : 'target restored; global reset check failed: ${nuclear.error}',
+        elapsedMs: stopwatch.elapsedMilliseconds,
+      );
+    } else {
       CookieLogger.sweep(
         event: 'failed',
         url: url,
         name: name,
+        intent: intent.name,
         variantsBefore: variantsBefore,
         variantsAfter: after,
-        reason: 'nuclear reset failed: ${nuclear.error}',
+        reason:
+            'target variants after reset=$after, expected <= $expectedMaxAfter'
+            '${nuclear.error != null ? '; global error: ${nuclear.error}' : ''}',
         elapsedMs: stopwatch.elapsedMilliseconds,
       );
     }

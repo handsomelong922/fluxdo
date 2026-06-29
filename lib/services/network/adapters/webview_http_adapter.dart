@@ -50,6 +50,12 @@ class WebViewHttpAdapter implements HttpClientAdapter {
   };
   @visibleForTesting
   static const String fetchCacheModeExtraKey = 'webViewFetchCacheMode';
+  static const String resourceKindExtraKey = 'webViewResourceKind';
+  static const String cookieModeExtraKey = 'webViewCookieMode';
+  static const String resourceKindImage = 'image';
+  static const String resourceKindUpload = 'upload';
+  static const String cookieModeReadOnly = 'readOnly';
+  static const String cookieModeNone = 'none';
   static const Set<String> _supportedFetchCacheModes = {
     'default',
     'no-store',
@@ -69,6 +75,8 @@ class WebViewHttpAdapter implements HttpClientAdapter {
 
   final Map<String, Completer<String>> _pendingRequests = {};
   int _requestId = 0;
+  int _activeFetches = 0;
+  bool _disposeWhenIdle = false;
 
   /// 初始化 WebView
   Future<void> initialize() async {
@@ -80,6 +88,8 @@ class WebViewHttpAdapter implements HttpClientAdapter {
 
     final initCompleter = Completer<void>();
     _initCompleter = initCompleter;
+    var pageLoadCompleter = Completer<void>();
+    final initWatch = Stopwatch()..start();
 
     try {
       _headlessWebView = HeadlessInAppWebView(
@@ -87,14 +97,13 @@ class WebViewHttpAdapter implements HttpClientAdapter {
         webViewEnvironment: Platform.isWindows
             ? WindowsWebViewEnvironmentService.instance.environment
             : null,
-        // 加载主站页面（而非 about:blank），确保 cookie store 已初始化
-        initialUrlRequest: URLRequest(url: WebUri(AppConstants.baseUrl)),
         initialSettings: WebViewSettings.headless,
         initialUserScripts: WebViewSettings.compatPolyfillScripts,
         onReceivedServerTrustAuthRequest: (_, challenge) =>
             WebViewSettings.handleServerTrustAuthRequest(challenge),
         onWebViewCreated: (controller) {
           _controller = controller;
+          WebViewSettings.applyWindowsHeadlessMemoryTarget(controller);
           WebViewSettings.registerJsErrorReporter(controller);
 
           controller.addJavaScriptHandler(
@@ -118,13 +127,14 @@ class WebViewHttpAdapter implements HttpClientAdapter {
         },
         onLoadStop: (controller, url) {
           debugPrint('[WebViewAdapter] Page loaded: $url');
-          if (!initCompleter.isCompleted) {
-            initCompleter.complete();
+          if (!pageLoadCompleter.isCompleted) {
+            pageLoadCompleter.complete();
           }
         },
         onReceivedError: (controller, request, error) {
-          if (request.isForMainFrame != false && !initCompleter.isCompleted) {
-            initCompleter.completeError(
+          if (request.isForMainFrame != false &&
+              !pageLoadCompleter.isCompleted) {
+            pageLoadCompleter.completeError(
               StateError(
                 'WebView init failed: ${error.type} ${error.description}',
               ),
@@ -134,18 +144,49 @@ class WebViewHttpAdapter implements HttpClientAdapter {
       );
 
       await _headlessWebView!.run();
+      final controller = _headlessWebView!.webViewController;
+      if (controller == null) {
+        throw StateError('Headless WebView controller is null');
+      }
 
-      await initCompleter.future.timeout(
+      pageLoadCompleter = Completer<void>();
+      if (Platform.isWindows) {
+        await controller.loadUrl(
+          urlRequest: URLRequest(url: WebUri(_windowsBootstrapUrl)),
+        );
+      } else {
+        await controller.loadData(
+          data: _bootstrapHtml,
+          baseUrl: WebUri(AppConstants.baseUrl),
+          mimeType: 'text/html',
+          encoding: 'utf-8',
+        );
+      }
+
+      await pageLoadCompleter.future.timeout(
         const Duration(seconds: 30),
         onTimeout: () {
           throw TimeoutException('WebView init timeout');
         },
       );
 
+      if (Platform.isWindows) {
+        await _writeBootstrapHtml(controller);
+      }
+
       _isInitialized = true;
-      debugPrint('[WebViewAdapter] Initialized');
+      if (!initCompleter.isCompleted) {
+        initCompleter.complete();
+      }
+      initWatch.stop();
+      debugPrint(
+        '[WebViewAdapter] Initialized (${initWatch.elapsedMilliseconds}ms)',
+      );
     } catch (e) {
       debugPrint('[WebViewAdapter] Init failed: $e');
+      if (!initCompleter.isCompleted) {
+        initCompleter.completeError(e);
+      }
       close(force: true);
       rethrow;
     } finally {
@@ -155,6 +196,24 @@ class WebViewHttpAdapter implements HttpClientAdapter {
     }
   }
 
+  Future<void> _writeBootstrapHtml(InAppWebViewController controller) async {
+    final html = jsonEncode(_bootstrapHtml);
+    await controller.evaluateJavascript(
+      source:
+          '''
+document.open();
+document.write($html);
+document.close();
+''',
+    );
+  }
+
+  String get _windowsBootstrapUrl => '${AppConstants.baseUrl}/robots.txt';
+
+  String get _bootstrapHtml =>
+      '<!DOCTYPE html><html><head><meta charset="utf-8"></head>'
+      '<body></body></html>';
+
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -162,114 +221,120 @@ class WebViewHttpAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     setRequestAdapterLogName(options, 'webview');
+    _activeFetches++;
 
-    if (!_isInitialized || _controller == null) {
-      await initialize();
-    }
-
-    if (_controller == null) {
-      throw DioException(
-        requestOptions: options,
-        error: 'WebView controller not available',
-        type: DioExceptionType.unknown,
-      );
-    }
-
-    final url = options.uri.toString();
-    final method = options.method.toUpperCase();
-    final requestId = (++_requestId).toString();
-    final requestUri = Uri.parse(url);
-    final baseUri = Uri.parse(AppConstants.baseUrl);
-    final shouldSyncAppCookies = _shouldSyncAppCookies(requestUri, baseUri);
-
-    if (shouldSyncAppCookies) {
-      // v0.4.0: 取代 RawSetCookieQueue.flush + _repair + _syncCookiesFromJar
-      // 1. Priming: 确保 WV 中 jar 的 critical cookies 已就绪
-      // 2. sweepAll: 清理 critical cookies 的多变体 (兜底)
-      // 3. mark as path B: 让 onResponse 走路径 B 处理 (跳过 jar 写入,
-      //    sweep 反向同步)
-      try {
-        await WebViewCookiePriming.instance.prime(url);
-      } catch (e) {
-        debugPrint('[WebViewAdapter] priming failed (continuing): $e');
+    try {
+      if (!_isInitialized || _controller == null) {
+        await initialize();
       }
-      await SessionCookieSentinel.instance.sweepAll(url);
-      AppCookieManager.markAsWebViewAdapter(options);
-    }
 
-    // 非应用站点的备选路径：通过 CookieManager 写入 cookie
-    final cookieHeader = options.headers['Cookie']?.toString();
-    if (!shouldSyncAppCookies &&
-        cookieHeader != null &&
-        cookieHeader.isNotEmpty) {
-      await _syncCookiesViaCookieManager(url, cookieHeader);
-    }
-
-    // 构建 headers（移除 Cookie，由 WebView 自动处理）
-    final headersMap = _buildBrowserSafeHeaders(options.headers);
-    final fetchCacheMode = resolveFetchCacheMode(options);
-    if (fetchCacheMode != null) {
-      final currentFields = options.extra['_networkLogFields'];
-      if (currentFields is Map<String, dynamic>) {
-        currentFields['webViewCacheMode'] = fetchCacheMode;
-      } else {
-        final mergedFields = <String, dynamic>{};
-        if (currentFields is Map) {
-          currentFields.forEach((key, value) {
-            if (key is String) {
-              mergedFields[key] = value;
-            }
-          });
-        }
-        mergedFields['webViewCacheMode'] = fetchCacheMode;
-        options.extra['_networkLogFields'] = mergedFields;
+      if (_controller == null) {
+        throw DioException(
+          requestOptions: options,
+          error: 'WebView controller not available',
+          type: DioExceptionType.unknown,
+        );
       }
-    }
 
-    // 构建 body
-    final bodyPlan = await _buildRequestBodyPlan(
-      options,
-      requestStream,
-      method: method,
-      requestId: requestId,
-      requestUri: requestUri,
-    );
-    final bodyScript = bodyPlan.script;
+      final url = options.uri.toString();
+      final method = options.method.toUpperCase();
+      final requestId = (++_requestId).toString();
+      final requestUri = Uri.parse(url);
+      final baseUri = Uri.parse(AppConstants.baseUrl);
+      final shouldSyncAppCookies = _shouldSyncAppCookies(requestUri, baseUri);
+      final cookieMode = _resolveCookieMode(options, shouldSyncAppCookies);
+      final syncAppCookies = cookieMode == _WebViewCookieMode.sync;
+      final prepareAppCookies = cookieMode != _WebViewCookieMode.none;
+      final wantsBinaryStream =
+          options.responseType == ResponseType.stream ||
+          options.responseType == ResponseType.bytes;
 
-    final completer = Completer<String>();
-    _pendingRequests[requestId] = completer;
-
-    final isBinary = options.responseType == ResponseType.bytes;
-
-    final script =
-        '''
-      (async function() {
+      if (prepareAppCookies) {
+        // v0.4.0: 取代 RawSetCookieQueue.flush + _repair + _syncCookiesFromJar
+        // 1. Priming: 确保 WV 中 jar 的 critical cookies 已就绪
+        // 2. sweepAll: 清理 critical cookies 的多变体 (兜底)
+        // 3. mark as path B: 让 onResponse 走路径 B 处理 (跳过 jar 写入,
+        //    sweep 反向同步)
         try {
+          await WebViewCookiePriming.instance.prime(url);
+        } catch (e) {
+          debugPrint('[WebViewAdapter] priming failed (continuing): $e');
+        }
+        await SessionCookieSentinel.instance.sweepAll(url);
+        if (syncAppCookies) {
+          AppCookieManager.markAsWebViewAdapter(options);
+        }
+      }
+
+      // 非应用站点的备选路径：通过 CookieManager 写入 cookie
+      final cookieHeader = options.headers['Cookie']?.toString();
+      if (cookieMode == _WebViewCookieMode.none &&
+          cookieHeader != null &&
+          cookieHeader.isNotEmpty) {
+        await _syncCookiesViaCookieManager(url, cookieHeader);
+      }
+
+      // 构建 headers（移除 Cookie，由 WebView 自动处理）
+      final headersMap = _buildBrowserSafeHeaders(options.headers);
+      final fetchCacheMode = resolveFetchCacheMode(options);
+      if (fetchCacheMode != null) {
+        _setNetworkLogField(options, 'webViewCacheMode', fetchCacheMode);
+      }
+
+      // 构建 body
+      final bodyPlan = await _buildRequestBodyPlan(
+        options,
+        requestStream,
+        method: method,
+        requestId: requestId,
+        requestUri: requestUri,
+      );
+      final bodyScript = bodyPlan.script;
+
+      if (wantsBinaryStream) {
+        return _fetchBinaryStreamResponse(
+          options,
+          requestId: requestId,
+          method: method,
+          url: url,
+          headersMap: headersMap,
+          bodyScript: bodyScript,
+          fetchCacheMode: fetchCacheMode,
+          cancelFuture: cancelFuture,
+        );
+      }
+
+      final completer = Completer<String>();
+      _pendingRequests[requestId] = completer;
+
+      final script =
+          '''
+      (async function() {
+        const requestId = ${jsonEncode(requestId)};
+        try {
+          window.__fluxdoFetchAborters = window.__fluxdoFetchAborters || {};
+          window.__fluxdoAbortFetch = window.__fluxdoAbortFetch || function(id) {
+            const controller = window.__fluxdoFetchAborters && window.__fluxdoFetchAborters[id];
+            if (controller) {
+              controller.abort();
+              delete window.__fluxdoFetchAborters[id];
+            }
+          };
+
+          const controller = new AbortController();
+          window.__fluxdoFetchAborters[requestId] = controller;
+
           const fetchOptions = {
-            method: '$method',
+            method: ${jsonEncode(method)},
             headers: ${jsonEncode(headersMap)},
-            credentials: 'include'${fetchCacheMode != null ? ",\n            cache: ${jsonEncode(fetchCacheMode)}" : ''}
+            credentials: 'include',
+            signal: controller.signal${fetchCacheMode != null ? ",\n            cache: ${jsonEncode(fetchCacheMode)}" : ''}
           };
           $bodyScript
 
-          const response = await fetch('$url', fetchOptions);
+          const response = await fetch(${jsonEncode(url)}, fetchOptions);
 
-          let bodyData;
-          let isBase64 = false;
-
-          if ($isBinary) {
-            const buffer = await response.arrayBuffer();
-            let binary = '';
-            const bytes = new Uint8Array(buffer);
-            const len = bytes.byteLength;
-            for (let i = 0; i < len; i++) {
-              binary += String.fromCharCode(bytes[i]);
-            }
-            bodyData = window.btoa(binary);
-            isBase64 = true;
-          } else {
-            bodyData = await response.text();
-          }
+          const bodyData = await response.text();
 
           const headersObj = {};
           response.headers.forEach((v, k) => headersObj[k] = v);
@@ -280,104 +345,518 @@ class WebViewHttpAdapter implements HttpClientAdapter {
             statusText: response.statusText,
             headers: headersObj,
             body: bodyData,
-            isBase64: isBase64
+            isBase64: false
           });
 
           window.flutter_inappwebview.callHandler('fetchResult', {
-            requestId: '$requestId',
+            requestId: requestId,
             result: result
           });
         } catch (e) {
           window.flutter_inappwebview.callHandler('fetchResult', {
-            requestId: '$requestId',
+            requestId: requestId,
             result: JSON.stringify({ok: false, error: e.toString()})
           });
+        } finally {
+          if (window.__fluxdoFetchAborters) {
+            delete window.__fluxdoFetchAborters[requestId];
+          }
         }
       })();
     ''';
 
-    debugPrint(
-      '[WebViewAdapter] Fetching: $method $url (id: $requestId, binary: $isBinary)',
-    );
+      debugPrint('[WebViewAdapter] Fetching: $method $url (id: $requestId)');
 
-    await _controller!.evaluateJavascript(source: script);
+      final cancelFutureForRequest = cancelFuture;
+      if (cancelFutureForRequest != null) {
+        unawaited(
+          cancelFutureForRequest.then<void>((_) async {
+            final pending = _pendingRequests.remove(requestId);
+            if (pending != null && !pending.isCompleted) {
+              pending.completeError(
+                DioException(
+                  requestOptions: options,
+                  type: DioExceptionType.cancel,
+                  error: 'WebView request canceled',
+                ),
+              );
+            }
+            await _abortWebViewFetch(requestId);
+          }, onError: (_) {}),
+        );
+      }
 
-    // 超时从 RequestOptions 读取，默认 30 秒
-    final timeout =
-        options.receiveTimeout ??
-        options.connectTimeout ??
-        const Duration(seconds: 30);
-
-    final resultStr = await completer.future.timeout(
-      timeout,
-      onTimeout: () {
+      try {
+        await _controller!.evaluateJavascript(source: script);
+      } catch (_) {
         _pendingRequests.remove(requestId);
+        rethrow;
+      }
+
+      // 超时从 RequestOptions 读取，默认 30 秒
+      final timeout =
+          options.receiveTimeout ??
+          options.connectTimeout ??
+          const Duration(seconds: 30);
+
+      final resultStr = await completer.future.timeout(
+        timeout,
+        onTimeout: () {
+          _pendingRequests.remove(requestId);
+          unawaited(_abortWebViewFetch(requestId));
+          throw DioException(
+            requestOptions: options,
+            error: 'WebView request timeout',
+            type: DioExceptionType.receiveTimeout,
+          );
+        },
+      );
+
+      final responseData = jsonDecode(resultStr) as Map<String, dynamic>;
+
+      if (responseData['ok'] != true) {
         throw DioException(
           requestOptions: options,
-          error: 'WebView request timeout',
-          type: DioExceptionType.receiveTimeout,
+          error: responseData['error']?.toString() ?? 'Unknown error',
+          type: DioExceptionType.unknown,
         );
-      },
-    );
+      }
 
-    final responseData = jsonDecode(resultStr) as Map<String, dynamic>;
+      final statusCode = responseData['status'] as int? ?? 200;
+      final bodyContent = responseData['body'] as String? ?? '';
 
-    if (responseData['ok'] != true) {
-      throw DioException(
-        requestOptions: options,
-        error: responseData['error']?.toString() ?? 'Unknown error',
-        type: DioExceptionType.unknown,
-      );
-    }
+      final responseHeaders = <String, List<String>>{};
 
-    final statusCode = responseData['status'] as int? ?? 200;
-    final bodyContent = responseData['body'] as String? ?? '';
-    final isBase64 = responseData['isBase64'] as bool? ?? false;
+      if (responseData['headers'] is Map) {
+        (responseData['headers'] as Map).forEach((key, value) {
+          responseHeaders[key.toString()] = [value.toString()];
+        });
+      }
 
-    final responseHeaders = <String, List<String>>{};
+      _throwIfSessionExpired(options);
 
-    if (responseData['headers'] is Map) {
-      (responseData['headers'] as Map).forEach((key, value) {
-        responseHeaders[key.toString()] = [value.toString()];
-      });
-    }
+      if (syncAppCookies) {
+        final trustsWebViewSession = trustsWebViewSessionFromResponse(
+          options,
+          statusCode,
+          responseHeaders,
+        );
+        await _syncCriticalCookiesBackToJar(
+          url,
+          force: trustsWebViewSession || (method != 'GET' && method != 'HEAD'),
+          requestGeneration: options.extra['_sessionGeneration'] as int?,
+          excludeCookieNames: trustsWebViewSession
+              ? null
+              : CookieJarService.authCookieNames,
+        );
+      }
 
-    _throwIfSessionExpired(options);
+      _throwIfSessionExpired(options);
 
-    if (shouldSyncAppCookies) {
-      await _syncCriticalCookiesBackToJar(
-        url,
-        force: method != 'GET' && method != 'HEAD',
-        requestGeneration: options.extra['_sessionGeneration'] as int?,
-      );
-    }
+      debugPrint('[WebViewAdapter] Response: $statusCode');
 
-    _throwIfSessionExpired(options);
-
-    debugPrint('[WebViewAdapter] Response: $statusCode (binary: $isBase64)');
-
-    if (isBase64) {
-      final bytes = base64Decode(bodyContent);
-      return ResponseBody.fromBytes(
-        bytes,
-        statusCode,
-        headers: responseHeaders,
-      );
-    } else {
       return ResponseBody.fromString(
         bodyContent,
         statusCode,
         headers: responseHeaders,
       );
+    } finally {
+      _activeFetches--;
+      if (_activeFetches == 0 && _disposeWhenIdle) {
+        close(force: false);
+      }
+    }
+  }
+
+  Future<ResponseBody> _fetchBinaryStreamResponse(
+    RequestOptions options, {
+    required String requestId,
+    required String method,
+    required String url,
+    required Map<String, String> headersMap,
+    required String bodyScript,
+    required String? fetchCacheMode,
+    required Future<void>? cancelFuture,
+  }) async {
+    final bridge = await _createBinaryResponseBridge(
+      options,
+      requestId: requestId,
+    );
+
+    final script =
+        '''
+      (async function() {
+        const requestId = ${jsonEncode(requestId)};
+        let responsePort = null;
+        try {
+          responsePort = await window.__fluxdoTakeBinaryResponsePort(requestId);
+
+          window.__fluxdoFetchAborters = window.__fluxdoFetchAborters || {};
+          window.__fluxdoAbortFetch = window.__fluxdoAbortFetch || function(id) {
+            const controller = window.__fluxdoFetchAborters && window.__fluxdoFetchAborters[id];
+            if (controller) {
+              controller.abort();
+              delete window.__fluxdoFetchAborters[id];
+            }
+          };
+
+          const controller = new AbortController();
+          window.__fluxdoFetchAborters[requestId] = controller;
+
+          const fetchOptions = {
+            method: ${jsonEncode(method)},
+            headers: ${jsonEncode(headersMap)},
+            credentials: 'include',
+            signal: controller.signal${fetchCacheMode != null ? ",\n            cache: ${jsonEncode(fetchCacheMode)}" : ''}
+          };
+          $bodyScript
+
+          const response = await fetch(${jsonEncode(url)}, fetchOptions);
+          const headersObj = {};
+          response.headers.forEach((v, k) => headersObj[k] = v);
+
+          responsePort.postMessage(JSON.stringify({
+            kind: 'headers',
+            requestId: requestId,
+            status: response.status,
+            statusText: response.statusText,
+            headers: headersObj
+          }));
+
+          const sendBuffer = function(buffer) {
+            if (!buffer || buffer.byteLength === 0) return;
+            try {
+              responsePort.postMessage(buffer, [buffer]);
+            } catch (_) {
+              responsePort.postMessage(buffer);
+            }
+          };
+
+          if (response.body && response.body.getReader) {
+            const reader = response.body.getReader();
+            while (true) {
+              const chunk = await reader.read();
+              if (chunk.done) break;
+              const value = chunk.value;
+              if (!value || value.byteLength === 0) continue;
+              let buffer = value.buffer;
+              if (value.byteOffset !== 0 || value.byteLength !== buffer.byteLength) {
+                buffer = value.slice().buffer;
+              } else {
+                buffer = buffer.slice(0);
+              }
+              sendBuffer(buffer);
+            }
+          } else {
+            sendBuffer(await response.arrayBuffer());
+          }
+
+          responsePort.postMessage(JSON.stringify({
+            kind: 'complete',
+            requestId: requestId
+          }));
+        } catch (e) {
+          const payload = JSON.stringify({
+            kind: 'error',
+            requestId: requestId,
+            error: e && e.name === 'AbortError'
+              ? 'WebView request canceled'
+              : String(e)
+          });
+          if (responsePort) {
+            responsePort.postMessage(payload);
+          } else {
+            window.flutter_inappwebview.callHandler('fetchResult', {
+              requestId: requestId,
+              result: JSON.stringify({ok: false, error: String(e)})
+            });
+          }
+        } finally {
+          if (window.__fluxdoFetchAborters) {
+            delete window.__fluxdoFetchAborters[requestId];
+          }
+        }
+      })();
+    ''';
+
+    debugPrint(
+      '[WebViewAdapter] Fetching binary stream: $method $url (id: $requestId)',
+    );
+
+    final cancelFutureForRequest = cancelFuture;
+    if (cancelFutureForRequest != null) {
+      unawaited(
+        cancelFutureForRequest.then<void>((_) async {
+          bridge.completeError(
+            DioException(
+              requestOptions: options,
+              type: DioExceptionType.cancel,
+              error: 'WebView request canceled',
+            ),
+          );
+          await _abortWebViewFetch(requestId);
+        }, onError: (_) {}),
+      );
+    }
+
+    try {
+      await _controller!.evaluateJavascript(source: script);
+    } catch (e) {
+      bridge.completeError(e);
+      rethrow;
+    }
+
+    final timeout =
+        options.receiveTimeout ??
+        options.connectTimeout ??
+        const Duration(seconds: 30);
+    final headers = await bridge.headersCompleter.future.timeout(
+      timeout,
+      onTimeout: () {
+        unawaited(_abortWebViewFetch(requestId));
+        throw DioException(
+          requestOptions: options,
+          error: 'WebView binary response header timeout',
+          type: DioExceptionType.receiveTimeout,
+        );
+      },
+    );
+
+    _setNetworkLogField(options, 'webViewBinaryStream', true);
+    bridge.done.whenComplete(() {
+      _setNetworkLogField(options, 'webViewBinaryBytes', bridge.bytesReceived);
+      _setNetworkLogField(
+        options,
+        'webViewBinaryChunks',
+        bridge.chunksReceived,
+      );
+      debugPrint(
+        '[WebViewAdapter] Binary stream complete: '
+        '$method $url (id: $requestId, status=${headers.statusCode}, '
+        'bytes=${bridge.bytesReceived}, chunks=${bridge.chunksReceived})',
+      );
+    });
+
+    return ResponseBody(
+      bridge.stream,
+      headers.statusCode,
+      headers: headers.headers,
+      statusMessage: headers.statusMessage,
+    );
+  }
+
+  Future<_BinaryResponseBridge> _createBinaryResponseBridge(
+    RequestOptions options, {
+    required String requestId,
+  }) async {
+    final controller = _controller;
+    if (controller == null) {
+      throw DioException(
+        requestOptions: options,
+        error: 'WebView controller not available',
+        type: DioExceptionType.unknown,
+      );
+    }
+
+    await _installBinaryResponseBridge(controller);
+
+    final channel = await controller.createWebMessageChannel();
+    if (channel == null) {
+      throw DioException(
+        requestOptions: options,
+        error: 'WebView binary response channel unavailable',
+        type: DioExceptionType.unknown,
+      );
+    }
+
+    late final _BinaryResponseBridge bridge;
+    bridge = _BinaryResponseBridge(
+      requestOptions: options,
+      channel: channel,
+      onCancel: () async {
+        await _abortWebViewFetch(requestId);
+      },
+    );
+
+    final readyCompleter = Completer<void>();
+    final port = channel.port1;
+    await port.setWebMessageCallback((message) async {
+      final payload = message?.data;
+      final bytes = _binaryMessageBytes(payload);
+      if (bytes != null) {
+        bridge.addBytes(bytes);
+        return;
+      }
+
+      if (payload is! String || payload.isEmpty) {
+        return;
+      }
+      try {
+        final decoded = jsonDecode(payload);
+        if (decoded is! Map) return;
+        final kind = decoded['kind']?.toString();
+        if (kind == 'ready') {
+          if (!readyCompleter.isCompleted) readyCompleter.complete();
+        } else if (kind == 'headers') {
+          bridge.completeHeaders(_BinaryResponseHeaders.fromJson(decoded));
+        } else if (kind == 'complete') {
+          bridge.complete();
+        } else if (kind == 'error') {
+          bridge.completeError(
+            DioException(
+              requestOptions: options,
+              type: DioExceptionType.unknown,
+              error: decoded['error']?.toString() ?? 'WebView binary error',
+            ),
+          );
+        }
+      } catch (e) {
+        bridge.completeError(e);
+      }
+    });
+
+    await controller.postWebMessage(
+      message: WebMessage(
+        data: '__fluxdo:binary-response:$requestId',
+        ports: [channel.port2],
+      ),
+      targetOrigin: WebUri(Uri.parse(AppConstants.baseUrl).origin),
+    );
+
+    await readyCompleter.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () {
+        bridge.completeError(
+          TimeoutException(
+            'WebView binary response port setup timeout for $requestId',
+          ),
+        );
+        throw TimeoutException(
+          'WebView binary response port setup timeout for $requestId',
+        );
+      },
+    );
+
+    return bridge;
+  }
+
+  Future<void> _installBinaryResponseBridge(
+    InAppWebViewController controller,
+  ) async {
+    await controller.evaluateJavascript(
+      source: '''
+        (function() {
+          if (window.__fluxdoBinaryResponseBridgeInstalled) return;
+          window.__fluxdoBinaryResponseBridgeInstalled = true;
+          window.__fluxdoBinaryResponsePorts = new Map();
+          window.__fluxdoBinaryResponseWaiters = new Map();
+
+          window.__fluxdoTakeBinaryResponsePort = function(requestId) {
+            var existing = window.__fluxdoBinaryResponsePorts.get(requestId);
+            if (existing) {
+              window.__fluxdoBinaryResponsePorts.delete(requestId);
+              return Promise.resolve(existing);
+            }
+            return new Promise(function(resolve, reject) {
+              var timer = setTimeout(function() {
+                window.__fluxdoBinaryResponseWaiters.delete(requestId);
+                reject(new Error('Binary response port timeout for ' + requestId));
+              }, 5000);
+              window.__fluxdoBinaryResponseWaiters.set(requestId, function(port) {
+                clearTimeout(timer);
+                resolve(port);
+              });
+            });
+          };
+
+          window.addEventListener('message', function(event) {
+            if (typeof event.data !== 'string' ||
+                !event.data.startsWith('__fluxdo:binary-response:')) {
+              return;
+            }
+
+            var requestId = event.data.substring('__fluxdo:binary-response:'.length);
+            var port = event.ports && event.ports[0];
+            if (!port) return;
+            if (port.start) port.start();
+
+            var waiter = window.__fluxdoBinaryResponseWaiters.get(requestId);
+            if (waiter) {
+              window.__fluxdoBinaryResponseWaiters.delete(requestId);
+              waiter(port);
+            } else {
+              window.__fluxdoBinaryResponsePorts.set(requestId, port);
+            }
+            port.postMessage(JSON.stringify({ kind: 'ready', requestId: requestId }));
+          });
+        })();
+      ''',
+    );
+  }
+
+  Uint8List? _binaryMessageBytes(Object? payload) {
+    if (payload is Uint8List) {
+      return payload;
+    }
+    if (payload is ByteBuffer) {
+      return payload.asUint8List();
+    }
+    if (payload is List<int>) {
+      return Uint8List.fromList(payload);
+    }
+    return null;
+  }
+
+  Future<void> _abortWebViewFetch(String requestId) async {
+    final controller = _controller;
+    if (controller == null) return;
+    try {
+      await controller.evaluateJavascript(
+        source:
+            'window.__fluxdoAbortFetch && window.__fluxdoAbortFetch(${jsonEncode(requestId)});',
+      );
+    } catch (e) {
+      debugPrint('[WebViewAdapter] abort fetch failed: $e');
+    }
+  }
+
+  void _setNetworkLogField(RequestOptions options, String key, dynamic value) {
+    final currentFields = options.extra['_networkLogFields'];
+    if (currentFields is Map<String, dynamic>) {
+      currentFields[key] = value;
+      return;
+    }
+
+    final mergedFields = <String, dynamic>{};
+    if (currentFields is Map) {
+      currentFields.forEach((fieldKey, fieldValue) {
+        if (fieldKey is String) {
+          mergedFields[fieldKey] = fieldValue;
+        }
+      });
+    }
+    mergedFields[key] = value;
+    options.extra['_networkLogFields'] = mergedFields;
+  }
+
+  void disposeWhenIdle() {
+    _disposeWhenIdle = true;
+    if (_activeFetches == 0) {
+      close(force: false);
     }
   }
 
   @override
   void close({bool force = false}) {
+    if (!force && _activeFetches > 0) {
+      _disposeWhenIdle = true;
+      return;
+    }
     _headlessWebView?.dispose();
     _headlessWebView = null;
     _controller = null;
     _isInitialized = false;
+    _disposeWhenIdle = false;
     if (_initCompleter != null && !_initCompleter!.isCompleted) {
       _initCompleter!.completeError(StateError('WebView adapter closed'));
     }
@@ -386,7 +865,13 @@ class WebViewHttpAdapter implements HttpClientAdapter {
     _lastCriticalCookieSyncAt = null;
     for (final completer in _pendingRequests.values) {
       if (!completer.isCompleted) {
-        completer.completeError('WebView adapter closed');
+        completer.completeError(
+          DioException(
+            requestOptions: RequestOptions(path: ''),
+            type: DioExceptionType.cancel,
+            error: 'WebView adapter closed',
+          ),
+        );
       }
     }
     _pendingRequests.clear();
@@ -399,6 +884,67 @@ class WebViewHttpAdapter implements HttpClientAdapter {
       return false;
     }
     return requestHost == baseHost || requestHost.endsWith('.$baseHost');
+  }
+
+  _WebViewCookieMode _resolveCookieMode(
+    RequestOptions options,
+    bool shouldSyncAppCookies,
+  ) {
+    final explicitMode = options.extra[cookieModeExtraKey]?.toString();
+    if (explicitMode == cookieModeNone) {
+      return _WebViewCookieMode.none;
+    }
+    if (explicitMode == cookieModeReadOnly) {
+      return shouldSyncAppCookies
+          ? _WebViewCookieMode.readOnly
+          : _WebViewCookieMode.none;
+    }
+    return shouldSyncAppCookies
+        ? _WebViewCookieMode.sync
+        : _WebViewCookieMode.none;
+  }
+
+  @visibleForTesting
+  static bool trustsWebViewSessionFromResponse(
+    RequestOptions options,
+    int statusCode,
+    Map<String, List<String>> responseHeaders,
+  ) {
+    if (statusCode < 200 || statusCode >= 400) return false;
+    if (!_hasRequestHeaderValue(
+      options.headers,
+      'Discourse-Logged-In',
+      'true',
+    )) {
+      return false;
+    }
+    return !_hasNonEmptyResponseHeader(responseHeaders, 'discourse-logged-out');
+  }
+
+  static bool _hasRequestHeaderValue(
+    Map<String, dynamic> headers,
+    String name,
+    String expectedValue,
+  ) {
+    final normalized = name.toLowerCase();
+    for (final entry in headers.entries) {
+      if (entry.key.toLowerCase() != normalized) continue;
+      return entry.value?.toString().toLowerCase() ==
+          expectedValue.toLowerCase();
+    }
+    return false;
+  }
+
+  static bool _hasNonEmptyResponseHeader(
+    Map<String, List<String>> responseHeaders,
+    String name,
+  ) {
+    final normalized = name.toLowerCase();
+    for (final entry in responseHeaders.entries) {
+      if (entry.key.toLowerCase() != normalized) continue;
+      return entry.value.any((value) => value.trim().isNotEmpty);
+    }
+    return false;
   }
 
   /// 通过全平台 CookieManager API 写入 cookie
@@ -866,6 +1412,7 @@ class WebViewHttpAdapter implements HttpClientAdapter {
     String currentUrl, {
     bool force = false,
     int? requestGeneration,
+    Set<String>? excludeCookieNames,
   }) async {
     final controller = _controller;
     if (controller == null) return;
@@ -886,13 +1433,14 @@ class WebViewHttpAdapter implements HttpClientAdapter {
     final active = _activeCriticalCookieSync;
     if (active != null) {
       await active;
-      return;
+      if (!force) return;
     }
 
     final future = BoundarySyncService.instance.syncFromWebView(
       currentUrl: currentUrl,
       controller: controller,
       cookieNames: CookieJarService.criticalCookieNames,
+      excludeCookieNames: excludeCookieNames,
       requestGeneration: requestGeneration,
     );
 
@@ -909,4 +1457,101 @@ class _RequestBodyPlan {
   const _RequestBodyPlan({required this.script});
 
   final String script;
+}
+
+enum _WebViewCookieMode { sync, readOnly, none }
+
+class _BinaryResponseHeaders {
+  const _BinaryResponseHeaders({
+    required this.statusCode,
+    required this.headers,
+    this.statusMessage,
+  });
+
+  factory _BinaryResponseHeaders.fromJson(Map<dynamic, dynamic> json) {
+    final headers = <String, List<String>>{};
+    final rawHeaders = json['headers'];
+    if (rawHeaders is Map) {
+      rawHeaders.forEach((key, value) {
+        final headerName = key.toString();
+        if (value is Iterable) {
+          headers[headerName] = value.map((e) => e.toString()).toList();
+        } else if (value != null) {
+          headers[headerName] = [value.toString()];
+        }
+      });
+    }
+    return _BinaryResponseHeaders(
+      statusCode: json['status'] as int? ?? 200,
+      statusMessage: json['statusText']?.toString(),
+      headers: headers,
+    );
+  }
+
+  final int statusCode;
+  final String? statusMessage;
+  final Map<String, List<String>> headers;
+}
+
+class _BinaryResponseBridge {
+  _BinaryResponseBridge({
+    required this.requestOptions,
+    required this.channel,
+    required Future<void> Function() onCancel,
+  }) : _streamController = StreamController<Uint8List>(
+         onCancel: () async {
+           await onCancel();
+         },
+       );
+
+  final RequestOptions requestOptions;
+  final WebMessageChannel channel;
+  final StreamController<Uint8List> _streamController;
+  final headersCompleter = Completer<_BinaryResponseHeaders>();
+  final _doneCompleter = Completer<void>();
+
+  int bytesReceived = 0;
+  int chunksReceived = 0;
+  bool _closed = false;
+
+  Stream<Uint8List> get stream => _streamController.stream;
+  Future<void> get done => _doneCompleter.future;
+
+  void completeHeaders(_BinaryResponseHeaders headers) {
+    if (!headersCompleter.isCompleted) {
+      headersCompleter.complete(headers);
+    }
+  }
+
+  void addBytes(Uint8List bytes) {
+    if (_closed || bytes.isEmpty) return;
+    bytesReceived += bytes.length;
+    chunksReceived++;
+    _streamController.add(bytes);
+  }
+
+  void complete() {
+    if (_closed) return;
+    _closed = true;
+    _streamController.close();
+    channel.dispose();
+    if (!_doneCompleter.isCompleted) {
+      _doneCompleter.complete();
+    }
+  }
+
+  void completeError(Object error) {
+    if (!headersCompleter.isCompleted) {
+      headersCompleter.completeError(error);
+    }
+    if (!_closed) {
+      _closed = true;
+      _streamController.addError(error);
+      _streamController.close();
+      channel.dispose();
+    }
+    if (!_doneCompleter.isCompleted) {
+      _doneCompleter.completeError(error);
+    }
+  }
 }

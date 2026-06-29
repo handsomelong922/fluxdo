@@ -83,7 +83,7 @@ class CfChallengeInterceptor extends Interceptor {
     // 检查是否标记跳过 CF 验证（防止重试后再次触发）
     final skipCfChallenge = err.requestOptions.extra['skipCfChallenge'] == true;
 
-    if (statusCode == 403 &&
+    if ((statusCode == 403 || statusCode == 429) &&
         !skipCfChallenge &&
         CfChallengeService.isCfChallengeResponse(err.response)) {
       // 备选提取 sitekey（从 403 响应体中）
@@ -182,11 +182,17 @@ class CfChallengeInterceptor extends Interceptor {
         final retryOptions = err.requestOptions;
         try {
           retryOptions.extra['skipCfChallenge'] = true;
+          retryOptions.extra['skipCfBlock'] = true;
           // 清除原始请求中残留的 cookie header，让 CookieManager 重新读取最新的 cookie
           retryOptions.headers.remove('cookie');
           retryOptions.headers.remove('Cookie');
           // 诊断：记录 CookieJar 中的 cookie 名称和 cf_clearance 状态
-          final cookieHeader = await cookieJarService.getCookieHeader();
+          final cookieHeader = await cookieJarService.getCookieHeaderForRequest(
+            retryOptions.uri,
+          );
+          if (cookieHeader != null && cookieHeader.isNotEmpty) {
+            retryOptions.headers['Cookie'] = cookieHeader;
+          }
           final hasCfClearance =
               cookieHeader?.contains('cf_clearance=') ?? false;
           final cookieNames = cookieHeader
@@ -203,6 +209,7 @@ class CfChallengeInterceptor extends Interceptor {
             success: true,
             statusCode: response.statusCode,
           );
+          cfService.clearanceResolvedAt.value = DateTime.now();
           return handler.resolve(response);
         } catch (e) {
           // 诊断：记录完整的重试失败信息

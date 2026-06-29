@@ -216,10 +216,7 @@ class CfClearanceRefreshService {
     final html = _buildTurnstileHtml(_sitekey!);
     final webView = HeadlessInAppWebView(
       webViewEnvironment: WindowsWebViewEnvironmentService.instance.environment,
-      initialSettings: InAppWebViewSettings(
-        javaScriptEnabled: true,
-        userAgent: AppConstants.webViewUserAgentOverride,
-      ),
+      initialSettings: WebViewSettings.headlessCf,
       initialUserScripts: WebViewSettings.compatPolyfillScripts,
       onReceivedServerTrustAuthRequest: (_, challenge) =>
           WebViewSettings.handleServerTrustAuthRequest(challenge),
@@ -231,6 +228,7 @@ class CfClearanceRefreshService {
           return;
         }
         _webViewController = controller;
+        WebViewSettings.applyWindowsHeadlessMemoryTarget(controller);
         WebViewSettings.registerJsErrorReporter(controller);
 
         // 核心通道：拦截 api.js 内部的 fetch(/rc/) 调用

@@ -8,7 +8,9 @@ import 'file_cookie_store.dart';
 import 'set_cookie_parser.dart';
 
 class EnhancedPersistCookieJar implements base.CookieJar {
-  EnhancedPersistCookieJar({required FileCookieStore store, this.ignoreExpires = false}) : _store = store;
+  EnhancedPersistCookieJar(
+      {required FileCookieStore store, this.ignoreExpires = false})
+      : _store = store;
 
   final FileCookieStore _store;
 
@@ -27,7 +29,8 @@ class EnhancedPersistCookieJar implements base.CookieJar {
     return result;
   }
 
-  Future<List<CanonicalCookie>> readAllCookies() async => List.unmodifiable(await _readAll());
+  Future<List<CanonicalCookie>> readAllCookies() async =>
+      List.unmodifiable(await _readAll());
 
   Future<List<CanonicalCookie>> _readAll() async {
     final cached = _cache;
@@ -73,10 +76,13 @@ class EnhancedPersistCookieJar implements base.CookieJar {
         domain: cookie.domain ?? uri.host.toLowerCase(),
         path: cookie.path.isEmpty ? '/' : cookie.path,
       );
-      final idx =
-          all.indexWhere((existing) => existing.storageKey == resolved.storageKey);
+      final idx = all
+          .indexWhere((existing) => existing.storageKey == resolved.storageKey);
       if (idx >= 0) {
         final existing = all[idx];
+        if (_isWebViewHostOnlyDowngrade(resolved, existing)) {
+          continue;
+        }
         if (trusted) {
           resolved = resolved.copyWith(
             version: existing.value == resolved.value
@@ -103,12 +109,28 @@ class EnhancedPersistCookieJar implements base.CookieJar {
     await _writeAll(all);
   }
 
+  bool _isWebViewHostOnlyDowngrade(
+    CanonicalCookie next,
+    CanonicalCookie existing,
+  ) {
+    final fromWebView = next.source == CookieSource.webViewCdp ||
+        next.source == CookieSource.webViewManager;
+    return fromWebView &&
+        next.value == existing.value &&
+        next.hostOnly &&
+        !existing.hostOnly &&
+        next.normalizedDomain == existing.normalizedDomain &&
+        next.path == existing.path &&
+        next.partitionKey == existing.partitionKey;
+  }
+
   Future<void> saveFromSetCookieHeaders(
     Uri uri,
     List<String> headers, {
     bool trusted = false,
   }) async {
-    final cookies = headers.map((e) => SetCookieParser.parse(e, uri: uri)).toList();
+    final cookies =
+        headers.map((e) => SetCookieParser.parse(e, uri: uri)).toList();
     await saveCanonicalCookies(uri, cookies, trusted: trusted);
   }
 
@@ -126,13 +148,16 @@ class EnhancedPersistCookieJar implements base.CookieJar {
 
   Future<List<CanonicalCookie>> loadCanonicalForRequest(Uri uri) async {
     final all = await _readAll();
-    final filtered = all.where((cookie) => _matches(uri, cookie) && (ignoreExpires || !cookie.isExpired)).toList()
+    final filtered = all
+        .where((cookie) =>
+            _matches(uri, cookie) && (ignoreExpires || !cookie.isExpired))
+        .toList()
       ..sort((a, b) {
         final pathCompare = b.path.length.compareTo(a.path.length);
         if (pathCompare != 0) return pathCompare;
 
-        final domainCompare =
-            (b.normalizedDomain?.length ?? 0).compareTo(a.normalizedDomain?.length ?? 0);
+        final domainCompare = (b.normalizedDomain?.length ?? 0)
+            .compareTo(a.normalizedDomain?.length ?? 0);
         if (domainCompare != 0) return domainCompare;
 
         if (a.hostOnly != b.hostOnly) {
@@ -152,7 +177,8 @@ class EnhancedPersistCookieJar implements base.CookieJar {
 
   @override
   Future<void> saveFromResponse(Uri uri, List<io.Cookie> cookies) async {
-    final canonical = cookies.map((e) => SetCookieParser.fromIoCookie(e, uri: uri)).toList();
+    final canonical =
+        cookies.map((e) => SetCookieParser.fromIoCookie(e, uri: uri)).toList();
     await saveCanonicalCookies(uri, canonical);
   }
 
@@ -270,7 +296,8 @@ class EnhancedPersistCookieJar implements base.CookieJar {
     return originHost.toLowerCase();
   }
 
-  bool _domainMatches(String host, String? cookieDomain, {bool hostOnly = false}) {
+  bool _domainMatches(String host, String? cookieDomain,
+      {bool hostOnly = false}) {
     final normalizedHost = host.toLowerCase();
     if (cookieDomain == null || cookieDomain.isEmpty) return false;
     if (hostOnly) return normalizedHost == cookieDomain;
@@ -281,9 +308,11 @@ class EnhancedPersistCookieJar implements base.CookieJar {
   bool _pathMatches(String requestPath, String cookiePath) {
     final normalizedRequest = requestPath.isEmpty ? '/' : requestPath;
     final normalizedCookie = cookiePath.isEmpty ? '/' : cookiePath;
-    if (normalizedCookie == '/' || normalizedRequest == normalizedCookie) return true;
+    if (normalizedCookie == '/' || normalizedRequest == normalizedCookie)
+      return true;
     if (!normalizedRequest.startsWith(normalizedCookie)) return false;
     if (normalizedCookie.endsWith('/')) return true;
-    return normalizedRequest.length > normalizedCookie.length && normalizedRequest[normalizedCookie.length] == '/';
+    return normalizedRequest.length > normalizedCookie.length &&
+        normalizedRequest[normalizedCookie.length] == '/';
   }
 }

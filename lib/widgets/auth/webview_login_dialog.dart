@@ -6,11 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../constants.dart';
+import '../../services/auth_session.dart';
 import '../../services/cf_challenge_service.dart';
 import '../../services/discourse/discourse_service.dart';
 import '../../services/network/cookie/boundary_sync_service.dart';
 import '../../services/network/cookie/cookie_jar_service.dart';
+import '../../services/network/cookie/webview_cookie_priming.dart';
+import '../../services/preloaded_data_service.dart';
 import '../../services/toast_service.dart';
+import '../../services/webview_session_cookie_refresh_service.dart';
 import '../../services/webview_settings.dart';
 import '../../services/windows_webview_environment_service.dart';
 
@@ -97,7 +101,9 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
   bool _processing = false;
   bool _finished = false;
   bool _cookiesPrimed = false;
+  bool _windowsInlineHtmlInjected = false;
   bool _cfRetryUsed = false;
+  final int _flowGeneration = AuthSession().generation;
   String? _lastHcaptchaToken;
   String? _lastSecondFactorToken;
 
@@ -110,6 +116,9 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
     ];
     return list.toSet().toList();
   }
+
+  WebUri get _windowsBootstrapUrl =>
+      WebUri('${AppConstants.baseUrl}/robots.txt');
 
   String get _inlineHtml {
     final scheme = Theme.of(context).colorScheme;
@@ -154,6 +163,20 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
   <script>
     function call(name, payload) {
       try { window.flutter_inappwebview.callHandler(name, payload); } catch (e) {}
+    }
+    function notifyPageReady() {
+      try {
+        requestAnimationFrame(function() {
+          requestAnimationFrame(function() { call('hcaptcha_page_ready', null); });
+        });
+      } catch (e) {
+        setTimeout(function() { call('hcaptcha_page_ready', null); }, 80);
+      }
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', notifyPageReady, { once: true });
+    } else {
+      notifyPageReady();
     }
     function onPass(token) { call('hcaptcha_pass', token); }
     function onErr(err) { call('hcaptcha_error', String(err || 'unknown')); }
@@ -235,6 +258,15 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
 
   void _setupHandlers(InAppWebViewController controller) {
     controller.addJavaScriptHandler(
+      handlerName: 'hcaptcha_page_ready',
+      callback: (args) {
+        if (mounted && _loading) {
+          setState(() => _loading = false);
+        }
+        return null;
+      },
+    );
+    controller.addJavaScriptHandler(
       handlerName: 'hcaptcha_pass',
       callback: (args) {
         final token = args.isNotEmpty ? args.first?.toString() : null;
@@ -274,22 +306,46 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
     if (_cookiesPrimed) return;
     _cookiesPrimed = true;
     try {
-      final header = await CookieJarService().getCookieHeader();
-      if (header == null || header.isEmpty) return;
-      final cookieManager = Platform.isWindows
-          ? WindowsWebViewEnvironmentService.instance.cookieManager
-          : CookieManager.instance();
-      final url = WebUri('${AppConstants.baseUrl}/');
-      for (final pair in header.split('; ')) {
-        final idx = pair.indexOf('=');
-        if (idx <= 0) continue;
-        final name = pair.substring(0, idx).trim();
-        final value = pair.substring(idx + 1).trim();
-        if (name.isEmpty) continue;
-        await cookieManager.setCookie(url: url, name: name, value: value);
-      }
+      await WebViewCookiePriming.instance.prime(AppConstants.baseUrl);
     } catch (e) {
       debugPrint('[WebViewLogin] 预灌 cookie 失败: $e');
+    }
+  }
+
+  Future<void> _injectWindowsInlineHtml(
+    InAppWebViewController controller,
+  ) async {
+    if (_finished || _windowsInlineHtmlInjected) return;
+    try {
+      final probe = await controller.evaluateJavascript(
+        source: '''
+({
+  href: window.location.href,
+  origin: window.location.origin,
+  contentType: document.contentType,
+  readyState: document.readyState
+})
+''',
+      );
+      final origin = probe is Map ? probe['origin']?.toString() : null;
+      if (origin != AppConstants.baseUrl) {
+        debugPrint('[WebViewLogin] Windows bootstrap origin not ready: $probe');
+        return;
+      }
+
+      final html = jsonEncode(_inlineHtml);
+      _windowsInlineHtmlInjected = true;
+      await controller.evaluateJavascript(
+        source:
+            '''
+document.open();
+document.write($html);
+document.close();
+''',
+      );
+    } catch (e) {
+      debugPrint('[WebViewLogin] Windows hcaptcha bootstrap 失败: $e');
+      _finishFailure(LoginErrorKind.unknown, '人机验证页面初始化失败');
     }
   }
 
@@ -398,7 +454,11 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
     await Future<void>.delayed(const Duration(milliseconds: 1500));
     if (_finished) return;
     for (var i = 0; i < 3; i++) {
-      await BoundarySyncService.instance.syncFromWebView(cookieNames: null);
+      await BoundarySyncService.instance.syncFromWebView(
+        cookieNames: null,
+        excludeCookieNames: CookieJarService.sessionCookieNames,
+        requestGeneration: _flowGeneration,
+      );
       final clearance = await CookieJarService().getCfClearance();
       if (clearance != null && clearance.isNotEmpty) break;
       await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -433,12 +493,52 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
   Future<void> _finishSuccess() async {
     if (_finished) return;
     _finished = true;
+    if (!AuthSession().isValid(_flowGeneration)) {
+      debugPrint('[WebViewLogin] 登录对话框流程已过期，跳过会话同步');
+      if (mounted) {
+        Navigator.of(context).pop(const WebViewLoginDialogResult.canceled());
+      }
+      return;
+    }
     try {
+      final controller = _controller;
+      var bootstrapped = false;
+      if (controller != null) {
+        final bootstrap = await WebViewSessionCookieRefreshService.instance
+            .runOnController(
+              controller,
+              reason: 'native_login_success',
+              pluginCandidates: PreloadedDataService().pluginCandidatesSync,
+            );
+        bootstrapped = bootstrap.ok;
+      }
       await BoundarySyncService.instance.syncFromWebView(
-        controller: _controller,
+        controller: controller,
         currentUrl: AppConstants.baseUrl,
-        cookieNames: CookieJarService.sessionCookieNames,
+        cookieNames: null,
         allowLowConfidenceSessionCookies: true,
+        requestGeneration: _flowGeneration,
+        trusted: true,
+      );
+      final runtimeDetails = await CookieJarService()
+          .getCookieDiagnosticsForRequest(
+            Uri.parse(AppConstants.baseUrl),
+            names: const {'_rt'},
+          );
+      final hasRuntimeCookie = runtimeDetails.any(
+        (cookie) => (cookie['valueLength'] as int? ?? 0) > 0,
+      );
+      final tToken = await CookieJarService().getTToken();
+      if (hasRuntimeCookie) {
+        WebViewSessionCookieRefreshService.instance.markSynced(
+          reason: 'native_login_success',
+          tToken: tToken,
+          hasRuntimeCookie: hasRuntimeCookie,
+        );
+      }
+      await WebViewSessionCookieRefreshService.instance.logCookieSummary(
+        reason: 'native_login_success',
+        bootstrapOk: bootstrapped,
       );
     } catch (e) {
       debugPrint('[WebViewLogin] 同步登录 cookie 失败: $e');
@@ -524,12 +624,21 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
                                                 .instance
                                                 .environment
                                           : null,
-                                      initialData: InAppWebViewInitialData(
-                                        data: _inlineHtml,
-                                        baseUrl: WebUri(AppConstants.baseUrl),
-                                        mimeType: 'text/html',
-                                        encoding: 'utf-8',
-                                      ),
+                                      initialUrlRequest: Platform.isWindows
+                                          ? URLRequest(
+                                              url: _windowsBootstrapUrl,
+                                            )
+                                          : null,
+                                      initialData: Platform.isWindows
+                                          ? null
+                                          : InAppWebViewInitialData(
+                                              data: _inlineHtml,
+                                              baseUrl: WebUri(
+                                                AppConstants.baseUrl,
+                                              ),
+                                              mimeType: 'text/html',
+                                              encoding: 'utf-8',
+                                            ),
                                       initialSettings: InAppWebViewSettings(
                                         javaScriptEnabled: true,
                                         transparentBackground: true,
@@ -553,16 +662,46 @@ class _WebViewLoginDialogState extends State<_WebViewLoginDialog> {
                                         );
                                         _setupHandlers(controller);
                                       },
-                                      onLoadStop: (_, _) {
+                                      onLoadStop: (controller, _) async {
+                                        if (Platform.isWindows) {
+                                          await _injectWindowsInlineHtml(
+                                            controller,
+                                          );
+                                          return;
+                                        }
                                         if (mounted) {
                                           setState(() => _loading = false);
                                         }
                                       },
+                                      onProgressChanged:
+                                          (controller, progress) async {
+                                            if (Platform.isWindows &&
+                                                progress >= 100) {
+                                              await _injectWindowsInlineHtml(
+                                                controller,
+                                              );
+                                            }
+                                          },
+                                      onReceivedError:
+                                          (controller, request, error) async {
+                                            if (Platform.isWindows &&
+                                                request.isForMainFrame ==
+                                                    true) {
+                                              await _injectWindowsInlineHtml(
+                                                controller,
+                                              );
+                                            }
+                                          },
                                     ),
                                   ),
                                   if (_loading)
-                                    const Center(
-                                      child: CircularProgressIndicator(),
+                                    Positioned.fill(
+                                      child: ColoredBox(
+                                        color: scheme.surface,
+                                        child: const Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      ),
                                     ),
                                   if (_processing)
                                     Positioned.fill(

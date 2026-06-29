@@ -69,8 +69,8 @@ class MessageBusService {
   Timer? _restartPollTimer;
 
   // MessageBus 独立域名配置
-  String? _baseUrl;  // 独立域名（如 https://ping.linux.do），null 表示用主站
-  String? _sharedSessionKey;  // 跨域认证 key
+  String? _baseUrl; // 独立域名（如 https://ping.linux.do），null 表示用主站
+  String? _sharedSessionKey; // 跨域认证 key
 
   // 消息流（用于全局监听）
   final _messageController = StreamController<MessageBusMessage>.broadcast();
@@ -79,18 +79,22 @@ class MessageBusService {
   String get clientId => _clientId;
 
   MessageBusService._internal()
-      : _clientId = ClientIdGenerator.generate(),
-        _dio = _createPollingDio();
+    : _clientId = ClientIdGenerator.generate(),
+      _dio = _createPollingDio();
 
   /// 配置 MessageBus 独立域名（登录后从预加载数据获取）
   void configure({String? baseUrl, String? sharedSessionKey}) {
-    final changed = _baseUrl != baseUrl || _sharedSessionKey != sharedSessionKey;
+    final changed =
+        _baseUrl != baseUrl || _sharedSessionKey != sharedSessionKey;
     _baseUrl = baseUrl;
     _sharedSessionKey = sharedSessionKey;
 
     if (changed && baseUrl != null) {
       // 独立域名需要重建 Dio（不同 baseUrl）
-      _dio = _createPollingDio(baseUrl: baseUrl, sharedSessionKey: sharedSessionKey);
+      _dio = _createPollingDio(
+        baseUrl: baseUrl,
+        sharedSessionKey: sharedSessionKey,
+      );
       debugPrint('[MessageBus] 配置独立域名: $baseUrl');
     } else if (changed && baseUrl == null) {
       // 恢复主站
@@ -99,10 +103,7 @@ class MessageBusService {
     }
   }
 
-  static Dio _createPollingDio({
-    String? baseUrl,
-    String? sharedSessionKey,
-  }) {
+  static Dio _createPollingDio({String? baseUrl, String? sharedSessionKey}) {
     return DiscourseDio.create(
       receiveTimeout: const Duration(seconds: 60),
       defaultHeaders: {
@@ -141,7 +142,11 @@ class MessageBusService {
   }
 
   /// 订阅频道
-  void subscribe(String channel, MessageBusCallback callback, {int lastMessageId = -1}) {
+  void subscribe(
+    String channel,
+    MessageBusCallback callback, {
+    int lastMessageId = -1,
+  }) {
     if (!_subscriptions.containsKey(channel)) {
       _subscriptions[channel] = _ChannelSubscription(
         channel: channel,
@@ -160,7 +165,7 @@ class MessageBusService {
   /// 取消订阅
   void unsubscribe(String channel, [MessageBusCallback? callback]) {
     if (!_subscriptions.containsKey(channel)) return;
-    
+
     if (callback != null) {
       _subscriptions[channel]!.callbacks.remove(callback);
       if (_subscriptions[channel]!.callbacks.isEmpty) {
@@ -169,7 +174,7 @@ class MessageBusService {
     } else {
       _subscriptions.remove(channel);
     }
-    
+
     // 无订阅时停止轮询
     if (_subscriptions.isEmpty) {
       _stopPolling();
@@ -179,7 +184,11 @@ class MessageBusService {
   }
 
   /// 使用指定的 messageId 订阅
-  void subscribeWithMessageId(String channel, MessageBusCallback callback, int messageId) {
+  void subscribeWithMessageId(
+    String channel,
+    MessageBusCallback callback,
+    int messageId,
+  ) {
     if (_subscriptions.containsKey(channel)) {
       _subscriptions[channel]!.callbacks.add(callback);
       if (messageId > _subscriptions[channel]!.lastMessageId) {
@@ -199,7 +208,6 @@ class MessageBusService {
       _schedulePollingRefresh();
     }
   }
-
 
   /// 开始轮询
   void _startPolling() {
@@ -250,7 +258,9 @@ class MessageBusService {
 
   /// 执行长轮询（流式处理）
   Future<void> _poll(int generation) async {
-    while (!_shouldStop && _subscriptions.isNotEmpty && generation == _pollGeneration) {
+    while (!_shouldStop &&
+        _subscriptions.isNotEmpty &&
+        generation == _pollGeneration) {
       _currentCancelToken = CancelToken();
 
       try {
@@ -258,7 +268,10 @@ class MessageBusService {
         if (_lastPollTime != null) {
           final elapsed = DateTime.now().difference(_lastPollTime!);
           if (elapsed < _minPollInterval) {
-            await _cancelableDelay(_minPollInterval - elapsed, _currentCancelToken!);
+            await _cancelableDelay(
+              _minPollInterval - elapsed,
+              _currentCancelToken!,
+            );
             if (_shouldStop || (_currentCancelToken?.isCancelled ?? false)) {
               if (_shouldStop) break;
               continue;
@@ -302,6 +315,7 @@ class MessageBusService {
             extra: {
               'isSilent': true,
               'skipCsrf': true,
+              'skipRhttpAdapter': true,
             },
           ),
         );
@@ -332,13 +346,13 @@ class MessageBusService {
         }
 
         // 处理剩余的数据
-        if (!(_currentCancelToken?.isCancelled ?? false) && buffer.trim().isNotEmpty) {
+        if (!(_currentCancelToken?.isCancelled ?? false) &&
+            buffer.trim().isNotEmpty) {
           _processChunk(buffer.trim());
         }
-        
+
         // 请求结束后清空 token，避免后续误 cancel 已结束的请求。
         _currentCancelToken = null;
-
       } on DioException catch (e) {
         _currentCancelToken = null;
 
@@ -371,7 +385,10 @@ class MessageBusService {
 
         _failureCount++;
 
-        final backoffSeconds = min(pow(2, _failureCount).toInt(), _maxBackoffSeconds);
+        final backoffSeconds = min(
+          pow(2, _failureCount).toInt(),
+          _maxBackoffSeconds,
+        );
         debugPrint('[MessageBus] 轮询失败: ${e.type}, ${e.message}');
         debugPrint('[MessageBus] $backoffSeconds秒后重试');
 
@@ -380,9 +397,12 @@ class MessageBusService {
       } catch (e, stack) {
         // 出错后也清空 token，避免重试期间误 cancel。
         _currentCancelToken = null;
-        
+
         _failureCount++;
-        final backoffSeconds = min(pow(2, _failureCount).toInt(), _maxBackoffSeconds);
+        final backoffSeconds = min(
+          pow(2, _failureCount).toInt(),
+          _maxBackoffSeconds,
+        );
         debugPrint('[MessageBus] 未知错误: $e');
         debugPrint('[MessageBus] $stack');
         debugPrint('[MessageBus] $backoffSeconds秒后重试');
@@ -396,7 +416,7 @@ class MessageBusService {
       _isPolling = false;
     }
   }
-  
+
   /// 处理单个消息块
   void _processChunk(String chunk) {
     try {
@@ -417,7 +437,7 @@ class MessageBusService {
   /// 处理收到的消息
   void _handleMessage(MessageBusMessage message) {
     debugPrint('[MessageBus] 收到消息: ${message.channel} #${message.messageId}');
-    
+
     // 处理 __status 消息：更新各频道的 lastMessageId
     if (message.channel == '/__status') {
       final data = message.data;
@@ -427,20 +447,22 @@ class MessageBusService {
           final lastId = entry.value;
           if (_subscriptions.containsKey(channelName) && lastId is int) {
             _subscriptions[channelName]!.lastMessageId = lastId;
-            debugPrint('[MessageBus] 更新频道 $channelName 的 lastMessageId: $lastId');
+            debugPrint(
+              '[MessageBus] 更新频道 $channelName 的 lastMessageId: $lastId',
+            );
           }
         }
       }
       return; // __status 消息不需要通知订阅者
     }
-    
+
     // 更新 lastMessageId
     if (_subscriptions.containsKey(message.channel)) {
       final sub = _subscriptions[message.channel]!;
       if (message.messageId > sub.lastMessageId) {
         sub.lastMessageId = message.messageId;
       }
-      
+
       // 通知订阅者
       for (final callback in sub.callbacks) {
         try {
@@ -450,7 +472,7 @@ class MessageBusService {
         }
       }
     }
-    
+
     // 广播到全局流
     _messageController.add(message);
   }
@@ -462,7 +484,9 @@ class MessageBusService {
   void enterBackgroundMode() {
     if (_backgroundMode) return;
     _backgroundMode = true;
-    debugPrint('[MessageBus] 进入后台模式，轮询间隔 ${_backgroundPollInterval.inSeconds}s');
+    debugPrint(
+      '[MessageBus] 进入后台模式，轮询间隔 ${_backgroundPollInterval.inSeconds}s',
+    );
   }
 
   /// 退出后台模式：取消当前请求以立即重新轮询

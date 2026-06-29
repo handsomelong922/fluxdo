@@ -72,14 +72,55 @@ void main() {
       expect(call.secure, isTrue);
       expect(call.httpOnly, isTrue);
     });
+
+    test('cf_clearance 分区残留视为可接受并停止 nuclear reset', () async {
+      final writer = _FakeRawCookieWriter([
+        CookieFullInfo(
+          name: 'cf_clearance',
+          value: 'clearance-token',
+          isPartitioned: true,
+        ),
+      ], keepPartitionedOnNuke: true);
+      final jar = _FakeCookieJarService(
+        CanonicalCookie(
+          name: 'cf_clearance',
+          value: 'clearance-token',
+          domain: '.linux.do',
+          path: '/',
+          secure: true,
+          httpOnly: true,
+          sameSite: CookieSameSite.none,
+          hostOnly: false,
+          persistent: false,
+          originUrl: 'https://linux.do/',
+        ),
+      );
+
+      SessionCookieSentinel.instance
+        ..replaceDependenciesForTest(writer: writer, jar: jar)
+        ..resetForTest();
+
+      final result = await SessionCookieSentinel.instance.sweep(
+        'https://linux.do/',
+        'cf_clearance',
+        intent: SweepIntent.delete,
+        force: true,
+      );
+
+      expect(result.status, SweepStatus.swept);
+      expect(result.variantsAfter, 1);
+      expect(writer.nuclearResetAttempted, isFalse);
+    });
   });
 }
 
 class _FakeRawCookieWriter implements RawCookieWriter {
-  _FakeRawCookieWriter(this._variants);
+  _FakeRawCookieWriter(this._variants, {this.keepPartitionedOnNuke = false});
 
   List<CookieFullInfo> _variants;
+  final bool keepPartitionedOnNuke;
   final writtenHeaders = <String>[];
+  bool nuclearResetAttempted = false;
 
   @override
   bool get isSupported => true;
@@ -102,12 +143,19 @@ class _FakeRawCookieWriter implements RawCookieWriter {
     required List<String> pathCandidates,
   }) async {
     final before = _variants.length;
-    _variants = _variants.where((cookie) => cookie.name != name).toList();
+    _variants = _variants.where((cookie) {
+      if (cookie.name != name) return true;
+      return keepPartitionedOnNuke && cookie.isPartitioned == true;
+    }).toList();
     return before - _variants.length;
   }
 
   @override
   Future<bool> setRawCookie(String url, String rawSetCookie) async {
+    if (rawSetCookie.contains('_t=') ||
+        rawSetCookie.contains('cf_clearance=')) {
+      nuclearResetAttempted = true;
+    }
     writtenHeaders.add(rawSetCookie);
     _variants = [_cookieInfoFromHeader(rawSetCookie)];
     return true;
@@ -185,6 +233,7 @@ class _FakeCookieJarService implements CookieJarService {
     DateTime? expires,
     bool secure = true,
     bool httpOnly = false,
+    bool trusted = false,
   }) async {
     setCalls.add(
       _SetCookieCall(

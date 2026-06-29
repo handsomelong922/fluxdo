@@ -136,8 +136,40 @@ AdapterType _resolveAdapterType(
   CronetFallbackService fallbackService,
   RhttpSettingsService rhttpSettings,
 ) {
+  return _resolveEffectiveAdapterType(
+    settings,
+    proxySettings,
+    fallbackService,
+    rhttpSettings,
+  );
+}
+
+AdapterType _resolveAdapterTypeForRequest(
+  RequestOptions options,
+  NetworkSettingsService settings,
+  ProxySettingsService proxySettings,
+  CronetFallbackService fallbackService,
+  RhttpSettingsService rhttpSettings,
+) {
+  return _resolveEffectiveAdapterType(
+    settings,
+    proxySettings,
+    fallbackService,
+    rhttpSettings,
+    requestOptions: options,
+  );
+}
+
+AdapterType _resolveEffectiveAdapterType(
+  NetworkSettingsService settings,
+  ProxySettingsService proxySettings,
+  CronetFallbackService fallbackService,
+  RhttpSettingsService rhttpSettings, {
+  RequestOptions? requestOptions,
+}) {
   // rhttp 优先（满足条件时）
-  if (rhttpSettings.shouldUseRhttp(settings.current, proxySettings.current)) {
+  if (rhttpSettings.shouldUseRhttp(settings.current, proxySettings.current) &&
+      (requestOptions == null || requestAllowsRhttpAdapter(requestOptions))) {
     return AdapterType.rhttp;
   }
   // Gateway 模式：NativeAdapter 直连 + 拦截器改写 URL 到 localhost 代理
@@ -150,6 +182,82 @@ AdapterType _resolveAdapterType(
     return AdapterType.network;
   }
   return AdapterType.native;
+}
+
+@visibleForTesting
+bool requestAllowsRhttpAdapter(RequestOptions options) {
+  return options.extra['skipRhttpAdapter'] != true;
+}
+
+@visibleForTesting
+bool requestAllowsWebViewAdapter(RequestOptions options) {
+  final uri = options.uri;
+  if (!WebViewAdapterSettingsService.instance.shouldUseWebView(uri)) {
+    return false;
+  }
+  if (options.extra['skipWebViewAdapter'] == true) {
+    return false;
+  }
+  if (options.extra['isCfChallengePlatform'] == true ||
+      uri.path.startsWith('/cdn-cgi/')) {
+    return false;
+  }
+
+  final resourceKind = options.extra[WebViewHttpAdapter.resourceKindExtraKey]
+      ?.toString();
+  final method = options.method.toUpperCase();
+  final isBinaryResponse =
+      options.responseType == ResponseType.stream ||
+      options.responseType == ResponseType.bytes;
+  if (resourceKind == WebViewHttpAdapter.resourceKindImage) {
+    return (method == 'GET' || method == 'HEAD') && isBinaryResponse;
+  }
+  if (isBinaryResponse) {
+    return false;
+  }
+
+  final accept = _headerValue(options.headers, 'Accept').toLowerCase();
+  final requestedWith = _headerValue(options.headers, 'X-Requested-With');
+  final explicitlyHtml =
+      accept.contains('text/html') || accept.contains('application/xhtml+xml');
+  if (explicitlyHtml) {
+    return false;
+  }
+  final apiLikeGet =
+      requestedWith == 'XMLHttpRequest' ||
+      uri.path.endsWith('.json') ||
+      accept.contains('application/json') ||
+      accept.contains('text/javascript');
+  if ((method == 'GET' || method == 'HEAD') && !apiLikeGet) {
+    return false;
+  }
+  return method == 'GET' ||
+      method == 'HEAD' ||
+      method == 'POST' ||
+      method == 'PUT' ||
+      method == 'PATCH' ||
+      method == 'DELETE';
+}
+
+String _headerValue(Map<String, dynamic> headers, String name) {
+  for (final entry in headers.entries) {
+    if (entry.key.toString().toLowerCase() == name.toLowerCase()) {
+      return _headerValueToString(entry.value);
+    }
+  }
+  return '';
+}
+
+String _headerValueToString(Object? value) {
+  if (value == null) return '';
+  if (value is Iterable) {
+    return value
+        .where((entry) => entry != null)
+        .map((entry) => entry.toString().trim())
+        .where((entry) => entry.isNotEmpty)
+        .join(', ');
+  }
+  return value.toString().trim();
 }
 
 /// 创建当前平台对应的 NativeAdapter
@@ -234,8 +342,12 @@ class _GatewayAdapterWrapper implements HttpClientAdapter {
 
     // rhttp 直连时保留原始 HTTPS URL
     final shouldUseRhttp =
-        currentAdapter == AdapterType.rhttp ||
-        rhttpSettings.shouldUseRhttp(settings.current, proxySettings.current);
+        (currentAdapter == AdapterType.rhttp ||
+            rhttpSettings.shouldUseRhttp(
+              settings.current,
+              proxySettings.current,
+            )) &&
+        requestAllowsRhttpAdapter(options);
 
     if (!shouldUseRhttp && settings.isGatewayMode) {
       final port = settings.current.proxyPort;
@@ -285,55 +397,7 @@ class _GatewayAdapterWrapper implements HttpClientAdapter {
   }
 
   bool _shouldUseWebView(RequestOptions options) {
-    final uri = options.uri;
-    if (!WebViewAdapterSettingsService.instance.shouldUseWebView(uri)) {
-      return false;
-    }
-    if (options.extra['skipWebViewAdapter'] == true) {
-      return false;
-    }
-    if (options.extra['isCfChallengePlatform'] == true ||
-        uri.path.startsWith('/cdn-cgi/')) {
-      return false;
-    }
-    if (options.responseType == ResponseType.stream ||
-        options.responseType == ResponseType.bytes) {
-      return false;
-    }
-
-    final method = options.method.toUpperCase();
-    final accept = _headerValue(options.headers, 'Accept').toLowerCase();
-    final requestedWith = _headerValue(options.headers, 'X-Requested-With');
-    final explicitlyHtml =
-        accept.contains('text/html') ||
-        accept.contains('application/xhtml+xml');
-    if (explicitlyHtml) {
-      return false;
-    }
-    final apiLikeGet =
-        requestedWith == 'XMLHttpRequest' ||
-        uri.path.endsWith('.json') ||
-        accept.contains('application/json') ||
-        accept.contains('text/javascript');
-    if ((method == 'GET' || method == 'HEAD') && !apiLikeGet) {
-      return false;
-    }
-
-    return method == 'GET' ||
-        method == 'HEAD' ||
-        method == 'POST' ||
-        method == 'PUT' ||
-        method == 'PATCH' ||
-        method == 'DELETE';
-  }
-
-  String _headerValue(Map<String, dynamic> headers, String name) {
-    for (final entry in headers.entries) {
-      if (entry.key.toString().toLowerCase() == name.toLowerCase()) {
-        return entry.value?.toString() ?? '';
-      }
-    }
-    return '';
+    return requestAllowsWebViewAdapter(options);
   }
 }
 
@@ -374,7 +438,7 @@ class _DynamicAdapter implements HttpClientAdapter {
         "Can't establish connection after the adapter was closed.",
       );
     }
-    final delegate = _ensureDelegate();
+    final delegate = _ensureDelegate(options);
     final delegateType = _delegateType;
     if (delegateType != null) {
       setRequestAdapterLogName(options, delegateType.name);
@@ -382,8 +446,9 @@ class _DynamicAdapter implements HttpClientAdapter {
     return delegate.fetch(options, requestStream, cancelFuture);
   }
 
-  HttpClientAdapter _ensureDelegate() {
-    final desiredType = _resolveAdapterType(
+  HttpClientAdapter _ensureDelegate(RequestOptions options) {
+    final desiredType = _resolveAdapterTypeForRequest(
+      options,
       _settings,
       _proxySettings,
       _fallbackService,
