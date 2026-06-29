@@ -58,6 +58,7 @@ extension _UserActions on _TopicDetailPageState {
       initialContent: initialContent,
       preloadedDraftFuture: preloadedDraftFuture,
       isPrivateMessageTopic: detail?.isPrivateMessage ?? false,
+      isPmWithNonHumanUser: detail?.pmWithNonHumanUser ?? false,
     );
 
     if (newPost != null && mounted) {
@@ -108,6 +109,8 @@ extension _UserActions on _TopicDetailPageState {
       topicId: widget.topicId,
       post: post,
       categoryId: detail?.categoryId,
+      isPrivateMessageTopic: detail?.isPrivateMessage ?? false,
+      isPmWithNonHumanUser: detail?.pmWithNonHumanUser ?? false,
     );
 
     if (updatedPost != null && mounted) {
@@ -420,6 +423,7 @@ extension _UserActions on _TopicDetailPageState {
       initialContent: quote,
       preloadedDraftFuture: preloadedDraftFuture,
       isPrivateMessageTopic: detail?.isPrivateMessage ?? false,
+      isPmWithNonHumanUser: detail?.pmWithNonHumanUser ?? false,
     );
 
     if (newPost != null && mounted) {
@@ -465,6 +469,7 @@ extension _UserActions on _TopicDetailPageState {
       initialContent: quote,
       preloadedDraftFuture: preloadedDraftFuture,
       isPrivateMessageTopic: detail?.isPrivateMessage ?? false,
+      isPmWithNonHumanUser: detail?.pmWithNonHumanUser ?? false,
     );
 
     if (newPost != null && mounted) {

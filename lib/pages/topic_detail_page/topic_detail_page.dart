@@ -1298,6 +1298,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                         categoryId: detail.categoryId,
                         initialContent: '$imageMarkdown\n',
                         isPrivateMessageTopic: detail.isPrivateMessage,
+                        isPmWithNonHumanUser: detail.pmWithNonHumanUser,
                       );
                     },
             ),
@@ -1347,6 +1348,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             categoryId: detail.categoryId,
             initialContent: '$imageMarkdown\n',
             isPrivateMessageTopic: detail.isPrivateMessage,
+            isPmWithNonHumanUser: detail.pmWithNonHumanUser,
           );
         },
       ),

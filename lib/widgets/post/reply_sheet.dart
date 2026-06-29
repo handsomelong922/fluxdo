@@ -39,6 +39,7 @@ Future<Post?> showReplySheet({
   String? initialContent,
   String? initialTitle,
   bool isPrivateMessageTopic = false,
+  bool isPmWithNonHumanUser = false,
 }) async {
   final result = await showAppBottomSheet<Post?>(
     context: context,
@@ -54,6 +55,7 @@ Future<Post?> showReplySheet({
       initialContent: initialContent,
       initialTitle: initialTitle,
       isPrivateMessageTopic: isPrivateMessageTopic,
+      isPmWithNonHumanUser: isPmWithNonHumanUser,
     ),
   );
   return result;
@@ -69,14 +71,21 @@ Future<Post?> showEditSheet({
   required int topicId,
   required Post post,
   int? categoryId,
+  bool isPrivateMessageTopic = false,
+  bool isPmWithNonHumanUser = false,
 }) async {
   final result = await showAppBottomSheet<Post?>(
     context: context,
     isScrollControlled: true,
     useSafeArea: false,
     backgroundColor: Colors.transparent,
-    builder: (context) =>
-        ReplySheet(topicId: topicId, categoryId: categoryId, editPost: post),
+    builder: (context) => ReplySheet(
+      topicId: topicId,
+      categoryId: categoryId,
+      editPost: post,
+      isPrivateMessageTopic: isPrivateMessageTopic,
+      isPmWithNonHumanUser: isPmWithNonHumanUser,
+    ),
   );
   return result;
 }
@@ -91,6 +100,7 @@ class ReplySheet extends ConsumerStatefulWidget {
   final String? initialContent; // 预填内容（划词引用时使用）
   final String? initialTitle; // 预填标题（私信模式时使用）
   final bool isPrivateMessageTopic; // 当前话题是否为私信话题
+  final bool isPmWithNonHumanUser; // 当前私信话题是否包含非真人用户
 
   const ReplySheet({
     super.key,
@@ -103,6 +113,7 @@ class ReplySheet extends ConsumerStatefulWidget {
     this.initialContent,
     this.initialTitle,
     this.isPrivateMessageTopic = false,
+    this.isPmWithNonHumanUser = false,
   });
 
   @override
@@ -376,7 +387,9 @@ class _ReplySheetState extends ConsumerState<ReplySheet> {
 
     // 最小字数校验
     final preloaded = PreloadedDataService();
-    final minLength = _isInPrivateMessageContext
+    final minLength = widget.isPmWithNonHumanUser
+        ? 1
+        : _isInPrivateMessageContext
         ? await preloaded.getMinPmPostLength()
         : await preloaded.getMinPostLength();
     if (content.length < minLength) {

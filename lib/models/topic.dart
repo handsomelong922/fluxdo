@@ -1640,6 +1640,7 @@ class TopicDetail {
 
   // 话题类型
   final String archetype; // 'regular' 或 'private_message'
+  final bool pmWithNonHumanUser; // 私信对象是否包含非真人用户
 
   // 话题权限（来自 details）
   final bool canEdit; // 是否可以编辑话题元数据（标题、分类、标签）
@@ -1692,6 +1693,7 @@ class TopicDetail {
     this.hasSummary = false,
     this.notificationLevel = TopicNotificationLevel.regular,
     this.archetype = 'regular',
+    this.pmWithNonHumanUser = false,
     this.canEdit = false,
     this.bookmarked = false,
     this.bookmarkId,
@@ -1817,6 +1819,7 @@ class TopicDetail {
       hasCachedSummary: json['has_cached_summary'] as bool? ?? false,
       hasSummary: json['has_summary'] as bool? ?? false,
       archetype: json['archetype'] as String? ?? 'regular',
+      pmWithNonHumanUser: json['pm_with_non_human_user'] as bool? ?? false,
       notificationLevel: TopicNotificationLevel.fromValue(
         (json['details'] as Map<String, dynamic>?)?['notification_level']
             as int?,
@@ -1862,6 +1865,7 @@ class TopicDetail {
     bool? hasSummary,
     TopicNotificationLevel? notificationLevel,
     String? archetype,
+    bool? pmWithNonHumanUser,
     bool? canEdit,
     bool? bookmarked,
     int? bookmarkId,
@@ -1919,6 +1923,7 @@ class TopicDetail {
       hasSummary: hasSummary ?? this.hasSummary,
       notificationLevel: notificationLevel ?? this.notificationLevel,
       archetype: archetype ?? this.archetype,
+      pmWithNonHumanUser: pmWithNonHumanUser ?? this.pmWithNonHumanUser,
       canEdit: canEdit ?? this.canEdit,
       bookmarked: bookmarked ?? this.bookmarked,
       bookmarkId: clearBookmarkId ? null : (bookmarkId ?? this.bookmarkId),
