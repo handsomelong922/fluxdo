@@ -8564,6 +8564,18 @@ abstract class AppLocalizations {
   /// **'自动验证超时，请手动完成验证'**
   String get cf_autoVerifyTimeout;
 
+  /// No description provided for @cf_manualVerifyBannerMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'请在页面中手动完成安全验证'**
+  String get cf_manualVerifyBannerMessage;
+
+  /// No description provided for @cf_manualVerifyBannerTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动完成验证'**
+  String get cf_manualVerifyBannerTitle;
+
   /// No description provided for @cf_backgroundVerifying.
   ///
   /// In zh, this message translates to:
@@ -8630,6 +8642,30 @@ abstract class AppLocalizations {
   /// **'加载失败: {description}'**
   String cf_loadFailed(String description);
 
+  /// No description provided for @cf_noChallengeMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'页面暂未显示 Cloudflare 验证挑战。你可以重试打开验证，或稍后再试。'**
+  String get cf_noChallengeMessage;
+
+  /// No description provided for @cf_noChallengeTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前未出现验证挑战'**
+  String get cf_noChallengeTitle;
+
+  /// No description provided for @cf_retryVerificationAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'重试验证'**
+  String get cf_retryVerificationAction;
+
+  /// No description provided for @cf_retryVerify.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新验证'**
+  String get cf_retryVerify;
+
   /// No description provided for @cf_securityVerifyTitle.
   ///
   /// In zh, this message translates to:
@@ -8642,6 +8678,12 @@ abstract class AppLocalizations {
   /// **'验证已取消'**
   String get cf_userCancelled;
 
+  /// No description provided for @cf_verifyCompletingTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在完成验证…'**
+  String get cf_verifyCompletingTitle;
+
   /// No description provided for @cf_verifyIncomplete.
   ///
   /// In zh, this message translates to:
@@ -8653,6 +8695,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'验证时间较长，还剩 {seconds} 秒'**
   String cf_verifyLonger(int seconds);
+
+  /// No description provided for @cf_verifyOpeningTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在打开验证…'**
+  String get cf_verifyOpeningTitle;
+
+  /// No description provided for @cf_verifyTimedOutMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'验证等待超时，请重试或退出'**
+  String get cf_verifyTimedOutMessage;
+
+  /// No description provided for @cf_verifyTimedOutTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'验证超时'**
+  String get cf_verifyTimedOutTitle;
 
   /// No description provided for @cf_verifyTimeout.
   ///

@@ -24,6 +24,26 @@ import '../widgets/draggable_floating_pill.dart';
 CookieManager get _cfCookieManager =>
     WindowsWebViewEnvironmentService.instance.cookieManager;
 
+class CfChallengeStatus {
+  const CfChallengeStatus({
+    required this.isVerifying,
+    required this.isInCooldown,
+    required this.consecutiveFailures,
+    required this.cooldownRemaining,
+    required this.silentVerifyDeferredRemaining,
+    required this.lastToastAt,
+    required this.toastCooldown,
+  });
+
+  final bool isVerifying;
+  final bool isInCooldown;
+  final int consecutiveFailures;
+  final Duration? cooldownRemaining;
+  final Duration? silentVerifyDeferredRemaining;
+  final DateTime? lastToastAt;
+  final Duration toastCooldown;
+}
+
 /// CF 验证服务
 /// 处理 Cloudflare Turnstile 验证（仅手动模式）
 class CfChallengeService {
@@ -89,6 +109,36 @@ class CfChallengeService {
       return false;
     }
     return true;
+  }
+
+  CfChallengeStatus get status {
+    final now = DateTime.now();
+    final cooldownRemaining =
+        _cooldownUntil != null && _cooldownUntil!.isAfter(now)
+        ? _cooldownUntil!.difference(now)
+        : null;
+    final silentVerifyDeferredRemaining =
+        _silentVerifyDeferredUntil != null &&
+            _silentVerifyDeferredUntil!.isAfter(now)
+        ? _silentVerifyDeferredUntil!.difference(now)
+        : null;
+
+    if (cooldownRemaining == null) {
+      _cooldownUntil = null;
+    }
+    if (silentVerifyDeferredRemaining == null) {
+      _silentVerifyDeferredUntil = null;
+    }
+
+    return CfChallengeStatus(
+      isVerifying: _isVerifying,
+      isInCooldown: cooldownRemaining != null,
+      consecutiveFailures: _consecutiveFailures,
+      cooldownRemaining: cooldownRemaining,
+      silentVerifyDeferredRemaining: silentVerifyDeferredRemaining,
+      lastToastAt: _lastToastAt,
+      toastCooldown: _toastCooldown,
+    );
   }
 
   /// 重置冷却期和失败计数（验证成功后调用）

@@ -4705,6 +4705,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Auto-verification timed out, please complete manually';
 
   @override
+  String get cf_manualVerifyBannerMessage =>
+      'Please complete the security verification on the page';
+
+  @override
+  String get cf_manualVerifyBannerTitle => 'Complete verification manually';
+
+  @override
   String get cf_backgroundVerifying =>
       'Verifying in background... (tap to open)';
 
@@ -4747,10 +4754,26 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get cf_noChallengeMessage =>
+      'No Cloudflare challenge is currently shown on the page. You can retry opening verification or try again later.';
+
+  @override
+  String get cf_noChallengeTitle => 'No verification challenge shown';
+
+  @override
+  String get cf_retryVerificationAction => 'Retry verification';
+
+  @override
+  String get cf_retryVerify => 'Retry verification';
+
+  @override
   String get cf_securityVerifyTitle => 'Security Verification';
 
   @override
   String get cf_userCancelled => 'Verification cancelled';
+
+  @override
+  String get cf_verifyCompletingTitle => 'Completing verification…';
 
   @override
   String get cf_verifyIncomplete => 'Verification incomplete, please retry';
@@ -4759,6 +4782,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String cf_verifyLonger(int seconds) {
     return 'Verification taking longer, ${seconds}s remaining';
   }
+
+  @override
+  String get cf_verifyOpeningTitle => 'Opening verification…';
+
+  @override
+  String get cf_verifyTimedOutMessage =>
+      'Verification timed out. Retry or exit.';
+
+  @override
+  String get cf_verifyTimedOutTitle => 'Verification timed out';
 
   @override
   String get cf_verifyTimeout => 'Verification timed out, please retry';

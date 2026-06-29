@@ -4593,6 +4593,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cf_autoVerifyTimeout => '自动验证超时，请手动完成验证';
 
   @override
+  String get cf_manualVerifyBannerMessage => '请在页面中手动完成安全验证';
+
+  @override
+  String get cf_manualVerifyBannerTitle => '手动完成验证';
+
+  @override
   String get cf_backgroundVerifying => '后台验证中... (点击打开)';
 
   @override
@@ -4631,10 +4637,25 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get cf_noChallengeMessage => '页面暂未显示 Cloudflare 验证挑战。你可以重试打开验证，或稍后再试。';
+
+  @override
+  String get cf_noChallengeTitle => '当前未出现验证挑战';
+
+  @override
+  String get cf_retryVerificationAction => '重试验证';
+
+  @override
+  String get cf_retryVerify => '重新验证';
+
+  @override
   String get cf_securityVerifyTitle => '安全验证';
 
   @override
   String get cf_userCancelled => '验证已取消';
+
+  @override
+  String get cf_verifyCompletingTitle => '正在完成验证…';
 
   @override
   String get cf_verifyIncomplete => '验证未完成，请重试';
@@ -4643,6 +4664,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String cf_verifyLonger(int seconds) {
     return '验证时间较长，还剩 $seconds 秒';
   }
+
+  @override
+  String get cf_verifyOpeningTitle => '正在打开验证…';
+
+  @override
+  String get cf_verifyTimedOutMessage => '验证等待超时，请重试或退出';
+
+  @override
+  String get cf_verifyTimedOutTitle => '验证超时';
 
   @override
   String get cf_verifyTimeout => '验证超时，请重试';

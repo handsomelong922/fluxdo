@@ -33,8 +33,15 @@
       }
     }
   },
+  "cf_manualVerifyBannerMessage": "请在页面中手动完成安全验证",
+  "cf_manualVerifyBannerTitle": "手动完成验证",
+  "cf_noChallengeMessage": "页面暂未显示 Cloudflare 验证挑战。你可以重试打开验证，或稍后再试。",
+  "cf_noChallengeTitle": "当前未出现验证挑战",
+  "cf_retryVerificationAction": "重试验证",
+  "cf_retryVerify": "重新验证",
   "cf_securityVerifyTitle": "安全验证",
   "cf_userCancelled": "验证已取消",
+  "cf_verifyCompletingTitle": "正在完成验证…",
   "cf_verifyIncomplete": "验证未完成，请重试",
   "cf_verifyLonger": "验证时间较长，还剩 {seconds} 秒",
   "@cf_verifyLonger": {
@@ -44,6 +51,9 @@
       }
     }
   },
+  "cf_verifyOpeningTitle": "正在打开验证…",
+  "cf_verifyTimedOutMessage": "验证等待超时，请重试或退出",
+  "cf_verifyTimedOutTitle": "验证超时",
   "cf_verifyTimeout": "验证超时，请重试",
   "cf_verifying": "验证中... {seconds}s",
   "@cf_verifying": {
