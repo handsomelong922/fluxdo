@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/s.dart';
 import '../models/topic.dart';
+import '../models/user.dart';
 import '../services/preloaded_data_service.dart';
 import '../services/settings/content_filter_service.dart'; // CUSTOM: User Filter
 import '../services/topic_detail_cache_service.dart';

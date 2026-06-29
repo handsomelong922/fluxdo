@@ -1007,7 +1007,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     ref.watch(preferencesProvider.select((p) => p.preferStaticAvatars));
 
     ref.listen<AsyncValue<void>>(authStateProvider, (_, _) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       final stillLoggedIn = ref.read(currentUserProvider).value != null;
       if (_controller.trackEnabled != stillLoggedIn) {
         _controller.trackEnabled = stillLoggedIn;
@@ -1030,7 +1030,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
     // 监听 MessageBus 事件
     ref.listen(topicChannelProvider(widget.topicId), (previous, next) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       // 1. reload_topic（话题状态变更：关闭/打开/固定等）
       if (next.reloadRequested && !(previous?.reloadRequested ?? false)) {
         ref
@@ -1084,7 +1084,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
     // 预解析帖子 HTML
     ref.listen(topicDetailProvider(params), (previous, next) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       final posts = next.value?.postStream.posts;
       if (posts != null && posts.isNotEmpty) {
         final htmlList = posts.map((p) => p.cooked).toList();
