@@ -16,6 +16,7 @@ class VpnAutoToggleCard extends StatelessWidget {
       animation: Listenable.merge([
         service.enabledNotifier,
         service.vpnActiveNotifier,
+        service.suppressionNotifier,
       ]),
       builder: (context, _) {
         final enabled = service.enabled;

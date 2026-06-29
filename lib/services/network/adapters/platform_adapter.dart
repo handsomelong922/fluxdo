@@ -24,6 +24,16 @@ enum AdapterType {
   rhttp, // rhttp 引擎（Rust reqwest）
 }
 
+/// 当前适配器生效的原因（用于 UI/日志解释“为什么是这个引擎”）。
+enum AdapterReason { webview, rhttp, gateway, proxy, fallback, native }
+
+class EffectiveAdapter {
+  const EffectiveAdapter(this.type, this.reason);
+
+  final AdapterType type;
+  final AdapterReason reason;
+}
+
 /// 全局变量：记录当前使用的适配器类型
 AdapterType? _currentAdapterType;
 
@@ -136,11 +146,24 @@ AdapterType _resolveAdapterType(
   CronetFallbackService fallbackService,
   RhttpSettingsService rhttpSettings,
 ) {
-  return _resolveEffectiveAdapterType(
+  return _resolveEffectiveAdapter(
     settings,
     proxySettings,
     fallbackService,
     rhttpSettings,
+  ).type;
+}
+
+/// 实时解析当前默认生效的适配器及原因。
+///
+/// 这是 request-less 视角；具体请求仍可能因 `skipRhttpAdapter` 或 WebView
+/// 二进制桥接策略走不同 adapter，实际请求日志以 `_DynamicAdapter` 为准。
+EffectiveAdapter resolveEffectiveAdapter() {
+  return _resolveEffectiveAdapter(
+    NetworkSettingsService.instance,
+    ProxySettingsService.instance,
+    CronetFallbackService.instance,
+    RhttpSettingsService.instance,
   );
 }
 
@@ -151,16 +174,16 @@ AdapterType _resolveAdapterTypeForRequest(
   CronetFallbackService fallbackService,
   RhttpSettingsService rhttpSettings,
 ) {
-  return _resolveEffectiveAdapterType(
+  return _resolveEffectiveAdapter(
     settings,
     proxySettings,
     fallbackService,
     rhttpSettings,
     requestOptions: options,
-  );
+  ).type;
 }
 
-AdapterType _resolveEffectiveAdapterType(
+EffectiveAdapter _resolveEffectiveAdapter(
   NetworkSettingsService settings,
   ProxySettingsService proxySettings,
   CronetFallbackService fallbackService,
@@ -170,18 +193,21 @@ AdapterType _resolveEffectiveAdapterType(
   // rhttp 优先（满足条件时）
   if (rhttpSettings.shouldUseRhttp(settings.current, proxySettings.current) &&
       (requestOptions == null || requestAllowsRhttpAdapter(requestOptions))) {
-    return AdapterType.rhttp;
+    return const EffectiveAdapter(AdapterType.rhttp, AdapterReason.rhttp);
   }
   // Gateway 模式：NativeAdapter 直连 + 拦截器改写 URL 到 localhost 代理
   // 比 MITM 少一层 TLS，作为 rhttp 不可用时的次优方案
   if (settings.isGatewayMode && !fallbackService.hasFallenBack) {
-    return AdapterType.native;
+    return const EffectiveAdapter(AdapterType.native, AdapterReason.gateway);
   }
   // MITM 代理模式（Cronet 降级、或 gateway 不可用时的 fallback）
   if (settings.shouldRunLocalProxy || fallbackService.hasFallenBack) {
-    return AdapterType.network;
+    final reason = fallbackService.hasFallenBack
+        ? AdapterReason.fallback
+        : AdapterReason.proxy;
+    return EffectiveAdapter(AdapterType.network, reason);
   }
-  return AdapterType.native;
+  return const EffectiveAdapter(AdapterType.native, AdapterReason.native);
 }
 
 @visibleForTesting
