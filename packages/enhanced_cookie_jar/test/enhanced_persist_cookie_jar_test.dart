@@ -585,13 +585,7 @@ void main() {
 
       await jar.saveFromResponse(Uri.parse('https://linux.do'), [cookie]);
 
-      final all = await jar.readAllCookies();
-      print(
-          'All cookies: ${all.map((c) => "name=${c.name}, domain=${c.domain}, normalized=${c.normalizedDomain}, hostOnly=${c.hostOnly}").join("; ")}');
-
       final loaded = await jar.loadForRequest(Uri.parse('https://linux.do'));
-      print(
-          'Loaded: ${loaded.map((c) => "name=${c.name}, domain=${c.domain}").join("; ")}');
 
       expect(loaded.any((c) => c.name == '_t'), true,
           reason: '_t should be loadable');

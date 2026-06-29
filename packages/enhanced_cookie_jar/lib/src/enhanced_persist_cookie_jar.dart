@@ -308,8 +308,9 @@ class EnhancedPersistCookieJar implements base.CookieJar {
   bool _pathMatches(String requestPath, String cookiePath) {
     final normalizedRequest = requestPath.isEmpty ? '/' : requestPath;
     final normalizedCookie = cookiePath.isEmpty ? '/' : cookiePath;
-    if (normalizedCookie == '/' || normalizedRequest == normalizedCookie)
+    if (normalizedCookie == '/' || normalizedRequest == normalizedCookie) {
       return true;
+    }
     if (!normalizedRequest.startsWith(normalizedCookie)) return false;
     if (normalizedCookie.endsWith('/')) return true;
     return normalizedRequest.length > normalizedCookie.length &&
