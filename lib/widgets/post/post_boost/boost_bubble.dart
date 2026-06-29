@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/avatar_url_policy.dart';
 import '../../../models/topic.dart';
 import '../../common/emoji_text.dart';
-import '../../../services/discourse_cache_manager.dart';
+import '../../common/smart_avatar.dart';
 import 'boost_content.dart';
 
 double _singleBoostTextMaxWidth(BuildContext context) {
@@ -99,14 +99,10 @@ class BoostBubble extends StatelessWidget {
                     onTap: onAvatarTap == null
                         ? null
                         : () => onAvatarTap!(boost!.user),
-                    child: CircleAvatar(
+                    child: SmartAvatar(
+                      imageUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
                       radius: 10,
-                      backgroundImage: avatarUrl.isNotEmpty
-                          ? discourseImageProvider(avatarUrl)
-                          : null,
-                      onBackgroundImageError: avatarUrl.isNotEmpty
-                          ? (_, _) {}
-                          : null,
+                      fallbackText: boost!.user.username,
                     ),
                   );
                 },
@@ -278,14 +274,10 @@ class _AvatarStack extends StatelessWidget {
                         visibleUsers[i].avatarTemplate,
                         size: 48,
                       );
-                      return CircleAvatar(
+                      return SmartAvatar(
+                        imageUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
                         radius: 10,
-                        backgroundImage: avatarUrl.isNotEmpty
-                            ? discourseImageProvider(avatarUrl)
-                            : null,
-                        onBackgroundImageError: avatarUrl.isNotEmpty
-                            ? (_, _) {}
-                            : null,
+                        fallbackText: visibleUsers[i].username,
                       );
                     },
                   ),

@@ -3,9 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/s.dart';
 import '../../../models/avatar_url_policy.dart';
-import '../../../services/discourse_cache_manager.dart';
 import '../../../utils/dialog_utils.dart';
 import '../../../services/toast_service.dart';
+import '../../../widgets/common/smart_avatar.dart';
 import '../providers/ldc_reward_provider.dart';
 
 /// 打赏目标用户信息
@@ -201,14 +201,10 @@ class _LdcRewardSheetState extends ConsumerState<_LdcRewardSheet> {
             // 目标用户信息
             Row(
               children: [
-                CircleAvatar(
+                SmartAvatar(
+                  imageUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
                   radius: 20,
-                  backgroundImage: avatarUrl.isNotEmpty
-                      ? discourseImageProvider(avatarUrl)
-                      : null,
-                  child: avatarUrl.isEmpty && target.username.isNotEmpty
-                      ? Text(target.username[0].toUpperCase())
-                      : null,
+                  fallbackText: target.username,
                 ),
                 const SizedBox(width: 12),
                 Expanded(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../l10n/s.dart';
 import '../../../../models/topic.dart';
-import '../../../../services/discourse_cache_manager.dart';
+import '../../../common/smart_avatar.dart';
 import '../../../content/discourse_html_content/discourse_html_content.dart';
 
 /// 回复列表组件
@@ -90,18 +90,11 @@ class PostRepliesList extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        CircleAvatar(
+                        SmartAvatar(
+                          imageUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
                           radius: 14,
                           backgroundColor: theme.colorScheme.primaryContainer,
-                          backgroundImage: avatarUrl.isNotEmpty
-                              ? discourseImageProvider(avatarUrl)
-                              : null,
-                          child: avatarUrl.isEmpty
-                              ? Text(
-                                  reply.username[0].toUpperCase(),
-                                  style: const TextStyle(fontSize: 10),
-                                )
-                              : null,
+                          fallbackText: reply.username,
                         ),
                         const SizedBox(width: 10),
                         Expanded(

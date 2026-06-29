@@ -9,6 +9,7 @@ import '../services/discourse_cache_manager.dart';
 import '../utils/url_helper.dart';
 import '../widgets/common/loading_spinner.dart';
 import '../widgets/badge/badge_ui_utils.dart';
+import '../widgets/common/smart_avatar.dart';
 import '../widgets/content/discourse_html_content/discourse_html_content_widget.dart';
 import '../services/emoji_handler.dart';
 import 'topic_detail_page/topic_detail_page.dart';
@@ -421,10 +422,11 @@ class _UserBadgeItem extends StatelessWidget {
                     width: 1,
                   ),
                 ),
-                child: CircleAvatar(
+                child: SmartAvatar(
+                  imageUrl: user.getAvatarUrl(),
                   radius: 24,
                   backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                  backgroundImage: discourseImageProvider(user.getAvatarUrl()),
+                  fallbackText: user.username,
                 ),
               ),
             ),
