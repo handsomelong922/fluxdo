@@ -26,7 +26,11 @@ class RawCookieWriterFallback {
   /// 通过原始 Set-Cookie 头写入 WebView。
   ///
   /// 使用项目内 [SetCookieParser] 保留 SameSite/Partitioned 等字段。
-  Future<bool> setRawCookie(String url, String rawSetCookie) async {
+  Future<bool> setRawCookie(
+    String url,
+    String rawSetCookie, {
+    bool writeSharedStorage = true,
+  }) async {
     try {
       final uri = Uri.parse(url);
       final canonical = SetCookieParser.parse(rawSetCookie, uri: uri);

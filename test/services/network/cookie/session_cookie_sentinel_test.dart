@@ -151,7 +151,11 @@ class _FakeRawCookieWriter implements RawCookieWriter {
   }
 
   @override
-  Future<bool> setRawCookie(String url, String rawSetCookie) async {
+  Future<bool> setRawCookie(
+    String url,
+    String rawSetCookie, {
+    bool writeSharedStorage = true,
+  }) async {
     if (rawSetCookie.contains('_t=') ||
         rawSetCookie.contains('cf_clearance=')) {
       nuclearResetAttempted = true;
