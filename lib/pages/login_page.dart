@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/s.dart';
+import '../services/auth_session.dart';
 import '../services/cf_challenge_service.dart';
 import '../services/credential_store_service.dart';
 import '../services/discourse/discourse_service.dart';
@@ -96,12 +97,17 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     if (clearance != null && clearance.isNotEmpty) return true;
     if (!mounted) return false;
 
+    final requestGeneration = AuthSession().generation;
     final ok = await CfChallengeService().showManualVerify(context, true);
     if (ok != true) return false;
 
     await Future<void>.delayed(const Duration(milliseconds: 1500));
     for (var i = 0; i < 3; i++) {
-      await BoundarySyncService.instance.syncFromWebView(cookieNames: null);
+      await BoundarySyncService.instance.syncFromWebView(
+        cookieNames: null,
+        excludeCookieNames: CookieJarService.authCookieNames,
+        requestGeneration: requestGeneration,
+      );
       clearance = await jar.getCfClearance();
       if (clearance != null && clearance.isNotEmpty) return true;
       await Future<void>.delayed(const Duration(milliseconds: 500));

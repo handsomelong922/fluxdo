@@ -294,19 +294,25 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
       context,
     ).push<bool>(MaterialPageRoute(builder: (_) => const LoginPage()));
     if (result == true && mounted) {
-      LoadingDialog.show(context, message: context.l10n.common_loadingData);
-
-      AppStateRefresher.refreshAll(ref);
+      final loading = LoadingDialog.show(
+        context,
+        message: context.l10n.common_loadingData,
+      );
 
       try {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) return;
+
+        AppStateRefresher.refreshAll(ref);
+
         await Future.wait([
           ref.read(currentUserProvider.future),
           ref.read(topicListProvider(null).future),
         ]).timeout(const Duration(seconds: 10));
-      } catch (_) {}
-
-      if (mounted) {
-        LoadingDialog.hide(context);
+      } catch (e) {
+        debugPrint('[TopicsPage] 登录后刷新失败/超时: $e');
+      } finally {
+        loading.hide();
       }
     }
   }

@@ -180,21 +180,26 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       context,
     ).push<bool>(MaterialPageRoute(builder: (_) => const LoginPage()));
     if (result == true && mounted) {
-      LoadingDialog.show(context, message: context.l10n.profile_loadingData);
-
-      AppStateRefresher.refreshAll(ref);
+      final loading = LoadingDialog.show(
+        context,
+        message: context.l10n.profile_loadingData,
+      );
 
       try {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) return;
+
+        AppStateRefresher.refreshAll(ref);
+
         await Future.wait([
           ref.read(currentUserProvider.future),
           ref.read(userSummaryProvider.future),
         ]).timeout(const Duration(seconds: 10));
-      } catch (_) {
+      } catch (e) {
+        debugPrint('[ProfilePage] 登录后刷新失败/超时: $e');
         // 超时或错误时继续
-      }
-
-      if (mounted) {
-        LoadingDialog.hide(context);
+      } finally {
+        loading.hide();
       }
     }
   }
