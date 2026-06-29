@@ -39,6 +39,7 @@ class PreloadedDataService {
   String? _cdnUrl; // CDN 域名（从 data-discourse-setup 提取）
   String? _s3CdnUrl; // S3 CDN 域名（如 https://cdn3.linux.do）
   String? _s3BaseUrl; // S3 基础 URL（如 //linuxdo-uploads.s3.linux.do）
+  List<String>? _pluginCandidates; // 首页 HTML 中扫到的 plugin js url 列表
   bool _hasDiscourseSetup = false; // 是否提取到 data-discourse-setup 标签
   String? _cachedHtml; // 缓存原始 HTML（供 FingerprintService 复用）
   bool _loaded = false;
@@ -64,6 +65,7 @@ class PreloadedDataService {
     _cachedHtml = null;
     return html;
   }
+  List<String>? get pluginCandidatesSync => _pluginCandidates;
   List<Map<String, dynamic>>? get topicTrackingStatesSync =>
       _topicTrackingStates;
 
@@ -476,6 +478,7 @@ class PreloadedDataService {
     _extractTurnstileSitekeyFromHtml(html);
     _extractBaseUriFromHtml(html);
     _extractCdnUrlFromHtml(html);
+    _extractPluginCandidatesInBackground(html);
     // 提取 data-preloaded 属性内容
     final match = RegExp(r'data-preloaded="([^"]*)"').firstMatch(html);
     if (match == null) {
@@ -570,6 +573,31 @@ class PreloadedDataService {
         _currentUser != null &&
         _siteSettings != null &&
         _site != null;
+  }
+
+  /// 从首页 HTML 扫出 plugin js url 列表。
+  ///
+  /// 这是 WebView session bootstrap 的优化数据，不属于启动首屏关键路径，
+  /// 放到后台 isolate 提取，避免阻塞启动动画。
+  void _extractPluginCandidatesInBackground(String html) {
+    final baseUrl = AppConstants.baseUrl;
+    unawaited(() async {
+      try {
+        await Future<void>.delayed(Duration.zero);
+        final ordered = await compute<List<String>, List<String>>(
+          _extractPluginCandidatesInIsolate,
+          [html, baseUrl],
+        );
+        _pluginCandidates = ordered.isEmpty ? null : List.unmodifiable(ordered);
+        if (ordered.isNotEmpty) {
+          debugPrint(
+            '[PreloadedData] pluginCandidates: ${ordered.length} items',
+          );
+        }
+      } catch (e) {
+        debugPrint('[PreloadedData] pluginCandidates 提取失败: $e');
+      }
+    }());
   }
 
   /// 从 HTML 中提取 discourse-base-uri（子路径部署前缀）
@@ -801,6 +829,36 @@ Map<String, dynamic>? _decodePreloadedJsonInIsolate(String rawJson) {
   }
 
   return result;
+}
+
+List<String> _extractPluginCandidatesInIsolate(List<String> input) {
+  final html = input[0];
+  final baseUrl = input[1];
+  final pattern = RegExp(
+    r'''(https?://[^"'\s<>]+/assets/[^"'\s<>]*plugins/[^"'\s<>]+?\.js(?:\?[^"'\s<>]*)?|/assets/[^"'\s<>]*plugins/[^"'\s<>]+?\.js(?:\?[^"'\s<>]*)?)''',
+  );
+  final seen = <String>{};
+  final ordered = <String>[];
+  for (final match in pattern.allMatches(html)) {
+    final raw = match.group(1);
+    if (raw == null || raw.isEmpty) continue;
+    final normalized = _normalizePluginCandidateUrl(raw, baseUrl);
+    if (normalized == null) continue;
+    if (seen.add(normalized)) {
+      ordered.add(normalized);
+    }
+  }
+  return ordered;
+}
+
+String? _normalizePluginCandidateUrl(String raw, String baseUrl) {
+  final cleaned = raw.replaceAll('&amp;', '&');
+  try {
+    final base = Uri.parse(baseUrl);
+    return base.resolve(cleaned).toString();
+  } catch (_) {
+    return null;
+  }
 }
 
 TopicListResponse _parseTopicListInIsolate(Map<String, dynamic> json) =>

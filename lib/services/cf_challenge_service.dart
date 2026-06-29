@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:io' as io;
 
 import 'package:dio/dio.dart';
@@ -974,6 +975,33 @@ class _CfChallengePageState extends State<CfChallengePage> {
     });
   }
 
+  Size _resolveBackgroundWebViewSize(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final safeWidth = math.max(
+      1.0,
+      media.size.width - media.padding.horizontal,
+    );
+    final safeHeight = math.max(
+      1.0,
+      media.size.height - media.padding.vertical,
+    );
+    final isCompact = safeWidth < 640;
+    final horizontalMargin = isCompact ? 12.0 : 24.0;
+    final verticalMargin = isCompact ? 12.0 : 24.0;
+    final panelWidth = math.max(
+      1.0,
+      math.min(720.0, safeWidth - horizontalMargin * 2),
+    );
+    final availableHeight = math.max(360.0, safeHeight - verticalMargin * 2);
+    final targetHeight = isCompact
+        ? availableHeight * 0.88
+        : math.min(720.0, availableHeight);
+    final minHeight = math.min(460.0, availableHeight);
+    final panelHeight = math.max(minHeight, targetHeight);
+    const chromeHeight = 46.0;
+    return Size(panelWidth, math.max(1.0, panelHeight - chromeHeight));
+  }
+
   // ---------------------------------------------------------------------------
   // build
   // ---------------------------------------------------------------------------
@@ -982,6 +1010,9 @@ class _CfChallengePageState extends State<CfChallengePage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final showUi = !_isBackground;
+    final backgroundWebViewSize = showUi
+        ? Size.zero
+        : _resolveBackgroundWebViewSize(context);
 
     return Stack(
       children: [
@@ -1038,9 +1069,14 @@ class _CfChallengePageState extends State<CfChallengePage> {
                   Expanded(
                     child: Stack(
                       children: [
-                        IgnorePointer(
-                          ignoring: _isBackground,
-                          child: WebViewSettings.wrapWithScrollFix(
+                        Positioned(
+                          left: showUi ? 0 : -backgroundWebViewSize.width - 64,
+                          top: showUi ? 0 : -backgroundWebViewSize.height - 64,
+                          width: showUi ? null : backgroundWebViewSize.width,
+                          height: showUi ? null : backgroundWebViewSize.height,
+                          child: IgnorePointer(
+                            ignoring: _isBackground,
+                            child: WebViewSettings.wrapWithScrollFix(
                             InAppWebView(
                               webViewEnvironment:
                                   WindowsWebViewEnvironmentService
@@ -1117,6 +1153,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
                               },
                             ),
                             getController: () => _controller,
+                          ),
                           ),
                         ),
 
