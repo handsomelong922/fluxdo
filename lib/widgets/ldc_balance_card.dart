@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/ldc_providers.dart';
 import '../pages/webview_page.dart';
 import '../services/network/exceptions/oauth_exception.dart';
+import '../utils/number_utils.dart';
 import 'common/loading_spinner.dart';
 import '../../../../l10n/s.dart';
 
@@ -40,6 +41,7 @@ class LdcBalanceCard extends ConsumerWidget {
     final userInfo = ldcUserInfo.value;
     if (userInfo == null) return _buildIdleCard(context, ref);
 
+    final dailyIncomeText = NumberUtils.formatSignedInt(userInfo.dailyIncome);
     final theme = Theme.of(context);
     final isRefreshing = ldcUserInfo.isLoading;
 
@@ -115,7 +117,7 @@ class LdcBalanceCard extends ConsumerWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '+${userInfo.dailyIncome}',
+                            dailyIncomeText,
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: theme.colorScheme.onSurface,
                               fontWeight: FontWeight.w500,
@@ -227,7 +229,7 @@ class LdcBalanceCard extends ConsumerWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '+${userInfo.dailyIncome}',
+                        dailyIncomeText,
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: theme.colorScheme.onSurface,
                           fontWeight: FontWeight.w500,
@@ -357,9 +359,7 @@ class LdcBalanceCard extends ConsumerWidget {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            S.current.ldc_dailyIncome(
-                              userInfo.dailyIncome.toString(),
-                            ),
+                            S.current.ldc_dailyIncome(dailyIncomeText),
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: Colors.white.withValues(alpha: 0.9),
                               fontWeight: FontWeight.w500,

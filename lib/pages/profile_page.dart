@@ -63,6 +63,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   late ScrollController _rightScrollController;
   bool _showTitle = false;
   bool _isRefreshing = false;
+  bool _balanceEverActive = false;
 
   // 统计卡片引导
   static const String _guideKey = 'profile_stats_card_guide_shown';
@@ -75,16 +76,20 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
     _rightScrollController = ScrollController();
+    _balanceEverActive = widget.isActive;
   }
 
   @override
   void didUpdateWidget(ProfilePage oldWidget) {
     super.didUpdateWidget(oldWidget);
     // tab 切换时 isActive 变化
-    if (widget.isActive && !oldWidget.isActive && !_guideShown) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _tryShowStatsGuide();
-      });
+    if (widget.isActive && !oldWidget.isActive) {
+      _balanceEverActive = true;
+      if (!_guideShown) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _tryShowStatsGuide();
+        });
+      }
     }
   }
 
@@ -569,6 +574,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   /// LDC/CDK 余额卡片（共用组件）
   Widget _buildBalanceCards() {
+    if (!_balanceEverActive) return const SizedBox.shrink();
     return Consumer(
       builder: (context, ref, _) {
         final prefs = ref.watch(sharedPreferencesProvider);
