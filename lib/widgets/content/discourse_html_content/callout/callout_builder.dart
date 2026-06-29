@@ -29,15 +29,17 @@ Widget buildCalloutBlock({
       ? contentHtml.substring(nestedBlockquoteIndex)
       : '';
 
-  // 情况1: <p>[!type]...<br> 格式，移除标记和标题，但保留 <p> 和后续内容
+  // 情况1: <p>[!type]...<br> 格式，移除首段中 <br> 之前的标记与可选标题。
+  // `[^<]*?` 限制在当前标签文本内，避免跨越后续 <p>/<br> 吞掉正文。
   cleanPart = cleanPart.replaceFirst(
-    RegExp(r'<p>\s*\[![^\]]+\][+-]?.*?<br\s*/?>', dotAll: true),
+    RegExp(r'<p>\s*\[![^\]]+\][+-]?[^<]*?<br\s*/?>', dotAll: true),
     '<p>',
   );
 
-  // 情况2: <p>[!type]...</p> 格式，整个 <p> 只包含标记/标题
+  // 情况2: <p>[!type]...</p> 格式，整个 <p> 只包含标记/标题。
+  // 同样避免匹配跨越到下一个 <p>。
   cleanPart = cleanPart.replaceFirst(
-    RegExp(r'<p>\s*\[![^\]]+\][+-]?.*?</p>', dotAll: true),
+    RegExp(r'<p>\s*\[![^\]]+\][+-]?[^<]*?</p>', dotAll: true),
     '',
   );
 
@@ -145,7 +147,7 @@ Widget buildCalloutBlock({
           padding: EdgeInsets.fromLTRB(12, 8, 12, hasContent ? 0 : 8),
           child: titleRow,
         ),
-        if (contentWidget != null) contentWidget,
+        ?contentWidget,
       ],
     ),
   );
