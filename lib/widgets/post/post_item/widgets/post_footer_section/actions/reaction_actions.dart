@@ -3,7 +3,10 @@
 part of '../post_footer_section.dart';
 
 extension _PostFooterReactionActions on _PostFooterSectionState {
-  void _syncReactionToProvider(List<PostReaction> reactions, PostReaction? currentUserReaction) {
+  void _syncReactionToProvider(
+    List<PostReaction> reactions,
+    PostReaction? currentUserReaction,
+  ) {
     final params = TopicDetailParams(widget.topicId);
 
     try {
@@ -61,23 +64,6 @@ extension _PostFooterReactionActions on _PostFooterSectionState {
     } catch (e, s) {
       AppErrorHandler.handleUnexpected(e, s);
     }
-  }
-
-  void _showReactionPicker(BuildContext context, ThemeData theme) async {
-    HapticFeedback.mediumImpact();
-
-    final reactions = await _service.getEnabledReactions();
-    if (!context.mounted || reactions.isEmpty) return;
-
-    // ignore: use_build_context_synchronously
-    PostReactionPicker.show(
-      context: context,
-      theme: theme,
-      likeButtonKey: _likeButtonKey,
-      reactions: reactions,
-      currentUserReaction: _currentUserReaction,
-      onReactionSelected: _toggleReaction,
-    );
   }
 
   void _showReactionUsers(BuildContext context, {String? reactionId}) {

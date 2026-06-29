@@ -33,6 +33,10 @@ mixin _UtilsMixin on _DiscourseServiceBase {
     return preloaded.getEnabledReactions();
   }
 
+  /// 同步获取可用回应表情列表（仅返回已 preload 结果，未 preload 时返回兜底）
+  List<String> get enabledReactionsSync =>
+      PreloadedDataService().enabledReactionsSync;
+
   /// 创建私信
   Future<int> createPrivateMessage({
     required List<String> targetUsernames,
@@ -61,7 +65,9 @@ mixin _UtilsMixin on _DiscourseServiceBase {
       );
     }
 
-    if (respData is Map && respData.containsKey('post') && respData['post']['topic_id'] != null) {
+    if (respData is Map &&
+        respData.containsKey('post') &&
+        respData['post']['topic_id'] != null) {
       return respData['post']['topic_id'] as int;
     }
 
@@ -95,5 +101,4 @@ mixin _UtilsMixin on _DiscourseServiceBase {
       ),
     );
   }
-
 }

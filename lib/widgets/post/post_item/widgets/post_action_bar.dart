@@ -1,11 +1,15 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../l10n/s.dart';
 import '../../../../models/topic.dart';
 import '../../../../services/discourse_cache_manager.dart';
+import '../../../../services/discourse/discourse_service.dart';
 import '../../../../services/emoji_handler.dart';
 import '../../../../utils/platform_utils.dart';
+import 'post_reaction_picker.dart';
 
 /// 获取 emoji 图片 URL（未加载完成时返回空字符串，由 errorBuilder 处理）
 String _getEmojiUrl(String emojiName) {
@@ -25,7 +29,7 @@ class PostActionBar extends StatefulWidget {
   final ValueNotifier<bool> isLoadingRepliesNotifier;
   final ValueNotifier<bool> showRepliesNotifier;
   final VoidCallback onToggleLike;
-  final VoidCallback onShowReactionPicker;
+  final void Function(String reactionId) onReactionSelected;
   final void Function(String? reactionId) onShowReactionUsers;
   final VoidCallback? onReply;
   final VoidCallback onShowMoreMenu;
@@ -49,7 +53,7 @@ class PostActionBar extends StatefulWidget {
     required this.isLoadingRepliesNotifier,
     required this.showRepliesNotifier,
     required this.onToggleLike,
-    required this.onShowReactionPicker,
+    required this.onReactionSelected,
     required this.onShowReactionUsers,
     this.onReply,
     required this.onShowMoreMenu,
@@ -65,31 +69,187 @@ class PostActionBar extends StatefulWidget {
   State<PostActionBar> createState() => _PostActionBarState();
 }
 
-class _PostActionBarState extends State<PostActionBar> {
+class _PostActionBarState extends State<PostActionBar>
+    with TickerProviderStateMixin {
   Timer? _hoverTimer;
 
-  /// 防止 hover 重复触发选择器（选择器显示期间 + 关闭后短暂冷却）
-  bool _pickerCooldown = false;
+  /// 按下后延迟 _kTouchOpenDelay 才真正 open picker 的 timer。
+  /// 在此期间抬手 → cancel,picker 完全不出现,toggleLike 正常触发。
+  /// 超过这段时间仍按住 → 进入"长按意图",启动 picker 衍生动画。
+  Timer? _pickerOpenTimer;
+
+  /// 本次按下期间 picker 是否真的 open 过 (timer 触发后 open)。
+  /// 用于区分 tap (timer 未触发 → toggleLike) 和长按 (timer 已触发 → 不要 toggleLike)。
+  bool _pickerOpenedDuringPress = false;
+
+  /// 按下时的全局位置,用于 dead zone 期间做更严格的 slop 检测。
+  /// LongPress 默认 slop 是 18px,但滚动列表时手指前 80ms 可能只动 5-10px,
+  /// 这段位移就足以判断"用户在滚动,不是长按",picker 不该出现。
+  Offset? _pressStartGlobalPos;
+  static const double _kPickerOpenSlopTolerance = 4.0;
+
+  late final ReactionPickerController _pickerController =
+      ReactionPickerController(
+        vsync: this,
+        onReactionSelected: (id) => widget.onReactionSelected(id),
+      );
 
   @override
   void dispose() {
     _hoverTimer?.cancel();
+    _pickerOpenTimer?.cancel();
+    _pickerController.dispose();
     super.dispose();
   }
 
+  // ============================== 触发逻辑 ==============================
+
+  /// 计算 like 按钮的全局 Rect（含上下 12px 间隙）
+  Rect? _resolveButtonRect() {
+    final box =
+        widget.likeButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    final topLeft = box.localToGlobal(Offset.zero);
+    return Rect.fromLTWH(
+      topLeft.dx,
+      topLeft.dy - 12,
+      box.size.width,
+      box.size.height + 24,
+    );
+  }
+
+  // ---------- Listener 层:dead zone 期间的严格 slop 监听 ----------
+
+  void _onAreaPointerDown(PointerDownEvent event) {
+    _pressStartGlobalPos = event.position;
+  }
+
+  void _onAreaPointerMove(PointerMoveEvent event) {
+    // 只在 dead zone 期间(timer 还在排队)有效:
+    // - timer 已 fire 后 (picker 已 open),交给 LongPress 默认 slop 处理
+    // - 否则手指滑动 emoji 选择时会被误判为 slop 超出
+    if (_pickerOpenTimer == null) return;
+    final start = _pressStartGlobalPos;
+    if (start == null) return;
+    if ((event.position - start).distance > _kPickerOpenSlopTolerance) {
+      _pickerOpenTimer?.cancel();
+      _pickerOpenTimer = null;
+    }
+  }
+
+  void _onAreaPointerEnd(PointerEvent _) {
+    _pressStartGlobalPos = null;
+  }
+
+  /// Tap 路径:按下时设默认状态,避免与上一轮残留状态混淆
+  void _handleTapDown(TapDownDetails details) {
+    _pickerOpenedDuringPress = false;
+  }
+
+  /// Tap 真正胜出:只有当本次按下 picker 没有真正 open 时,才算作有效 tap
+  void _handleTap() {
+    if (_pickerOpenedDuringPress) {
+      _pickerOpenedDuringPress = false;
+      return;
+    }
+    if (widget.isLiking) return;
+    widget.onToggleLike();
+  }
+
+  /// reaction stack 上的 tap:picker 未 open 时打开"查看回应人"
+  void _handleReactionStackTap() {
+    if (_pickerOpenedDuringPress) {
+      _pickerOpenedDuringPress = false;
+      return;
+    }
+    widget.onShowReactionUsers(null);
+  }
+
+  void _handleTapCancel() {
+    // 只 cancel 延迟 Timer:如果 Timer 已经 fire 过 (picker 已 open),
+    // 不能把 _pickerOpenedDuringPress 重置为 false,否则后续 onTap 会误触发 toggleLike
+    _pickerOpenTimer?.cancel();
+    _pickerOpenTimer = null;
+  }
+
+  /// 移动端长按:按下后排一个 80ms 延迟 Timer,延迟到点才真正 open picker。
+  /// 在延迟内抬手 (tap 路径) Timer 被 cancel,picker 完全不出现。
+  void _handleLongPressDown(LongPressDownDetails details) {
+    if (widget.isOwnPost) return;
+    _pickerOpenTimer?.cancel();
+    _pickerOpenTimer = Timer(kReactionPickerOpenDelay, () {
+      if (!mounted) return;
+      final rect = _resolveButtonRect();
+      if (rect == null) return;
+      final reactions = DiscourseService().enabledReactionsSync;
+      if (reactions.isEmpty) return;
+      _pickerOpenedDuringPress = true;
+      _pickerController.open(
+        context: context,
+        buttonRect: rect,
+        reactions: reactions,
+        currentUserReaction: widget.currentUserReaction,
+        theme: Theme.of(context),
+        mode: ReactionPickerMode.touch,
+      );
+    });
+  }
+
+  void _handleLongPressStart(LongPressStartDetails details) {
+    if (widget.isOwnPost) return;
+    // dead zone 期间被 slop tolerance cancel 的话,timer 已 cancel,picker 没 open。
+    // 此时 LongPress 自己仍会跑到 deadline → onLongPressStart 触发,
+    // 但既然 picker 没出现就不要 haptic,避免滚动列表时的莫名振动反馈。
+    if (!_pickerController.isOpen) return;
+    // 长按 duration (260ms) = kReactionPickerOpenDelay (80ms) + 衍生动画 (180ms),
+    // 到这里 picker 应该已经完整展开,haptic 与视觉完成同时发生
+    HapticFeedback.mediumImpact();
+    _pickerController.enterSelectionMode();
+    _pickerController.updateHighlight(details.globalPosition);
+  }
+
+  void _handleLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
+    _pickerController.updateHighlight(details.globalPosition);
+  }
+
+  void _handleLongPressEnd(LongPressEndDetails details) {
+    if (_pickerController.highlightIndex != null) {
+      _pickerController.commitSelection();
+    } else {
+      _pickerController.pinForTouchSelection();
+    }
+  }
+
+  void _handleLongPressCancel() {
+    _pickerOpenTimer?.cancel();
+    _pickerOpenTimer = null;
+    _pickerController.close();
+  }
+
+  /// 桌面端 hover：300ms 延迟后打开（直接进入选择模式）
   void _onHoverEnter() {
-    if (widget.isOwnPost || _pickerCooldown) return;
+    if (widget.isOwnPost) return;
+    if (_pickerController.isOpen) return;
     _hoverTimer?.cancel();
     _hoverTimer = Timer(const Duration(milliseconds: 300), () {
-      _pickerCooldown = true;
-      widget.onShowReactionPicker();
+      if (!mounted) return;
+      final rect = _resolveButtonRect();
+      if (rect == null) return;
+      final reactions = DiscourseService().enabledReactionsSync;
+      if (reactions.isEmpty) return;
+      _pickerController.open(
+        context: context,
+        buttonRect: rect,
+        reactions: reactions,
+        currentUserReaction: widget.currentUserReaction,
+        theme: Theme.of(context),
+        mode: ReactionPickerMode.desktop,
+      );
     });
   }
 
   void _onHoverExit() {
     _hoverTimer?.cancel();
-    // 鼠标离开后重置冷却，允许下次 hover 重新触发
-    _pickerCooldown = false;
   }
 
   @override
@@ -259,8 +419,152 @@ class _PostActionBarState extends State<PostActionBar> {
     );
   }
 
-  /// 构建点赞/回应区域，桌面端支持 hover 触发表情选择器
+  /// 构建点赞/回应区域
+  ///
+  /// 手势分配：
+  /// - 点击 reaction stack（左半区，仅在已有 reactions 时存在）→ 查看回应人
+  /// - 长按 reaction stack / like 图标 → 按下立即开始 picker 衍生动画，
+  ///   180ms 阈值达成后进入选择模式；滑到表情松手即选，未滑中则停驻后点选
+  /// - 点击 like 图标（右半区）→ toggleLike
+  /// - 桌面端 hover 300ms → 触发 picker（直接进入选择模式）
   Widget _buildLikeReactionArea(ThemeData theme) {
+    final reactionStackContent = (widget.reactions.isNotEmpty)
+        ? Container(
+            height: 36,
+            padding: const EdgeInsets.only(left: 12),
+            alignment: Alignment.center,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!(widget.reactions.length == 1 &&
+                    widget.reactions.first.id == 'heart')) ...[
+                  _buildReactionStack(theme),
+                  const SizedBox(width: 4),
+                ],
+                Text(
+                  '${widget.reactions.fold(0, (sum, r) => sum + r.count)}',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: widget.currentUserReaction != null
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+            ),
+          )
+        : null;
+
+    Widget? reactionStack;
+    if (reactionStackContent != null) {
+      if (widget.isOwnPost) {
+        reactionStack = GestureDetector(
+          onTap: () => widget.onShowReactionUsers(null),
+          behavior: HitTestBehavior.opaque,
+          child: reactionStackContent,
+        );
+      } else {
+        reactionStack = RawGestureDetector(
+          behavior: HitTestBehavior.opaque,
+          gestures: <Type, GestureRecognizerFactory>{
+            TapGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+                  () => TapGestureRecognizer(),
+                  (instance) {
+                    instance.onTapDown = _handleTapDown;
+                    instance.onTap = _handleReactionStackTap;
+                    instance.onTapCancel = _handleTapCancel;
+                  },
+                ),
+            // 桌面端通过 hover 触发 picker,不再注册长按避免与 hover 路径打架
+            if (!PlatformUtils.isDesktop)
+              LongPressGestureRecognizer:
+                  GestureRecognizerFactoryWithHandlers<
+                    LongPressGestureRecognizer
+                  >(
+                    () => LongPressGestureRecognizer(
+                      duration: kReactionPickerLongPressDuration,
+                    ),
+                    (instance) {
+                      instance.onLongPressDown = _handleLongPressDown;
+                      instance.onLongPressStart = _handleLongPressStart;
+                      instance.onLongPressMoveUpdate =
+                          _handleLongPressMoveUpdate;
+                      instance.onLongPressEnd = _handleLongPressEnd;
+                      instance.onLongPressCancel = _handleLongPressCancel;
+                    },
+                  ),
+          },
+          child: reactionStackContent,
+        );
+      }
+    }
+
+    // like 图标本身
+    final likeIcon = Container(
+      height: 36,
+      padding: EdgeInsets.only(
+        left: widget.reactions.isNotEmpty ? 0 : 12,
+        right: 12,
+      ),
+      alignment: Alignment.center,
+      child: widget.currentUserReaction != null
+          ? Image(
+              image: emojiImageProvider(
+                _getEmojiUrl(widget.currentUserReaction!.id),
+              ),
+              width: 20,
+              height: 20,
+              errorBuilder: (_, _, _) => const Icon(Icons.favorite, size: 20),
+            )
+          : Icon(
+              Icons.favorite_border,
+              size: 20,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+    );
+
+    // like 图标的手势层：tap = toggleLike；long press = Tapback 风格 picker
+    Widget likeButton;
+    if (widget.isOwnPost) {
+      // 自己的帖子：无 tap、无长按
+      likeButton = likeIcon;
+    } else {
+      likeButton = RawGestureDetector(
+        behavior: HitTestBehavior.opaque,
+        gestures: <Type, GestureRecognizerFactory>{
+          TapGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+                () => TapGestureRecognizer(),
+                (instance) {
+                  instance.onTapDown = _handleTapDown;
+                  instance.onTap = _handleTap;
+                  instance.onTapCancel = _handleTapCancel;
+                },
+              ),
+          // 桌面端通过 hover 触发 picker,不再注册长按避免与 hover 路径打架
+          if (!PlatformUtils.isDesktop)
+            LongPressGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<
+                  LongPressGestureRecognizer
+                >(
+                  () => LongPressGestureRecognizer(
+                    duration: kReactionPickerLongPressDuration,
+                  ),
+                  (instance) {
+                    instance.onLongPressDown = _handleLongPressDown;
+                    instance.onLongPressStart = _handleLongPressStart;
+                    instance.onLongPressMoveUpdate = _handleLongPressMoveUpdate;
+                    instance.onLongPressEnd = _handleLongPressEnd;
+                    instance.onLongPressCancel = _handleLongPressCancel;
+                  },
+                ),
+        },
+        child: likeIcon,
+      );
+    }
+
     Widget area = Container(
       key: widget.likeButtonKey,
       height: 36,
@@ -277,101 +581,22 @@ class _PostActionBarState extends State<PostActionBar> {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: [
-          // 左侧区域：回应表情 + 数量 → 查看回应人
-          if (widget.reactions.isNotEmpty)
-            GestureDetector(
-              onTap: () => widget.onShowReactionUsers(null),
-              onLongPress: widget.isOwnPost
-                  ? null
-                  : widget.onShowReactionPicker,
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                height: 36,
-                padding: const EdgeInsets.only(left: 12),
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (!(widget.reactions.length == 1 &&
-                        widget.reactions.first.id == 'heart'))
-                      ...widget.reactions
-                          .take(3)
-                          .map(
-                            (reaction) => GestureDetector(
-                              onTap: () =>
-                                  widget.onShowReactionUsers(reaction.id),
-                              behavior: HitTestBehavior.opaque,
-                              child: Container(
-                                height: 36,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 2,
-                                ),
-                                alignment: Alignment.center,
-                                child: Image(
-                                  image: emojiImageProvider(
-                                    _getEmojiUrl(reaction.id),
-                                  ),
-                                  width: 16,
-                                  height: 16,
-                                  errorBuilder: (_, _, _) =>
-                                      const SizedBox(width: 16, height: 16),
-                                ),
-                              ),
-                            ),
-                          ),
-                    if (!(widget.reactions.length == 1 &&
-                        widget.reactions.first.id == 'heart'))
-                      const SizedBox(width: 4),
-                    Text(
-                      '${widget.reactions.fold(0, (sum, r) => sum + r.count)}',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: widget.currentUserReaction != null
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                ),
-              ),
-            ),
-
-          // 右侧区域：点赞/回应图标 → 点赞/取消
-          GestureDetector(
-            onTap: widget.isOwnPost
-                ? null
-                : (widget.isLiking ? null : widget.onToggleLike),
-            onLongPress: widget.isOwnPost ? null : widget.onShowReactionPicker,
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              height: 36,
-              padding: EdgeInsets.only(
-                left: widget.reactions.isNotEmpty ? 0 : 12,
-                right: 12,
-              ),
-              alignment: Alignment.center,
-              child: widget.currentUserReaction != null
-                  ? Image(
-                      image: emojiImageProvider(
-                        _getEmojiUrl(widget.currentUserReaction!.id),
-                      ),
-                      width: 20,
-                      height: 20,
-                      errorBuilder: (_, _, _) =>
-                          const Icon(Icons.favorite, size: 20),
-                    )
-                  : Icon(
-                      Icons.favorite_border,
-                      size: 20,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-            ),
-          ),
-        ],
+        children: [?reactionStack, likeButton],
       ),
     );
+
+    // 触摸端:dead zone 内做更严格的 slop 检测,
+    // 滚动列表时手指即使只移动几像素也立即 cancel timer,picker 完全不显形
+    if (!PlatformUtils.isDesktop && !widget.isOwnPost) {
+      area = Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: _onAreaPointerDown,
+        onPointerMove: _onAreaPointerMove,
+        onPointerUp: _onAreaPointerEnd,
+        onPointerCancel: _onAreaPointerEnd,
+        child: area,
+      );
+    }
 
     // 桌面端：hover 延迟触发表情选择器
     if (PlatformUtils.isDesktop && !widget.isOwnPost) {
@@ -383,5 +608,82 @@ class _PostActionBarState extends State<PostActionBar> {
     }
 
     return area;
+  }
+
+  /// 表情叠叠乐：最多 3 个重叠排列，第一个在最上层。
+  /// 描边沿表情自身轮廓，避免圆形底盘遮挡感。
+  Widget _buildReactionStack(ThemeData theme) {
+    final shown = widget.reactions.take(3).toList();
+    const double size = 16;
+    const double step = 11;
+    return SizedBox(
+      width: size + (shown.length - 1) * step,
+      height: size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          for (var i = shown.length - 1; i >= 0; i--)
+            Positioned(
+              left: i * step,
+              child: _OutlinedEmoji(
+                image: emojiImageProvider(_getEmojiUrl(shown[i].id)),
+                outlineColor: i == shown.length - 1
+                    ? null
+                    : theme.colorScheme.surface,
+                size: size,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 带轮廓描边的表情：底层用染成 outlineColor 的表情副本向 8 个方向偏移。
+class _OutlinedEmoji extends StatelessWidget {
+  final ImageProvider image;
+  final Color? outlineColor;
+  final double size;
+
+  const _OutlinedEmoji({
+    required this.image,
+    required this.outlineColor,
+    required this.size,
+  });
+
+  static const List<Offset> _outlineOffsets = [
+    Offset(-1.5, 0),
+    Offset(1.5, 0),
+    Offset(0, -1.5),
+    Offset(0, 1.5),
+    Offset(-1.1, -1.1),
+    Offset(1.1, -1.1),
+    Offset(-1.1, 1.1),
+    Offset(1.1, 1.1),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final emoji = Image(
+      image: image,
+      width: size,
+      height: size,
+      errorBuilder: (_, _, _) => SizedBox(width: size, height: size),
+    );
+    if (outlineColor == null) return emoji;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        for (final offset in _outlineOffsets)
+          Transform.translate(
+            offset: offset,
+            child: ColorFiltered(
+              colorFilter: ColorFilter.mode(outlineColor!, BlendMode.srcIn),
+              child: emoji,
+            ),
+          ),
+        emoji,
+      ],
+    );
   }
 }
