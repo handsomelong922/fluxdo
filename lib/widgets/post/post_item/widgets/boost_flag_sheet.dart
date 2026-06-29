@@ -368,6 +368,7 @@ class _BoostFlagSheetState extends State<BoostFlagSheet> {
     final isSelected = _selectedType?.id == type.id;
     final description = _replaceDescription(type.description);
     return InkWell(
+      key: ValueKey('boost-flag-option-${type.nameKey}'),
       onTap: () => setState(() => _selectedType = type),
       borderRadius: BorderRadius.circular(12),
       child: Container(
