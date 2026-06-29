@@ -12,12 +12,12 @@ import '../../../services/toast_service.dart';
 import '../../../utils/code_selection_context.dart';
 import '../../../utils/responsive.dart';
 import '../../../utils/time_utils.dart';
+import '../../../widgets/common/loading_spinner.dart';
 import '../../../widgets/content/discourse_html_content/chunked/html_chunk.dart';
 import '../../../widgets/post/post_item/post_item.dart';
 import '../../../widgets/post/post_item/quote_selection_helper.dart';
 import '../../../widgets/post/post_item/segmented_long_post.dart';
 import '../../../widgets/post/post_item/widgets/post_footer_section/post_footer_section.dart';
-import '../../../widgets/post/post_item_skeleton.dart';
 import 'topic_detail_header.dart';
 import 'typing_indicator.dart';
 
@@ -548,11 +548,6 @@ class _TopicPostListState extends State<TopicPostList> {
     _ensureRenderSegments(posts);
     final centerScrollIndex = _postIndexToScrollIndex[centerPostIndex] ?? 0;
 
-    final loadMoreSkeletonCount = calculateSkeletonCount(
-      MediaQuery.of(context).size.height * 0.4,
-      minCount: 2,
-    );
-
     return SelectionArea(
       onSelectionChanged: (content) {
         _lastLongPostSelectedContent = content;
@@ -607,9 +602,8 @@ class _TopicPostListState extends State<TopicPostList> {
                   child: _LoadFailedRetry(onRetry: onRetryLoadPrevious),
                 )
               else if (hasMoreBefore && isLoadingPrevious)
-                LoadingSkeletonSliver(
-                  itemCount: loadMoreSkeletonCount,
-                  wrapContent: _wrapContent,
+                SliverToBoxAdapter(
+                  child: _wrapContent(context, const _LoadMoreIndicator()),
                 ),
 
               // 话题 Header（centerPostIndex > 0 时放在 before-center 区域）
@@ -720,9 +714,8 @@ class _TopicPostListState extends State<TopicPostList> {
                   child: _LoadFailedRetry(onRetry: onRetryLoadMore),
                 )
               else if (hasMoreAfter && isLoadingMore)
-                LoadingSkeletonSliver(
-                  itemCount: loadMoreSkeletonCount,
-                  wrapContent: _wrapContent,
+                SliverToBoxAdapter(
+                  child: _wrapContent(context, const _LoadMoreIndicator()),
                 ),
               SliverPadding(
                 padding: EdgeInsets.only(
@@ -1162,6 +1155,18 @@ class _LoadFailedRetry extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _LoadMoreIndicator extends StatelessWidget {
+  const _LoadMoreIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 16),
+      child: Center(child: LoadingSpinner(size: 24)),
     );
   }
 }
