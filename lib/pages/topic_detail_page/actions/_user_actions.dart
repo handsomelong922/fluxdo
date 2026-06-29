@@ -4,6 +4,88 @@ part of '../topic_detail_page.dart';
 
 /// 用户操作相关方法
 extension _UserActions on _TopicDetailPageState {
+  void _handleProgressGestureAction(
+    ProgressGestureAction action,
+    TopicDetail detail,
+    TopicDetailNotifier notifier,
+  ) {
+    switch (action) {
+      case ProgressGestureAction.none:
+        return;
+      case ProgressGestureAction.openTimeline:
+        _showTimelineSheet(detail);
+        return;
+      case ProgressGestureAction.scrollToTop:
+        unawaited(_scrollToTop());
+        return;
+      case ProgressGestureAction.jumpToUnread:
+        final nextUnreadPostNumber = detail.lastReadPostNumber == null
+            ? null
+            : detail.lastReadPostNumber! + 1;
+        if (nextUnreadPostNumber != null) {
+          unawaited(_scrollToPost(nextUnreadPostNumber));
+        } else {
+          _showTimelineSheet(detail);
+        }
+        return;
+      case ProgressGestureAction.nextPost:
+        _scrollToNextPost();
+        return;
+      case ProgressGestureAction.previousPost:
+        _scrollToPreviousPost();
+        return;
+      case ProgressGestureAction.reply:
+        unawaited(_handleReply(null));
+        return;
+      case ProgressGestureAction.share:
+        _shareTopic();
+        return;
+      case ProgressGestureAction.shareImage:
+        _shareAsImage();
+        return;
+      case ProgressGestureAction.exportArticle:
+        _showExportSheet();
+        return;
+      case ProgressGestureAction.openInBrowser:
+        unawaited(_openInBrowser());
+        return;
+      case ProgressGestureAction.bookmark:
+        unawaited(_handleBookmarkOptions(notifier));
+        return;
+      case ProgressGestureAction.readLater:
+        _handleReadLater();
+        return;
+      case ProgressGestureAction.notification:
+        showNotificationLevelSheet(
+          context,
+          detail.notificationLevel,
+          (level) => _handleNotificationLevelChanged(notifier, level),
+        );
+        return;
+      case ProgressGestureAction.filter:
+        unawaited(_handleShowTopReplies());
+        return;
+      case ProgressGestureAction.toggleNestedView:
+        unawaited(_setNestedView(!_isNestedView));
+        return;
+      case ProgressGestureAction.aiAssistant:
+        _showAiAssistantSheet(detail);
+        return;
+      case ProgressGestureAction.readingSettings:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ReadingSettingsPage()),
+        );
+        return;
+      case ProgressGestureAction.search:
+        _showTopicSearch();
+        return;
+      case ProgressGestureAction.refresh:
+        unawaited(_handleRefresh());
+        return;
+    }
+  }
+
   Future<void> _handleRefresh() async {
     final params = _params;
     final detailAsync = ref.read(topicDetailProvider(params));

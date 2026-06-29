@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../models/topic.dart';
 import '../../../widgets/topic/topic_progress.dart';
+import 'progress_gesture_action_meta.dart';
 import 'topic_bottom_bar.dart';
+import 'topic_progress_gestures.dart';
 
 const topicDetailBarAnimationDuration = Duration(milliseconds: 200);
 const topicDetailBarAnimationCurve = Curves.easeOutCubic;
@@ -22,6 +24,7 @@ class TopicDetailOverlay extends StatelessWidget {
   final VoidCallback onBookmarkLongPress;
   final VoidCallback onReply;
   final VoidCallback onProgressTap;
+  final ValueChanged<ProgressGestureAction>? onProgressAction;
   final bool showProgress;
   final bool isSummaryMode;
   final bool isAuthorOnlyMode;
@@ -47,6 +50,7 @@ class TopicDetailOverlay extends StatelessWidget {
     required this.onBookmarkLongPress,
     required this.onReply,
     required this.onProgressTap,
+    this.onProgressAction,
     this.showProgress = true,
     this.isSummaryMode = false,
     this.isAuthorOnlyMode = false,
@@ -89,11 +93,20 @@ class TopicDetailOverlay extends StatelessWidget {
             child: _PaintOffsetTransition(
               offsetY: showBottomBar ? 0 : progressHiddenOffsetY,
               child: Center(
-                child: TopicProgress(
-                  currentIndex: currentStreamIndex,
-                  totalCount: totalCount,
-                  progressPercent: progressPercent,
-                  onTap: onProgressTap,
+                child: TopicProgressGestures(
+                  onAction: (action) {
+                    if (action == ProgressGestureAction.openTimeline) {
+                      onProgressTap();
+                    } else {
+                      onProgressAction?.call(action);
+                    }
+                  },
+                  child: TopicProgress(
+                    currentIndex: currentStreamIndex,
+                    totalCount: totalCount,
+                    progressPercent: progressPercent,
+                    onTap: onProgressTap,
+                  ),
                 ),
               ),
             ),

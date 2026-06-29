@@ -49,6 +49,7 @@ import '../../widgets/content/discourse_html_content/discourse_html_content_widg
 import '../../providers/nested_topic_provider.dart';
 import 'controllers/topic_detail_controller.dart';
 import 'widgets/nested_post_list.dart';
+import 'widgets/progress_gesture_action_meta.dart';
 import 'widgets/topic_detail_overlay.dart';
 import 'widgets/topic_post_list.dart';
 import 'widgets/topic_detail_header.dart';
@@ -1483,6 +1484,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                     onBookmarkLongPress: () => _handleBookmarkOptions(notifier),
                     onReply: () => _handleReply(null),
                     onProgressTap: () => _showTimelineSheet(detail),
+                    onProgressAction: (action) =>
+                        _handleProgressGestureAction(action, detail, notifier),
                     showProgress: shouldShowTopicTimelineProgress(
                       isNestedView: _isNestedView,
                       isTopLevelMode: notifier.isTopLevelMode,
