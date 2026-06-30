@@ -43,6 +43,7 @@ import 'package:rhttp/rhttp.dart' as rhttp;
 import 'services/network/vpn_auto_toggle_service.dart';
 import 'services/hcaptcha_accessibility_service.dart';
 import 'services/network/doh_proxy/proxy_certificate.dart';
+import 'config/app_build_profile.dart';
 import 'services/cf_challenge_logger.dart';
 import 'services/browser_trust_coordinator.dart';
 import 'services/cf_clearance_refresh_service.dart';
@@ -162,7 +163,7 @@ Future<void> main() async {
     SharedPreferences.getInstance(),
     AppConstants.initUserAgent(),
     LogWriter.init(),
-    ProxyCertificate.initialize(),
+    if (AppNetworkProfile.supportsDohProxy) ProxyCertificate.initialize(),
     if (Platform.isWindows)
       WindowsWebViewEnvironmentService.instance.initialize(),
     CookieJarService().initialize(),
@@ -245,30 +246,39 @@ Future<void> main() async {
   await ErudaSettingsService.instance.initialize(prefs);
   // 启动期浏览器信任准备由 BrowserTrustCoordinator 统一编排。
   BrowserTrustCoordinator.instance.prepareStartup(reason: 'startup');
-  try {
-    final rhttp = await Future.any([
-      _initRhttp(),
-      Future.delayed(const Duration(seconds: 5), () => false),
-    ]);
-    if (rhttp != true) {
-      debugPrint('[rhttp] 初始化超时或失败');
+  if (AppNetworkProfile.supportsRhttp &&
+      RhttpSettingsService.instance.current.enabled) {
+    try {
+      final rhttp = await Future.any([
+        _initRhttp(),
+        Future.delayed(const Duration(seconds: 5), () => false),
+      ]);
+      if (rhttp != true) {
+        debugPrint('[rhttp] 初始化超时或失败');
+        await RhttpSettingsService.instance.forceDisable();
+      }
+    } catch (e) {
+      debugPrint('[rhttp] 初始化异常: $e');
       await RhttpSettingsService.instance.forceDisable();
     }
-  } catch (e) {
-    debugPrint('[rhttp] 初始化异常: $e');
+  } else if (!AppNetworkProfile.supportsRhttp) {
     await RhttpSettingsService.instance.forceDisable();
   }
 
   await NetworkSettingsService.instance.initialize(prefs);
-  VpnAutoToggleService.instance.initialize(prefs);
+  if (AppNetworkProfile.supportsAdvancedNetwork) {
+    VpnAutoToggleService.instance.initialize(prefs);
+  }
   HCaptchaAccessibilityService().initialize(prefs);
   CfClearanceRefreshService().initialize(prefs);
-  try {
-    final initialConnectivity =
-        await ConnectivityService.safeCheckConnectivity();
-    await VpnAutoToggleService.instance.syncInitialState(initialConnectivity);
-  } catch (e) {
-    debugPrint('[Main] 初始 VPN 状态同步失败: $e');
+  if (AppNetworkProfile.supportsAdvancedNetwork) {
+    try {
+      final initialConnectivity =
+          await ConnectivityService.safeCheckConnectivity();
+      await VpnAutoToggleService.instance.syncInitialState(initialConnectivity);
+    } catch (e) {
+      debugPrint('[Main] 初始 VPN 状态同步失败: $e');
+    }
   }
 
   // 初始化下载服务（依赖网络栈已就绪）

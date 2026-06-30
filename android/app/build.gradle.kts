@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -15,6 +16,34 @@ val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(keystorePropertiesFile.inputStream())
 }
+
+fun flutterDartDefine(name: String): String? {
+    val encoded = project.findProperty("dart-defines")?.toString()
+        ?: project.findProperty("dartDefines")?.toString()
+        ?: return null
+    return encoded.split(",")
+        .mapNotNull { value ->
+            runCatching {
+                String(Base64.getDecoder().decode(value))
+            }.getOrNull()
+        }
+        .firstNotNullOfOrNull { define ->
+            val separator = define.indexOf('=')
+            if (separator <= 0) {
+                null
+            } else {
+                val key = define.substring(0, separator)
+                val value = define.substring(separator + 1)
+                if (key == name) value else null
+            }
+        }
+}
+
+val appNetworkProfile =
+    (project.findProperty("appNetworkProfile")?.toString()
+        ?: flutterDartDefine("appNetworkProfile")
+        ?: "full").lowercase()
+val isDirectNetworkProfile = appNetworkProfile == "direct"
 
 android {
     namespace = "com.github.lingyan000.fluxdo"
@@ -40,6 +69,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["networkSecurityConfig"] =
+            if (isDirectNetworkProfile) "@xml/network_security_config_direct" else "@xml/network_security_config"
     }
 
     signingConfigs {
@@ -92,6 +123,15 @@ android {
                         excludes.add("lib/$abi/**")
                     }
                 }
+            }
+        }
+    }
+
+    if (isDirectNetworkProfile) {
+        println("Configuring direct network profile: excluding DOH native libraries")
+        packaging {
+            jniLibs {
+                excludes.add("**/libdoh_proxy.so")
             }
         }
     }

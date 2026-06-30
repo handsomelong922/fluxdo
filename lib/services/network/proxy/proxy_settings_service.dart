@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../config/app_build_profile.dart';
 import '../../../constants.dart';
 import '../../../l10n/s.dart';
 
@@ -68,16 +69,22 @@ class ProxySettings {
 
   /// 是否启用上游代理
   final bool enabled;
+
   /// 上游代理协议
   final UpstreamProxyProtocol protocol;
+
   /// 上游代理服务器地址
   final String host;
+
   /// 上游代理服务器端口
   final int port;
+
   /// 用户名（可选）
   final String? username;
+
   /// 密码（可选）
   final String? password;
+
   /// Shadowsocks 加密算法
   final String cipher;
 
@@ -176,7 +183,7 @@ class ProxySettingsService {
     final cipher = prefs.getString(_cipherKey) ?? '';
 
     notifier.value = ProxySettings(
-      enabled: enabled,
+      enabled: AppNetworkProfile.supportsAdvancedNetwork ? enabled : false,
       protocol: protocol,
       host: host,
       port: port,
@@ -190,6 +197,11 @@ class ProxySettingsService {
   Future<void> setEnabled(bool enabled) async {
     final prefs = _prefs;
     if (prefs == null) return;
+    if (!AppNetworkProfile.supportsAdvancedNetwork) {
+      notifier.value = notifier.value.copyWith(enabled: false);
+      _touch();
+      return;
+    }
 
     notifier.value = notifier.value.copyWith(enabled: enabled);
     await prefs.setBool(_enabledKey, enabled);
@@ -262,14 +274,16 @@ class ProxySettingsService {
     final future = _runAvailabilityTest(settings);
     _activeTest = future;
     isTesting.value = true;
-    future.then((result) {
-      testResultNotifier.value = result;
-    }).whenComplete(() {
-      if (identical(_activeTest, future)) {
-        _activeTest = null;
-      }
-      isTesting.value = false;
-    });
+    future
+        .then((result) {
+          testResultNotifier.value = result;
+        })
+        .whenComplete(() {
+          if (identical(_activeTest, future)) {
+            _activeTest = null;
+          }
+          isTesting.value = false;
+        });
     return future;
   }
 
@@ -369,7 +383,8 @@ class ProxySettingsService {
       return ProxyTestResult(
         success: true,
         summary: S.current.proxy_testSuccess,
-        detail: '已通过 ${settings.protocol.displayName} 代理访问 ${targetUri.host}，HTTP $statusCode',
+        detail:
+            '已通过 ${settings.protocol.displayName} 代理访问 ${targetUri.host}，HTTP $statusCode',
         targetUrl: targetUri.toString(),
         testedAt: DateTime.now(),
         latency: stopwatch.elapsed,
@@ -494,12 +509,7 @@ class ProxySettingsService {
       final password = settings.password?.trim() ?? '';
       final needsAuth = username.isNotEmpty || password.isNotEmpty;
 
-      socket.add([
-        0x05,
-        needsAuth ? 0x02 : 0x01,
-        0x00,
-        if (needsAuth) 0x02,
-      ]);
+      socket.add([0x05, needsAuth ? 0x02 : 0x01, 0x00, if (needsAuth) 0x02]);
       await socket.flush();
 
       final greet = await reader.readExact(2, timeout);
@@ -528,7 +538,9 @@ class ProxySettingsService {
           throw HttpException(S.current.proxy_socks5AuthFailed);
         }
       } else if (greet[1] != 0x00) {
-        throw HttpException('${S.current.proxy_socks5AuthRejected}: 0x${greet[1].toRadixString(16)}');
+        throw HttpException(
+          '${S.current.proxy_socks5AuthRejected}: 0x${greet[1].toRadixString(16)}',
+        );
       }
 
       final hostBytes = utf8.encode(host);
@@ -567,7 +579,9 @@ class ProxySettingsService {
         final hostLength = (await reader.readExact(1, timeout))[0];
         remainLength = hostLength + 2;
       } else {
-        throw HttpException('${S.current.proxy_socks5AddrTypeNotSupported}: 0x${atyp.toRadixString(16)}');
+        throw HttpException(
+          '${S.current.proxy_socks5AddrTypeNotSupported}: 0x${atyp.toRadixString(16)}',
+        );
       }
       await reader.readExact(remainLength, timeout);
     } finally {
@@ -740,7 +754,10 @@ class _SocketByteReader {
     await _subscription.cancel();
   }
 
-  Future<Uint8List> _readUntilSequence(List<int> delimiter, Duration timeout) async {
+  Future<Uint8List> _readUntilSequence(
+    List<int> delimiter,
+    Duration timeout,
+  ) async {
     final deadline = DateTime.now().add(timeout);
     while (true) {
       final index = _indexOf(delimiter);

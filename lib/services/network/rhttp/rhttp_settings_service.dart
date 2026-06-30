@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../config/app_build_profile.dart';
 import '../doh/network_settings_service.dart';
 import '../proxy/proxy_settings_service.dart';
 
@@ -23,6 +24,7 @@ class RhttpSettings {
 
   final bool enabled;
   final RhttpMode mode;
+
   /// 运行时强制禁用标志，不写入 SharedPreferences。
   final bool forceDisabled;
 
@@ -66,12 +68,22 @@ class RhttpSettingsService {
     final mode = modeIndex < RhttpMode.values.length
         ? RhttpMode.values[modeIndex]
         : RhttpMode.always;
-    notifier.value = RhttpSettings(enabled: enabled, mode: mode);
+    notifier.value = AppNetworkProfile.supportsRhttp
+        ? RhttpSettings(enabled: enabled, mode: mode)
+        : RhttpSettings(enabled: false, mode: mode, forceDisabled: true);
   }
 
   Future<void> setEnabled(bool enabled) async {
     final prefs = _prefs;
     if (prefs == null) return;
+    if (!AppNetworkProfile.supportsRhttp) {
+      notifier.value = notifier.value.copyWith(
+        enabled: false,
+        forceDisabled: true,
+      );
+      _touch();
+      return;
+    }
     notifier.value = notifier.value.copyWith(enabled: enabled);
     await prefs.setBool(_enabledKey, enabled);
     _touch();
@@ -97,6 +109,7 @@ class RhttpSettingsService {
 
   /// 综合判断当前是否应该使用 rhttp
   bool shouldUseRhttp(NetworkSettings ns, ProxySettings ps) {
+    if (!AppNetworkProfile.supportsRhttp) return false;
     if (!current.enabled) return false;
     if (current.forceDisabled) return false;
     // rhttp fork 已支持 ECH（通过 TlsSettings.echConfigList），不再排除

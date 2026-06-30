@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart' as inappwebview;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../config/app_build_profile.dart';
 import '../../../constants.dart';
 import '../../preloaded_data_service.dart';
 import '../doh_proxy/cert_preference_service.dart';
@@ -31,17 +32,23 @@ class NetworkSettings {
   });
 
   final bool dohEnabled;
+
   /// DNS 解析服务器（A/AAAA 查询）
   final String selectedServerUrl;
+
   /// ECH 配置服务器（HTTPS 记录查询），null = 与 DNS 相同
   final String? echServerUrl;
   final List<DohServer> customServers;
+
   /// 代理端口（Rust 代理统一处理 DOH + ECH）
   final int? proxyPort;
+
   /// 优先使用 IPv6
   final bool preferIPv6;
+
   /// 全局 server IP（指定后跳过 DNS 解析直接连接）
   final String? serverIp;
+
   /// Gateway（反向代理）模式开关，关闭时回退为 MITM
   final bool gatewayEnabled;
 
@@ -78,16 +85,17 @@ class DohServer {
 
   final String name;
   final String url;
+
   /// Bootstrap IP 地址列表，用于直接连接 DOH 服务器（解决鸡蛋问题）
   /// Chrome 也是这样做的：预置 DOH 服务器的 IP，直接用 IP 连接
   final List<String> bootstrapIps;
   final bool isCustom;
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'url': url,
-        if (bootstrapIps.isNotEmpty) 'bootstrapIps': bootstrapIps,
-      };
+    'name': name,
+    'url': url,
+    if (bootstrapIps.isNotEmpty) 'bootstrapIps': bootstrapIps,
+  };
 
   static DohServer fromJson(Map<String, dynamic> json) {
     final ips = json['bootstrapIps'];
@@ -108,9 +116,9 @@ class ResolvedHostConfig {
   });
 
   const ResolvedHostConfig.empty()
-      : dnsOverrides = const [],
-        preferredIp = null,
-        echConfig = null;
+    : dnsOverrides = const [],
+      preferredIp = null,
+      echConfig = null;
 
   final List<String> dnsOverrides;
   final String? preferredIp;
@@ -164,10 +172,13 @@ const Duration _failedHostIpPenaltyTtl = Duration(minutes: 2);
 class NetworkSettingsService {
   NetworkSettingsService._internal() {
     _proxyService.notifier.addListener(_handleProxySettingsChanged);
-    RhttpSettingsService.instance.notifier.addListener(_handleRhttpSettingsChanged);
+    RhttpSettingsService.instance.notifier.addListener(
+      _handleRhttpSettingsChanged,
+    );
   }
 
-  static final NetworkSettingsService instance = NetworkSettingsService._internal();
+  static final NetworkSettingsService instance =
+      NetworkSettingsService._internal();
 
   static const _dohEnabledKey = 'doh_enabled';
   static const _dohSelectedKey = 'doh_selected';
@@ -222,25 +233,32 @@ class NetworkSettingsService {
   /// 当前是否使用 gateway（反向代理）模式
   /// Gateway 模式：DOH 开启 + 用户开关开启 + 代理运行中
   bool get isGatewayMode =>
-      current.dohEnabled && current.gatewayEnabled && _rustProxyService.isRunning;
+      AppNetworkProfile.supportsDohProxy &&
+      current.dohEnabled &&
+      current.gatewayEnabled &&
+      _rustProxyService.isRunning;
 
-  String? get _effectiveEchServerUrl =>
-      current.dohEnabled ? (current.echServerUrl ?? current.selectedServerUrl) : null;
+  String? get _effectiveEchServerUrl => current.dohEnabled
+      ? (current.echServerUrl ?? current.selectedServerUrl)
+      : null;
 
   // Rust 代理始终为 WebView 提供 DOH/代理支持，不受 rhttp 影响
   // rhttp 只改变 Dio 用哪个适配器，不改变代理生命周期
-  bool get shouldRunLocalProxy => current.dohEnabled || _proxyService.current.isValid;
+  bool get shouldRunLocalProxy =>
+      AppNetworkProfile.supportsDohProxy &&
+      (current.dohEnabled || _proxyService.current.isValid);
 
   List<DohServer> get servers => [
-        ..._defaultServers,
-        ...notifier.value.customServers,
-      ];
+    ..._defaultServers,
+    ...notifier.value.customServers,
+  ];
 
   Future<void> initialize(SharedPreferences prefs) async {
     if (_prefs != null) return;
     _prefs = prefs;
     final dohEnabled = prefs.getBool(_dohEnabledKey) ?? false;
-    final selected = prefs.getString(_dohSelectedKey) ?? _defaultServers.first.url;
+    final selected =
+        prefs.getString(_dohSelectedKey) ?? _defaultServers.first.url;
     final customRaw = prefs.getString(_dohCustomKey);
     final custom = _decodeServers(customRaw);
     final proxyPort = prefs.getInt(_proxyPortKey);
@@ -251,7 +269,7 @@ class NetworkSettingsService {
     final gatewayEnabled = prefs.getBool(_gatewayEnabledKey) ?? true;
     final resolvedSelected = _resolveSelected(selected, custom);
     notifier.value = NetworkSettings(
-      dohEnabled: dohEnabled,
+      dohEnabled: AppNetworkProfile.supportsDohProxy ? dohEnabled : false,
       selectedServerUrl: resolvedSelected,
       echServerUrl: echServer,
       customServers: custom,
@@ -265,6 +283,12 @@ class NetworkSettingsService {
       bootstrapIps: _getBootstrapIps(notifier.value.selectedServerUrl),
       preferIPv6: preferIPv6,
     );
+    if (!AppNetworkProfile.supportsDohProxy) {
+      _lastStartFailed = false;
+      _pendingStart = false;
+      _touch();
+      return;
+    }
     await _applyProxyState();
     _touch();
   }
@@ -272,6 +296,14 @@ class NetworkSettingsService {
   Future<void> setDohEnabled(bool enabled) async {
     final prefs = _prefs;
     if (prefs == null) return;
+    if (!AppNetworkProfile.supportsDohProxy) {
+      notifier.value = notifier.value.copyWith(dohEnabled: false);
+      _clearResolvedHostCache();
+      _setStartFailed(false);
+      await prefs.setBool(_dohEnabledKey, false);
+      _touch();
+      return;
+    }
     _beginApply(enabled: enabled || _proxyService.current.isValid);
     notifier.value = notifier.value.copyWith(dohEnabled: enabled);
     if (!enabled) {
@@ -303,28 +335,42 @@ class NetworkSettingsService {
     if (prefs == null) return;
     final updated = [...notifier.value.customServers, server];
     notifier.value = notifier.value.copyWith(customServers: updated);
-    await prefs.setString(_dohCustomKey, jsonEncode(updated.map((e) => e.toJson()).toList()));
+    await prefs.setString(
+      _dohCustomKey,
+      jsonEncode(updated.map((e) => e.toJson()).toList()),
+    );
     _touch();
   }
 
-  Future<void> updateCustomServer(DohServer oldServer, DohServer newServer) async {
+  Future<void> updateCustomServer(
+    DohServer oldServer,
+    DohServer newServer,
+  ) async {
     final prefs = _prefs;
     if (prefs == null) return;
     final updated = notifier.value.customServers
         .map((s) => s.url == oldServer.url ? newServer : s)
         .toList();
     final selectedUrl = notifier.value.selectedServerUrl;
-    final newSelected = selectedUrl == oldServer.url ? newServer.url : selectedUrl;
+    final newSelected = selectedUrl == oldServer.url
+        ? newServer.url
+        : selectedUrl;
     notifier.value = notifier.value.copyWith(
       customServers: updated,
       selectedServerUrl: newSelected,
     );
     if (newSelected != selectedUrl) {
-      _resolver.updateServer(newSelected, bootstrapIps: _getBootstrapIps(newSelected));
+      _resolver.updateServer(
+        newSelected,
+        bootstrapIps: _getBootstrapIps(newSelected),
+      );
       _clearResolvedHostCache();
       _scheduleApplyProxyState();
     }
-    await prefs.setString(_dohCustomKey, jsonEncode(updated.map((e) => e.toJson()).toList()));
+    await prefs.setString(
+      _dohCustomKey,
+      jsonEncode(updated.map((e) => e.toJson()).toList()),
+    );
     if (newSelected != selectedUrl) {
       await prefs.setString(_dohSelectedKey, newSelected);
     }
@@ -334,27 +380,44 @@ class NetworkSettingsService {
   Future<void> removeCustomServer(DohServer server) async {
     final prefs = _prefs;
     if (prefs == null) return;
-    final updated = notifier.value.customServers.where((s) => s.url != server.url).toList();
-    final resolvedSelected = _resolveSelected(notifier.value.selectedServerUrl, updated);
+    final updated = notifier.value.customServers
+        .where((s) => s.url != server.url)
+        .toList();
+    final resolvedSelected = _resolveSelected(
+      notifier.value.selectedServerUrl,
+      updated,
+    );
     notifier.value = notifier.value.copyWith(
       customServers: updated,
       selectedServerUrl: resolvedSelected,
     );
-    _resolver.updateServer(resolvedSelected, bootstrapIps: _getBootstrapIps(resolvedSelected));
+    _resolver.updateServer(
+      resolvedSelected,
+      bootstrapIps: _getBootstrapIps(resolvedSelected),
+    );
     _clearResolvedHostCache();
-    await prefs.setString(_dohCustomKey, jsonEncode(updated.map((e) => e.toJson()).toList()));
+    await prefs.setString(
+      _dohCustomKey,
+      jsonEncode(updated.map((e) => e.toJson()).toList()),
+    );
     _touch();
   }
 
   Future<void> resetDefaultServers() async {
     final prefs = _prefs;
     if (prefs == null) return;
-    final resolvedSelected = _resolveSelected(notifier.value.selectedServerUrl, const []);
+    final resolvedSelected = _resolveSelected(
+      notifier.value.selectedServerUrl,
+      const [],
+    );
     notifier.value = notifier.value.copyWith(
       customServers: const [],
       selectedServerUrl: resolvedSelected,
     );
-    _resolver.updateServer(resolvedSelected, bootstrapIps: _getBootstrapIps(resolvedSelected));
+    _resolver.updateServer(
+      resolvedSelected,
+      bootstrapIps: _getBootstrapIps(resolvedSelected),
+    );
     _clearResolvedHostCache();
     await prefs.setString(_dohCustomKey, jsonEncode([]));
     _touch();
@@ -496,7 +559,9 @@ class NetworkSettingsService {
         dohServer: current.dohEnabled ? current.selectedServerUrl : null,
         dohServerEch: current.dohEnabled ? current.echServerUrl : null,
         serverIp: current.serverIp,
-        upstreamProtocol: upstream.isValid ? upstream.protocol.storageValue : null,
+        upstreamProtocol: upstream.isValid
+            ? upstream.protocol.storageValue
+            : null,
         upstreamHost: upstream.isValid ? upstream.host : null,
         upstreamPort: upstream.isValid ? upstream.port : null,
         upstreamUsername: upstream.isValid ? upstream.username : null,
@@ -610,8 +675,9 @@ class NetworkSettingsService {
 
     if (Platform.isWindows) {
       try {
-        await WindowsWebViewEnvironmentService.instance
-            .setProxy('http://127.0.0.1:$port');
+        await WindowsWebViewEnvironmentService.instance.setProxy(
+          'http://127.0.0.1:$port',
+        );
         _webViewProxySet = true;
         debugPrint('[DOH] WebView2 代理已设置 -> 127.0.0.1:$port');
       } catch (e) {
@@ -621,14 +687,16 @@ class NetworkSettingsService {
     }
 
     // macOS 14 以下 / iOS 17 以下调用 setProxyOverride 可能报错
-    if (!Platform.isAndroid && !await _isMacOS14OrAbove() && !await _isiOS17OrAbove()) return;
+    if (!Platform.isAndroid &&
+        !await _isMacOS14OrAbove() &&
+        !await _isiOS17OrAbove()) {
+      return;
+    }
 
     try {
       await inappwebview.ProxyController.instance().setProxyOverride(
         settings: inappwebview.ProxySettings(
-          proxyRules: [
-            inappwebview.ProxyRule(url: 'http://127.0.0.1:$port'),
-          ],
+          proxyRules: [inappwebview.ProxyRule(url: 'http://127.0.0.1:$port')],
         ),
       );
       _webViewProxySet = true;
@@ -652,7 +720,11 @@ class NetworkSettingsService {
       return;
     }
 
-    if (!Platform.isAndroid && !await _isMacOS14OrAbove() && !await _isiOS17OrAbove()) return;
+    if (!Platform.isAndroid &&
+        !await _isMacOS14OrAbove() &&
+        !await _isiOS17OrAbove()) {
+      return;
+    }
     try {
       await inappwebview.ProxyController.instance().clearProxyOverride();
       _webViewProxySet = false;
@@ -692,6 +764,11 @@ class NetworkSettingsService {
 
   void _handleProxySettingsChanged() {
     if (_prefs == null) return;
+    if (!AppNetworkProfile.supportsDohProxy) {
+      _clearResolvedHostCache();
+      _touch();
+      return;
+    }
     _clearResolvedHostCache();
     _scheduleApplyProxyState();
     _touch();
@@ -710,7 +787,9 @@ class NetworkSettingsService {
     if (!current.dohEnabled) {
       _clearResolvedHostCache();
       return ResolvedHostConfig(
-        dnsOverrides: serverIpOverride != null ? <String>[serverIpOverride] : const [],
+        dnsOverrides: serverIpOverride != null
+            ? <String>[serverIpOverride]
+            : const [],
         preferredIp: serverIpOverride,
       );
     }
@@ -733,8 +812,8 @@ class NetworkSettingsService {
       dnsOverrides: serverIpOverride != null
           ? <String>[serverIpOverride]
           : stickyIp != null
-              ? <String>[stickyIp]
-              : orderedIps,
+          ? <String>[stickyIp]
+          : orderedIps,
       preferredIp: serverIpOverride ?? stickyIp,
       echConfig: entry?.echConfig,
     );
@@ -894,11 +973,7 @@ class NetworkSettingsService {
     }
 
     final fallbackResults = await Future.wait<dynamic>([
-      _lookupIpViaRust(
-        host,
-        dohServer,
-        current.preferIPv6,
-      ),
+      _lookupIpViaRust(host, dohServer, current.preferIPv6),
       _rustProxyService.lookupEchConfig(host, dohServerEch),
     ]);
 
@@ -953,7 +1028,8 @@ class NetworkSettingsService {
   }
 
   void _clearResolvedHostCache({bool touch = false}) {
-    final changed = _resolvedHostCache.isNotEmpty ||
+    final changed =
+        _resolvedHostCache.isNotEmpty ||
         _hostLookupInflight.isNotEmpty ||
         _backgroundRefreshingHosts.isNotEmpty ||
         _hostIpPenaltyCache.isNotEmpty ||
@@ -970,6 +1046,10 @@ class NetworkSettingsService {
 
   void _handleRhttpSettingsChanged() {
     if (_prefs == null) return;
+    if (!AppNetworkProfile.supportsDohProxy) {
+      _touch();
+      return;
+    }
     _scheduleApplyProxyState();
     _touch();
   }
@@ -996,7 +1076,8 @@ class NetworkSettingsService {
 
   String? _normalizeHost(String host) {
     final normalizedHost = host.trim().toLowerCase();
-    if (normalizedHost.isEmpty || InternetAddress.tryParse(normalizedHost) != null) {
+    if (normalizedHost.isEmpty ||
+        InternetAddress.tryParse(normalizedHost) != null) {
       return null;
     }
     return normalizedHost;
@@ -1126,8 +1207,7 @@ class NetworkSettingsService {
       }
     }
 
-    if (preferred != null &&
-        available.remove(preferred)) {
+    if (preferred != null && available.remove(preferred)) {
       available.insert(0, preferred);
     }
 
@@ -1226,7 +1306,12 @@ const List<DohServer> _defaultServers = [
   DohServer(
     name: 'Cloudflare',
     url: 'https://cloudflare-dns.com/dns-query',
-    bootstrapIps: ['1.1.1.1', '1.0.0.1', '2606:4700:4700::1111', '2606:4700:4700::1001'],
+    bootstrapIps: [
+      '1.1.1.1',
+      '1.0.0.1',
+      '2606:4700:4700::1111',
+      '2606:4700:4700::1001',
+    ],
   ),
   DohServer(
     name: 'Canadian Shield',
@@ -1235,7 +1320,12 @@ const List<DohServer> _defaultServers = [
   DohServer(
     name: '阿里 DNS',
     url: 'https://dns.alidns.com/dns-query',
-    bootstrapIps: ['223.5.5.5', '223.6.6.6', '2400:3200::1', '2400:3200:baba::1'],
+    bootstrapIps: [
+      '223.5.5.5',
+      '223.6.6.6',
+      '2400:3200::1',
+      '2400:3200:baba::1',
+    ],
   ),
   DohServer(
     name: 'Quad9',
@@ -1245,6 +1335,11 @@ const List<DohServer> _defaultServers = [
   DohServer(
     name: 'Google',
     url: 'https://dns.google/dns-query',
-    bootstrapIps: ['8.8.8.8', '8.8.4.4', '2001:4860:4860::8888', '2001:4860:4860::8844'],
+    bootstrapIps: [
+      '8.8.8.8',
+      '8.8.4.4',
+      '2001:4860:4860::8888',
+      '2001:4860:4860::8844',
+    ],
   ),
 ];

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../config/app_build_profile.dart';
 import '../../l10n/s.dart';
 import '../../pages/network_settings_page/widgets/advanced_settings_card.dart';
 import '../../pages/network_settings_page/widgets/cf_verify_card.dart';
@@ -20,6 +21,7 @@ import '../settings_model.dart';
 /// 网络设置数据声明
 List<SettingsGroup> buildNetworkGroups(BuildContext context) {
   final l10n = context.l10n;
+  final supportsAdvancedNetwork = AppNetworkProfile.supportsAdvancedNetwork;
   return [
     // 网络引擎
     SettingsGroup(
@@ -27,12 +29,13 @@ List<SettingsGroup> buildNetworkGroups(BuildContext context) {
       icon: Icons.speed_outlined,
       wrapInCard: false,
       items: [
-        CustomModel(
-          id: 'rhttpEngine',
-          title: l10n.rhttpEngine_title,
-          subtitle: l10n.networkSettings_engine,
-          builder: (context, ref) => const RhttpEngineCard(),
-        ),
+        if (supportsAdvancedNetwork)
+          CustomModel(
+            id: 'rhttpEngine',
+            title: l10n.rhttpEngine_title,
+            subtitle: l10n.networkSettings_engine,
+            builder: (context, ref) => const RhttpEngineCard(),
+          ),
         CustomModel(
           id: 'webviewAdapter',
           title: l10n.webviewAdapter_title,
@@ -42,26 +45,27 @@ List<SettingsGroup> buildNetworkGroups(BuildContext context) {
       ],
     ),
 
-    // 网络代理
-    SettingsGroup(
-      title: l10n.networkSettings_proxy,
-      icon: Icons.dns_outlined,
-      wrapInCard: false,
-      items: [
-        CustomModel(
-          id: 'dohSettings',
-          title: 'DNS over HTTPS',
-          subtitle: l10n.networkSettings_proxy,
-          builder: (context, ref) => const DohSettingsCard(),
-        ),
-        CustomModel(
-          id: 'httpProxy',
-          title: l10n.httpProxy_title,
-          subtitle: l10n.networkSettings_proxy,
-          builder: (context, ref) => const HttpProxyCard(),
-        ),
-      ],
-    ),
+    if (supportsAdvancedNetwork)
+      // 网络代理
+      SettingsGroup(
+        title: l10n.networkSettings_proxy,
+        icon: Icons.dns_outlined,
+        wrapInCard: false,
+        items: [
+          CustomModel(
+            id: 'dohSettings',
+            title: 'DNS over HTTPS',
+            subtitle: l10n.networkSettings_proxy,
+            builder: (context, ref) => const DohSettingsCard(),
+          ),
+          CustomModel(
+            id: 'httpProxy',
+            title: l10n.httpProxy_title,
+            subtitle: l10n.networkSettings_proxy,
+            builder: (context, ref) => const HttpProxyCard(),
+          ),
+        ],
+      ),
 
     // 辅助功能
     SettingsGroup(
@@ -69,12 +73,13 @@ List<SettingsGroup> buildNetworkGroups(BuildContext context) {
       icon: Icons.tune_outlined,
       wrapInCard: false,
       items: [
-        CustomModel(
-          id: 'vpnAutoToggle',
-          title: l10n.vpnToggle_title,
-          subtitle: l10n.vpnToggle_subtitle,
-          builder: (context, ref) => const VpnAutoToggleCard(),
-        ),
+        if (supportsAdvancedNetwork)
+          CustomModel(
+            id: 'vpnAutoToggle',
+            title: l10n.vpnToggle_title,
+            subtitle: l10n.vpnToggle_subtitle,
+            builder: (context, ref) => const VpnAutoToggleCard(),
+          ),
         CustomModel(
           id: 'cfVerify',
           title: l10n.cf_securityVerifyTitle,

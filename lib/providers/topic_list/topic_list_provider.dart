@@ -64,7 +64,13 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         filter.isEmpty &&
         orderParam == null) {
       final preloadedService = PreloadedDataService();
-      final preloadedData = preloadedService.getInitialTopicListSync();
+      var preloadedData = preloadedService.getInitialTopicListSync();
+      if (preloadedData == null && preloadedService.hasInitialTopicList) {
+        preloadedData = await preloadedService.getInitialTopicList().timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => null,
+        );
+      }
       if (preloadedData != null) {
         final result = await _processFilteredRefresh(
           service: ref.read(discourseServiceProvider),

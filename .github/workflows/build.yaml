@@ -172,9 +172,11 @@ jobs:
       - name: Build Android
         if: startsWith(matrix.platform, 'android')
         run: |
-          flutter build apk --release --target-platform android-arm64 --dart-define=cronetHttpNoPlay=true
+          flutter build apk --release --target-platform ${{ matrix.flutter-target }} --dart-define=cronetHttpNoPlay=true --dart-define=appNetworkProfile=full
           mkdir -p dist
-          mv build/app/outputs/flutter-apk/app-release.apk dist/fluxdo-${{ matrix.arch }}.apk
+          mv build/app/outputs/flutter-apk/app-release.apk dist/fluxdo-${{ matrix.arch }}-full.apk
+          flutter build apk --release --target-platform ${{ matrix.flutter-target }} --dart-define=cronetHttpNoPlay=true --dart-define=appNetworkProfile=direct
+          mv build/app/outputs/flutter-apk/app-release.apk dist/fluxdo-${{ matrix.arch }}-direct.apk
 
       - name: Setup NuGet
         if: matrix.platform == 'windows'
@@ -272,7 +274,8 @@ jobs:
           mkdir -p ./release-assets
 
           required_assets=(
-            "fluxdo-arm64-v8a.apk"
+            "fluxdo-arm64-v8a-full.apk"
+            "fluxdo-arm64-v8a-direct.apk"
             "fluxdo-windows-x86_64-setup.exe"
             "fluxdo-windows-x86_64.zip"
           )
@@ -287,8 +290,8 @@ jobs:
           done
 
           asset_count=$(find ./release-assets -maxdepth 1 -type f | wc -l | tr -d ' ')
-          if [[ "$asset_count" != "3" ]]; then
-            echo "Release must contain exactly three installable assets."
+          if [[ "$asset_count" != "4" ]]; then
+            echo "Release must contain exactly four installable assets."
             find ./release-assets -maxdepth 1 -type f -print
             exit 1
           fi

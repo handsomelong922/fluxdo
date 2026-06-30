@@ -349,6 +349,28 @@ class PreloadedDataService {
     }
   }
 
+  /// 等待首页话题列表解析完成，但不消费缓存。
+  ///
+  /// 启动页用它把首屏显示和预加载模型解析对齐，避免动画结束后首页
+  /// provider 因为同步缓存尚未准备好而重新请求 `/latest.json`。
+  Future<bool> waitForInitialTopicListReady({
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
+    try {
+      await _ensureLoaded().timeout(timeout);
+      if (_cachedTopicListResponse != null) return true;
+      final completer = _topicListResponseCompleter;
+      if (completer == null) return false;
+      final response = await completer.future.timeout(timeout);
+      return response != null || _cachedTopicListResponse != null;
+    } on TimeoutException {
+      return _cachedTopicListResponse != null;
+    } catch (e) {
+      debugPrint('[PreloadedData] 等待 topic_list 就绪失败: $e');
+      return false;
+    }
+  }
+
   /// 检查是否有预加载的话题列表可用
   bool get hasInitialTopicList =>
       _cachedTopicListResponse != null ||

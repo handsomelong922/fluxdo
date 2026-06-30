@@ -13,6 +13,7 @@ import '../services/discourse/discourse_service.dart';
 import '../services/emoji_handler.dart';
 import '../services/log/log_writer.dart';
 import '../services/migration_service.dart';
+import '../services/preloaded_data_service.dart';
 import '../utils/dialog_utils.dart';
 import '../widgets/common/ambient_background.dart';
 import '../widgets/common/error_view.dart';
@@ -29,7 +30,8 @@ class PreheatGate extends StatefulWidget {
 }
 
 class _PreheatGateState extends State<PreheatGate> {
-  static const _minimumLoadingDuration = Duration(milliseconds: 1500);
+  static const _minimumLoadingDuration = Duration(milliseconds: 3200);
+  static const _topicListReadyTimeout = Duration(seconds: 2);
 
   late Future<bool> _loadFuture;
   Object? _error;
@@ -66,6 +68,9 @@ class _PreheatGateState extends State<PreheatGate> {
       // data-preloaded 中的 topicList，避免首页再发 /latest.json 后长时间骨架屏。
       await BrowserTrustCoordinator.instance.ensurePreloaded(
         reason: 'preheat_gate',
+      );
+      await PreloadedDataService().waitForInitialTopicListReady(
+        timeout: _topicListReadyTimeout,
       );
       unawaited(DiscourseService().getEnabledReactions());
       EmojiHandler().init();
@@ -259,7 +264,9 @@ class _PreheatLoadingState extends State<_PreheatLoading> {
                           onPressed: widget.onSkip,
                           child: Text(
                             context.l10n.common_skip,
-                            style: TextStyle(color: colorScheme.onSurfaceVariant),
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ),
@@ -269,7 +276,9 @@ class _PreheatLoadingState extends State<_PreheatLoading> {
                   Text(
                     _version != null ? 'v$_version' : '',
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.6,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
