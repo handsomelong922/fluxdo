@@ -304,7 +304,8 @@ jobs:
           tag_name: ${{ needs.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
           files: |
-            ./release-assets/fluxdo-arm64-v8a.apk
+            ./release-assets/fluxdo-arm64-v8a-full.apk
+            ./release-assets/fluxdo-arm64-v8a-direct.apk
             ./release-assets/fluxdo-windows-x86_64-setup.exe
             ./release-assets/fluxdo-windows-x86_64.zip
           fail_on_unmatched_files: true
