@@ -5,6 +5,7 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 import '../../../l10n/s.dart';
 import '../../../models/topic.dart';
 import '../../../providers/nested_topic_provider.dart';
+import '../../../utils/blocked_user_filter.dart';
 import '../../../utils/responsive.dart';
 import '../../../widgets/nested/nested_post_card.dart';
 import '../../../widgets/post/post_item/post_item.dart';
@@ -16,6 +17,7 @@ class NestedPostList extends ConsumerStatefulWidget {
   final NestedTopicState nestedState;
   final NestedTopicParams params;
   final TopicDetail detail;
+  final Set<String> blockedUsernames;
   final int topicId;
   final AutoScrollController scrollController;
   final GlobalKey headerKey;
@@ -48,6 +50,7 @@ class NestedPostList extends ConsumerStatefulWidget {
     required this.nestedState,
     required this.params,
     required this.detail,
+    required this.blockedUsernames,
     required this.topicId,
     required this.scrollController,
     required this.headerKey,
@@ -243,6 +246,18 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
 
     final ns = widget.nestedState;
     final p = widget.params;
+    final opPost =
+        ns.opPost != null &&
+            !BlockedUserFilter.isBlockedUsername(
+              ns.opPost!.username,
+              widget.blockedUsernames,
+            )
+        ? ns.opPost
+        : null;
+    final roots = BlockedUserFilter.visibleNestedNodes(
+      ns.roots,
+      widget.blockedUsernames,
+    );
 
     return NotificationListener<ScrollNotification>(
       onNotification: widget.onScrollNotification,
@@ -273,14 +288,14 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
               ),
             ),
 
-            if (ns.opPost != null)
+            if (opPost != null)
               SliverToBoxAdapter(
                 child: AutoScrollTag(
                   key: const ValueKey('nested-post-1-op'),
                   controller: widget.scrollController,
-                  index: _nextIndexForPost(ns.opPost!.postNumber),
+                  index: _nextIndexForPost(opPost.postNumber),
                   child: PostItem(
-                    post: ns.opPost!,
+                    post: opPost,
                     topicId: widget.topicId,
                     isTopicOwner: true,
                     topicHasAcceptedAnswer: widget.detail.hasAcceptedAnswer,
@@ -297,16 +312,15 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                             initialContent,
                           )
                         : null,
-                    onEdit: widget.isLoggedIn && ns.opPost!.canEdit
-                        ? () => widget.onEdit(ns.opPost!)
+                    onEdit: widget.isLoggedIn && opPost.canEdit
+                        ? () => widget.onEdit(opPost)
                         : null,
                     onRefreshPost: widget.onRefreshPost,
                     onJumpToPost: widget.onJumpToPost,
                     onSolutionChanged: widget.onSolutionChanged,
                     hideRepliesButton: true,
                     sharedIssueVisible: widget.detail.sharedIssueVisible,
-                    canCreateSharedIssue:
-                        widget.detail.canCreateSharedIssue,
+                    canCreateSharedIssue: widget.detail.canCreateSharedIssue,
                     sharedIssueCount: widget.detail.sharedIssueCount,
                     userCreatedSharedIssue:
                         widget.detail.userCreatedSharedIssue,
@@ -383,21 +397,20 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
 
             SliverList.builder(
               itemCount:
-                  ns.roots.length +
-                  (ns.hasMoreRoots || ns.isLoadingMore ? 1 : 0),
+                  roots.length + (ns.hasMoreRoots || ns.isLoadingMore ? 1 : 0),
               itemBuilder: (context, index) {
-                if (index >= ns.roots.length) {
+                if (index >= roots.length) {
                   return _buildLoadMore(context);
                 }
                 return NestedPostCard(
-                  key: ValueKey('nested-root-${ns.roots[index].post.id}'),
-                  node: ns.roots[index],
+                  key: ValueKey('nested-root-${roots[index].post.id}'),
+                  node: roots[index],
                   topicId: widget.topicId,
                   detail: widget.detail,
                   params: p,
                   depth: 0,
                   maxDepth: maxDepth,
-                  isLastChild: index == ns.roots.length - 1,
+                  isLastChild: index == roots.length - 1,
                   isLoggedIn: widget.isLoggedIn,
                   onReply: widget.onReply,
                   onReplyWithInitialContent: widget.onReplyWithInitialContent,

@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/s.dart';
 import '../../providers/discourse_providers.dart';
 import '../../providers/preferences_provider.dart';
+import '../../services/settings/content_filter_service.dart';
 import '../../pages/notifications_page.dart';
 import '../../utils/blur_config.dart';
+import '../../utils/blocked_user_filter.dart';
 import '../../utils/responsive.dart';
 import '../../utils/notification_navigation.dart';
 import 'notification_item.dart';
@@ -39,7 +41,8 @@ class SidebarNotificationPanel extends StatefulWidget {
   const SidebarNotificationPanel({super.key});
 
   @override
-  State<SidebarNotificationPanel> createState() => _SidebarNotificationPanelState();
+  State<SidebarNotificationPanel> createState() =>
+      _SidebarNotificationPanelState();
 }
 
 class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
@@ -94,14 +97,17 @@ class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
   final _contentKey = GlobalKey();
 
   void _handleMobileDragUpdate(DragUpdateDetails details) {
-    final nextOffset = (_dragOffset + details.delta.dy).clamp(0.0, double.infinity);
+    final nextOffset = (_dragOffset + details.delta.dy).clamp(
+      0.0,
+      double.infinity,
+    );
     if (nextOffset == _dragOffset) return;
     setState(() => _dragOffset = nextOffset);
   }
 
   void _handleMobileDragEnd(DragEndDetails details, double panelHeight) {
-    final shouldDismiss = _dragOffset > panelHeight * 0.2 ||
-        (details.primaryVelocity ?? 0) > 500;
+    final shouldDismiss =
+        _dragOffset > panelHeight * 0.2 || (details.primaryVelocity ?? 0) > 500;
     if (shouldDismiss) {
       NotificationQuickPanel.dismiss();
       return;
@@ -135,9 +141,10 @@ class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
           return const SizedBox.shrink();
         }
 
-        final dialogBlur = ProviderScope.containerOf(context, listen: false)
-            .read(preferencesProvider)
-            .dialogBlur;
+        final dialogBlur = ProviderScope.containerOf(
+          context,
+          listen: false,
+        ).read(preferencesProvider).dialogBlur;
         final barrierColor = dialogBlur
             ? blurBarrierColor(Theme.of(context).brightness)
             : Colors.black26;
@@ -155,8 +162,10 @@ class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onVerticalDragUpdate: _handleMobileDragUpdate,
-                  onVerticalDragEnd: (details) =>
-                      _handleMobileDragEnd(details, MediaQuery.sizeOf(context).height * 0.8),
+                  onVerticalDragEnd: (details) => _handleMobileDragEnd(
+                    details,
+                    MediaQuery.sizeOf(context).height * 0.8,
+                  ),
                   child: const SizedBox(
                     width: double.infinity,
                     height: 28,
@@ -185,8 +194,12 @@ class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
     // 面板可见区域的圆角矩形（排除此区域避免模糊影响面板内容）
     final visiblePanelWidth = actualPanelWidth * _animation.value;
     final panelRRect = RRect.fromRectAndCorners(
-      Rect.fromLTWH(0, screenSize.height - panelHeight,
-          visiblePanelWidth, panelHeight),
+      Rect.fromLTWH(
+        0,
+        screenSize.height - panelHeight,
+        visiblePanelWidth,
+        panelHeight,
+      ),
       topRight: const Radius.circular(20),
     );
 
@@ -211,7 +224,8 @@ class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
             onTap: NotificationQuickPanel.dismiss,
             child: ColoredBox(
               color: barrierColor.withValues(
-                  alpha: barrierColor.a * _animation.value),
+                alpha: barrierColor.a * _animation.value,
+              ),
             ),
           ),
         ),
@@ -239,11 +253,17 @@ class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
     final dragOffset = _dragOffset.clamp(0.0, panelHeight);
 
     // 面板可见高度（随动画和拖拽变化）
-    final visibleHeight =
-        (panelHeight * _animation.value - dragOffset).clamp(0.0, panelHeight);
+    final visibleHeight = (panelHeight * _animation.value - dragOffset).clamp(
+      0.0,
+      panelHeight,
+    );
     final panelRRect = RRect.fromRectAndCorners(
-      Rect.fromLTWH(0, screenSize.height - visibleHeight,
-          screenSize.width, visibleHeight),
+      Rect.fromLTWH(
+        0,
+        screenSize.height - visibleHeight,
+        screenSize.width,
+        visibleHeight,
+      ),
       topLeft: const Radius.circular(20),
       topRight: const Radius.circular(20),
     );
@@ -270,7 +290,8 @@ class _SidebarNotificationPanelState extends State<SidebarNotificationPanel>
             onTap: NotificationQuickPanel.dismiss,
             child: ColoredBox(
               color: barrierColor.withValues(
-                  alpha: barrierColor.a * _animation.value),
+                alpha: barrierColor.a * _animation.value,
+              ),
             ),
           ),
         ),
@@ -308,9 +329,9 @@ class _ExcludeRRectClipper extends CustomClipper<Path> {
   }
 
   @override
-  bool shouldReclip(_ExcludeRRectClipper old) => excludeRRect != old.excludeRRect;
+  bool shouldReclip(_ExcludeRRectClipper old) =>
+      excludeRRect != old.excludeRRect;
 }
-
 
 /// 手机模式 BottomSheet 面板
 /// 拖拽手柄
@@ -349,11 +370,16 @@ class _NotificationHeader extends ConsumerWidget {
       padding: padding,
       child: Row(
         children: [
-          Text(context.l10n.common_notification, style: theme.textTheme.titleLarge),
+          Text(
+            context.l10n.common_notification,
+            style: theme.textTheme.titleLarge,
+          ),
           const Spacer(),
           IconButton(
             onPressed: () async {
-              await ref.read(recentNotificationsProvider.notifier).markAllAsRead();
+              await ref
+                  .read(recentNotificationsProvider.notifier)
+                  .markAllAsRead();
             },
             icon: const Icon(Icons.done_all, size: 20),
             tooltip: context.l10n.notification_markAllRead,
@@ -414,19 +440,39 @@ class _NotificationBodyState extends ConsumerState<_NotificationBody> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final notificationsAsync = ref.watch(recentNotificationsProvider);
-    final systemAvatarTemplate = ref.watch(systemUserAvatarTemplateProvider).value;
+    final systemAvatarTemplate = ref
+        .watch(systemUserAvatarTemplateProvider)
+        .value;
+    final blockedUsernames = ref.watch(
+      contentFilterProvider.select((state) => state.normalizedBlockedUsers),
+    );
 
     return Expanded(
       child: notificationsAsync.when(
         data: (notifications) {
-          if (notifications.isEmpty) {
+          final visibleNotifications = notifications
+              .where(
+                (notification) => !BlockedUserFilter.isBlockedNotification(
+                  notification,
+                  blockedUsernames,
+                ),
+              )
+              .toList(growable: false);
+          if (visibleNotifications.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.notifications_none, size: 48, color: Colors.grey),
+                  const Icon(
+                    Icons.notifications_none,
+                    size: 48,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(height: 12),
-                  Text(context.l10n.notification_empty, style: const TextStyle(color: Colors.grey)),
+                  Text(
+                    context.l10n.notification_empty,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
                 ],
               ),
             );
@@ -436,9 +482,9 @@ class _NotificationBodyState extends ConsumerState<_NotificationBody> {
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).padding.bottom,
             ),
-            itemCount: notifications.length,
+            itemCount: visibleNotifications.length,
             itemBuilder: (context, index) {
-              final notification = notifications[index];
+              final notification = visibleNotifications[index];
               return NotificationItem(
                 notification: notification,
                 systemAvatarTemplate: systemAvatarTemplate,
@@ -456,7 +502,10 @@ class _NotificationBodyState extends ConsumerState<_NotificationBody> {
             children: [
               const Icon(Icons.error_outline, size: 48, color: Colors.grey),
               const SizedBox(height: 12),
-              Text(context.l10n.common_loadFailed, style: TextStyle(color: colorScheme.error)),
+              Text(
+                context.l10n.common_loadFailed,
+                style: TextStyle(color: colorScheme.error),
+              ),
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => ref.invalidate(recentNotificationsProvider),

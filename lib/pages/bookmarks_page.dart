@@ -9,7 +9,9 @@ import '../providers/preferences_provider.dart';
 import '../providers/user_content_search_provider.dart';
 import '../services/app_error_handler.dart';
 import '../services/discourse/discourse_service.dart';
+import '../services/settings/content_filter_service.dart';
 import '../services/toast_service.dart';
+import '../utils/blocked_user_filter.dart';
 import '../utils/time_utils.dart';
 import '../utils/html_excerpt.dart';
 import '../widgets/bookmark/bookmark_edit_sheet.dart';
@@ -337,11 +339,19 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
   }
 
   Widget _buildTopicList(AsyncValue<List<Topic>> bookmarksAsync) {
+    final blockedUsernames = ref.watch(
+      contentFilterProvider.select((state) => state.normalizedBlockedUsers),
+    );
+
     return DesktopRefreshIndicator(
       onRefresh: _onRefresh,
       child: bookmarksAsync.when(
         data: (topics) {
-          if (topics.isEmpty) {
+          final visibleTopics = BlockedUserFilter.visibleTopics(
+            topics,
+            blockedUsernames,
+          );
+          if (visibleTopics.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -364,9 +374,9 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
           return ListView.builder(
             controller: _scrollController,
             padding: const EdgeInsets.all(12),
-            itemCount: topics.length + 1,
+            itemCount: visibleTopics.length + 1,
             itemBuilder: (context, index) {
-              if (index == topics.length) {
+              if (index == visibleTopics.length) {
                 final notifier = ref.watch(bookmarksProvider.notifier);
                 if (!notifier.hasMore) {
                   return Padding(
@@ -416,7 +426,7 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
                 return const SizedBox();
               }
 
-              final topic = topics[index];
+              final topic = visibleTopics[index];
               final enableLongPress = ref
                   .watch(preferencesProvider)
                   .longPressPreview;

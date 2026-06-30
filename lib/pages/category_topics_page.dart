@@ -5,6 +5,7 @@ import '../models/category.dart';
 import '../providers/discourse_providers.dart';
 import '../providers/selected_topic_provider.dart';
 import '../providers/preferences_provider.dart';
+import '../services/settings/content_filter_service.dart';
 import '../utils/pagination_helper.dart';
 import '../widgets/topic/topic_list_skeleton.dart';
 import '../widgets/topic/sort_and_tags_bar.dart';
@@ -430,7 +431,16 @@ class _CategoryTopicsPageState extends ConsumerState<CategoryTopicsPage> {
       return ErrorView(error: _error!, onRetry: _loadTopics);
     }
 
-    if (_topics.isEmpty) {
+    final contentFilterState = ref.watch(contentFilterProvider);
+    final contentFilter = ref.read(contentFilterProvider.notifier);
+    final visibleTopics =
+        contentFilterState.hasBlockedTags || contentFilterState.hasBlockedUsers
+        ? _topics
+              .where((topic) => !contentFilter.matchesTopic(topic))
+              .toList(growable: false)
+        : _topics;
+
+    if (visibleTopics.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -453,9 +463,9 @@ class _CategoryTopicsPageState extends ConsumerState<CategoryTopicsPage> {
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
-        itemCount: _topics.length + 1,
+        itemCount: visibleTopics.length + 1,
         itemBuilder: (context, index) {
-          if (index >= _topics.length) {
+          if (index >= visibleTopics.length) {
             if (!_hasMore) {
               return Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -504,7 +514,7 @@ class _CategoryTopicsPageState extends ConsumerState<CategoryTopicsPage> {
             );
           }
 
-          final topic = _topics[index];
+          final topic = visibleTopics[index];
           final enableLongPress = ref
               .watch(preferencesProvider)
               .longPressPreview;

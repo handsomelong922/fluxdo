@@ -14,13 +14,14 @@ class UserFilterPage extends ConsumerStatefulWidget {
 class _UserFilterPageState extends ConsumerState<UserFilterPage> {
   late final TextEditingController _controller;
 
-  static const String _hint = 'alice,bob,charlie';
-  static const String _description = '使用英文逗号分隔多个用户名，命中用户发布的内容将被隐藏。';
+  static const String _hint = 'alice\nbob\n@charlie';
+  static const String _description =
+      '一行一个用户名，也可以用逗号分隔；用户名不需要输入 @，命中用户发布的内容将被隐藏。';
 
   @override
   void initState() {
     super.initState();
-    final initial = ref.read(contentFilterProvider).blockedUsers.join(',');
+    final initial = ref.read(contentFilterProvider).blockedUsers.join('\n');
     _controller = TextEditingController(text: initial);
   }
 
@@ -34,7 +35,7 @@ class _UserFilterPageState extends ConsumerState<UserFilterPage> {
     ref
         .read(contentFilterProvider.notifier)
         .setBlockedUsersFromInput(_controller.text);
-    final normalized = ref.read(contentFilterProvider).blockedUsers.join(',');
+    final normalized = ref.read(contentFilterProvider).blockedUsers.join('\n');
     if (_controller.text != normalized) {
       _controller.text = normalized;
       _controller.selection = TextSelection.collapsed(
@@ -52,9 +53,14 @@ class _UserFilterPageState extends ConsumerState<UserFilterPage> {
   }
 
   void _restoreNormalized() {
-    final current = ref.read(contentFilterProvider).blockedUsers.join(',');
+    final current = ref.read(contentFilterProvider).blockedUsers.join('\n');
     _controller.text = current;
     _controller.selection = TextSelection.collapsed(offset: current.length);
+  }
+
+  Future<void> _removeBlockedUser(String username) async {
+    await ref.read(contentFilterProvider.notifier).removeBlockedUser(username);
+    _restoreNormalized();
   }
 
   @override
@@ -135,7 +141,12 @@ class _UserFilterPageState extends ConsumerState<UserFilterPage> {
               spacing: 8,
               runSpacing: 8,
               children: blockedUsers
-                  .map((username) => Chip(label: Text(username)))
+                  .map(
+                    (username) => InputChip(
+                      label: Text(username),
+                      onDeleted: () => _removeBlockedUser(username),
+                    ),
+                  )
                   .toList(),
             ),
         ],

@@ -8,7 +8,7 @@ void main() {
     test('normalizes blocked tags and users for repeated matching', () async {
       SharedPreferences.setMockInitialValues({
         ContentFilterNotifier.blockedTagsKey: ['Flutter', 'Dart'],
-        ContentFilterNotifier.blockedUsersKey: ['Alice'],
+        ContentFilterNotifier.blockedUsersKey: ['@Alice'],
       });
       final prefs = await SharedPreferences.getInstance();
       final notifier = ContentFilterNotifier(prefs);
@@ -17,6 +17,7 @@ void main() {
       expect(notifier.state.normalizedBlockedUsers, {'alice'});
       expect(notifier.matchesTagName('FLUTTER'), isTrue);
       expect(notifier.matchesUsername('alice'), isTrue);
+      expect(notifier.matchesUsername('@alice'), isTrue);
     });
 
     test('matches topic author and tags without changing semantics', () async {
@@ -36,6 +37,17 @@ void main() {
         notifier.matchesTopic(_topic(tag: '闲聊', username: 'alice')),
         isFalse,
       );
+    });
+
+    test('normalizes blocked users from newline and comma input', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final notifier = ContentFilterNotifier(prefs);
+
+      notifier.setBlockedUsersFromInput(' Alice\n@alice，Bob, @carol ');
+
+      expect(notifier.state.blockedUsers, ['Alice', 'Bob', 'carol']);
+      expect(notifier.matchesUsername('@CAROL'), isTrue);
     });
   });
 }

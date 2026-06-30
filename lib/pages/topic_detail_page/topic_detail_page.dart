@@ -28,6 +28,7 @@ import '../../providers/discourse_providers.dart';
 import '../../providers/message_bus_providers.dart';
 import '../../providers/pinned_categories_provider.dart';
 import '../../services/discourse/discourse_service.dart';
+import '../../services/settings/content_filter_service.dart';
 import '../../services/notion/notion_bookmark_auto_sync.dart';
 import '../../services/screen_track.dart';
 import '../../services/topic_reading_state_service.dart';
@@ -1372,7 +1373,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final reduceLoadingAnimations = ref.watch(
       preferencesProvider.select((p) => p.reduceLoadingAnimations),
     );
-
     // 初始加载或切换模式时显示骨架屏
     // 注意：当 hasError 为 true 时，即使 isLoading 也为 true（AsyncLoading.copyWithPrevious 语义），
     // 也应该优先显示错误页面而不是骨架屏
@@ -1627,6 +1627,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final reduceLoadingAnimations = ref.watch(
       preferencesProvider.select((p) => p.reduceLoadingAnimations),
     );
+    final blockedUsernames = ref.watch(
+      contentFilterProvider.select((state) => state.normalizedBlockedUsers),
+    );
 
     // 嵌套视图模式
     if (_isNestedView) {
@@ -1644,6 +1647,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           nestedState: nestedState,
           params: nestedParams,
           detail: detail,
+          blockedUsernames: blockedUsernames,
           topicId: widget.topicId,
           scrollController: _controller.scrollController,
           headerKey: _headerKey,
@@ -1753,6 +1757,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           builder: (context, highlightPostNumber, _) {
             return TopicPostList(
               detail: detail,
+              blockedUsernames: blockedUsernames,
               scrollController: _controller.scrollController,
               centerKey: _centerKey,
               headerKey: _headerKey,

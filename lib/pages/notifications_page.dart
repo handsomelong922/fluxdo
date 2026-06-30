@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/discourse_providers.dart';
+import '../services/settings/content_filter_service.dart';
+import '../utils/blocked_user_filter.dart';
 import '../widgets/desktop_refresh_indicator.dart';
 import '../utils/notification_navigation.dart';
 import '../widgets/notification/notification_item.dart';
@@ -45,7 +47,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   @override
   Widget build(BuildContext context) {
     final notificationsAsync = ref.watch(notificationListProvider);
-    final systemAvatarTemplate = ref.watch(systemUserAvatarTemplateProvider).value;
+    final systemAvatarTemplate = ref
+        .watch(systemUserAvatarTemplateProvider)
+        .value;
+    final blockedUsernames = ref.watch(
+      contentFilterProvider.select((state) => state.normalizedBlockedUsers),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -66,14 +73,29 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         onRefresh: _onRefresh,
         child: notificationsAsync.when(
           data: (notifications) {
-            if (notifications.isEmpty) {
+            final visibleNotifications = notifications
+                .where(
+                  (notification) => !BlockedUserFilter.isBlockedNotification(
+                    notification,
+                    blockedUsernames,
+                  ),
+                )
+                .toList(growable: false);
+            if (visibleNotifications.isEmpty) {
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.notifications_none, size: 64, color: Colors.grey),
+                    const Icon(
+                      Icons.notifications_none,
+                      size: 64,
+                      color: Colors.grey,
+                    ),
                     const SizedBox(height: 16),
-                    Text(context.l10n.notification_empty, style: const TextStyle(color: Colors.grey)),
+                    Text(
+                      context.l10n.notification_empty,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
                   ],
                 ),
               );
@@ -81,9 +103,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
             return ListView.builder(
               controller: _scrollController,
-              itemCount: notifications.length + 1,
+              itemCount: visibleNotifications.length + 1,
               itemBuilder: (context, index) {
-                if (index == notifications.length) {
+                if (index == visibleNotifications.length) {
                   final notifier = ref.read(notificationListProvider.notifier);
                   if (notifier.isLoadMoreFailed) {
                     return Padding(
@@ -94,11 +116,18 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.refresh, size: 16, color: Theme.of(context).colorScheme.primary),
+                              Icon(
+                                Icons.refresh,
+                                size: 16,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                               const SizedBox(width: 6),
                               Text(
                                 context.l10n.common_loadFailedTapRetry,
-                                style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.primary),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
                               ),
                             ],
                           ),
@@ -110,11 +139,15 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                     return Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Center(
-                        child: Text(context.l10n.common_noMore, style: const TextStyle(color: Colors.grey)),
+                        child: Text(
+                          context.l10n.common_noMore,
+                          style: const TextStyle(color: Colors.grey),
+                        ),
                       ),
                     );
                   }
-                  if (notificationsAsync.isLoading && !notificationsAsync.hasError) {
+                  if (notificationsAsync.isLoading &&
+                      !notificationsAsync.hasError) {
                     return const Padding(
                       padding: EdgeInsets.all(16.0),
                       child: Center(child: CircularProgressIndicator()),
@@ -122,21 +155,19 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   }
                   return const SizedBox();
                 }
-                final notification = notifications[index];
+                final notification = visibleNotifications[index];
                 return NotificationItem(
                   notification: notification,
                   systemAvatarTemplate: systemAvatarTemplate,
-                  onTap: () => handleNotificationTap(context, ref, notification),
+                  onTap: () =>
+                      handleNotificationTap(context, ref, notification),
                 );
               },
             );
           },
           loading: () => const NotificationListSkeleton(),
-          error: (error, stack) => ErrorView(
-            error: error,
-            stackTrace: stack,
-            onRetry: _onRefresh,
-          ),
+          error: (error, stack) =>
+              ErrorView(error: error, stackTrace: stack, onRetry: _onRefresh),
         ),
       ),
     );

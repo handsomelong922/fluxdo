@@ -11,6 +11,8 @@ import '../../../../../modules/ldc_reward/ldc_reward.dart';
 import '../../../../../pages/user_profile_page.dart';
 import '../../../../../providers/discourse_providers.dart';
 import '../../../../../providers/preferences_provider.dart';
+import '../../../../../services/settings/content_filter_service.dart';
+import '../../../../../utils/blocked_user_filter.dart';
 import 'package:dio/dio.dart';
 import '../../../../../services/app_error_handler.dart';
 import '../../../../../services/discourse/discourse_service.dart';
@@ -539,6 +541,17 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
             onChanged: widget.onSharedIssueChanged,
           )
         : null;
+    final blockedUsernames = ref.watch(
+      contentFilterProvider.select((state) => state.normalizedBlockedUsers),
+    );
+    final visibleBoosts = BlockedUserFilter.visibleBoosts(
+      _boosts,
+      blockedUsernames,
+    );
+    final visibleReplies = BlockedUserFilter.visiblePosts(
+      _replies,
+      blockedUsernames,
+    );
 
     // 预热打赏凭证，避免首次打开更多菜单时因 AsyncLoading 导致打赏选项不显示
     ref.watch(ldcRewardCredentialsProvider);
@@ -581,13 +594,13 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
             onToggleReplies: _toggleReplies,
             onAddBoost: _openBoostInput,
             canBoost: _canBoost,
-            hasBoosts: _boosts.isNotEmpty,
+            hasBoosts: visibleBoosts.isNotEmpty,
             leadingAction: sharedIssueAction,
           ),
           // Boost 气泡列表
-          if (_boosts.isNotEmpty)
+          if (visibleBoosts.isNotEmpty)
             BoostList(
-              boosts: _boosts,
+              boosts: visibleBoosts,
               canBoost: _canBoost,
               onAddBoost: _openBoostInput,
               onBoostTap: (boost) => _showBoostActions(boost),
@@ -600,7 +613,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
             builder: (context, showReplies, _) {
               if (!showReplies) return const SizedBox.shrink();
               return PostRepliesList(
-                replies: _replies,
+                replies: visibleReplies,
                 replyCount: widget.post.replyCount,
                 canLoadMore: _canLoadMoreReplies,
                 isLoadingRepliesNotifier: _isLoadingRepliesNotifier,

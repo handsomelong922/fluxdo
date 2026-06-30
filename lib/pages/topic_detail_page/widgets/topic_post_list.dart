@@ -9,6 +9,7 @@ import '../../../models/topic.dart';
 import '../../../pages/search_page.dart';
 import '../../../providers/message_bus_providers.dart';
 import '../../../services/toast_service.dart';
+import '../../../utils/blocked_user_filter.dart';
 import '../../../utils/code_selection_context.dart';
 import '../../../utils/responsive.dart';
 import '../../../utils/time_utils.dart';
@@ -31,6 +32,7 @@ import 'typing_indicator.dart';
 /// 保留跨块文本选择能力。
 class TopicPostList extends StatefulWidget {
   final TopicDetail detail;
+  final Set<String> blockedUsernames;
   final AutoScrollController scrollController;
   final GlobalKey centerKey;
   final GlobalKey headerKey;
@@ -91,6 +93,7 @@ class TopicPostList extends StatefulWidget {
   const TopicPostList({
     super.key,
     required this.detail,
+    required this.blockedUsernames,
     required this.scrollController,
     required this.centerKey,
     required this.headerKey,
@@ -184,6 +187,10 @@ class _TopicPostListState extends State<TopicPostList> {
 
   // 便捷 getter，简化 widget.xxx 访问
   TopicDetail get detail => widget.detail;
+  List<Post> get _visiblePosts => BlockedUserFilter.visiblePosts(
+    detail.postStream.posts,
+    widget.blockedUsernames,
+  );
   AutoScrollController get scrollController => widget.scrollController;
   GlobalKey get centerKey => widget.centerKey;
   GlobalKey get headerKey => widget.headerKey;
@@ -237,7 +244,7 @@ class _TopicPostListState extends State<TopicPostList> {
   /// - 滚到最底时，eyeline 在视口底部，确保能显示最后一个帖子
   /// 这使得进度指示器在整个滚动过程中平滑过渡，无需硬编码特殊情况。
   void _updateFirstVisiblePost() {
-    final posts = detail.postStream.posts;
+    final posts = _visiblePosts;
     if (posts.isEmpty) return;
 
     final tagMap = scrollController.tagMap;
@@ -555,10 +562,19 @@ class _TopicPostListState extends State<TopicPostList> {
 
   @override
   Widget build(BuildContext context) {
-    final posts = detail.postStream.posts;
+    final posts = _visiblePosts;
     final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
     _ensureRenderSegments(posts);
-    final centerScrollIndex = _postIndexToScrollIndex[centerPostIndex] ?? 0;
+    final centerPostNumber =
+        centerPostIndex >= 0 && centerPostIndex < detail.postStream.posts.length
+        ? detail.postStream.posts[centerPostIndex].postNumber
+        : null;
+    final centerVisibleIndex = centerPostNumber == null
+        ? null
+        : _postNumberToIndex[centerPostNumber];
+    final centerScrollIndex = centerVisibleIndex == null
+        ? 0
+        : (_postIndexToScrollIndex[centerVisibleIndex] ?? 0);
 
     return SelectionArea(
       onSelectionChanged: (content) {
@@ -743,7 +759,7 @@ class _TopicPostListState extends State<TopicPostList> {
 
   /// 判断是否需要显示日期分割线
   bool _shouldShowDateSeparator(int postIndex) {
-    final posts = detail.postStream.posts;
+    final posts = _visiblePosts;
     if (postIndex <= 0) return false;
 
     final currentDate = posts[postIndex].createdAt;
@@ -771,7 +787,7 @@ class _TopicPostListState extends State<TopicPostList> {
     final dateSeparatorLabel = showTopSeparator
         ? TimeUtils.formatSmartDate(post.createdAt)
         : null;
-    final posts_ = detail.postStream.posts;
+    final posts_ = _visiblePosts;
     final nextPostIndex = postIndex + 1;
     final showBottomSeparator =
         nextPostIndex < posts_.length &&
@@ -784,7 +800,10 @@ class _TopicPostListState extends State<TopicPostList> {
     // 能匹配到具体 boost 时不高亮帖子，匹配不到时回退到高亮帖子
     final canLocateBoost =
         boostUsername != null &&
-        (post.boosts ?? []).any((b) => b.user.username == boostUsername);
+        BlockedUserFilter.visibleBoosts(
+          post.boosts ?? const <Boost>[],
+          widget.blockedUsernames,
+        ).any((b) => b.user.username == boostUsername);
     final highlight = isTargetPost && !canLocateBoost;
     final Widget child;
 

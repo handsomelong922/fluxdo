@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/topic.dart';
 import '../../providers/theme_provider.dart';
+import '../../utils/blocked_user_filter.dart';
 
 const _filteredPostPlaceholderHtml = '<p>内容已被用户屏蔽规则隐藏</p>';
 
@@ -20,9 +21,9 @@ class ContentFilterState {
   }) : normalizedBlockedTags = {
          for (final tag in blockedTags) tag.toLowerCase(),
        },
-       normalizedBlockedUsers = {
-         for (final user in blockedUsers) user.toLowerCase(),
-       };
+       normalizedBlockedUsers = BlockedUserFilter.normalizedUsernames(
+         blockedUsers,
+       );
 
   bool get hasBlockedTags => blockedTags.isNotEmpty;
   bool get hasBlockedUsers => blockedUsers.isNotEmpty;
@@ -72,14 +73,18 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
     return result;
   }
 
+  static List<String> normalizeUsernameInput(String raw) {
+    return BlockedUserFilter.sanitizeUsernames(raw.split(RegExp(r'[,，\n\r]+')));
+  }
+
   static String? normalizeSingleValue(String raw) {
-    final trimmed = raw.trim();
+    final trimmed = BlockedUserFilter.stripAtPrefix(raw);
     if (trimmed.isEmpty) return null;
     return trimmed;
   }
 
   bool _containsIgnoreCase(Iterable<String> values, String target) {
-    final normalizedTarget = target.toLowerCase();
+    final normalizedTarget = BlockedUserFilter.normalizeUsername(target);
     return values.contains(normalizedTarget);
   }
 
@@ -90,7 +95,7 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
   }
 
   void setBlockedUsersFromInput(String raw) {
-    final nextUsers = normalizeCommaSeparated(raw);
+    final nextUsers = normalizeUsernameInput(raw);
     state = state.copyWith(blockedUsers: nextUsers);
     _prefs.setStringList(blockedUsersKey, nextUsers);
   }
@@ -113,7 +118,11 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
     if (normalized == null) return false;
 
     final nextUsers = state.blockedUsers
-        .where((user) => user.toLowerCase() != normalized.toLowerCase())
+        .where(
+          (user) =>
+              BlockedUserFilter.normalizeUsername(user) !=
+              BlockedUserFilter.normalizeUsername(normalized),
+        )
         .toList();
     if (nextUsers.length == state.blockedUsers.length) {
       return false;
@@ -157,7 +166,10 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
     if (username == null || username.isEmpty || !state.hasBlockedUsers) {
       return false;
     }
-    return state.normalizedBlockedUsers.contains(username.toLowerCase());
+    return BlockedUserFilter.isBlockedUsername(
+      username,
+      state.normalizedBlockedUsers,
+    );
   }
 
   Post applyUserFilterToPost(Post post) {
@@ -185,7 +197,10 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
 
   bool matchesTopic(Topic topic) {
     if (matchesAnyTag(topic.tags)) return true;
-    return matchesUsername(topicAuthorUsername(topic));
+    return BlockedUserFilter.isBlockedTopic(
+      topic,
+      state.normalizedBlockedUsers,
+    );
   }
 
   TopicDetail applyUserFilterToDetail(TopicDetail detail) {

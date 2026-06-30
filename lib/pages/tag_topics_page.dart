@@ -4,6 +4,7 @@ import '../models/topic.dart';
 import '../providers/discourse_providers.dart';
 import '../providers/selected_topic_provider.dart';
 import '../providers/preferences_provider.dart';
+import '../services/settings/content_filter_service.dart';
 import '../utils/pagination_helper.dart';
 import '../widgets/topic/topic_list_skeleton.dart';
 import '../widgets/topic/sort_and_tags_bar.dart';
@@ -54,7 +55,6 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage> {
     _ascending = ref.read(topicSortAscendingProvider);
     _scrollController.addListener(_onScroll);
     _loadTopics();
-
   }
 
   @override
@@ -64,7 +64,8 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       _loadMore();
     }
   }
@@ -83,11 +84,16 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage> {
         period: _currentFilter.period,
         page: 0,
         order: _currentOrder.apiValue,
-        ascending: _currentOrder != TopicSortOrder.defaultOrder ? _ascending : null,
+        ascending: _currentOrder != TopicSortOrder.defaultOrder
+            ? _ascending
+            : null,
       );
 
       final result = _paginationHelper.processRefresh(
-        PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: response.topics,
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
 
       if (mounted) {
@@ -118,11 +124,16 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage> {
         period: _currentFilter.period,
         page: 0,
         order: _currentOrder.apiValue,
-        ascending: _currentOrder != TopicSortOrder.defaultOrder ? _ascending : null,
+        ascending: _currentOrder != TopicSortOrder.defaultOrder
+            ? _ascending
+            : null,
       );
 
       final result = _paginationHelper.processRefresh(
-        PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: response.topics,
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
 
       if (mounted) {
@@ -154,13 +165,18 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage> {
         period: _currentFilter.period,
         page: nextPage,
         order: _currentOrder.apiValue,
-        ascending: _currentOrder != TopicSortOrder.defaultOrder ? _ascending : null,
+        ascending: _currentOrder != TopicSortOrder.defaultOrder
+            ? _ascending
+            : null,
       );
 
       final currentState = PaginationState(items: _topics);
       final result = _paginationHelper.processLoadMore(
         currentState,
-        PaginationResult(items: response.topics, moreUrl: response.moreTopicsUrl),
+        PaginationResult(
+          items: response.topics,
+          moreUrl: response.moreTopicsUrl,
+        ),
       );
 
       if (mounted) {
@@ -234,11 +250,11 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage> {
             icon: const Icon(Icons.search),
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => SearchPage(
-                initialFilter: SearchFilter(
-                  tags: [widget.tagName],
+              MaterialPageRoute(
+                builder: (_) => SearchPage(
+                  initialFilter: SearchFilter(tags: [widget.tagName]),
                 ),
-              )),
+              ),
             ),
             tooltip: context.l10n.common_search,
           ),
@@ -267,24 +283,32 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage> {
 
   Widget _buildBody(int? selectedTopicId) {
     if (_isLoading) {
-      return const TopicListSkeleton(
-        padding: EdgeInsets.all(12),
-      );
+      return const TopicListSkeleton(padding: EdgeInsets.all(12));
     }
 
     if (_error != null) {
-      return ErrorView(
-        error: _error!,
-        onRetry: _loadTopics,
-      );
+      return ErrorView(error: _error!, onRetry: _loadTopics);
     }
 
-    if (_topics.isEmpty) {
+    final contentFilterState = ref.watch(contentFilterProvider);
+    final contentFilter = ref.read(contentFilterProvider.notifier);
+    final visibleTopics =
+        contentFilterState.hasBlockedTags || contentFilterState.hasBlockedUsers
+        ? _topics
+              .where((topic) => !contentFilter.matchesTopic(topic))
+              .toList(growable: false)
+        : _topics;
+
+    if (visibleTopics.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.inbox_outlined, size: 48, color: Theme.of(context).colorScheme.outline),
+            Icon(
+              Icons.inbox_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.outline,
+            ),
             const SizedBox(height: 12),
             Text(context.l10n.tagTopics_empty),
           ],
@@ -298,14 +322,17 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage> {
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
-        itemCount: _topics.length + 1,
+        itemCount: visibleTopics.length + 1,
         itemBuilder: (context, index) {
-          if (index >= _topics.length) {
+          if (index >= visibleTopics.length) {
             if (!_hasMore) {
               return Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Center(
-                  child: Text(context.l10n.common_noMore, style: const TextStyle(color: Colors.grey)),
+                  child: Text(
+                    context.l10n.common_noMore,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
                 ),
               );
             }
@@ -321,11 +348,18 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.refresh, size: 16, color: Theme.of(context).colorScheme.primary),
+                        Icon(
+                          Icons.refresh,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           context.l10n.common_loadFailedTapRetry,
-                          style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.primary),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                         ),
                       ],
                     ),
@@ -339,8 +373,10 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage> {
             );
           }
 
-          final topic = _topics[index];
-          final enableLongPress = ref.watch(preferencesProvider).longPressPreview;
+          final topic = visibleTopics[index];
+          final enableLongPress = ref
+              .watch(preferencesProvider)
+              .longPressPreview;
 
           return buildTopicItem(
             context: context,

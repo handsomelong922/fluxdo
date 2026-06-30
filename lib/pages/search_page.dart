@@ -13,12 +13,14 @@ import '../widgets/search/search_ai_chat_card.dart';
 import '../widgets/search/search_post_card.dart';
 import '../widgets/search/search_preview_dialog.dart';
 import '../providers/preferences_provider.dart';
+import '../services/settings/content_filter_service.dart';
 import 'package:dio/dio.dart';
 import '../services/app_error_handler.dart';
 import '../services/navigation/topic_detail_route.dart';
 import '../l10n/s.dart';
 import 'user_profile_page.dart';
 import '../utils/dialog_utils.dart';
+import '../utils/blocked_user_filter.dart';
 
 /// 搜索页面
 class SearchPage extends ConsumerStatefulWidget {
@@ -750,11 +752,31 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   Widget _buildSearchResults(ThemeData theme) {
-    if (_hasError && _allPosts.isEmpty) {
+    final blockedUsernames = ref.watch(
+      contentFilterProvider.select((state) => state.normalizedBlockedUsers),
+    );
+    final posts = _allPosts
+        .where(
+          (post) => !BlockedUserFilter.isBlockedUsername(
+            post.username,
+            blockedUsernames,
+          ),
+        )
+        .toList(growable: false);
+    final users = _allUsers
+        .where(
+          (user) => !BlockedUserFilter.isBlockedUsername(
+            user.username,
+            blockedUsernames,
+          ),
+        )
+        .toList(growable: false);
+
+    if (_hasError && posts.isEmpty) {
       return _buildError(_errorMessage);
     }
 
-    if (_allPosts.isEmpty && _allUsers.isEmpty && !_isLoadingMore) {
+    if (posts.isEmpty && users.isEmpty && !_isLoadingMore) {
       if (_isInitialSearchLoading) {
         return const Center(child: LoadingSpinner());
       }
@@ -780,7 +802,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     return Column(
       children: [
         // 排序选项
-        if (_allPosts.isNotEmpty || _allUsers.isNotEmpty)
+        if (posts.isNotEmpty || users.isNotEmpty)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -845,7 +867,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 ],
                 Text(
                   context.l10n.search_resultCount(
-                    _allPosts.length,
+                    posts.length,
                     _hasMorePosts ? '+' : '',
                   ),
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -866,22 +888,22 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
                   itemCount:
                       aiChatCardCount +
-                      _allPosts.length +
-                      (_allUsers.isNotEmpty ? _allUsers.length + 1 : 0) +
+                      posts.length +
+                      (users.isNotEmpty ? users.length + 1 : 0) +
                       (_isLoadingMore || _isLoadMoreFailed ? 1 : 0),
                   itemBuilder: (context, index) {
                     if (showAiChatCard && index == 0) {
                       return SearchAiChatCard(
                         query: _stripOrderFromQuery(_currentQuery),
-                        visiblePosts: _allPosts,
+                        visiblePosts: posts,
                       );
                     }
 
                     final resultIndex = index - aiChatCardCount;
 
                     // 帖子结果（标准 + AI 混合）
-                    if (resultIndex < _allPosts.length) {
-                      final searchPost = _allPosts[resultIndex];
+                    if (resultIndex < posts.length) {
+                      final searchPost = posts[resultIndex];
                       final enableLongPress = ref
                           .watch(preferencesProvider)
                           .longPressPreview;
@@ -900,30 +922,30 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     }
 
                     // 用户标题
-                    final userStartIndex = _allPosts.length;
-                    if (_allUsers.isNotEmpty && resultIndex == userStartIndex) {
+                    final userStartIndex = posts.length;
+                    if (users.isNotEmpty && resultIndex == userStartIndex) {
                       return Padding(
                         padding: const EdgeInsets.only(top: 16, bottom: 8),
                         child: _buildSectionHeader(
                           context.l10n.search_users,
-                          _allUsers.length,
+                          users.length,
                           _hasMoreUsers,
                         ),
                       );
                     }
 
                     // 用户结果
-                    if (_allUsers.isNotEmpty && resultIndex > userStartIndex) {
+                    if (users.isNotEmpty && resultIndex > userStartIndex) {
                       final userIndex = resultIndex - userStartIndex - 1;
-                      if (userIndex < _allUsers.length) {
+                      if (userIndex < users.length) {
                         return _SearchUserCard(
-                          user: _allUsers[userIndex],
+                          user: users[userIndex],
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => UserProfilePage(
-                                  username: _allUsers[userIndex].username,
+                                  username: users[userIndex].username,
                                 ),
                               ),
                             );

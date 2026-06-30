@@ -7,6 +7,8 @@ import '../../providers/nested_topic_provider.dart';
 import '../../providers/preferences_provider.dart';
 import '../../providers/topic_session_provider.dart';
 import '../../pages/user_profile_page.dart';
+import '../../services/settings/content_filter_service.dart';
+import '../../utils/blocked_user_filter.dart';
 import '../../utils/topic_link_navigation.dart';
 import '../../utils/time_utils.dart';
 import '../content/discourse_html_content/chunked/chunked_html_content.dart';
@@ -327,6 +329,13 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     final theme = Theme.of(context);
     final post = widget.node.post;
     final isRoot = widget.depth == 0;
+    final blockedUsernames = ref.watch(
+      contentFilterProvider.select((state) => state.normalizedBlockedUsers),
+    );
+    final visibleChildren = BlockedUserFilter.visibleNestedNodes(
+      _children,
+      blockedUsernames,
+    );
 
     // 线条颜色
     final defaultLineColor = theme.colorScheme.outlineVariant;
@@ -428,7 +437,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         !_atMaxDepth &&
         _expanded &&
         !_collapsed &&
-        (_children.isNotEmpty || _isLoadingMore || _hasMore);
+        (visibleChildren.isNotEmpty || _isLoadingMore || _hasMore);
     final bool showExpandBtn =
         !_atMaxDepth && !_expanded && !_collapsed && _hasReplies;
 
@@ -440,7 +449,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         if (showChildren)
           Padding(
             padding: const EdgeInsets.only(left: _avatarSize + _columnGap),
-            child: _buildChildren(theme),
+            child: _buildChildren(theme, visibleChildren),
           ),
         if (showExpandBtn)
           Padding(
@@ -754,21 +763,21 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     );
   }
 
-  Widget _buildChildren(ThemeData theme) {
+  Widget _buildChildren(ThemeData theme, List<NestedNode> children) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (int i = 0; i < _children.length; i++)
+        for (int i = 0; i < children.length; i++)
           NestedPostCard(
-            key: ValueKey('nested-child-${_children[i].post.id}'),
-            node: _children[i],
+            key: ValueKey('nested-child-${children[i].post.id}'),
+            node: children[i],
             topicId: widget.topicId,
             detail: widget.detail,
             params: widget.params,
             depth: widget.depth + 1,
             maxDepth: widget.maxDepth,
-            isLastChild: i == _children.length - 1 && !_hasMore,
+            isLastChild: i == children.length - 1 && !_hasMore,
             isLoggedIn: widget.isLoggedIn,
             onReply: widget.onReply,
             onReplyWithInitialContent: widget.onReplyWithInitialContent,

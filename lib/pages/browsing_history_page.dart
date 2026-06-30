@@ -4,6 +4,8 @@ import '../models/search_filter.dart';
 import '../models/topic.dart';
 import '../navigation/nav_action_bus.dart';
 import '../providers/discourse_providers.dart';
+import '../services/settings/content_filter_service.dart';
+import '../utils/blocked_user_filter.dart';
 import '../providers/user_content_search_provider.dart';
 import '../widgets/search/searchable_app_bar.dart';
 import '../widgets/search/user_content_search_view.dart';
@@ -23,7 +25,8 @@ class BrowsingHistoryPage extends ConsumerStatefulWidget {
   final bool isActive;
 
   @override
-  ConsumerState<BrowsingHistoryPage> createState() => _BrowsingHistoryPageState();
+  ConsumerState<BrowsingHistoryPage> createState() =>
+      _BrowsingHistoryPageState();
 }
 
 class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
@@ -34,8 +37,9 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _searchNotifier = ref.read(userContentSearchProvider(SearchInType.seen).notifier);
-
+    _searchNotifier = ref.read(
+      userContentSearchProvider(SearchInType.seen).notifier,
+    );
   }
 
   @override
@@ -59,7 +63,8 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
     final progress = raw < 0 ? 0.0 : raw;
     final current = ref.read(navScrollProgressProvider(NavEntryIds.history));
     final atZero = progress == 0 && current != 0;
-    final crossed = (progress >= navScrollIconThreshold) !=
+    final crossed =
+        (progress >= navScrollIconThreshold) !=
         (current >= navScrollIconThreshold);
     if (!atZero && !crossed && (progress - current).abs() < 4.0) return;
     ref.read(navScrollProgressProvider(NavEntryIds.history).notifier).state =
@@ -118,7 +123,9 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
       onPopInvokedWithResult: (bool didPop, dynamic result) {
         if (!didPop) {
           // 搜索模式下按返回键，退出搜索而不是退出页面
-          ref.read(userContentSearchProvider(SearchInType.seen).notifier).exitSearchMode();
+          ref
+              .read(userContentSearchProvider(SearchInType.seen).notifier)
+              .exitSearchMode();
         }
       },
       child: Scaffold(
@@ -159,18 +166,29 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
   }
 
   Widget _buildTopicList(AsyncValue<List<Topic>> historyAsync) {
+    final blockedUsernames = ref.watch(
+      contentFilterProvider.select((state) => state.normalizedBlockedUsers),
+    );
+
     return DesktopRefreshIndicator(
       onRefresh: _onRefresh,
       child: historyAsync.when(
         data: (topics) {
-          if (topics.isEmpty) {
+          final visibleTopics = BlockedUserFilter.visibleTopics(
+            topics,
+            blockedUsernames,
+          );
+          if (visibleTopics.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.history, size: 64, color: Colors.grey),
                   const SizedBox(height: 16),
-                  Text(context.l10n.browsingHistory_empty, style: const TextStyle(color: Colors.grey)),
+                  Text(
+                    context.l10n.browsingHistory_empty,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
                 ],
               ),
             );
@@ -179,9 +197,9 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
           return ListView.builder(
             controller: _scrollController,
             padding: const EdgeInsets.all(12),
-            itemCount: topics.length + 1,
+            itemCount: visibleTopics.length + 1,
             itemBuilder: (context, index) {
-              if (index == topics.length) {
+              if (index == visibleTopics.length) {
                 final notifier = ref.watch(browsingHistoryProvider.notifier);
                 if (!notifier.hasMore) {
                   return Padding(
@@ -203,11 +221,18 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.refresh, size: 16, color: Theme.of(context).colorScheme.primary),
+                            Icon(
+                              Icons.refresh,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               context.l10n.common_loadFailedTapRetry,
-                              style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.primary),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                             ),
                           ],
                         ),
@@ -224,8 +249,10 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
                 return const SizedBox();
               }
 
-              final topic = topics[index];
-              final enableLongPress = ref.watch(preferencesProvider).longPressPreview;
+              final topic = visibleTopics[index];
+              final enableLongPress = ref
+                  .watch(preferencesProvider)
+                  .longPressPreview;
               return buildTopicItem(
                 context: context,
                 topic: topic,
@@ -237,11 +264,8 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
           );
         },
         loading: () => const TopicListSkeleton(),
-        error: (error, stack) => ErrorView(
-          error: error,
-          stackTrace: stack,
-          onRetry: _onRefresh,
-        ),
+        error: (error, stack) =>
+            ErrorView(error: error, stackTrace: stack, onRetry: _onRefresh),
       ),
     );
   }

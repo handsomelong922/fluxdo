@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/s.dart';
 import '../../models/search_filter.dart';
 import '../../providers/user_content_search_provider.dart';
+import '../../services/settings/content_filter_service.dart';
+import '../../utils/blocked_user_filter.dart';
 import '../../utils/dialog_utils.dart';
 import '../common/loading_spinner.dart';
 import '../../services/navigation/topic_detail_route.dart';
@@ -106,6 +108,17 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final searchState = ref.watch(userContentSearchProvider(widget.inType));
+    final blockedUsernames = ref.watch(
+      contentFilterProvider.select((state) => state.normalizedBlockedUsers),
+    );
+    final visibleResults = searchState.results
+        .where(
+          (post) => !BlockedUserFilter.isBlockedUsername(
+            post.username,
+            blockedUsernames,
+          ),
+        )
+        .toList(growable: false);
 
     // 显示过滤条件
     Widget? filterBar;
@@ -121,7 +134,7 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
     }
 
     // 未搜索状态
-    if (searchState.query.isEmpty && searchState.results.isEmpty) {
+    if (searchState.query.isEmpty && visibleResults.isEmpty) {
       return Column(
         children: [
           ?filterBar,
@@ -151,7 +164,7 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
     }
 
     // 加载中（首次搜索）
-    if (searchState.isLoading && searchState.results.isEmpty) {
+    if (searchState.isLoading && visibleResults.isEmpty) {
       return Column(
         children: [
           ?filterBar,
@@ -161,7 +174,7 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
     }
 
     // 错误状态
-    if (searchState.error != null && searchState.results.isEmpty) {
+    if (searchState.error != null && visibleResults.isEmpty) {
       return Column(
         children: [
           ?filterBar,
@@ -197,7 +210,7 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
     }
 
     // 无结果
-    if (searchState.results.isEmpty) {
+    if (visibleResults.isEmpty) {
       return Column(
         children: [
           ?filterBar,
@@ -244,7 +257,7 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
             children: [
               Text(
                 context.l10n.search_resultCount(
-                  searchState.results.length,
+                  visibleResults.length,
                   searchState.hasMore ? '+' : '',
                 ),
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -258,17 +271,16 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
           child: ListView.builder(
             controller: _scrollController,
             padding: const EdgeInsets.all(16),
-            itemCount:
-                searchState.results.length + (searchState.isLoading ? 1 : 0),
+            itemCount: visibleResults.length + (searchState.isLoading ? 1 : 0),
             itemBuilder: (context, index) {
-              if (index == searchState.results.length) {
+              if (index == visibleResults.length) {
                 return const Padding(
                   padding: EdgeInsets.all(16),
                   child: Center(child: LoadingSpinner()),
                 );
               }
 
-              final post = searchState.results[index];
+              final post = visibleResults[index];
               final enableLongPress = ref
                   .watch(preferencesProvider)
                   .longPressPreview;
