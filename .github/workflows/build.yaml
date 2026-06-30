@@ -177,6 +177,23 @@ jobs:
           mv build/app/outputs/flutter-apk/app-release.apk dist/fluxdo-${{ matrix.arch }}-full.apk
           flutter build apk --release --target-platform ${{ matrix.flutter-target }} --dart-define=cronetHttpNoPlay=true --dart-define=appNetworkProfile=direct
           mv build/app/outputs/flutter-apk/app-release.apk dist/fluxdo-${{ matrix.arch }}-direct.apk
+          if ! unzip -l dist/fluxdo-${{ matrix.arch }}-full.apk | grep -q "lib/${{ matrix.arch }}/libdoh_proxy.so"; then
+            echo "Full APK is missing libdoh_proxy.so"
+            exit 1
+          fi
+          if ! unzip -l dist/fluxdo-${{ matrix.arch }}-full.apk | grep -q "lib/${{ matrix.arch }}/librhttp.so"; then
+            echo "Full APK is missing librhttp.so"
+            exit 1
+          fi
+          if unzip -l dist/fluxdo-${{ matrix.arch }}-direct.apk | grep -q "libdoh_proxy.so"; then
+            echo "Direct APK unexpectedly contains libdoh_proxy.so"
+            exit 1
+          fi
+          if unzip -l dist/fluxdo-${{ matrix.arch }}-direct.apk | grep -q "librhttp.so"; then
+            echo "Direct APK unexpectedly contains librhttp.so"
+            exit 1
+          fi
+          ls -lh dist/fluxdo-${{ matrix.arch }}-full.apk dist/fluxdo-${{ matrix.arch }}-direct.apk
 
       - name: Setup NuGet
         if: matrix.platform == 'windows'

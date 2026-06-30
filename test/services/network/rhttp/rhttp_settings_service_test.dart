@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:fluxdo/config/app_build_profile.dart';
 import 'package:fluxdo/services/network/doh/network_settings_service.dart';
 import 'package:fluxdo/services/network/proxy/proxy_settings_service.dart';
 import 'package:fluxdo/services/network/rhttp/rhttp_settings_service.dart';
@@ -33,11 +34,22 @@ void main() {
       );
     });
 
-    test('forceDisable 后 enabled 保持 true', () async {
+    test('initialize respects build profile availability', () async {
+      await rhttp.initialize(prefs);
+
+      expect(rhttp.current.enabled, AppNetworkProfile.supportsRhttp);
+      expect(rhttp.current.forceDisabled, !AppNetworkProfile.supportsRhttp);
+      expect(
+        rhttp.shouldUseRhttp(_networkSettings(), const ProxySettings()),
+        AppNetworkProfile.supportsRhttp,
+      );
+    });
+
+    test('forceDisable 后 enabled 保持当前 profile 的可用状态', () async {
       await rhttp.initialize(prefs);
       await rhttp.forceDisable();
 
-      expect(rhttp.current.enabled, true);
+      expect(rhttp.current.enabled, AppNetworkProfile.supportsRhttp);
       expect(rhttp.current.forceDisabled, true);
     });
 
@@ -79,8 +91,8 @@ void main() {
 
       await rhttp.initialize(freshPrefs);
 
-      expect(rhttp.current.enabled, true);
-      expect(rhttp.current.forceDisabled, false);
+      expect(rhttp.current.enabled, AppNetworkProfile.supportsRhttp);
+      expect(rhttp.current.forceDisabled, !AppNetworkProfile.supportsRhttp);
     });
   });
 }

@@ -128,10 +128,11 @@ android {
     }
 
     if (isDirectNetworkProfile) {
-        println("Configuring direct network profile: excluding DOH native libraries")
+        println("Configuring direct network profile: excluding advanced network native libraries")
         packaging {
             jniLibs {
                 excludes.add("**/libdoh_proxy.so")
+                excludes.add("**/librhttp.so")
             }
         }
     }
