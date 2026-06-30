@@ -5,6 +5,7 @@ import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../config/app_build_profile.dart';
 import '../../browser_trust_coordinator.dart';
 import '../../cf_challenge_service.dart';
 import '../cookie/cookie_jar_service.dart';
@@ -201,10 +202,9 @@ class RequestSchedulerInterceptor extends Interceptor {
       return;
     }
 
-    await _waitForBrowserTrustIfNeeded(options);
-
     final state = _stateFor(options);
     final priority = _inferPriority(options);
+    await _waitForBrowserTrustIfNeeded(options, priority);
     final maxConcurrent = RequestSchedulerConfig.maxConcurrent;
 
     // cancelToken 已取消，直接拒绝
@@ -329,7 +329,10 @@ class RequestSchedulerInterceptor extends Interceptor {
     });
   }
 
-  Future<void> _waitForBrowserTrustIfNeeded(RequestOptions options) async {
+  Future<void> _waitForBrowserTrustIfNeeded(
+    RequestOptions options,
+    _Priority priority,
+  ) async {
     if (options.extra['skipBrowserTrustGate'] == true ||
         options.extra['skipCfBlock'] == true ||
         options.extra['isCfChallengePlatform'] == true) {
@@ -341,8 +344,15 @@ class RequestSchedulerInterceptor extends Interceptor {
       return;
     }
 
+    final timeout = AppNetworkProfile.isDirect
+        ? (priority == _Priority.high
+              ? const Duration(milliseconds: 800)
+              : const Duration(milliseconds: 1200))
+        : const Duration(seconds: 6);
+
     await BrowserTrustCoordinator.instance.waitForActiveBrowserTrust(
       reason: '${options.method.toUpperCase()} ${options.uri}',
+      timeout: timeout,
     );
   }
 }

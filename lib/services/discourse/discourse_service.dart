@@ -74,6 +74,12 @@ Options? _backgroundReadOptions({Options? options, bool background = false}) {
   return (options ?? Options()).copyWith(extra: extra);
 }
 
+Options _foregroundReadOptions({Options? options}) {
+  final extra = <String, dynamic>{...?options?.extra};
+  extra['priority'] = 'high';
+  return (options ?? Options()).copyWith(extra: extra);
+}
+
 /// 基类，包含所有共享字段
 abstract class _DiscourseServiceBase {
   Dio get _dio;

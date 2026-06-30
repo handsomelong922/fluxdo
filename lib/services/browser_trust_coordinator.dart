@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../constants.dart';
+import '../config/app_build_profile.dart';
 import 'app_logger.dart';
 import 'cf_challenge_logger.dart';
 import 'cf_challenge_service.dart';
@@ -219,10 +220,16 @@ class BrowserTrustCoordinator {
   }
 
   Future<void> _ensurePreloadedInternal({required String reason}) async {
-    final nativeTrusted = await _isNativePreloadTrusted();
+    final preferNativeStartupPreload =
+        AppNetworkProfile.isDirect && !_clearanceRecentlyRejected;
+    final nativeTrusted =
+        preferNativeStartupPreload || await _isNativePreloadTrusted();
     if (nativeTrusted) {
       _lastPreloadPath = BrowserTrustPreloadPath.native;
-      _log('preload path=native reason=$reason');
+      _log(
+        'preload path=native reason=$reason '
+        'directFastPath=$preferNativeStartupPreload',
+      );
       try {
         await _preload.ensureLoaded();
         _log('native preload success reason=$reason');

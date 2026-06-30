@@ -231,6 +231,41 @@ void main() {
     });
 
     test(
+      'high priority foreground requests jump ahead of queued reads',
+      () async {
+        final adapter = _OrderRecordingAdapter(
+          delay: const Duration(milliseconds: 20),
+        );
+        final dio = Dio(BaseOptions(baseUrl: 'https://linux.do'));
+        dio.httpClientAdapter = adapter;
+        dio.interceptors.add(RequestSchedulerInterceptor());
+
+        final first = dio.get('/first');
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+        final low = dio.get(
+          '/low',
+          options: Options(extra: {'priority': 'low'}),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+        final normal = dio.get('/normal');
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+        final high = dio.get(
+          '/topic-detail',
+          options: Options(extra: {'priority': 'high'}),
+        );
+
+        await Future.wait([first, low, normal, high]);
+
+        expect(adapter.completedPaths, [
+          '/first',
+          '/topic-detail',
+          '/normal',
+          '/low',
+        ]);
+      },
+    );
+
+    test(
       'spaces consecutive requests by configured minimum interval',
       () async {
         RequestSchedulerConfig.maxConcurrent = 10;

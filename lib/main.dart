@@ -99,6 +99,19 @@ Future<bool> _initRhttp() async {
   return true;
 }
 
+void _startStartupPreload() {
+  unawaited(
+    BrowserTrustCoordinator.instance
+        .ensurePreloaded(reason: 'startup')
+        .then((_) {
+          if (PreloadedDataService().currentUserSync != null) {
+            unawaited(FingerprintService.instance.collectAndReport());
+          }
+        })
+        .catchError((Object _) {}),
+  );
+}
+
 Future<void> _applyAndroidDisplayMode(SharedPreferences prefs) async {
   final targetRate = prefs.getInt('pref_display_mode_refresh_rate') ?? 0;
   try {
@@ -125,6 +138,193 @@ Future<void> _applyAndroidDisplayMode(SharedPreferences prefs) async {
   } catch (e) {
     debugPrint('[Main] 应用屏幕刷新率失败: $e');
   }
+}
+
+Future<void> _completeStartupServices(
+  SharedPreferences prefs, {
+  required bool startupPreloadStarted,
+}) async {
+  // 阶段 2：依赖 prefs 的步骤并行
+  final crashlyticsEnabled = prefs.getBool('pref_crashlytics') ?? true;
+  await Future.wait([
+    CfChallengeLogger.setEnabled(prefs.getBool('developer_mode') ?? false),
+    CronetFallbackService.instance.initialize(prefs),
+    ProxySettingsService.instance.initialize(prefs),
+    if (Platform.isAndroid)
+      MethodChannel(
+        'com.github.lingyan000.fluxdo/crashlytics',
+      ).invokeMethod('setCrashlyticsEnabled', {'enabled': crashlyticsEnabled}),
+  ]);
+  // rhttp (Rust reqwest) 初始化：在 ProxySettingsService 之后、NetworkSettingsService 之前
+  await RhttpSettingsService.instance.initialize(prefs);
+  // WebView 适配器设置
+  await WebViewAdapterSettingsService.instance.initialize(prefs);
+  // Eruda 调试控制台开关（默认关闭）
+  await ErudaSettingsService.instance.initialize(prefs);
+  // 启动期浏览器信任准备由 BrowserTrustCoordinator 统一编排。
+  if (!startupPreloadStarted) {
+    BrowserTrustCoordinator.instance.prepareStartup(reason: 'startup');
+  }
+  if (AppNetworkProfile.supportsRhttp &&
+      RhttpSettingsService.instance.current.enabled) {
+    try {
+      final rhttp = await Future.any([
+        _initRhttp(),
+        Future.delayed(const Duration(seconds: 5), () => false),
+      ]);
+      if (rhttp != true) {
+        debugPrint('[rhttp] 初始化超时或失败');
+        await RhttpSettingsService.instance.forceDisable();
+      }
+    } catch (e) {
+      debugPrint('[rhttp] 初始化异常: $e');
+      await RhttpSettingsService.instance.forceDisable();
+    }
+  } else if (!AppNetworkProfile.supportsRhttp) {
+    await RhttpSettingsService.instance.forceDisable();
+  }
+
+  await NetworkSettingsService.instance.initialize(prefs);
+  if (AppNetworkProfile.supportsAdvancedNetwork) {
+    VpnAutoToggleService.instance.initialize(prefs);
+  }
+  HCaptchaAccessibilityService().initialize(prefs);
+  CfClearanceRefreshService().initialize(prefs);
+  if (AppNetworkProfile.supportsAdvancedNetwork) {
+    try {
+      final initialConnectivity =
+          await ConnectivityService.safeCheckConnectivity();
+      await VpnAutoToggleService.instance.syncInitialState(initialConnectivity);
+    } catch (e) {
+      debugPrint('[Main] 初始 VPN 状态同步失败: $e');
+    }
+  }
+
+  // 初始化下载服务（依赖网络栈已就绪）
+  DownloadService().initialize();
+
+  // 冷启动自动清除图片缓存（如果用户开启了该选项）
+  if (prefs.getBool('pref_clear_cache_on_exit') == true) {
+    Future.wait([
+      DiscourseCacheManager().emptyCache(),
+      EmojiCacheManager().emptyCache(),
+      ExternalImageCacheManager().emptyCache(),
+    ]).then((_) => CacheSizeService.deleteImageCacheDirs()).ignore();
+  }
+
+  // 应用竖屏锁定设置（仅移动端）
+  if (Platform.isIOS || Platform.isAndroid) {
+    final portraitLock = prefs.getBool('pref_portrait_lock') ?? false;
+    if (portraitLock) {
+      PreferencesNotifier.isPortraitLocked = true;
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    }
+  }
+
+  if (Platform.isAndroid) {
+    unawaited(_applyAndroidDisplayMode(prefs));
+  }
+
+  // 提前触发预加载数据请求，与 runApp 并行执行。
+  // PreheatGate 中的 ensurePreloaded() 会复用这个已在进行的请求。
+  if (!startupPreloadStarted) {
+    _startStartupPreload();
+  }
+
+  // 记录应用启动日志
+  LogWriter.instance.write({
+    'timestamp': DateTime.now().toIso8601String(),
+    'level': 'info',
+    'type': 'lifecycle',
+    'event': 'app_start',
+    'message': '应用启动',
+  });
+
+  // 清理过期日志（14 天前）
+  LoggerUtils.cleanExpiredLogs().ignore();
+}
+
+void _configureAiRuntime(SharedPreferences prefs) {
+  // 注入 AI 模型管理包的消息提示实现
+  AiToastDelegate.configure((message, {type = AiToastType.info}) {
+    switch (type) {
+      case AiToastType.success:
+        ToastService.showSuccess(message);
+      case AiToastType.error:
+        ToastService.showError(message);
+      case AiToastType.info:
+        ToastService.showInfo(message);
+    }
+  });
+
+  // 根据当前语言配置 AI 模型管理包的语言
+  final savedLocale = prefs.getString('pref_locale');
+  if (savedLocale != null && savedLocale != 'system') {
+    final parts = savedLocale.split('_');
+    final languageCode = parts.first;
+    if (languageCode == 'zh' || languageCode == 'en') {
+      AiL10n.configureLocale(Locale(languageCode));
+    }
+  }
+}
+
+bool _filterKnownFrameworkBugs(Report report) {
+  final error = report.error;
+  if (error is AssertionError &&
+      error.message?.toString().contains(
+            'Drag target size is larger than scrollable size',
+          ) ==
+          true) {
+    return false;
+  }
+  return true;
+}
+
+void _launchApp(SharedPreferences prefs) {
+  final debugConfig = Catcher2Options(
+    SilentReportMode(),
+    [ConsoleHandler(), JsonFileHandler()],
+    handlerTimeout: 10000,
+    filterFunction: _filterKnownFrameworkBugs,
+  );
+  final releaseConfig = Catcher2Options(
+    SilentReportMode(),
+    [JsonFileHandler()],
+    handlerTimeout: 10000,
+    filterFunction: _filterKnownFrameworkBugs,
+  );
+
+  Catcher2(
+    navigatorKey: navigatorKey,
+    rootWidget: ProviderScope(
+      // 禁用 Riverpod 3 默认的自动重试机制
+      // 默认会对所有失败的异步 provider 指数退避重试 10 次，
+      // 在网络不通时会造成大量无意义的重复请求
+      retry: (_, _) => null,
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        aiSharedPreferencesProvider.overrideWithValue(prefs),
+        aiDioAdapterFactoryProvider.overrideWithValue(
+          createExternalHttpAdapter,
+        ),
+        aiTitleGenerationPromptProvider.overrideWith((ref) {
+          final settings = ref.watch(aiPromptSettingsProvider);
+          final prompt = settings.generateTitlePrompt.trim();
+          return prompt.isNotEmpty
+              ? prompt
+              : AiL10n.current.titleGenerationPrompt;
+        }),
+      ],
+      child: const MainApp(),
+    ),
+    debugConfig: debugConfig,
+    releaseConfig: releaseConfig,
+    profileConfig: releaseConfig,
+    enableLogger: kDebugMode,
+  );
 }
 
 Future<void> main() async {
@@ -227,191 +427,35 @@ Future<void> main() async {
   // 数据迁移：在所有依赖 prefs 的网络相关服务启动之前执行
   await MigrationService.runAll(prefs);
 
-  // 阶段 2：依赖 prefs 的步骤并行
-  final crashlyticsEnabled = prefs.getBool('pref_crashlytics') ?? true;
-  await Future.wait([
-    CfChallengeLogger.setEnabled(prefs.getBool('developer_mode') ?? false),
-    CronetFallbackService.instance.initialize(prefs),
-    ProxySettingsService.instance.initialize(prefs),
-    if (Platform.isAndroid)
-      MethodChannel(
-        'com.github.lingyan000.fluxdo/crashlytics',
-      ).invokeMethod('setCrashlyticsEnabled', {'enabled': crashlyticsEnabled}),
-  ]);
-  // rhttp (Rust reqwest) 初始化：在 ProxySettingsService 之后、NetworkSettingsService 之前
-  await RhttpSettingsService.instance.initialize(prefs);
-  // WebView 适配器设置
-  await WebViewAdapterSettingsService.instance.initialize(prefs);
-  // Eruda 调试控制台开关（默认关闭）
-  await ErudaSettingsService.instance.initialize(prefs);
-  // 启动期浏览器信任准备由 BrowserTrustCoordinator 统一编排。
-  BrowserTrustCoordinator.instance.prepareStartup(reason: 'startup');
-  if (AppNetworkProfile.supportsRhttp &&
-      RhttpSettingsService.instance.current.enabled) {
-    try {
-      final rhttp = await Future.any([
-        _initRhttp(),
-        Future.delayed(const Duration(seconds: 5), () => false),
-      ]);
-      if (rhttp != true) {
-        debugPrint('[rhttp] 初始化超时或失败');
-        await RhttpSettingsService.instance.forceDisable();
-      }
-    } catch (e) {
-      debugPrint('[rhttp] 初始化异常: $e');
-      await RhttpSettingsService.instance.forceDisable();
-    }
-  } else if (!AppNetworkProfile.supportsRhttp) {
-    await RhttpSettingsService.instance.forceDisable();
+  // 直连版不需要等待高级网络栈初始化；迁移和 Cookie/CSRF 基础服务完成后
+  // 就启动首页 HTML 预加载，让开屏动画期间更早准备 topic_list。
+  var startupPreloadStarted = false;
+  if (AppNetworkProfile.isDirect) {
+    BrowserTrustCoordinator.instance.prepareStartup(reason: 'startup');
+    _startStartupPreload();
+    startupPreloadStarted = true;
   }
 
-  await NetworkSettingsService.instance.initialize(prefs);
-  if (AppNetworkProfile.supportsAdvancedNetwork) {
-    VpnAutoToggleService.instance.initialize(prefs);
-  }
-  HCaptchaAccessibilityService().initialize(prefs);
-  CfClearanceRefreshService().initialize(prefs);
-  if (AppNetworkProfile.supportsAdvancedNetwork) {
-    try {
-      final initialConnectivity =
-          await ConnectivityService.safeCheckConnectivity();
-      await VpnAutoToggleService.instance.syncInitialState(initialConnectivity);
-    } catch (e) {
-      debugPrint('[Main] 初始 VPN 状态同步失败: $e');
-    }
-  }
+  _configureAiRuntime(prefs);
 
-  // 初始化下载服务（依赖网络栈已就绪）
-  DownloadService().initialize();
-
-  // 冷启动自动清除图片缓存（如果用户开启了该选项）
-  if (prefs.getBool('pref_clear_cache_on_exit') == true) {
-    Future.wait([
-      DiscourseCacheManager().emptyCache(),
-      EmojiCacheManager().emptyCache(),
-      ExternalImageCacheManager().emptyCache(),
-    ]).then((_) => CacheSizeService.deleteImageCacheDirs()).ignore();
+  if (AppNetworkProfile.isDirect && Platform.isAndroid) {
+    _launchApp(prefs);
+    unawaited(
+      _completeStartupServices(
+        prefs,
+        startupPreloadStarted: startupPreloadStarted,
+      ).catchError((Object e, StackTrace s) {
+        debugPrint('[Main] 直连版后台启动服务失败: $e\n$s');
+      }),
+    );
+    return;
   }
 
-  // 应用竖屏锁定设置（仅移动端）
-  if (Platform.isIOS || Platform.isAndroid) {
-    final portraitLock = prefs.getBool('pref_portrait_lock') ?? false;
-    if (portraitLock) {
-      PreferencesNotifier.isPortraitLocked = true;
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-      ]);
-    }
-  }
-
-  if (Platform.isAndroid) {
-    unawaited(_applyAndroidDisplayMode(prefs));
-  }
-
-  // 提前触发预加载数据请求，与 runApp 并行执行。
-  // PreheatGate 中的 ensurePreloaded() 会复用这个已在进行的请求。
-  unawaited(
-    BrowserTrustCoordinator.instance
-        .ensurePreloaded(reason: 'startup')
-        .then((_) {
-          if (PreloadedDataService().currentUserSync != null) {
-            unawaited(FingerprintService.instance.collectAndReport());
-          }
-        })
-        .catchError((Object _) {}),
+  await _completeStartupServices(
+    prefs,
+    startupPreloadStarted: startupPreloadStarted,
   );
-
-  // 记录应用启动日志
-  LogWriter.instance.write({
-    'timestamp': DateTime.now().toIso8601String(),
-    'level': 'info',
-    'type': 'lifecycle',
-    'event': 'app_start',
-    'message': '应用启动',
-  });
-
-  // 清理过期日志（14 天前）
-  LoggerUtils.cleanExpiredLogs().ignore();
-
-  // 注入 AI 模型管理包的消息提示实现
-  AiToastDelegate.configure((message, {type = AiToastType.info}) {
-    switch (type) {
-      case AiToastType.success:
-        ToastService.showSuccess(message);
-      case AiToastType.error:
-        ToastService.showError(message);
-      case AiToastType.info:
-        ToastService.showInfo(message);
-    }
-  });
-
-  // 根据当前语言配置 AI 模型管理包的语言
-  final savedLocale = prefs.getString('pref_locale');
-  if (savedLocale != null && savedLocale != 'system') {
-    final parts = savedLocale.split('_');
-    final languageCode = parts.first;
-    if (languageCode == 'zh' || languageCode == 'en') {
-      AiL10n.configureLocale(Locale(languageCode));
-    }
-  }
-
-  // 过滤 Flutter 框架已知 bug（https://github.com/flutter/flutter/issues/115787）
-  // SelectionArea + CustomScrollView 拖选时触发的断言错误，仅 debug 模式出现
-  bool filterKnownFrameworkBugs(Report report) {
-    final error = report.error;
-    if (error is AssertionError &&
-        error.message?.toString().contains(
-              'Drag target size is larger than scrollable size',
-            ) ==
-            true) {
-      return false;
-    }
-    return true;
-  }
-
-  // 配置 Catcher2 全局异常捕获
-  final debugConfig = Catcher2Options(
-    SilentReportMode(),
-    [ConsoleHandler(), JsonFileHandler()],
-    handlerTimeout: 10000,
-    filterFunction: filterKnownFrameworkBugs,
-  );
-  final releaseConfig = Catcher2Options(
-    SilentReportMode(),
-    [JsonFileHandler()],
-    handlerTimeout: 10000,
-    filterFunction: filterKnownFrameworkBugs,
-  );
-
-  Catcher2(
-    navigatorKey: navigatorKey,
-    rootWidget: ProviderScope(
-      // 禁用 Riverpod 3 默认的自动重试机制
-      // 默认会对所有失败的异步 provider 指数退避重试 10 次，
-      // 在网络不通时会造成大量无意义的重复请求
-      retry: (_, _) => null,
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        aiSharedPreferencesProvider.overrideWithValue(prefs),
-        aiDioAdapterFactoryProvider.overrideWithValue(
-          createExternalHttpAdapter,
-        ),
-        aiTitleGenerationPromptProvider.overrideWith((ref) {
-          final settings = ref.watch(aiPromptSettingsProvider);
-          final prompt = settings.generateTitlePrompt.trim();
-          return prompt.isNotEmpty
-              ? prompt
-              : AiL10n.current.titleGenerationPrompt;
-        }),
-      ],
-      child: const MainApp(),
-    ),
-    debugConfig: debugConfig,
-    releaseConfig: releaseConfig,
-    profileConfig: releaseConfig,
-    enableLogger: kDebugMode,
-  );
+  _launchApp(prefs);
 }
 
 class MainApp extends ConsumerWidget {

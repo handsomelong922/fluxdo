@@ -199,17 +199,17 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     if (filterTopLevelReplies) {
       queryParams['filter_top_level_replies'] = true;
     }
-    final options = _backgroundReadOptions(
-      options: trackVisit
-          ? Options(
-              headers: {
-                'Discourse-Track-View': '1',
-                'Discourse-Track-View-Topic-Id': '$id',
-              },
-            )
-          : null,
-      background: background,
-    );
+    final baseOptions = trackVisit
+        ? Options(
+            headers: {
+              'Discourse-Track-View': '1',
+              'Discourse-Track-View-Topic-Id': '$id',
+            },
+          )
+        : null;
+    final options = background
+        ? _backgroundReadOptions(options: baseOptions, background: true)
+        : _foregroundReadOptions(options: baseOptions);
     final response = await _dio.get(
       path,
       queryParameters: queryParams.isNotEmpty ? queryParams : null,
