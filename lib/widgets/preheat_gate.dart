@@ -64,6 +64,13 @@ class _PreheatGateState extends State<PreheatGate> {
         await _showReloginDialog();
       }
 
+      await BrowserTrustCoordinator.instance.waitForStartupPreloadPrerequisites(
+        reason: 'preheat_gate',
+      );
+      if (MigrationService.requiresRelogin && mounted) {
+        await _showReloginDialog();
+      }
+
       // 进入首页前完成 HTML 预加载，确保首屏话题列表能同步消费
       // data-preloaded 中的 topicList，避免首页再发 /latest.json 后长时间骨架屏。
       await BrowserTrustCoordinator.instance.ensurePreloaded(

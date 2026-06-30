@@ -247,6 +247,37 @@ Future<void> _completeStartupServices(
   LoggerUtils.cleanExpiredLogs().ignore();
 }
 
+Future<void> _prepareDirectAndroidPreloadPrerequisites(
+  SharedPreferences prefs,
+) async {
+  await Future.wait([
+    AppConstants.initUserAgent(),
+    LogWriter.init(),
+    CookieJarService().initialize(),
+    CsrfTokenService().init(),
+    BackgroundNotificationService().initialize(),
+    TimeUtils.initialize(),
+    WebViewSettings.preloadPolyfill(),
+  ]);
+
+  await AuthIssueNoticeService.instance.initialize(prefs);
+  CookieDevtoolsExtension.instance.register();
+  CookieStoreObserver.instance.attach();
+
+  // 迁移必须在首页预载前完成，但不必阻塞 Flutter 首帧。
+  await MigrationService.runAll(prefs);
+  BrowserTrustCoordinator.instance.prepareStartup(reason: 'startup');
+}
+
+Future<void> _completeDirectAndroidStartup(
+  SharedPreferences prefs, {
+  required Future<void> preloadPrerequisites,
+}) async {
+  await preloadPrerequisites;
+  _startStartupPreload();
+  await _completeStartupServices(prefs, startupPreloadStarted: true);
+}
+
 void _configureAiRuntime(SharedPreferences prefs) {
   // 注入 AI 模型管理包的消息提示实现
   AiToastDelegate.configure((message, {type = AiToastType.info}) {
@@ -358,6 +389,29 @@ Future<void> main() async {
     InAppWebViewController.setWebContentsDebuggingEnabled(false);
   }
 
+  if (AppNetworkProfile.isDirect && Platform.isAndroid) {
+    final prefs = await SharedPreferences.getInstance();
+    _configureAiRuntime(prefs);
+
+    final preloadPrerequisites = _prepareDirectAndroidPreloadPrerequisites(
+      prefs,
+    );
+    BrowserTrustCoordinator.instance.setStartupPreloadPrerequisites(
+      preloadPrerequisites,
+    );
+
+    _launchApp(prefs);
+    unawaited(
+      _completeDirectAndroidStartup(
+        prefs,
+        preloadPrerequisites: preloadPrerequisites,
+      ).catchError((Object e, StackTrace s) {
+        debugPrint('[Main] 直连版后台启动服务失败: $e\n$s');
+      }),
+    );
+    return;
+  }
+
   // 阶段 1：并行执行所有不相互依赖的初始化
   final futures = <Future<dynamic>>[
     SharedPreferences.getInstance(),
@@ -437,19 +491,6 @@ Future<void> main() async {
   }
 
   _configureAiRuntime(prefs);
-
-  if (AppNetworkProfile.isDirect && Platform.isAndroid) {
-    _launchApp(prefs);
-    unawaited(
-      _completeStartupServices(
-        prefs,
-        startupPreloadStarted: startupPreloadStarted,
-      ).catchError((Object e, StackTrace s) {
-        debugPrint('[Main] 直连版后台启动服务失败: $e\n$s');
-      }),
-    );
-    return;
-  }
 
   await _completeStartupServices(
     prefs,

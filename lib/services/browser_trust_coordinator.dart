@@ -44,6 +44,7 @@ class BrowserTrustCoordinator {
   final PreloadedDataService _preload = PreloadedDataService();
 
   Future<void>? _activePreload;
+  Future<void>? _startupPreloadPrerequisites;
   Future<bool>? _activeBrowserTrust;
   Future<bool>? _activeBrowserTrustGate;
   Timer? _backgroundPauseTimer;
@@ -71,6 +72,26 @@ class BrowserTrustCoordinator {
     _navigatorContext = context;
     DiscourseService().setNavigatorContext(context);
     _preload.setNavigatorContext(context);
+  }
+
+  void setStartupPreloadPrerequisites(Future<void> prerequisites) {
+    late final Future<void> tracked;
+    tracked = prerequisites.whenComplete(() {
+      if (identical(_startupPreloadPrerequisites, tracked)) {
+        _startupPreloadPrerequisites = null;
+      }
+    });
+    _startupPreloadPrerequisites = tracked;
+  }
+
+  Future<void> waitForStartupPreloadPrerequisites({
+    String reason = 'unknown',
+  }) async {
+    final prerequisites = _startupPreloadPrerequisites;
+    if (prerequisites == null) return;
+    _log('wait startup preload prerequisites begin reason=$reason');
+    await prerequisites;
+    _log('wait startup preload prerequisites end reason=$reason');
   }
 
   /// 启动期轻量准备：只做 cookie priming，不加载首页，不阻塞 runApp。
@@ -220,6 +241,8 @@ class BrowserTrustCoordinator {
   }
 
   Future<void> _ensurePreloadedInternal({required String reason}) async {
+    await waitForStartupPreloadPrerequisites(reason: reason);
+
     final preferNativeStartupPreload =
         AppNetworkProfile.isDirect && !_clearanceRecentlyRejected;
     final nativeTrusted =
