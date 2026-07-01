@@ -8,6 +8,39 @@ import 'package:fluxdo/providers/preferences_provider.dart';
 import 'package:fluxdo/services/network/request_scheduler_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+TopicDetail _previewDetail(int topicId, {String? html}) {
+  final cooked = html ?? '<p>topic $topicId</p>';
+  return TopicDetail(
+    id: topicId,
+    title: 'topic $topicId',
+    slug: 'topic-$topicId',
+    postsCount: 3,
+    postStream: PostStream(
+      posts: [
+        Post(
+          id: topicId * 10 + 1,
+          topicId: topicId,
+          username: 'tester',
+          avatarTemplate: '/user_avatar/example/{size}/1.png',
+          cooked: cooked,
+          postNumber: 1,
+          postType: 1,
+          updatedAt: DateTime(2026, 1, 1),
+          createdAt: DateTime(2026, 1, 1),
+          likeCount: 0,
+          replyCount: 2,
+        ),
+      ],
+      stream: [topicId * 10 + 1],
+      gaps: const PostStreamGaps(),
+    ),
+    categoryId: 1,
+    closed: false,
+    archived: false,
+    createdAt: DateTime(2026, 1, 1),
+  );
+}
+
 void main() {
   tearDown(() {
     RequestSchedulerConfig.maxConcurrent = 3;
@@ -23,10 +56,10 @@ void main() {
       var calls = 0;
       final loader = HomeTopicExcerptLoader(
         minRequestInterval: Duration.zero,
-        fetchExcerpt: (topicId) async {
+        fetchPreview: (topicId) async {
           calls++;
           await Future<void>.delayed(const Duration(milliseconds: 1));
-          return '<p>topic $topicId</p>';
+          return _previewDetail(topicId);
         },
       );
       addTearDown(loader.dispose);
@@ -46,7 +79,7 @@ void main() {
     final loader = HomeTopicExcerptLoader(
       minRequestInterval: Duration.zero,
       failureCooldown: const Duration(minutes: 1),
-      fetchExcerpt: (_) async {
+      fetchPreview: (_) async {
         calls++;
         throw StateError('rate limited');
       },
@@ -63,9 +96,9 @@ void main() {
     final loader = HomeTopicExcerptLoader(
       maxConcurrentRequests: 2,
       minRequestInterval: const Duration(milliseconds: 20),
-      fetchExcerpt: (topicId) async {
+      fetchPreview: (topicId) async {
         starts.add(DateTime.now());
-        return '<p>topic $topicId</p>';
+        return _previewDetail(topicId);
       },
     );
     addTearDown(loader.dispose);
@@ -86,13 +119,13 @@ void main() {
     final loader = HomeTopicExcerptLoader(
       maxConcurrentRequests: 3,
       minRequestInterval: Duration.zero,
-      fetchExcerpt: (topicId) async {
+      fetchPreview: (topicId) async {
         starts.add(topicId);
         if (starts.length == 3 && !firstBatchStarted.isCompleted) {
           firstBatchStarted.complete();
         }
         await release.future;
-        return '<p>topic $topicId</p>';
+        return _previewDetail(topicId);
       },
     );
     addTearDown(loader.dispose);
@@ -112,12 +145,12 @@ void main() {
     final loader = HomeTopicExcerptLoader(
       maxConcurrentRequests: 2,
       minRequestInterval: Duration.zero,
-      fetchExcerpt: (topicId) async {
+      fetchPreview: (topicId) async {
         active++;
         if (active > maxActive) maxActive = active;
         await Future<void>.delayed(const Duration(milliseconds: 5));
         active--;
-        return '<p>topic $topicId</p>';
+        return _previewDetail(topicId);
       },
     );
     addTearDown(loader.dispose);
@@ -147,13 +180,14 @@ void main() {
     () async {
       final loader = HomeTopicExcerptLoader(
         minRequestInterval: Duration.zero,
-        fetchExcerpt: (topicId) async => '<p>topic $topicId</p>',
+        fetchPreview: (topicId) async => _previewDetail(topicId),
       );
       addTearDown(loader.dispose);
 
       expect(await loader.load(11), '<p>topic 11</p>');
 
       expect(loader.peekCached(11), '<p>topic 11</p>');
+      expect(loader.peekCachedPreview(11)?.title, 'topic 11');
     },
   );
 
@@ -163,9 +197,9 @@ void main() {
       final warmedIds = <int>[];
       final loader = HomeTopicExcerptLoader(
         minRequestInterval: Duration.zero,
-        fetchExcerpt: (topicId) async {
+        fetchPreview: (topicId) async {
           warmedIds.add(topicId);
-          return '<p>topic $topicId</p>';
+          return _previewDetail(topicId);
         },
       );
       addTearDown(loader.dispose);
@@ -210,9 +244,9 @@ void main() {
       final firstLoader = HomeTopicExcerptLoader(
         minRequestInterval: Duration.zero,
         persistentCache: HomeTopicExcerptPersistentCache(prefs),
-        fetchExcerpt: (topicId) async {
+        fetchPreview: (topicId) async {
           calls++;
-          return '<p>topic $topicId</p>';
+          return _previewDetail(topicId);
         },
       );
 
@@ -223,7 +257,7 @@ void main() {
       final secondLoader = HomeTopicExcerptLoader(
         minRequestInterval: Duration.zero,
         persistentCache: HomeTopicExcerptPersistentCache(prefs),
-        fetchExcerpt: (_) async {
+        fetchPreview: (_) async {
           calls++;
           throw StateError('should not fetch when persistent cache is valid');
         },
@@ -257,7 +291,7 @@ void main() {
       minRequestInterval: Duration.zero,
       failureCooldown: const Duration(minutes: 1),
       requestTimeout: const Duration(milliseconds: 5),
-      fetchExcerpt: (_) => Completer<String?>().future,
+      fetchPreview: (_) => Completer<TopicDetail?>().future,
     );
     addTearDown(loader.dispose);
 

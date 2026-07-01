@@ -11,7 +11,7 @@ import 'discourse_providers.dart';
 import 'preferences_provider.dart';
 import 'theme_provider.dart';
 
-typedef TopicExcerptFetcher = Future<String?> Function(int topicId);
+typedef TopicPreviewFetcher = Future<TopicDetail?> Function(int topicId);
 
 final homeTopicExcerptLoaderProvider = Provider<HomeTopicExcerptLoader>((ref) {
   final batchSize = ref.watch(
@@ -26,9 +26,9 @@ final homeTopicExcerptLoaderProvider = Provider<HomeTopicExcerptLoader>((ref) {
   final loader = HomeTopicExcerptLoader(
     maxConcurrentRequests: batchSize,
     persistentCache: persistentCache,
-    fetchExcerpt: (topicId) => ref
+    fetchPreview: (topicId) => ref
         .read(discourseServiceProvider)
-        .getTopicFirstPostCooked(topicId, background: true),
+        .getTopicFirstPostPreviewDetail(topicId, background: true),
   );
   ref.onDispose(loader.dispose);
   return loader;
@@ -60,7 +60,7 @@ class HomeTopicExcerptLoader {
   static const defaultCacheTtl = Duration(days: 1);
 
   HomeTopicExcerptLoader({
-    required TopicExcerptFetcher fetchExcerpt,
+    required TopicPreviewFetcher fetchPreview,
     int maxCacheEntries = 160,
     Duration cacheTtl = defaultCacheTtl,
     int maxConcurrentRequests = 3,
@@ -68,7 +68,7 @@ class HomeTopicExcerptLoader {
     Duration failureCooldown = const Duration(seconds: 45),
     Duration requestTimeout = const Duration(seconds: 8),
     HomeTopicExcerptPersistentCache? persistentCache,
-  }) : _fetchExcerpt = fetchExcerpt,
+  }) : _fetchPreview = fetchPreview,
        _maxCacheEntries = maxCacheEntries,
        _cacheTtl = cacheTtl,
        _maxConcurrentRequests = maxConcurrentRequests.clamp(1, 8).toInt(),
@@ -77,7 +77,7 @@ class HomeTopicExcerptLoader {
        _requestTimeout = requestTimeout,
        _persistentCache = persistentCache;
 
-  final TopicExcerptFetcher _fetchExcerpt;
+  final TopicPreviewFetcher _fetchPreview;
   final int _maxCacheEntries;
   final Duration _cacheTtl;
   final int _maxConcurrentRequests;
@@ -87,6 +87,7 @@ class HomeTopicExcerptLoader {
   final HomeTopicExcerptPersistentCache? _persistentCache;
 
   final _cache = <int, _CachedExcerpt>{};
+  final _previewCache = <int, _CachedPreviewDetail>{};
   final _inFlight = <int, Future<String?>>{};
   final _failureUntil = <int, DateTime>{};
   final _pendingQueue = Queue<_QueuedExcerpt>();
@@ -99,6 +100,19 @@ class HomeTopicExcerptLoader {
   String? peekCached(int topicId) {
     if (_disposed) return null;
     return _readCache(topicId);
+  }
+
+  TopicDetail? peekCachedPreview(int topicId) {
+    if (_disposed) return null;
+
+    final entry = _previewCache.remove(topicId);
+    if (entry == null) return null;
+    if (DateTime.now().difference(entry.createdAt) > _cacheTtl) {
+      return null;
+    }
+
+    _previewCache[topicId] = entry;
+    return entry.detail;
   }
 
   Future<int> warmupTopics(Iterable<int> topicIds, {int maxTopics = 8}) async {
@@ -151,6 +165,7 @@ class HomeTopicExcerptLoader {
     _disposed = true;
     _cancelPendingRequests();
     _cache.clear();
+    _previewCache.clear();
     _inFlight.clear();
     _failureUntil.clear();
   }
@@ -205,9 +220,10 @@ class HomeTopicExcerptLoader {
     }
 
     try {
-      final excerpt = await _fetchExcerpt(topicId).timeout(_requestTimeout);
-      if (excerpt != null && excerpt.trim().isNotEmpty) {
-        _writeCache(topicId, excerpt);
+      final preview = await _fetchPreview(topicId).timeout(_requestTimeout);
+      final excerpt = preview?.postStream.posts.firstOrNull?.cooked;
+      if (preview != null && excerpt != null && excerpt.trim().isNotEmpty) {
+        _writeCache(topicId, excerpt, preview: preview);
       }
       _completeIfNeeded(completer, excerpt);
     } catch (_) {
@@ -248,8 +264,11 @@ class HomeTopicExcerptLoader {
     return persistent;
   }
 
-  void _writeCache(int topicId, String excerpt) {
+  void _writeCache(int topicId, String excerpt, {TopicDetail? preview}) {
     _writeMemoryCache(topicId, excerpt);
+    if (preview != null) {
+      _writePreviewCache(topicId, preview);
+    }
     unawaited(_persistentCache?.write(topicId, excerpt, _cacheTtl));
   }
 
@@ -257,7 +276,17 @@ class HomeTopicExcerptLoader {
     _cache.remove(topicId);
     _cache[topicId] = _CachedExcerpt(excerpt, DateTime.now());
     while (_cache.length > _maxCacheEntries) {
-      _cache.remove(_cache.keys.first);
+      final evictedTopicId = _cache.keys.first;
+      _cache.remove(evictedTopicId);
+      _previewCache.remove(evictedTopicId);
+    }
+  }
+
+  void _writePreviewCache(int topicId, TopicDetail detail) {
+    _previewCache.remove(topicId);
+    _previewCache[topicId] = _CachedPreviewDetail(detail, DateTime.now());
+    while (_previewCache.length > _maxCacheEntries) {
+      _previewCache.remove(_previewCache.keys.first);
     }
   }
 
@@ -404,6 +433,13 @@ class _CachedExcerpt {
   const _CachedExcerpt(this.excerpt, this.createdAt);
 
   final String excerpt;
+  final DateTime createdAt;
+}
+
+class _CachedPreviewDetail {
+  const _CachedPreviewDetail(this.detail, this.createdAt);
+
+  final TopicDetail detail;
   final DateTime createdAt;
 }
 

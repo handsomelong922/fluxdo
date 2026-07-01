@@ -441,15 +441,36 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     int topicId, {
     bool background = false,
   }) async {
+    final preview = await getTopicFirstPostPreviewDetail(
+      topicId,
+      background: background,
+    );
+    final firstPost = preview?.postStream.posts.firstOrNull;
+    return firstPost?.cooked;
+  }
+
+  /// 获取可复用的主贴预览详情。
+  ///
+  /// 只保留首楼，供首页摘要缓存和详情页首屏承接使用。
+  Future<TopicDetail?> getTopicFirstPostPreviewDetail(
+    int topicId, {
+    bool background = false,
+  }) async {
     final response = await _dio.get(
       '/t/$topicId/1.json',
       options: _backgroundReadOptions(background: background),
     );
     final data = response.data as Map<String, dynamic>;
-    final postStream = data['post_stream'] as Map<String, dynamic>?;
-    final posts = postStream?['posts'] as List<dynamic>?;
-    if (posts == null || posts.isEmpty) return null;
-    final firstPost = posts.first as Map<String, dynamic>;
-    return firstPost['cooked'] as String?;
+    final detail = TopicDetail.fromJson(data);
+    if (detail.postStream.posts.isEmpty) return null;
+
+    final firstPost = detail.postStream.posts.first;
+    return detail.copyWith(
+      postStream: PostStream(
+        posts: [firstPost],
+        stream: [firstPost.id],
+        gaps: const PostStreamGaps(),
+      ),
+    );
   }
 }
