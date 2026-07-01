@@ -613,14 +613,28 @@ class CdkBalanceCard extends ConsumerWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    S.current.cdk_balance,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                  // loading 态保持与数据态相同的两行结构（标题 + 占位余额），
+                  // 避免数据到达后由一行变两行导致的卡片高度跳变
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        S.current.cdk_balance,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      Text(
+                        '—',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                LoadingSpinner(size: 16, color: theme.colorScheme.tertiary),
+                LoadingSpinner(size: 20, color: theme.colorScheme.tertiary),
               ],
             ),
           ),
@@ -870,8 +884,7 @@ class CdkBalanceCard extends ConsumerWidget {
               ),
             ),
             FilledButton.icon(
-              onPressed: () =>
-                  ref.read(cdkUserInfoProvider.notifier).refresh(),
+              onPressed: () => ref.read(cdkUserInfoProvider.notifier).refresh(),
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: Text(S.current.common_refresh),
               style: FilledButton.styleFrom(
