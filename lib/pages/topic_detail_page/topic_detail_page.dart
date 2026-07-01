@@ -112,14 +112,30 @@ int? resolveInitialPendingNestedPostNumber({
   required int? scrollToPostNumber,
   required bool restoredNestedView,
   required int? restoredPostNumber,
+  bool hasInitialPreview = false,
 }) {
   if (!isNestedView) return null;
 
   final explicitTarget = _validPostNumber(scrollToPostNumber);
   if (explicitTarget != null) return explicitTarget;
 
+  if (hasInitialPreview) return null;
+
   if (!restoredNestedView) return null;
   return _validPostNumber(restoredPostNumber);
+}
+
+@visibleForTesting
+int? resolveInitialFlatPostNumber({
+  required bool hasInitialPreview,
+  required int? scrollToPostNumber,
+  required bool restoredNestedView,
+  required int? restoredPostNumber,
+}) {
+  final explicitTarget = _validPostNumber(scrollToPostNumber);
+  if (explicitTarget != null) return explicitTarget;
+  if (hasInitialPreview) return null;
+  return restoredNestedView ? null : _validPostNumber(restoredPostNumber);
 }
 
 @visibleForTesting
@@ -395,6 +411,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       scrollToPostNumber: widget.scrollToPostNumber,
       restoredNestedView: _restoredReadingState?.nestedView == true,
       restoredPostNumber: _restoredReadingState?.postNumber,
+      hasInitialPreview: _canShowInitialPreview,
     );
 
     _expandController = AnimationController(
@@ -447,11 +464,12 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       scrollController: AutoScrollController(),
       screenTrack: _screenTrack,
       trackEnabled: trackEnabled,
-      initialPostNumber:
-          widget.scrollToPostNumber ??
-          (_restoredReadingState?.nestedView == true
-              ? null
-              : _restoredReadingState?.postNumber),
+      initialPostNumber: resolveInitialFlatPostNumber(
+        hasInitialPreview: _canShowInitialPreview,
+        scrollToPostNumber: widget.scrollToPostNumber,
+        restoredNestedView: _restoredReadingState?.nestedView == true,
+        restoredPostNumber: _restoredReadingState?.postNumber,
+      ),
       onScrolled: () {
         if (_controller.trackEnabled) {
           _screenTrack.scrolled();
@@ -2033,7 +2051,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             ],
           );
         }
-        return Opacity(opacity: isPositioned ? 1.0 : 0.0, child: child);
+        return Opacity(
+          opacity: isPositioned || _canShowInitialPreview ? 1.0 : 0.0,
+          child: child,
+        );
       },
       child: scrollView,
     );

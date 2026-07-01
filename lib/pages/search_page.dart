@@ -444,7 +444,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       context,
       buildTopicDetailRoute<void>(
         topicId: topic.id,
+        initialTitle: topic.title,
         scrollToPostNumber: searchPost.postNumber,
+        initialTopicPreview: searchPostToTopicPreview(searchPost),
+        initialFirstPostHtml: searchPostPreviewHtml(searchPost),
       ),
     );
     if (mounted) {

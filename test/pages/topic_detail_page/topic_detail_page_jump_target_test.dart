@@ -41,6 +41,35 @@ void main() {
       );
     });
 
+    test(
+      'home preview entry without explicit target does not restore nested jump',
+      () {
+        expect(
+          resolveInitialPendingNestedPostNumber(
+            isNestedView: true,
+            scrollToPostNumber: null,
+            restoredNestedView: true,
+            restoredPostNumber: 42,
+            hasInitialPreview: true,
+          ),
+          isNull,
+        );
+      },
+    );
+
+    test('preview entry preserves explicit nested jump target', () {
+      expect(
+        resolveInitialPendingNestedPostNumber(
+          isNestedView: true,
+          scrollToPostNumber: 42,
+          restoredNestedView: true,
+          restoredPostNumber: 9,
+          hasInitialPreview: true,
+        ),
+        42,
+      );
+    });
+
     test('restored nested state remains the fallback pending target', () {
       expect(
         resolveInitialPendingNestedPostNumber(
@@ -53,15 +82,18 @@ void main() {
       );
     });
 
-    test('explicit nested view from link overrides saved and default state', () {
-      expect(
-        resolveInitialNestedView(
-          initialNestedView: true,
-          restoredNestedView: false,
-          preferenceNestedView: false,
-        ),
-        isTrue,
-      );
-    });
+    test(
+      'explicit nested view from link overrides saved and default state',
+      () {
+        expect(
+          resolveInitialNestedView(
+            initialNestedView: true,
+            restoredNestedView: false,
+            preferenceNestedView: false,
+          ),
+          isTrue,
+        );
+      },
+    );
   });
 }

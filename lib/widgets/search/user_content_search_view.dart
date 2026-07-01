@@ -293,7 +293,10 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
                       context,
                       buildTopicDetailRoute<void>(
                         topicId: topic.id,
+                        initialTitle: topic.title,
                         scrollToPostNumber: post.postNumber,
+                        initialTopicPreview: searchPostToTopicPreview(post),
+                        initialFirstPostHtml: searchPostPreviewHtml(post),
                       ),
                     );
                   }
@@ -309,7 +312,14 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
                               context,
                               buildTopicDetailRoute<void>(
                                 topicId: topic.id,
+                                initialTitle: topic.title,
                                 scrollToPostNumber: post.postNumber,
+                                initialTopicPreview: searchPostToTopicPreview(
+                                  post,
+                                ),
+                                initialFirstPostHtml: searchPostPreviewHtml(
+                                  post,
+                                ),
                               ),
                             );
                           }

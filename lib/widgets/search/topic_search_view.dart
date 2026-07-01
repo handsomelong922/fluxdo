@@ -168,7 +168,10 @@ class _TopicSearchViewState extends ConsumerState<TopicSearchView> {
                         context,
                         buildTopicDetailRoute<void>(
                           topicId: topic.id,
+                          initialTitle: topic.title,
                           scrollToPostNumber: post.postNumber,
+                          initialTopicPreview: searchPostToTopicPreview(post),
+                          initialFirstPostHtml: searchPostPreviewHtml(post),
                         ),
                       );
                     }

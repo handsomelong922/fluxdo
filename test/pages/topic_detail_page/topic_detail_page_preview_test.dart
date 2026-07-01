@@ -115,6 +115,45 @@ void main() {
       expect(merged.postStream.stream, const [101, 102, 103]);
     },
   );
+
+  test('preview entry without explicit target starts from first post', () {
+    expect(
+      resolveInitialFlatPostNumber(
+        hasInitialPreview: true,
+        scrollToPostNumber: null,
+        restoredNestedView: false,
+        restoredPostNumber: 8,
+      ),
+      isNull,
+    );
+  });
+
+  test('preview entry preserves explicit search jump target', () {
+    expect(
+      resolveInitialFlatPostNumber(
+        hasInitialPreview: true,
+        scrollToPostNumber: 12,
+        restoredNestedView: false,
+        restoredPostNumber: 8,
+      ),
+      12,
+    );
+  });
+
+  test(
+    'non-preview entry uses restored flat position when no explicit target',
+    () {
+      expect(
+        resolveInitialFlatPostNumber(
+          hasInitialPreview: false,
+          scrollToPostNumber: null,
+          restoredNestedView: false,
+          restoredPostNumber: 8,
+        ),
+        8,
+      );
+    },
+  );
 }
 
 Post _post({

@@ -7,6 +7,50 @@ import '../../providers/preferences_provider.dart';
 import '../../utils/html_excerpt.dart';
 import '../topic/topic_card.dart';
 
+String? searchPostPreviewHtml(SearchPost post) {
+  final blurb = post.blurb.trim();
+  return blurb.isEmpty ? null : post.blurb;
+}
+
+Topic searchPostToTopicPreview(SearchPost post) {
+  final searchTopic = post.topic;
+  final title = searchTopic?.title ?? '';
+  final slug = searchTopic?.slug ?? '';
+  final postsCount = searchTopic?.postsCount ?? 1;
+  final categoryId = searchTopic?.categoryId?.toString() ?? '0';
+  final createdAt = post.createdAt;
+
+  return Topic(
+    id: searchTopic?.id ?? post.id,
+    title: title,
+    slug: slug,
+    postsCount: postsCount,
+    replyCount: (postsCount - 1).clamp(0, 999999).toInt(),
+    views: searchTopic?.views ?? 0,
+    likeCount: post.likeCount,
+    excerpt: searchPostPreviewHtml(post),
+    createdAt: createdAt,
+    lastPostedAt: createdAt,
+    lastPosterUsername: post.username,
+    categoryId: categoryId,
+    closed: searchTopic?.closed ?? false,
+    archived: searchTopic?.archived ?? false,
+    tags: searchTopic?.tags ?? const <Tag>[],
+    posters: [
+      TopicPoster(
+        userId: post.id,
+        description: 'Original Poster',
+        extras: 'latest',
+        user: TopicUser(
+          id: post.id,
+          username: post.username,
+          avatarTemplate: post.avatarTemplate,
+        ),
+      ),
+    ],
+  );
+}
+
 /// 搜索结果帖子卡片 — 复用首页话题卡片，避免搜索样式和首页漂移。
 class SearchPostCard extends ConsumerWidget {
   final SearchPost post;
@@ -27,50 +71,12 @@ class SearchPostCard extends ConsumerWidget {
     );
 
     return TopicCard(
-      topic: _toTopic(),
+      topic: searchPostToTopicPreview(post),
       onTap: onTap,
       onLongPress: onLongPress,
       bottomWidget: post.blurb.isEmpty
           ? null
           : _buildBlurb(Theme.of(context), contentFontScale),
-    );
-  }
-
-  Topic _toTopic() {
-    final searchTopic = post.topic;
-    final title = searchTopic?.title ?? '';
-    final slug = searchTopic?.slug ?? '';
-    final postsCount = searchTopic?.postsCount ?? 1;
-    final categoryId = searchTopic?.categoryId?.toString() ?? '0';
-    final createdAt = post.createdAt;
-
-    return Topic(
-      id: searchTopic?.id ?? post.id,
-      title: title,
-      slug: slug,
-      postsCount: postsCount,
-      replyCount: (postsCount - 1).clamp(0, 999999).toInt(),
-      views: searchTopic?.views ?? 0,
-      likeCount: post.likeCount,
-      createdAt: createdAt,
-      lastPostedAt: createdAt,
-      lastPosterUsername: post.username,
-      categoryId: categoryId,
-      closed: searchTopic?.closed ?? false,
-      archived: searchTopic?.archived ?? false,
-      tags: searchTopic?.tags ?? const <Tag>[],
-      posters: [
-        TopicPoster(
-          userId: post.id,
-          description: 'Original Poster',
-          extras: 'latest',
-          user: TopicUser(
-            id: post.id,
-            username: post.username,
-            avatarTemplate: post.avatarTemplate,
-          ),
-        ),
-      ],
     );
   }
 

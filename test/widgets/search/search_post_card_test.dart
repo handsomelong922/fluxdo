@@ -12,6 +12,54 @@ import 'package:fluxdo/widgets/search/search_post_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('searchPostToTopicPreview carries preview data for detail handoff', () {
+    final createdAt = DateTime.now().subtract(const Duration(days: 1));
+    final post = SearchPost(
+      id: 1,
+      username: 'tester',
+      avatarTemplate: '/user_avatar/example/{size}/1.png',
+      createdAt: createdAt,
+      likeCount: 5,
+      blurb: '<p>搜索摘要正文</p>',
+      postNumber: 3,
+      topic: SearchTopic(
+        id: 9,
+        title: '搜索结果标题',
+        slug: 'search-topic',
+        tags: const [Tag(id: 1, name: 'flutter')],
+        postsCount: 12,
+        views: 99,
+        closed: false,
+        archived: false,
+      ),
+    );
+
+    final topic = searchPostToTopicPreview(post);
+
+    expect(topic.id, 9);
+    expect(topic.title, '搜索结果标题');
+    expect(topic.slug, 'search-topic');
+    expect(topic.excerpt, '<p>搜索摘要正文</p>');
+    expect(topic.replyCount, 11);
+    expect(topic.tags.single.name, 'flutter');
+    expect(topic.posters.single.user?.username, 'tester');
+  });
+
+  test('searchPostPreviewHtml ignores blank blurbs', () {
+    final post = SearchPost(
+      id: 1,
+      username: 'tester',
+      avatarTemplate: '/user_avatar/example/{size}/1.png',
+      createdAt: DateTime.now(),
+      likeCount: 0,
+      blurb: '   ',
+      postNumber: 1,
+    );
+
+    expect(searchPostPreviewHtml(post), isNull);
+    expect(searchPostToTopicPreview(post).excerpt, isNull);
+  });
+
   testWidgets('SearchPostCard keeps home-style meta info on the right side', (
     tester,
   ) async {

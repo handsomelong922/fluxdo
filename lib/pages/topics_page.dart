@@ -1328,7 +1328,10 @@ class _TopicListState extends ConsumerState<_TopicList>
       buildTopicDetailRoute<void>(
         topicId: topic.id,
         initialTitle: topic.title,
-        scrollToPostNumber: topic.lastReadPostNumber,
+        scrollToPostNumber: _resolveInitialTopicScrollTarget(
+          topic,
+          initialFirstPostHtml,
+        ),
         initialTopicPreview: topic,
         initialFirstPostHtml: initialFirstPostHtml,
       ),
@@ -1345,7 +1348,10 @@ class _TopicListState extends ConsumerState<_TopicList>
           .select(
             topicId: topic.id,
             initialTitle: topic.title,
-            scrollToPostNumber: topic.lastReadPostNumber,
+            scrollToPostNumber: _resolveInitialTopicScrollTarget(
+              topic,
+              initialFirstPostHtml,
+            ),
             initialTopicPreview: topic,
             initialFirstPostHtml: initialFirstPostHtml,
           );
@@ -1356,7 +1362,10 @@ class _TopicListState extends ConsumerState<_TopicList>
       buildTopicDetailRoute<void>(
         topicId: topic.id,
         initialTitle: topic.title,
-        scrollToPostNumber: topic.lastReadPostNumber,
+        scrollToPostNumber: _resolveInitialTopicScrollTarget(
+          topic,
+          initialFirstPostHtml,
+        ),
         initialTopicPreview: topic,
         initialFirstPostHtml: initialFirstPostHtml,
         autoSwitchToMasterDetail: true,
@@ -1369,6 +1378,11 @@ class _TopicListState extends ConsumerState<_TopicList>
         .read(homeTopicExcerptLoaderProvider)
         .peekCached(topic.id);
     return resolveBestTopicExcerptHtml(topic, cachedHtml: cachedHtml);
+  }
+
+  int? _resolveInitialTopicScrollTarget(Topic topic, String? previewHtml) {
+    final hasPreview = previewHtml?.trim().isNotEmpty ?? false;
+    return hasPreview ? null : topic.lastReadPostNumber;
   }
 
   @override

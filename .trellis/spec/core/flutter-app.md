@@ -37,6 +37,60 @@ Evidence:
 - Startup preloading that provides first-screen data must remain part of the gate that reveals the home page when the UI expects to synchronously consume that cache. Do not convert `PreloadedDataService().ensureLoaded()` into an unawaited warm-up without also changing the home topic provider contract; otherwise the app can show the home shell before `topicList` is available, trigger duplicate `/latest.json` requests, and leave the user on skeleton loading.
 - Initial topic-list backfill for filtered results must not block the first visible page. Return page 0 as soon as it is processed, then append any "fill to minimum visible count" pages in the background or through normal load-more flow.
 
+## Scenario: Topic Detail Preview Handoff
+
+### 1. Scope / Trigger
+- Trigger: changing home/search topic-card navigation, `TopicDetailPage` initial preview fields, restored reading position, or topic-detail initial post-window loading.
+
+### 2. Signatures
+- `buildTopicDetailRoute(topicId, initialTitle?, scrollToPostNumber?, initialTopicPreview?, initialFirstPostHtml?)`
+- `TopicDetailPage.initialTopicPreview` and `initialFirstPostHtml` are first-paint preview data only.
+- `scrollToPostNumber` is an explicit navigation target and must remain stronger than preview/restored state.
+
+### 3. Contracts
+- Home topic cards that already have first-post HTML must pass preview data and no `scrollToPostNumber`; comments/replies load below the stable first post.
+- Search result cards may pass preview data and `scrollToPostNumber`; the preview accelerates first paint but must not cancel the search hit jump.
+- Restored reading state is a fallback only. Do not apply it when first-post preview is available and no explicit target was requested.
+- Loading replies, post windows, boosts, likes, or metadata must not replace the visible first-post preview with a global skeleton.
+
+### 4. Validation & Error Matrix
+- Preview + no explicit target -> render first post immediately; fetch the normal first page/window for replies.
+- Preview + explicit target -> render preview immediately; preserve the target post number and position when loaded.
+- No preview + explicit target -> existing jump-target skeleton behavior is allowed.
+- Target post missing after load -> use the existing unreachable-target fallback; do not silently jump to the wrong floor.
+
+### 5. Good/Base/Bad Cases
+- Good: home card preview opens with `scrollToPostNumber: null`, then replies append/load below.
+- Base: search result preview opens with `scrollToPostNumber: post.postNumber` and uses the search blurb as first paint.
+- Bad: treating every preview as permission to ignore `scrollToPostNumber`, or passing home `lastReadPostNumber` together with first-post preview.
+
+### 6. Tests Required
+- Assert preview without explicit target resolves to first-post loading, not restored reading position.
+- Assert preview with explicit target preserves that target for search/notification-style navigation.
+- Assert search post cards expose preview topic data and blank blurbs do not create fake preview HTML.
+- Keep render identity tests stable across preview-to-real `post.id` handoff.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+buildTopicDetailRoute(
+  topicId: topic.id,
+  scrollToPostNumber: topic.lastReadPostNumber,
+  initialTopicPreview: topic,
+  initialFirstPostHtml: firstPostHtml,
+);
+```
+
+#### Correct
+```dart
+buildTopicDetailRoute(
+  topicId: topic.id,
+  scrollToPostNumber: firstPostHtml == null ? topic.lastReadPostNumber : null,
+  initialTopicPreview: topic,
+  initialFirstPostHtml: firstPostHtml,
+);
+```
+
 ## Scenario: Topic Detail Snapshot Cache
 
 ### 1. Scope / Trigger
