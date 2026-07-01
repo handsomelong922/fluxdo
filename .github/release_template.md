@@ -18,8 +18,7 @@
         <tr>
         <td>Android</td>
             <td>
-                <a href="https://github.com/lingyan000/fluxdo/releases/download/vVERSION/fluxdo-arm64-v8a-full.apk"><img src="https://img.shields.io/badge/APK-ARMv8_Full-168039.svg?logo=android"></a><br>
-                <a href="https://github.com/lingyan000/fluxdo/releases/download/vVERSION/fluxdo-arm64-v8a-direct.apk"><img src="https://img.shields.io/badge/APK-ARMv8_Direct-45bf55.svg?logo=android"></a>
+                <a href="https://github.com/lingyan000/fluxdo/releases/download/vVERSION/fluxdo-arm64-v8a-full.apk"><img src="https://img.shields.io/badge/APK-ARMv8_Full-168039.svg?logo=android"></a>
             </td>
         </tr>
         <tr>

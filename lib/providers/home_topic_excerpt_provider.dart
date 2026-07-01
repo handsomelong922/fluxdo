@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/topic.dart';
 import 'discourse_providers.dart';
 import 'preferences_provider.dart';
 import 'theme_provider.dart';
@@ -98,6 +99,24 @@ class HomeTopicExcerptLoader {
   String? peekCached(int topicId) {
     if (_disposed) return null;
     return _readCache(topicId);
+  }
+
+  Future<int> warmupTopics(Iterable<int> topicIds, {int maxTopics = 8}) async {
+    if (_disposed) return 0;
+
+    final seen = <int>{};
+    final deduped = <int>[];
+    for (final topicId in topicIds) {
+      if (topicId <= 0 || !seen.add(topicId)) continue;
+      deduped.add(topicId);
+      if (deduped.length >= maxTopics) break;
+    }
+    if (deduped.isEmpty) return 0;
+
+    final results = await Future.wait(deduped.map(load));
+    return results
+        .where((html) => html != null && html.trim().isNotEmpty)
+        .length;
   }
 
   Future<String?> load(int topicId) {
@@ -365,6 +384,20 @@ class _PersistedExcerpt {
 
   final String excerpt;
   final int cachedAtMillis;
+}
+
+String? resolveBestTopicExcerptHtml(Topic topic, {String? cachedHtml}) {
+  final resolved = cachedHtml?.trim();
+  if (resolved != null && resolved.isNotEmpty) {
+    return resolved;
+  }
+
+  final excerpt = topic.excerpt?.trim();
+  if (excerpt != null && excerpt.isNotEmpty) {
+    return excerpt;
+  }
+
+  return null;
 }
 
 class _CachedExcerpt {

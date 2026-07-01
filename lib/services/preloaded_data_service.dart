@@ -389,6 +389,9 @@ class PreloadedDataService {
     return response;
   }
 
+  /// 同步窥视预加载的话题列表（不消费缓存）
+  TopicListResponse? peekInitialTopicListSync() => _cachedTopicListResponse;
+
   /// 强制刷新预加载数据
   Future<void> refresh() async {
     _clearCachedData();

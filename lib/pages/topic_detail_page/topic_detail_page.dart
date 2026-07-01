@@ -41,10 +41,12 @@ import '../../widgets/post/post_item_skeleton.dart';
 import '../../widgets/post/post_item/quote_selection_helper.dart';
 import '../../widgets/post/post_replies_sheet.dart';
 import '../../widgets/post/reply_sheet.dart';
+import '../../widgets/common/topic_badges.dart';
 import '../../widgets/topic/topic_progress.dart';
 import '../../widgets/topic/topic_notification_button.dart';
 import '../../widgets/common/dismissible_popup_menu.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/skeleton.dart';
 import '../../widgets/content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../../widgets/content/discourse_html_content/discourse_html_content_widget.dart';
 import '../../providers/nested_topic_provider.dart';
@@ -66,6 +68,7 @@ import 'widgets/ai_chat_page.dart';
 import 'widgets/ai_chat_guide.dart';
 import '../../utils/dialog_utils.dart';
 import '../../utils/platform_utils.dart';
+import '../../utils/font_awesome_helper.dart';
 import '../../models/shortcut_binding.dart';
 import '../../providers/shortcut_provider.dart';
 import '../../widgets/desktop_refresh_indicator.dart';
@@ -149,6 +152,8 @@ class TopicDetailPage extends ConsumerStatefulWidget {
   final String? initialSessionId; // AI 聊天初始会话 ID
   final String? highlightBoostUsername; // 高亮指定用户的 boost（从 boost 通知跳转时使用）
   final bool? initialNestedView; // 外部链接可指定初始树形/普通视图
+  final Topic? initialTopicPreview; // 首页已知的话题摘要数据
+  final String? initialFirstPostHtml; // 首页已缓存的主贴 HTML
 
   const TopicDetailPage({
     super.key,
@@ -165,6 +170,8 @@ class TopicDetailPage extends ConsumerStatefulWidget {
     this.initialSessionId,
     this.highlightBoostUsername,
     this.initialNestedView,
+    this.initialTopicPreview,
+    this.initialFirstPostHtml,
   });
 
   @override
@@ -246,6 +253,24 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   int? _pendingNestedRestorePostNumber;
   int? _lastPrimedNestedTargetPostNumber;
   int? _lastUnreachableJumpTarget;
+
+  String? get _initialPreviewHtml {
+    final firstPostHtml = widget.initialFirstPostHtml?.trim();
+    if (firstPostHtml != null && firstPostHtml.isNotEmpty) {
+      return firstPostHtml;
+    }
+
+    final excerpt = widget.initialTopicPreview?.excerpt?.trim();
+    if (excerpt != null && excerpt.isNotEmpty) {
+      return excerpt;
+    }
+
+    return null;
+  }
+
+  bool get _canShowInitialPreview {
+    return widget.initialTopicPreview != null && _initialPreviewHtml != null;
+  }
 
   @override
   void initState() {
@@ -651,6 +676,99 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         ),
         child: child,
       ),
+    );
+  }
+
+  Widget _buildInitialTopicPreview(
+    BuildContext context, {
+    required bool animateSkeleton,
+  }) {
+    final topic = widget.initialTopicPreview!;
+    final previewHtml = _initialPreviewHtml!;
+    final theme = Theme.of(context);
+    final categoryMap = ref.watch(categoryMapProvider).value;
+    final categoryId = int.tryParse(topic.categoryId);
+    final category = categoryMap?[categoryId];
+
+    IconData? faIcon = FontAwesomeHelper.getIcon(category?.icon);
+    String? logoUrl = category?.uploadedLogo;
+    if (faIcon == null &&
+        (logoUrl == null || logoUrl.isEmpty) &&
+        category?.parentCategoryId != null) {
+      final parent = categoryMap?[category!.parentCategoryId];
+      faIcon = FontAwesomeHelper.getIcon(parent?.icon);
+      logoUrl = parent?.uploadedLogo;
+    }
+
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.initialTitle ?? topic.title,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    if (category != null)
+                      CategoryBadge(
+                        category: category,
+                        faIcon: faIcon,
+                        logoUrl: logoUrl,
+                      ),
+                    ...topic.tags
+                        .take(4)
+                        .map((tag) => TagBadge(name: tag.name)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                DiscourseHtmlContent(
+                  html: previewHtml,
+                  topicId: widget.topicId,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      size: 16,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      widget.scrollToPostNumber != null &&
+                              widget.scrollToPostNumber! > 1
+                          ? '主贴已立即显示，正在继续定位并加载评论...'
+                          : '主贴已立即显示，正在继续加载评论...',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Skeleton(
+            animate: animateSkeleton,
+            child: Column(
+              children: const [PostItemSkeleton(), PostItemSkeleton()],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1388,6 +1506,15 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
 
     if (detailAsync.isLoading && detail == null) {
+      if (_canShowInitialPreview) {
+        return _wrapWithConstraint(
+          _buildInitialTopicPreview(
+            context,
+            animateSkeleton: !reduceLoadingAnimations,
+          ),
+        );
+      }
+
       final showHeaderSkeleton =
           widget.scrollToPostNumber == null || widget.scrollToPostNumber == 0;
       return _wrapWithConstraint(

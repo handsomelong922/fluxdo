@@ -44,6 +44,7 @@ import '../widgets/desktop_refresh_indicator.dart';
 import '../services/toast_service.dart';
 import '../services/navigation/app_route_observer.dart';
 import '../services/navigation/pop_passthrough_material_page_route.dart';
+import '../services/navigation/topic_detail_route.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/html_excerpt.dart';
 import '../utils/platform_utils.dart';
@@ -1321,21 +1322,22 @@ class _TopicListState extends ConsumerState<_TopicList>
     if (_keyboardFocusIndex < 0 || _keyboardFocusIndex >= topics.length) return;
 
     final topic = topics[_keyboardFocusIndex];
+    final initialFirstPostHtml = _resolveInitialTopicPreviewHtml(topic);
     // 强制用 Navigator push 打开（而非 Master-Detail 内选中）
     Navigator.of(context).push(
-      PopPassthroughMaterialPageRoute(
-        enableHorizontalPopGesture: true,
-        builder: (_) => TopicDetailPage(
-          topicId: topic.id,
-          initialTitle: topic.title,
-          scrollToPostNumber: topic.lastReadPostNumber,
-        ),
+      buildTopicDetailRoute<void>(
+        topicId: topic.id,
+        initialTitle: topic.title,
+        scrollToPostNumber: topic.lastReadPostNumber,
+        initialTopicPreview: topic,
+        initialFirstPostHtml: initialFirstPostHtml,
       ),
     );
   }
 
   void _openTopic(Topic topic) {
     final canShowDetailPane = MasterDetailLayout.canShowBothPanesFor(context);
+    final initialFirstPostHtml = _resolveInitialTopicPreviewHtml(topic);
 
     if (canShowDetailPane) {
       ref
@@ -1344,21 +1346,29 @@ class _TopicListState extends ConsumerState<_TopicList>
             topicId: topic.id,
             initialTitle: topic.title,
             scrollToPostNumber: topic.lastReadPostNumber,
+            initialTopicPreview: topic,
+            initialFirstPostHtml: initialFirstPostHtml,
           );
       return;
     }
 
     Navigator.of(context).push(
-      PopPassthroughMaterialPageRoute(
-        enableHorizontalPopGesture: true,
-        builder: (_) => TopicDetailPage(
-          topicId: topic.id,
-          initialTitle: topic.title,
-          scrollToPostNumber: topic.lastReadPostNumber,
-          autoSwitchToMasterDetail: true,
-        ),
+      buildTopicDetailRoute<void>(
+        topicId: topic.id,
+        initialTitle: topic.title,
+        scrollToPostNumber: topic.lastReadPostNumber,
+        initialTopicPreview: topic,
+        initialFirstPostHtml: initialFirstPostHtml,
+        autoSwitchToMasterDetail: true,
       ),
     );
+  }
+
+  String? _resolveInitialTopicPreviewHtml(Topic topic) {
+    final cachedHtml = ref
+        .read(homeTopicExcerptLoaderProvider)
+        .peekCached(topic.id);
+    return resolveBestTopicExcerptHtml(topic, cachedHtml: cachedHtml);
   }
 
   @override

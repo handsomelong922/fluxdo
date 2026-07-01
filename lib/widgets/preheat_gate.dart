@@ -8,6 +8,7 @@ import '../l10n/s.dart';
 import '../pages/about_page.dart';
 import '../pages/network_settings_page/network_settings_page.dart';
 import '../providers/app_icon_provider.dart';
+import '../providers/home_topic_excerpt_provider.dart';
 import '../services/browser_trust_coordinator.dart';
 import '../services/discourse/discourse_service.dart';
 import '../services/emoji_handler.dart';
@@ -32,6 +33,10 @@ class PreheatGate extends StatefulWidget {
 class _PreheatGateState extends State<PreheatGate> {
   static const _minimumLoadingDuration = Duration(milliseconds: 4200);
   static const _topicListReadyTimeout = Duration(seconds: 3);
+  static const _homeExcerptWarmupTimeout = Duration(milliseconds: 2200);
+  static const _maxWarmupHomeExcerpts = 8;
+  static const _homeDetailedTopicListKey = 'pref_home_detailed_topic_list';
+  static const _homeExcerptBatchSizeKey = 'pref_home_excerpt_batch_size';
 
   late Future<bool> _loadFuture;
   Object? _error;
@@ -79,6 +84,7 @@ class _PreheatGateState extends State<PreheatGate> {
       await PreloadedDataService().waitForInitialTopicListReady(
         timeout: _topicListReadyTimeout,
       );
+      await _warmInitialHomeExcerpts();
       unawaited(DiscourseService().getEnabledReactions());
       EmojiHandler().init();
 
@@ -88,6 +94,47 @@ class _PreheatGateState extends State<PreheatGate> {
       debugPrint('[PreheatGate] Preload failed: $e');
       _error = e;
       return false;
+    }
+  }
+
+  Future<void> _warmInitialHomeExcerpts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool(_homeDetailedTopicListKey) ?? false;
+    if (!enabled) return;
+
+    final initialTopicList = PreloadedDataService().peekInitialTopicListSync();
+    if (initialTopicList == null || initialTopicList.topics.isEmpty) {
+      return;
+    }
+
+    final warmupTopicIds = initialTopicList.topics
+        .where((topic) => resolveBestTopicExcerptHtml(topic) == null)
+        .map((topic) => topic.id)
+        .take(_maxWarmupHomeExcerpts)
+        .toList(growable: false);
+    if (warmupTopicIds.isEmpty) return;
+
+    final batchSize = (prefs.getInt(_homeExcerptBatchSizeKey) ?? 3)
+        .clamp(1, 4)
+        .toInt();
+    final loader = HomeTopicExcerptLoader(
+      fetchExcerpt: (topicId) =>
+          DiscourseService().getTopicFirstPostCooked(topicId, background: true),
+      persistentCache: HomeTopicExcerptPersistentCache(prefs),
+      maxConcurrentRequests: batchSize,
+    );
+
+    try {
+      final warmed = await loader
+          .warmupTopics(warmupTopicIds, maxTopics: _maxWarmupHomeExcerpts)
+          .timeout(_homeExcerptWarmupTimeout, onTimeout: () => 0);
+      debugPrint(
+        '[PreheatGate] 首页正文预热完成: warmed=$warmed/${warmupTopicIds.length}',
+      );
+    } catch (e) {
+      debugPrint('[PreheatGate] 首页正文预热失败: $e');
+    } finally {
+      loader.dispose();
     }
   }
 

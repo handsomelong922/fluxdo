@@ -175,8 +175,6 @@ jobs:
           flutter build apk --release --target-platform ${{ matrix.flutter-target }} --dart-define=cronetHttpNoPlay=true --dart-define=appNetworkProfile=full
           mkdir -p dist
           mv build/app/outputs/flutter-apk/app-release.apk dist/fluxdo-${{ matrix.arch }}-full.apk
-          flutter build apk --release --target-platform ${{ matrix.flutter-target }} --dart-define=cronetHttpNoPlay=true --dart-define=appNetworkProfile=direct
-          mv build/app/outputs/flutter-apk/app-release.apk dist/fluxdo-${{ matrix.arch }}-direct.apk
           if ! unzip -l dist/fluxdo-${{ matrix.arch }}-full.apk | grep -q "lib/${{ matrix.arch }}/libdoh_proxy.so"; then
             echo "Full APK is missing libdoh_proxy.so"
             exit 1
@@ -185,15 +183,7 @@ jobs:
             echo "Full APK is missing librhttp.so"
             exit 1
           fi
-          if unzip -l dist/fluxdo-${{ matrix.arch }}-direct.apk | grep -q "libdoh_proxy.so"; then
-            echo "Direct APK unexpectedly contains libdoh_proxy.so"
-            exit 1
-          fi
-          if unzip -l dist/fluxdo-${{ matrix.arch }}-direct.apk | grep -q "librhttp.so"; then
-            echo "Direct APK unexpectedly contains librhttp.so"
-            exit 1
-          fi
-          ls -lh dist/fluxdo-${{ matrix.arch }}-full.apk dist/fluxdo-${{ matrix.arch }}-direct.apk
+          ls -lh dist/fluxdo-${{ matrix.arch }}-full.apk
 
       - name: Setup NuGet
         if: matrix.platform == 'windows'
@@ -292,7 +282,6 @@ jobs:
 
           required_assets=(
             "fluxdo-arm64-v8a-full.apk"
-            "fluxdo-arm64-v8a-direct.apk"
             "fluxdo-windows-x86_64-setup.exe"
             "fluxdo-windows-x86_64.zip"
           )
@@ -307,8 +296,8 @@ jobs:
           done
 
           asset_count=$(find ./release-assets -maxdepth 1 -type f | wc -l | tr -d ' ')
-          if [[ "$asset_count" != "4" ]]; then
-            echo "Release must contain exactly four installable assets."
+          if [[ "$asset_count" != "3" ]]; then
+            echo "Release must contain exactly three installable assets."
             find ./release-assets -maxdepth 1 -type f -print
             exit 1
           fi
@@ -322,7 +311,6 @@ jobs:
           target_commitish: ${{ github.sha }}
           files: |
             ./release-assets/fluxdo-arm64-v8a-full.apk
-            ./release-assets/fluxdo-arm64-v8a-direct.apk
             ./release-assets/fluxdo-windows-x86_64-setup.exe
             ./release-assets/fluxdo-windows-x86_64.zip
           fail_on_unmatched_files: true

@@ -19,7 +19,6 @@ import 'windows_webview_environment_service.dart';
 import '../l10n/s.dart';
 import '../providers/preferences_provider.dart';
 import '../utils/blur_config.dart';
-import '../widgets/draggable_floating_pill.dart';
 
 CookieManager get _cfCookieManager =>
     WindowsWebViewEnvironmentService.instance.cookieManager;
@@ -1026,9 +1025,9 @@ class _CfChallengePageState extends State<CfChallengePage> {
       if (_checkCount > _activeMaxCheckCount) {
         if (_isBackground) {
           CfChallengeLogger.log(
-            '[VERIFY] Background timeout after $_activeMaxCheckCount seconds, prompting manual verify',
+            '[VERIFY] Background timeout after $_activeMaxCheckCount seconds, finishing silently',
           );
-          _promoteToForeground(dueToTimeout: true);
+          if (mounted) _finish(false);
           return;
         }
         if (!_hasTimedOut) {
@@ -2283,14 +2282,6 @@ class _CfChallengePageState extends State<CfChallengePage> {
                 ),
               ),
             ],
-          ),
-
-        // 悬浮验证胶囊：默认收起，点击展开，再次点击进入前台
-        if (_isBackground)
-          DraggableFloatingPill(
-            initialTop: 100,
-            onTap: _promoteToForeground,
-            child: Text(S.current.cf_backgroundVerifying),
           ),
       ],
     );

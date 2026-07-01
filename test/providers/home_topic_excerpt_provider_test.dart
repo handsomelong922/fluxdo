@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fluxdo/models/topic.dart';
 import 'package:fluxdo/providers/home_topic_excerpt_provider.dart';
 import 'package:fluxdo/providers/preferences_provider.dart';
 import 'package:fluxdo/services/network/request_scheduler_config.dart';
@@ -153,6 +154,49 @@ void main() {
       expect(await loader.load(11), '<p>topic 11</p>');
 
       expect(loader.peekCached(11), '<p>topic 11</p>');
+    },
+  );
+
+  test(
+    'HomeTopicExcerptLoader warmupTopics dedupes ids and respects maxTopics',
+    () async {
+      final warmedIds = <int>[];
+      final loader = HomeTopicExcerptLoader(
+        minRequestInterval: Duration.zero,
+        fetchExcerpt: (topicId) async {
+          warmedIds.add(topicId);
+          return '<p>topic $topicId</p>';
+        },
+      );
+      addTearDown(loader.dispose);
+
+      final warmed = await loader.warmupTopics([1, 2, 2, 3, 4], maxTopics: 3);
+
+      expect(warmed, 3);
+      expect(warmedIds, unorderedEquals([1, 2, 3]));
+    },
+  );
+
+  test(
+    'resolveBestTopicExcerptHtml prefers cached html and falls back to topic excerpt',
+    () {
+      final topic = Topic(
+        id: 1,
+        title: 'Hello',
+        slug: 'hello',
+        postsCount: 1,
+        replyCount: 0,
+        views: 0,
+        likeCount: 0,
+        categoryId: '1',
+        excerpt: '<p>excerpt</p>',
+      );
+
+      expect(
+        resolveBestTopicExcerptHtml(topic, cachedHtml: '<p>cached</p>'),
+        '<p>cached</p>',
+      );
+      expect(resolveBestTopicExcerptHtml(topic), '<p>excerpt</p>');
     },
   );
 

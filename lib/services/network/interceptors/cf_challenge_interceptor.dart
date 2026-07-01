@@ -133,17 +133,10 @@ class CfChallengeInterceptor extends Interceptor {
 
       // 检查请求是否标记为静默（后台验证）
       if (isSilent) {
-        final alreadyDeferred = cfService.isSilentVerifyDeferred;
         cfService.deferSilentVerify();
         CfChallengeLogger.log(
           '[INTERCEPTOR] Silent challenge deferred until user action: $requestMethod $requestUrl',
         );
-        if (!alreadyDeferred) {
-          CfChallengeService.showGlobalMessage(
-            S.current.error_securityChallenge,
-            isError: false,
-          );
-        }
         return handler.reject(
           DioException(
             requestOptions: err.requestOptions,

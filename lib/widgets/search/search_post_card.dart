@@ -4,13 +4,10 @@ import '../../models/category.dart';
 import '../../models/search_result.dart';
 import '../../providers/category_provider.dart';
 import '../../utils/font_awesome_helper.dart';
-import '../../utils/number_utils.dart';
 import '../../utils/platform_utils.dart';
-import '../common/relative_time_text.dart';
-import '../common/smart_avatar.dart';
 import '../common/topic_badges.dart';
 
-/// 搜索结果帖子卡片 — 与话题列表卡片风格一致的紧凑横向布局
+/// 搜索结果帖子卡片 — 对齐首页主帖卡片样式
 class SearchPostCard extends ConsumerWidget {
   final SearchPost post;
   final VoidCallback? onTap;
@@ -57,132 +54,68 @@ class SearchPostCard extends ConsumerWidget {
         onLongPress: onLongPress,
         onSecondaryTap: PlatformUtils.isDesktop ? onLongPress : null,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(12, 10, 14, 12),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 左侧：用户头像
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: SmartAvatar(
-                  imageUrl: post.getAvatarUrl().isNotEmpty
-                      ? post.getAvatarUrl(size: 68)
-                      : null,
-                  radius: 17,
-                  fallbackText: post.username,
-                  backgroundColor: theme.colorScheme.secondaryContainer,
-                ),
-              ),
-              const SizedBox(width: 10),
-              // 右侧：多行内容
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 第1行：标题 + 楼层号/AI标记
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: _buildTopicTitle(post, topic, theme)),
-                        if (post.isAiGenerated || post.postNumber > 1)
-                          const SizedBox(width: 8),
-                        if (post.isAiGenerated)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Icon(
-                              Icons.auto_awesome,
-                              size: 14,
-                              color: theme.colorScheme.tertiary,
-                            ),
-                          ),
-                        if (post.postNumber > 1)
-                          Container(
-                            margin: const EdgeInsets.only(top: 2),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '#${post.postNumber}',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                      ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildTopicTitle(post, topic, theme)),
+                  if (post.isAiGenerated || post.postNumber > 1)
+                    const SizedBox(width: 8),
+                  if (post.isAiGenerated)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Icon(
+                        Icons.auto_awesome,
+                        size: 14,
+                        color: theme.colorScheme.tertiary,
+                      ),
                     ),
-
-                    // 摘要（紧凑显示，最多2行）
-                    if (post.blurb.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      _buildBlurb(post.blurb, theme),
-                    ],
-
-                    const SizedBox(height: 6),
-
-                    // 第2行：分类+标签（左） + 点赞+时间（右），与 TopicCard 一致
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 左侧：分类和标签
-                        Expanded(
-                          child: Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: [
-                              if (category != null)
-                                CategoryBadge(
-                                  category: category,
-                                  faIcon: faIcon,
-                                  logoUrl: logoUrl,
-                                ),
-                              if (topic != null)
-                                ...topic.tags
-                                    .take(3)
-                                    .map((tag) => TagBadge(name: tag.name)),
-                            ],
-                          ),
+                  if (post.postNumber > 1)
+                    Container(
+                      margin: const EdgeInsets.only(top: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '#${post.postNumber}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 10,
                         ),
-                        // 右侧：点赞 + 时间
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (post.likeCount > 0) ...[
-                              _buildStat(
-                                context,
-                                Icons.favorite_border_rounded,
-                                post.likeCount,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '·',
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant
-                                      .withValues(alpha: 0.5),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                            ],
-                            RelativeTimeText(
-                              dateTime: post.createdAt,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.7),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
-                  ],
-                ),
+                ],
               ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  if (category != null)
+                    CategoryBadge(
+                      category: category,
+                      faIcon: faIcon,
+                      logoUrl: logoUrl,
+                    ),
+                  if (topic != null)
+                    ...topic.tags
+                        .take(4)
+                        .map((tag) => TagBadge(name: tag.name)),
+                ],
+              ),
+              if (post.blurb.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _buildBlurb(post.blurb, theme),
+              ],
             ],
           ),
         ),
@@ -353,7 +286,7 @@ class SearchPostCard extends ConsumerWidget {
       return Text(
         cleanText,
         style: style,
-        maxLines: 2,
+        maxLines: 4,
         overflow: TextOverflow.ellipsis,
       );
     }
@@ -390,24 +323,8 @@ class SearchPostCard extends ConsumerWidget {
 
     return RichText(
       text: TextSpan(style: style, children: spans),
-      maxLines: 2,
+      maxLines: 4,
       overflow: TextOverflow.ellipsis,
-    );
-  }
-
-  Widget _buildStat(BuildContext context, IconData icon, int count) {
-    final theme = Theme.of(context);
-    final color = theme.colorScheme.onSurfaceVariant;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 3),
-        Text(
-          NumberUtils.formatCount(count),
-          style: theme.textTheme.labelSmall?.copyWith(color: color),
-        ),
-      ],
     );
   }
 }

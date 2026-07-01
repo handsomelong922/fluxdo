@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../l10n/s.dart';
+import '../models/topic.dart';
 import '../navigation/nav_action_bus.dart';
 import '../providers/preferences_provider.dart';
 import '../providers/selected_topic_provider.dart';
@@ -114,6 +115,8 @@ class _TopicsScreenState extends ConsumerState<TopicsScreen> {
                   topicId: topicId,
                   initialTitle: selectedTopic.initialTitle,
                   scrollToPostNumber: scrollPosition,
+                  initialTopicPreview: selectedTopic.initialTopicPreview,
+                  initialFirstPostHtml: selectedTopic.initialFirstPostHtml,
                   autoSwitchToMasterDetail: true,
                   instanceId: instanceId,
                 ),
@@ -174,6 +177,8 @@ class _TopicsScreenState extends ConsumerState<TopicsScreen> {
                 ),
                 initialTitle: selectedTopic.initialTitle,
                 scrollToPostNumber: selectedTopic.scrollToPostNumber,
+                initialTopicPreview: selectedTopic.initialTopicPreview,
+                initialFirstPostHtml: selectedTopic.initialFirstPostHtml,
               ),
             )
           : null,
@@ -646,6 +651,8 @@ class TopicDetailPane extends ConsumerWidget {
     this.instanceId,
     this.initialTitle,
     this.scrollToPostNumber,
+    this.initialTopicPreview,
+    this.initialFirstPostHtml,
   });
 
   final int topicId;
@@ -653,6 +660,8 @@ class TopicDetailPane extends ConsumerWidget {
   final String? instanceId;
   final String? initialTitle;
   final int? scrollToPostNumber;
+  final Topic? initialTopicPreview;
+  final String? initialFirstPostHtml;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -661,6 +670,8 @@ class TopicDetailPane extends ConsumerWidget {
       instanceId: instanceId,
       initialTitle: initialTitle,
       scrollToPostNumber: scrollToPostNumber,
+      initialTopicPreview: initialTopicPreview,
+      initialFirstPostHtml: initialFirstPostHtml,
       embeddedMode: true, // 嵌入模式，不显示返回按钮
       parentActive: parentActive,
     );
