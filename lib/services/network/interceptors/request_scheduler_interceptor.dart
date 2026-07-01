@@ -345,9 +345,11 @@ class RequestSchedulerInterceptor extends Interceptor {
     }
 
     final timeout = AppNetworkProfile.isDirect
-        ? (priority == _Priority.high
-              ? const Duration(milliseconds: 800)
-              : const Duration(milliseconds: 1200))
+        ? switch (priority) {
+            _Priority.high => const Duration(milliseconds: 350),
+            _Priority.normal => const Duration(milliseconds: 700),
+            _Priority.low => const Duration(milliseconds: 1200),
+          }
         : const Duration(seconds: 6);
 
     await BrowserTrustCoordinator.instance.waitForActiveBrowserTrust(

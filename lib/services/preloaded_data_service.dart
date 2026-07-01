@@ -484,7 +484,11 @@ class PreloadedDataService {
         AppConstants.baseUrl,
         options: Options(
           headers: {'Accept': 'text/html'},
-          extra: {if (AppConstants.skipCsrfForHomeRequest) 'skipCsrf': true},
+          extra: {
+            'priority': 'high',
+            'skipBrowserTrustGate': true,
+            if (AppConstants.skipCsrfForHomeRequest) 'skipCsrf': true,
+          },
         ),
       );
 

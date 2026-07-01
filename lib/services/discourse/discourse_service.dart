@@ -80,6 +80,12 @@ Options _foregroundReadOptions({Options? options}) {
   return (options ?? Options()).copyWith(extra: extra);
 }
 
+@visibleForTesting
+Options? visibleTopicListReadOptions({required int page, Options? options}) {
+  if (page > 0) return options;
+  return _foregroundReadOptions(options: options);
+}
+
 /// 基类，包含所有共享字段
 abstract class _DiscourseServiceBase {
   Dio get _dio;

@@ -1,0 +1,21 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:fluxdo/services/discourse/discourse_service.dart';
+
+void main() {
+  test('visible topic list first page uses foreground priority', () {
+    final options = visibleTopicListReadOptions(page: 0);
+
+    expect(options, isNotNull);
+    expect(options!.extra!['priority'], 'high');
+  });
+
+  test('visible topic list later pages preserve existing options', () {
+    final original = Options(extra: {'traceId': 'page-2'});
+    final options = visibleTopicListReadOptions(page: 2, options: original);
+
+    expect(identical(options, original), isTrue);
+    expect(options!.extra!['traceId'], 'page-2');
+    expect(options.extra!.containsKey('priority'), isFalse);
+  });
+}

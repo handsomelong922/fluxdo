@@ -30,8 +30,8 @@ class PreheatGate extends StatefulWidget {
 }
 
 class _PreheatGateState extends State<PreheatGate> {
-  static const _minimumLoadingDuration = Duration(milliseconds: 3200);
-  static const _topicListReadyTimeout = Duration(seconds: 2);
+  static const _minimumLoadingDuration = Duration(milliseconds: 4200);
+  static const _topicListReadyTimeout = Duration(seconds: 3);
 
   late Future<bool> _loadFuture;
   Object? _error;
@@ -195,6 +195,9 @@ class _PreheatLoading extends StatefulWidget {
 }
 
 class _PreheatLoadingState extends State<_PreheatLoading> {
+  static const _lightSplashBackground = Color(0xFFFFFBFE);
+  static const _darkSplashBackground = Color(0xFF131316);
+
   bool _showSkip = false;
   Timer? _skipTimer;
   String? _version;
@@ -223,9 +226,12 @@ class _PreheatLoadingState extends State<_PreheatLoading> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final hasAcrylic = Platform.isMacOS || Platform.isWindows;
+    final splashBackground = theme.brightness == Brightness.dark
+        ? _darkSplashBackground
+        : _lightSplashBackground;
 
     return Scaffold(
-      backgroundColor: hasAcrylic ? Colors.transparent : colorScheme.surface,
+      backgroundColor: hasAcrylic ? Colors.transparent : splashBackground,
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -300,6 +306,9 @@ class _PreheatLoadingState extends State<_PreheatLoading> {
 }
 
 class _PreheatFailed extends StatelessWidget {
+  static const _lightSplashBackground = Color(0xFFFFFBFE);
+  static const _darkSplashBackground = Color(0xFF131316);
+
   final VoidCallback onRetry;
   final Object? error;
 
@@ -351,11 +360,14 @@ class _PreheatFailed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
     final hasAcrylic = Platform.isMacOS || Platform.isWindows;
+    final splashBackground = theme.brightness == Brightness.dark
+        ? _darkSplashBackground
+        : _lightSplashBackground;
 
     return Scaffold(
-      backgroundColor: hasAcrylic ? Colors.transparent : colorScheme.surface,
+      backgroundColor: hasAcrylic ? Colors.transparent : splashBackground,
       body: SafeArea(
         child: Stack(
           children: [

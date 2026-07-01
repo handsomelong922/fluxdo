@@ -11,6 +11,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/latest.json',
       queryParameters: {'topic_ids': topicIds.join(',')},
+      options: _foregroundReadOptions(),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -36,6 +37,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/latest.json',
       queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      options: visibleTopicListReadOptions(page: page),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -101,6 +103,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       path,
       queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      options: visibleTopicListReadOptions(page: page),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -120,6 +123,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/new.json',
       queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      options: visibleTopicListReadOptions(page: page),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -137,6 +141,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/unread.json',
       queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      options: visibleTopicListReadOptions(page: page),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -154,6 +159,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/unseen.json',
       queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      options: visibleTopicListReadOptions(page: page),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -171,6 +177,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/hot.json',
       queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      options: visibleTopicListReadOptions(page: page),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -295,12 +302,18 @@ mixin _TopicsMixin on _DiscourseServiceBase {
   }
 
   Future<TopicListResponse> getTopTopics() async {
-    final response = await _dio.get('/top.json');
+    final response = await _dio.get(
+      '/top.json',
+      options: _foregroundReadOptions(),
+    );
     return TopicListResponse.fromJson(response.data);
   }
 
   Future<TopicListResponse> getCategoryTopics(String categorySlug) async {
-    final response = await _dio.get('/c/$categorySlug.json');
+    final response = await _dio.get(
+      '/c/$categorySlug.json',
+      options: _foregroundReadOptions(),
+    );
     return TopicListResponse.fromJson(response.data);
   }
 
