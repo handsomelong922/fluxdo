@@ -39,7 +39,6 @@ import '../../services/navigation/app_route_observer.dart';
 import '../../services/navigation/pop_passthrough_material_page_route.dart';
 import '../../widgets/content/lazy_load_scope.dart';
 import '../../widgets/post/post_item_skeleton.dart';
-import '../../widgets/post/post_item/post_item.dart';
 import '../../widgets/post/post_item/quote_selection_helper.dart';
 import '../../widgets/post/post_replies_sheet.dart';
 import '../../widgets/post/reply_sheet.dart';
@@ -47,7 +46,6 @@ import '../../widgets/topic/topic_progress.dart';
 import '../../widgets/topic/topic_notification_button.dart';
 import '../../widgets/common/dismissible_popup_menu.dart';
 import '../../widgets/common/error_view.dart';
-import '../../widgets/common/skeleton.dart';
 import '../../widgets/content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../../widgets/content/discourse_html_content/discourse_html_content_widget.dart';
 import '../../providers/nested_topic_provider.dart';
@@ -781,76 +779,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         ),
         child: child,
       ),
-    );
-  }
-
-  Widget _buildInitialTopicPreview(
-    BuildContext context, {
-    required TopicDetail previewDetail,
-    required bool isLoggedIn,
-    required bool animateSkeleton,
-    required double topContentInset,
-  }) {
-    return CustomScrollView(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      slivers: [
-        if (topContentInset > 0)
-          SliverToBoxAdapter(child: SizedBox(height: topContentInset)),
-        SliverToBoxAdapter(
-          child: _wrapWithConstraint(
-            SelectionContainer.disabled(
-              child: TopicDetailHeader(
-                detail: previewDetail,
-                headerKey: _headerKey,
-                onVoteChanged: _handleVoteChanged,
-                onNotificationLevelChanged: null,
-                onJumpToPost: null,
-                onContinueAiSummary: null,
-              ),
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: _wrapWithConstraint(
-            PostItem(
-              post: previewDetail.postStream.posts.first,
-              topicId: widget.topicId,
-              onReply: isLoggedIn
-                  ? () => _handleReply(previewDetail.postStream.posts.first)
-                  : null,
-              onEdit: () {},
-              onRefreshPost: (_) {},
-              onJumpToPost: null,
-              onSharedIssueChanged: (_, _) {},
-              onSolutionChanged: null,
-              isTopicOwner:
-                  previewDetail.createdBy?.username ==
-                  previewDetail.postStream.posts.first.username,
-              topicHasAcceptedAnswer: previewDetail.hasAcceptedAnswer,
-              acceptedAnswers: previewDetail.acceptedAnswers,
-              onQuoteSelection: isLoggedIn ? _handleQuoteSelection : null,
-              onQuoteImage: isLoggedIn ? _handleImageQuote : null,
-              hideRepliesButton: true,
-              sharedIssueVisible: previewDetail.sharedIssueVisible,
-              canCreateSharedIssue: false,
-              sharedIssueCount: previewDetail.sharedIssueCount,
-              userCreatedSharedIssue: previewDetail.userCreatedSharedIssue,
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: _wrapWithConstraint(
-            Skeleton(
-              animate: animateSkeleton,
-              child: Column(
-                children: const [PostItemSkeleton(), PostItemSkeleton()],
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1596,14 +1524,16 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
     if (detailAsync.isLoading && detail == null) {
       if (previewDetail != null) {
-        return _wrapWithConstraint(
-          _buildInitialTopicPreview(
-            context,
-            previewDetail: previewDetail,
-            isLoggedIn: isLoggedIn,
-            animateSkeleton: !reduceLoadingAnimations,
-            topContentInset: topContentInset,
-          ),
+        return _buildBodyWithDetail(
+          context,
+          previewDetail,
+          notifier,
+          isLoggedIn,
+          topContentInset: topContentInset,
+          searchHighlightQuery: searchQuery,
+          forceFlatView: true,
+          forceLoadMoreIndicator: true,
+          showTopicOverlay: false,
         );
       }
 
@@ -1641,33 +1571,66 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       }
     }
 
-    Widget content = const SizedBox();
-
     if (detailAsync.hasError && detail == null) {
       // 错误页面
-      content = CustomScrollView(
-        slivers: [
-          SliverErrorView(
-            error: detailAsync.error!,
-            onRetry: () => ref.refresh(topicDetailProvider(params)),
+      return Stack(
+        children: [
+          CustomScrollView(
+            slivers: [
+              SliverErrorView(
+                error: detailAsync.error!,
+                onRetry: () => ref.refresh(topicDetailProvider(params)),
+              ),
+            ],
           ),
+          if (isSearchMode) _buildInlineTopicSearchOverlay(searchState),
         ],
       );
-    } else if (detail != null) {
-      if (_isNestedView && _pendingNestedRestorePostNumber != null) {
-        _maybePrimeNestedTargetAncestors(detail);
-      }
-      // 正常内容构建 (保持原有逻辑，但简化提取)
-      content = _buildPostListContent(
-        context,
-        detail,
-        notifier,
-        isLoggedIn,
-        topContentInset: topContentInset,
-        searchHighlightQuery: searchQuery,
-        primedNestedAsync: primedNestedAsync,
-      );
     }
+
+    if (detail == null) return const SizedBox();
+
+    return _buildBodyWithDetail(
+      context,
+      detail,
+      notifier,
+      isLoggedIn,
+      topContentInset: topContentInset,
+      searchHighlightQuery: searchQuery,
+      primedNestedAsync: primedNestedAsync,
+    );
+  }
+
+  Widget _buildBodyWithDetail(
+    BuildContext context,
+    TopicDetail detail,
+    TopicDetailNotifier notifier,
+    bool isLoggedIn, {
+    double topContentInset = 0,
+    String? searchHighlightQuery,
+    AsyncValue<NestedTopicState>? primedNestedAsync,
+    bool forceFlatView = false,
+    bool forceLoadMoreIndicator = false,
+    bool showTopicOverlay = true,
+  }) {
+    final searchState = ref.watch(topicSearchProvider(widget.topicId));
+    final isSearchMode = searchState.isSearchMode;
+    if (_isNestedView &&
+        !forceFlatView &&
+        _pendingNestedRestorePostNumber != null) {
+      _maybePrimeNestedTargetAncestors(detail);
+    }
+    final content = _buildPostListContent(
+      context,
+      detail,
+      notifier,
+      isLoggedIn,
+      topContentInset: topContentInset,
+      searchHighlightQuery: searchHighlightQuery,
+      primedNestedAsync: primedNestedAsync,
+      forceFlatView: forceFlatView,
+      forceLoadMoreIndicator: forceLoadMoreIndicator,
+    );
 
     // Stack 组装
     return Stack(
@@ -1677,7 +1640,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
         // TopicDetailOverlay (Bottom Bar)
         // 使用 ValueListenableBuilder 隔离状态变化，避免整页重建
-        if (detail != null && !isSearchMode)
+        if (showTopicOverlay && !isSearchMode)
           ValueListenableBuilder<bool>(
             valueListenable: _controller.showBottomBarNotifier,
             builder: (context, showBottomBar, _) {
@@ -1744,42 +1707,41 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                   ),
 
                   // Expanded Header
-                  if (detail != null)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: SlideTransition(
-                        position: _animation,
-                        child: Container(
-                          constraints: BoxConstraints(
-                            maxHeight: MediaQuery.of(context).size.height * 0.7,
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: SlideTransition(
+                      position: _animation,
+                      child: Container(
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height * 0.7,
+                        ),
+                        child: Material(
+                          color: Theme.of(context).colorScheme.surface,
+                          elevation: 0,
+                          borderRadius: const BorderRadius.vertical(
+                            bottom: Radius.circular(16),
                           ),
-                          child: Material(
-                            color: Theme.of(context).colorScheme.surface,
-                            elevation: 0,
-                            borderRadius: const BorderRadius.vertical(
-                              bottom: Radius.circular(16),
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: SingleChildScrollView(
-                              child: TopicDetailHeader(
-                                detail: detail,
-                                headerKey: null,
-                                onVoteChanged: _handleVoteChanged,
-                                onNotificationLevelChanged: (level) =>
-                                    _handleNotificationLevelChanged(
-                                      notifier,
-                                      level,
-                                    ),
-                                onJumpToPost: _scrollToPost,
-                                onContinueAiSummary: _continueAiSummary,
-                              ),
+                          clipBehavior: Clip.antiAlias,
+                          child: SingleChildScrollView(
+                            child: TopicDetailHeader(
+                              detail: detail,
+                              headerKey: null,
+                              onVoteChanged: _handleVoteChanged,
+                              onNotificationLevelChanged: (level) =>
+                                  _handleNotificationLevelChanged(
+                                    notifier,
+                                    level,
+                                  ),
+                              onJumpToPost: _scrollToPost,
+                              onContinueAiSummary: _continueAiSummary,
                             ),
                           ),
                         ),
                       ),
                     ),
+                  ),
                 ],
               );
             },
@@ -1796,6 +1758,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     double topContentInset = 0,
     String? searchHighlightQuery,
     AsyncValue<NestedTopicState>? primedNestedAsync,
+    bool forceFlatView = false,
+    bool forceLoadMoreIndicator = false,
   }) {
     final posts = detail.postStream.posts;
     final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
@@ -1851,7 +1815,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     );
 
     // 嵌套视图模式
-    if (_isNestedView) {
+    if (_isNestedView && !forceFlatView) {
       final nestedParams = NestedTopicParams(topicId: widget.topicId);
       final AsyncValue<NestedTopicState> nestedAsync =
           primedNestedAsync ?? ref.watch(nestedTopicProvider(nestedParams));
@@ -1988,9 +1952,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               searchHighlightQuery: searchHighlightQuery,
               isLoggedIn: isLoggedIn,
               hasMoreBefore: notifier.hasMoreBefore,
-              hasMoreAfter: notifier.hasMoreAfter,
+              hasMoreAfter: notifier.hasMoreAfter || forceLoadMoreIndicator,
               isLoadingPrevious: notifier.isLoadingPrevious,
-              isLoadingMore: notifier.isLoadingMore,
+              isLoadingMore: notifier.isLoadingMore || forceLoadMoreIndicator,
               isLoadMoreFailed: notifier.isLoadMoreFailed,
               isLoadPreviousFailed: notifier.isLoadPreviousFailed,
               onRetryLoadMore: () => notifier.retryLoadMore(),
