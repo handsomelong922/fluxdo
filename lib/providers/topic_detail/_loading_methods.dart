@@ -14,13 +14,15 @@ extension LoadingMethods on TopicDetailNotifier {
     }
     if (!_hasMoreBefore || state.isLoading || _isLoadingPrevious) return;
     _isLoadingPrevious = true;
+    final currentDetail = state.value;
+    if (currentDetail == null) {
+      _isLoadingPrevious = false;
+      return;
+    }
+    state = AsyncValue.data(currentDetail);
 
     try {
-      // ignore: invalid_use_of_internal_member
-      state = const AsyncLoading<TopicDetail>().copyWithPrevious(state);
-
       final result = await AsyncValue.guard(() async {
-        final currentDetail = state.requireValue;
         final currentPosts = currentDetail.postStream.posts;
         final stream = currentDetail.postStream.stream;
 
@@ -77,7 +79,7 @@ extension LoadingMethods on TopicDetailNotifier {
       if (result.hasError) {
         _isLoadPreviousFailed = true;
         // 恢复之前的数据状态，不让 UI 显示全局错误
-        state = AsyncValue.data(state.requireValue);
+        state = AsyncValue.data(currentDetail);
       } else {
         state = result;
         if (result.hasValue) {
@@ -86,6 +88,9 @@ extension LoadingMethods on TopicDetailNotifier {
       }
     } finally {
       _isLoadingPrevious = false;
+      if (ref.mounted && state.value != null && !state.hasError) {
+        state = AsyncValue.data(state.requireValue);
+      }
     }
   }
 
@@ -110,13 +115,15 @@ extension LoadingMethods on TopicDetailNotifier {
       return;
     }
     _isLoadingMore = true;
+    final currentDetail = state.value;
+    if (currentDetail == null) {
+      _isLoadingMore = false;
+      return;
+    }
+    state = AsyncValue.data(currentDetail);
 
     try {
-      // ignore: invalid_use_of_internal_member
-      state = const AsyncLoading<TopicDetail>().copyWithPrevious(state);
-
       final result = await AsyncValue.guard(() async {
-        final currentDetail = state.requireValue;
         final currentPosts = currentDetail.postStream.posts;
         final stream = currentDetail.postStream.stream;
 
@@ -172,7 +179,7 @@ extension LoadingMethods on TopicDetailNotifier {
       if (!ref.mounted) return;
       if (result.hasError) {
         _isLoadMoreFailed = true;
-        state = AsyncValue.data(state.requireValue);
+        state = AsyncValue.data(currentDetail);
       } else {
         state = result;
         if (result.hasValue) {
@@ -181,6 +188,9 @@ extension LoadingMethods on TopicDetailNotifier {
       }
     } finally {
       _isLoadingMore = false;
+      if (ref.mounted && state.value != null && !state.hasError) {
+        state = AsyncValue.data(state.requireValue);
+      }
     }
   }
 

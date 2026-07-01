@@ -199,16 +199,33 @@ extension _ScrollActions on _TopicDetailPageState {
 
     if (postIndex == -1) {
       debugPrint(
-        '[TopicDetail] Post $postNumber not in list, reloading with new postNumber',
+        '[TopicDetail] Post $postNumber not in list, loading target post window',
       );
-      _controller.prepareJumpToPost(postNumber);
       _controller.skipNextJumpHighlight = false;
 
       if (notifier.isSummaryMode ||
           notifier.isAuthorOnlyMode ||
           notifier.isTopLevelMode) {
+        _controller.prepareJumpToPost(postNumber);
         await _reloadWithFilterFallback(postNumber: postNumber);
       } else {
+        final loadedIndex = await notifier.loadPostNumber(postNumber);
+        if (!mounted) return;
+
+        final loadedDetail = ref.read(topicDetailProvider(params)).value;
+        final loadedPosts = loadedDetail?.postStream.posts;
+        if (loadedIndex != -1 && loadedPosts != null) {
+          if (_controller.isPostRendered(loadedIndex)) {
+            await _controller.scrollToPost(postNumber, loadedPosts);
+          } else {
+            _controller.jumpToPostLocally(postNumber);
+            setState(() {});
+          }
+          _controller.triggerHighlight(postNumber);
+          return;
+        }
+
+        _controller.prepareJumpToPost(postNumber);
         await notifier.reloadWithPostNumber(postNumber);
       }
       return;

@@ -13,6 +13,7 @@ Route<T> buildTopicDetailRoute<T>({
   String? initialFirstPostHtml,
   bool autoSwitchToMasterDetail = false,
   String? instanceId,
+  String? highlightBoostUsername,
   bool? initialNestedView,
 }) {
   return PopPassthroughMaterialPageRoute<T>(
@@ -26,6 +27,7 @@ Route<T> buildTopicDetailRoute<T>({
       initialFirstPostHtml: initialFirstPostHtml,
       autoSwitchToMasterDetail: autoSwitchToMasterDetail,
       instanceId: instanceId,
+      highlightBoostUsername: highlightBoostUsername,
       initialNestedView: initialNestedView,
     ),
   );

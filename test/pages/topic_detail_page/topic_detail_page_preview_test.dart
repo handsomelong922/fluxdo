@@ -52,4 +52,87 @@ void main() {
       expect(preview.postStream.posts.single.cooked, '<p>首帖正文</p>');
     },
   );
+
+  test(
+    'mergeTopicDetailWithInitialPreview keeps preloaded first post html',
+    () {
+      final now = DateTime(2026, 6, 30, 12);
+      final preview = TopicDetail(
+        id: 42,
+        title: '标题',
+        slug: 'sample-topic',
+        postsCount: 3,
+        postStream: PostStream(
+          posts: [
+            _post(
+              id: 42000001,
+              postNumber: 1,
+              cooked: '<p>首页预加载正文</p>',
+              createdAt: now,
+            ),
+          ],
+          stream: const [42000001],
+        ),
+        categoryId: 9,
+        closed: false,
+        archived: false,
+      );
+      final loaded = TopicDetail(
+        id: 42,
+        title: '标题',
+        slug: 'sample-topic',
+        postsCount: 3,
+        postStream: PostStream(
+          posts: [
+            _post(
+              id: 101,
+              postNumber: 1,
+              cooked: '<p>网络首帖正文</p>',
+              createdAt: now,
+            ),
+            _post(
+              id: 102,
+              postNumber: 2,
+              cooked: '<p>回复楼层</p>',
+              createdAt: now,
+            ),
+          ],
+          stream: const [101, 102, 103],
+        ),
+        categoryId: 9,
+        closed: false,
+        archived: false,
+      );
+
+      final merged = mergeTopicDetailWithInitialPreview(
+        detail: loaded,
+        previewDetail: preview,
+      );
+
+      expect(merged.postStream.posts.first.id, 101);
+      expect(merged.postStream.posts.first.cooked, '<p>首页预加载正文</p>');
+      expect(merged.postStream.posts[1].cooked, '<p>回复楼层</p>');
+      expect(merged.postStream.stream, const [101, 102, 103]);
+    },
+  );
+}
+
+Post _post({
+  required int id,
+  required int postNumber,
+  required String cooked,
+  required DateTime createdAt,
+}) {
+  return Post(
+    id: id,
+    username: 'alice',
+    avatarTemplate: '/avatar/{size}.png',
+    cooked: cooked,
+    postNumber: postNumber,
+    postType: 1,
+    updatedAt: createdAt,
+    createdAt: createdAt,
+    likeCount: 0,
+    replyCount: 0,
+  );
 }

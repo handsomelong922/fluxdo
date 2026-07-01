@@ -191,6 +191,34 @@ TopicDetail buildTopicDetailPreviewFromTopic({
   );
 }
 
+@visibleForTesting
+TopicDetail mergeTopicDetailWithInitialPreview({
+  required TopicDetail detail,
+  required TopicDetail? previewDetail,
+}) {
+  final previewPosts = previewDetail?.postStream.posts;
+  if (previewPosts == null || previewPosts.isEmpty) return detail;
+
+  final previewFirstPost = previewPosts.first;
+  if (previewFirstPost.postNumber != 1 || previewFirstPost.cooked.isEmpty) {
+    return detail;
+  }
+
+  final posts = detail.postStream.posts;
+  if (posts.isEmpty || posts.first.postNumber != 1) return detail;
+
+  final mergedPosts = [...posts];
+  mergedPosts[0] = posts.first.copyWith(cooked: previewFirstPost.cooked);
+
+  return detail.copyWith(
+    postStream: PostStream(
+      posts: mergedPosts,
+      stream: detail.postStream.stream,
+      gaps: detail.postStream.gaps,
+    ),
+  );
+}
+
 /// 话题详情页面
 class TopicDetailPage extends ConsumerStatefulWidget {
   final int topicId;
@@ -1193,7 +1221,13 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
     final params = _params;
     final detailAsync = ref.watch(topicDetailProvider(params));
-    final detail = detailAsync.value;
+    final rawDetail = detailAsync.value;
+    final detail = rawDetail == null
+        ? null
+        : mergeTopicDetailWithInitialPreview(
+            detail: rawDetail,
+            previewDetail: _initialPreviewDetail,
+          );
     final notifier = ref.read(topicDetailProvider(params).notifier);
     final nestedParams = NestedTopicParams(topicId: widget.topicId);
     final primedNestedAsync = _isNestedView
@@ -2017,6 +2051,24 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     return ValueListenableBuilder<bool>(
       valueListenable: _controller.isPositionedNotifier,
       builder: (context, isPositioned, child) {
+        final isWaitingForInitialJump =
+            !isPositioned &&
+            _controller.jumpTargetPostNumber != null &&
+            !_canShowInitialPreview;
+        if (isWaitingForInitialJump) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Opacity(opacity: 0.0, child: child),
+              IgnorePointer(
+                child: PostListSkeleton(
+                  withHeader: false,
+                  animate: !reduceLoadingAnimations,
+                ),
+              ),
+            ],
+          );
+        }
         return Opacity(opacity: isPositioned ? 1.0 : 0.0, child: child);
       },
       child: scrollView,

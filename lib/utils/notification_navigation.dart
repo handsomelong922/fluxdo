@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/notification.dart';
 import '../providers/discourse_providers.dart';
-import '../pages/topic_detail_page/topic_detail_page.dart';
+import '../services/navigation/topic_detail_route.dart';
 import '../pages/user_profile_page.dart';
 import '../pages/badge_page.dart';
 
@@ -19,9 +19,12 @@ void handleNotificationTap(
     ref.read(recentNotificationsProvider.notifier).markAsRead(notification.id);
 
     // 异步发送标记已读请求
-    ref.read(discourseServiceProvider).markNotificationRead(notification.id).catchError((e) {
-      debugPrint('标记通知已读失败: $e');
-    });
+    ref
+        .read(discourseServiceProvider)
+        .markNotificationRead(notification.id)
+        .catchError((e) {
+          debugPrint('标记通知已读失败: $e');
+        });
   }
 
   // 根据通知类型决定跳转逻辑
@@ -61,12 +64,10 @@ void handleNotificationTap(
       if (notification.topicId != null) {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => TopicDetailPage(
-              topicId: notification.topicId!,
-              scrollToPostNumber: notification.postNumber,
-              highlightBoostUsername: notification.data.displayUsername,
-            ),
+          buildTopicDetailRoute<void>(
+            topicId: notification.topicId!,
+            scrollToPostNumber: notification.postNumber,
+            highlightBoostUsername: notification.data.displayUsername,
           ),
         );
       }
@@ -76,11 +77,9 @@ void handleNotificationTap(
       if (notification.topicId != null) {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => TopicDetailPage(
-              topicId: notification.topicId!,
-              scrollToPostNumber: notification.postNumber,
-            ),
+          buildTopicDetailRoute<void>(
+            topicId: notification.topicId!,
+            scrollToPostNumber: notification.postNumber,
           ),
         );
       }

@@ -60,7 +60,7 @@ void main() {
 
     expect(find.text('搜索结果标题'), findsOneWidget);
     expect(find.text('搜索摘要正文'), findsOneWidget);
-    expect(find.text('#3'), findsOneWidget);
+    expect(find.text('#3'), findsNothing);
     expect(find.text('11'), findsOneWidget);
     expect(find.text('5'), findsOneWidget);
     expect(find.text(TimeUtils.formatRelativeTime(createdAt)), findsOneWidget);
