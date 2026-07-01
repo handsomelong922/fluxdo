@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/nested_topic.dart';
@@ -88,6 +90,18 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
 
   @override
   Future<NestedTopicState> build() async {
+    final link = ref.keepAlive();
+    Timer? disposeTimer;
+    ref.onCancel(() {
+      disposeTimer = Timer(const Duration(seconds: 30), link.close);
+    });
+    ref.onResume(() {
+      disposeTimer?.cancel();
+    });
+    ref.onDispose(() {
+      disposeTimer?.cancel();
+    });
+
     final service = ref.read(discourseServiceProvider);
     final response = await service.getNestedRoots(
       arg.topicId,

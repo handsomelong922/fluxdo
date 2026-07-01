@@ -11,6 +11,10 @@ extension _ScrollActions on _TopicDetailPageState {
     _scheduleCheckTitleVisibility();
     _controller.handleScroll();
 
+    if (_isNestedView) {
+      return;
+    }
+
     final params = _params;
     final detailAsync = ref.read(topicDetailProvider(params));
 
