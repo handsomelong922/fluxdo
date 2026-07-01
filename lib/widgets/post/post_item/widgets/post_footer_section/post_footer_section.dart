@@ -167,7 +167,8 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   void didUpdateWidget(PostFooterSection oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.post != widget.post) {
-      if (oldWidget.post.id != widget.post.id) {
+      if (oldWidget.topicId != widget.topicId ||
+          oldWidget.post.postNumber != widget.post.postNumber) {
         final inlineState = _restorableInlineRepliesState;
         _replies.clear();
         _replies.addAll(inlineState?.replies ?? const []);

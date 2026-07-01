@@ -22,6 +22,17 @@ import '../../../widgets/post/post_item/widgets/post_footer_section/post_footer_
 import 'topic_detail_header.dart';
 import 'typing_indicator.dart';
 
+@visibleForTesting
+String topicPostRenderIdentityKey({
+  required int topicId,
+  required int postNumber,
+  required String segmentType,
+  int? chunkIndex,
+}) {
+  final base = '$segmentType-$topicId-$postNumber';
+  return chunkIndex == null ? base : '$base-$chunkIndex';
+}
+
 /// 话题帖子列表
 /// 负责构建 CustomScrollView 及其 Slivers
 ///
@@ -157,7 +168,7 @@ class _TopicPostListState extends State<TopicPostList> {
   SelectedContent? _lastLongPostSelectedContent;
   Post? _activeLongSelectionPost;
   CodeSelectionContext? _lastLongCodeSelectionContext;
-  final Map<int, InlineRepliesState> _inlineRepliesStateByPostId = {};
+  final Map<int, InlineRepliesState> _inlineRepliesStateByPostNumber = {};
 
   @override
   void initState() {
@@ -174,7 +185,7 @@ class _TopicPostListState extends State<TopicPostList> {
   void didUpdateWidget(covariant TopicPostList oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.detail.id != widget.detail.id) {
-      _inlineRepliesStateByPostId.clear();
+      _inlineRepliesStateByPostNumber.clear();
       _renderSegmentsSignature = null;
     }
   }
@@ -391,17 +402,42 @@ class _TopicPostListState extends State<TopicPostList> {
   String _segmentKey(_PostRenderSegment segment) {
     switch (segment.type) {
       case _PostRenderSegmentType.shortPost:
-        return 'post-${segment.post.id}';
+        return topicPostRenderIdentityKey(
+          topicId: detail.id,
+          postNumber: segment.post.postNumber,
+          segmentType: 'post',
+        );
       case _PostRenderSegmentType.longHeader:
-        return 'long-header-${segment.post.id}';
+        return topicPostRenderIdentityKey(
+          topicId: detail.id,
+          postNumber: segment.post.postNumber,
+          segmentType: 'long-header',
+        );
       case _PostRenderSegmentType.longChunk:
-        return 'long-chunk-${segment.post.id}-${segment.chunkIndex}';
+        return topicPostRenderIdentityKey(
+          topicId: detail.id,
+          postNumber: segment.post.postNumber,
+          segmentType: 'long-chunk',
+          chunkIndex: segment.chunkIndex,
+        );
       case _PostRenderSegmentType.longFooter:
-        return 'long-footer-${segment.post.id}';
+        return topicPostRenderIdentityKey(
+          topicId: detail.id,
+          postNumber: segment.post.postNumber,
+          segmentType: 'long-footer',
+        );
       case _PostRenderSegmentType.gapBefore:
-        return 'gap-before-${segment.post.id}';
+        return topicPostRenderIdentityKey(
+          topicId: detail.id,
+          postNumber: segment.post.postNumber,
+          segmentType: 'gap-before',
+        );
       case _PostRenderSegmentType.gapAfter:
-        return 'gap-after-${segment.post.id}';
+        return topicPostRenderIdentityKey(
+          topicId: detail.id,
+          postNumber: segment.post.postNumber,
+          segmentType: 'gap-after',
+        );
     }
   }
 
@@ -427,7 +463,6 @@ class _TopicPostListState extends State<TopicPostList> {
     ];
     for (final post in posts) {
       values
-        ..add(post.id)
         ..add(post.postNumber)
         ..add(post.cooked.length)
         ..add(post.cooked.hashCode)
@@ -844,9 +879,9 @@ class _TopicPostListState extends State<TopicPostList> {
           onShowPostDetail: widget.onShowPostDetail != null
               ? () => widget.onShowPostDetail!(post)
               : null,
-          inlineRepliesState: _inlineRepliesStateByPostId[post.id],
+          inlineRepliesState: _inlineRepliesStateByPostNumber[post.postNumber],
           onInlineRepliesStateChanged: (state) {
-            _inlineRepliesStateByPostId[post.id] = state;
+            _inlineRepliesStateByPostNumber[post.postNumber] = state;
           },
           sharedIssueVisible: post.postNumber == 1 && detail.sharedIssueVisible,
           canCreateSharedIssue: detail.canCreateSharedIssue,
@@ -909,9 +944,9 @@ class _TopicPostListState extends State<TopicPostList> {
           onShowPostDetail: widget.onShowPostDetail != null
               ? () => widget.onShowPostDetail!(post)
               : null,
-          inlineRepliesState: _inlineRepliesStateByPostId[post.id],
+          inlineRepliesState: _inlineRepliesStateByPostNumber[post.postNumber],
           onInlineRepliesStateChanged: (state) {
-            _inlineRepliesStateByPostId[post.id] = state;
+            _inlineRepliesStateByPostNumber[post.postNumber] = state;
           },
           sharedIssueVisible: post.postNumber == 1 && detail.sharedIssueVisible,
           canCreateSharedIssue: detail.canCreateSharedIssue,

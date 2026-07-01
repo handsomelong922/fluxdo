@@ -62,7 +62,8 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
     false,
   );
   Widget? _cachedAvatarWidget;
-  int? _cachedPostId;
+  String? _cachedAvatarIdentity;
+  String? _cachedAvatarSource;
   bool? _cachedPreferStaticAvatars;
 
   @override
@@ -78,18 +79,30 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
     final preferStaticAvatars = ref.read(
       preferencesProvider.select((p) => p.preferStaticAvatars),
     );
+    final avatarIdentity = _avatarIdentity(widget.post, preferStaticAvatars);
+    final avatarSource = _avatarSource(widget.post);
     if (_cachedAvatarWidget == null ||
-        _cachedPostId != widget.post.id ||
+        _cachedAvatarIdentity != avatarIdentity ||
+        _cachedAvatarSource != avatarSource ||
         _cachedPreferStaticAvatars != preferStaticAvatars) {
       final theme = Theme.of(context);
       _cachedAvatarWidget = PostAvatar(
-        key: ValueKey('avatar-${widget.post.id}-$preferStaticAvatars'),
+        key: ValueKey(avatarIdentity),
         post: widget.post,
         theme: theme,
       );
-      _cachedPostId = widget.post.id;
+      _cachedAvatarIdentity = avatarIdentity;
+      _cachedAvatarSource = avatarSource;
       _cachedPreferStaticAvatars = preferStaticAvatars;
     }
+  }
+
+  String _avatarIdentity(Post post, bool preferStaticAvatars) {
+    return 'avatar-${widget.topicId}-${post.postNumber}-$preferStaticAvatars';
+  }
+
+  String _avatarSource(Post post) {
+    return '${post.avatarTemplate}|${post.animatedAvatar ?? ''}';
   }
 
   Future<void> _toggleReplyHistory() async {
@@ -156,15 +169,19 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
     final preferStaticAvatars = ref.watch(
       preferencesProvider.select((p) => p.preferStaticAvatars),
     );
+    final avatarIdentity = _avatarIdentity(post, preferStaticAvatars);
+    final avatarSource = _avatarSource(post);
     if (_cachedAvatarWidget == null ||
-        _cachedPostId != post.id ||
+        _cachedAvatarIdentity != avatarIdentity ||
+        _cachedAvatarSource != avatarSource ||
         _cachedPreferStaticAvatars != preferStaticAvatars) {
       _cachedAvatarWidget = PostAvatar(
-        key: ValueKey('avatar-${post.id}-$preferStaticAvatars'),
+        key: ValueKey(avatarIdentity),
         post: post,
         theme: theme,
       );
-      _cachedPostId = post.id;
+      _cachedAvatarIdentity = avatarIdentity;
+      _cachedAvatarSource = avatarSource;
       _cachedPreferStaticAvatars = preferStaticAvatars;
     }
     final currentUser = ref.read(currentUserProvider).value;
