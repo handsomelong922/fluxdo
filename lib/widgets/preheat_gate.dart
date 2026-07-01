@@ -118,8 +118,8 @@ class _PreheatGateState extends State<PreheatGate> {
         .clamp(1, 4)
         .toInt();
     final loader = HomeTopicExcerptLoader(
-      fetchExcerpt: (topicId) =>
-          DiscourseService().getTopicFirstPostCooked(topicId, background: true),
+      fetchPreview: (topicId) => DiscourseService()
+          .getTopicFirstPostPreviewDetail(topicId, background: true),
       persistentCache: HomeTopicExcerptPersistentCache(prefs),
       maxConcurrentRequests: batchSize,
     );
