@@ -73,9 +73,41 @@ void main() {
       expect(await preloaded.getInitialTopicList(), isNull);
     },
   );
+
+  test(
+    'topicTrackingStates are decoded lazily from preloaded raw JSON',
+    () async {
+      final preloaded = PreloadedDataService();
+      final html = _preloadedHtml(
+        topicList: _emptyTopicList(),
+        topicTrackingStates: [
+          {
+            'topic_id': 101,
+            'last_read_post_number': null,
+            'highest_post_number': 1,
+            'category_id': 2,
+            'notification_level': 2,
+          },
+        ],
+      );
+
+      expect(await preloaded.hydrateFromHtml(html), isTrue);
+      expect(preloaded.topicTrackingStatesSync, isNull);
+
+      final states = await preloaded.getTopicTrackingStates();
+
+      expect(states, isNotNull);
+      expect(states, hasLength(1));
+      expect(states!.single['topic_id'], 101);
+      expect(preloaded.topicTrackingStatesSync, same(states));
+    },
+  );
 }
 
-String _preloadedHtml({required Map<String, dynamic> topicList}) {
+String _preloadedHtml({
+  required Map<String, dynamic> topicList,
+  List<Map<String, dynamic>>? topicTrackingStates,
+}) {
   final payload = jsonEncode({
     'currentUser': {'id': 1, 'username': 'tester', 'name': 'Tester'},
     'siteSettings': {'min_topic_title_length': 15, 'min_post_length': 8},
@@ -84,6 +116,8 @@ String _preloadedHtml({required Map<String, dynamic> topicList}) {
       'post_action_types': <Map<String, dynamic>>[],
     },
     'topicList': topicList,
+    if (topicTrackingStates != null)
+      'topicTrackingStates': jsonEncode(topicTrackingStates),
   });
   const htmlEscape = HtmlEscape(HtmlEscapeMode.attribute);
   final escapedPayload = htmlEscape.convert(payload);
@@ -99,4 +133,11 @@ String _preloadedHtml({required Map<String, dynamic> topicList}) {
   </body>
 </html>
 ''';
+}
+
+Map<String, dynamic> _emptyTopicList() {
+  return {
+    'users': <Map<String, dynamic>>[],
+    'topic_list': {'more_topics_url': null, 'topics': <Map<String, dynamic>>[]},
+  };
 }

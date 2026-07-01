@@ -1,0 +1,105 @@
+import 'dart:convert';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:fluxdo/providers/message_bus/topic_tracking_providers.dart';
+import 'package:fluxdo/services/preloaded_data_service.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    PreloadedDataService().reset();
+  });
+
+  tearDown(() {
+    PreloadedDataService().reset();
+  });
+
+  test('topicTrackingStateProvider loads lazy preloaded states', () async {
+    final preloaded = PreloadedDataService();
+    final html = _preloadedHtml(
+      topicTrackingStates: [
+        {
+          'topic_id': 101,
+          'last_read_post_number': null,
+          'highest_post_number': 3,
+          'category_id': 2,
+          'notification_level': 2,
+        },
+        {
+          'topic_id': 202,
+          'last_read_post_number': 4,
+          'highest_post_number': 6,
+          'category_id': 3,
+          'notification_level': 2,
+        },
+      ],
+    );
+
+    expect(await preloaded.hydrateFromHtml(html), isTrue);
+    expect(preloaded.topicTrackingStatesSync, isNull);
+
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    expect(container.read(topicTrackingStateProvider), isEmpty);
+
+    await _waitUntil(
+      () => container.read(topicTrackingStateProvider).length == 2,
+    );
+
+    final state = container.read(topicTrackingStateProvider);
+    expect(state[101]?.lastReadPostNumber, isNull);
+    expect(state[101]?.highestPostNumber, 3);
+    expect(state[202]?.lastReadPostNumber, 4);
+    expect(state[202]?.highestPostNumber, 6);
+  });
+}
+
+Future<void> _waitUntil(
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 2),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    if (condition()) return;
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
+  fail('condition was not met within $timeout');
+}
+
+String _preloadedHtml({
+  required List<Map<String, dynamic>> topicTrackingStates,
+}) {
+  final payload = jsonEncode({
+    'currentUser': {'id': 1, 'username': 'tester', 'name': 'Tester'},
+    'siteSettings': {'min_topic_title_length': 15, 'min_post_length': 8},
+    'site': {
+      'categories': <Map<String, dynamic>>[],
+      'post_action_types': <Map<String, dynamic>>[],
+    },
+    'topicList': jsonEncode({
+      'users': <Map<String, dynamic>>[],
+      'topic_list': {
+        'more_topics_url': null,
+        'topics': <Map<String, dynamic>>[],
+      },
+    }),
+    'topicTrackingStates': jsonEncode(topicTrackingStates),
+  });
+  const htmlEscape = HtmlEscape(HtmlEscapeMode.attribute);
+  final escapedPayload = htmlEscape.convert(payload);
+
+  return '''
+<!doctype html>
+<html>
+  <head>
+    <meta id="data-discourse-setup" data-cdn="https://cdn.linux.do">
+  </head>
+  <body>
+    <div id="data-preloaded" data-preloaded="$escapedPayload"></div>
+  </body>
+</html>
+''';
+}
