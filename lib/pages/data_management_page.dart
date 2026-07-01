@@ -92,13 +92,7 @@ class _CacheManagementSectionState
   Future<void> _clearImageCache() async {
     setState(() => _isClearing = true);
     try {
-      await Future.wait([
-        DiscourseCacheManager().emptyCache(),
-        EmojiCacheManager().emptyCache(),
-        ExternalImageCacheManager().emptyCache(),
-        StickerCacheManager().emptyCache(),
-      ]);
-      // emptyCache() 只清除了索引，磁盘文件可能残留，需要删除整个目录
+      await resetAllImageCacheManagers();
       await CacheSizeService.deleteImageCacheDirs();
       PaintingBinding.instance.imageCache.clear();
       setState(() => _imageCacheSize = 0);
@@ -163,15 +157,12 @@ class _CacheManagementSectionState
     setState(() => _isClearing = true);
     try {
       final prefs = ref.read(sharedPreferencesProvider);
+      await resetAllImageCacheManagers();
+      await CacheSizeService.deleteImageCacheDirs();
       await Future.wait([
-        DiscourseCacheManager().emptyCache(),
-        EmojiCacheManager().emptyCache(),
-        ExternalImageCacheManager().emptyCache(),
-        StickerCacheManager().emptyCache(),
         AiChatStorageService(prefs).deleteAllSessions(),
         _doClearCookies(),
       ]);
-      await CacheSizeService.deleteImageCacheDirs();
       PaintingBinding.instance.imageCache.clear();
       setState(() {
         _imageCacheSize = 0;
@@ -259,8 +250,9 @@ class _CacheManagementSectionState
           title: Text(context.l10n.dataManagement_clearAllCache),
           subtitle: Text(_formatCacheSize(_totalCacheSize)),
           trailing: TextButton(
-            onPressed:
-                _isClearing || _totalCacheSize <= 0 ? null : _clearAllCache,
+            onPressed: _isClearing || _totalCacheSize <= 0
+                ? null
+                : _clearAllCache,
             child: Text(context.l10n.common_clear),
           ),
         ),
@@ -313,7 +305,8 @@ class DataBackupSection extends ConsumerWidget {
       );
     } catch (e) {
       ToastService.showError(
-          S.current.dataManagement_exportFailed(e.toString()));
+        S.current.dataManagement_exportFailed(e.toString()),
+      );
     }
   }
 
@@ -373,7 +366,8 @@ class DataBackupSection extends ConsumerWidget {
       ToastService.showError(e.message);
     } catch (e) {
       ToastService.showError(
-          S.current.dataManagement_importFailed(e.toString()));
+        S.current.dataManagement_importFailed(e.toString()),
+      );
     }
   }
 

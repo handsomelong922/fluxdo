@@ -23,15 +23,16 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
     return _instance!;
   }
 
-  DiscourseCacheManager._() : super(
-    Config(
-      key,
-      stalePeriod: const Duration(days: 7),
-      maxNrOfCacheObjects: 500,
-      repo: HiveCacheInfoRepository(databaseName: key),
-      fileService: HttpFileService(httpClient: DioHttpClient()),
-    ),
-  );
+  DiscourseCacheManager._()
+    : super(
+        Config(
+          key,
+          stalePeriod: const Duration(days: 7),
+          maxNrOfCacheObjects: 500,
+          repo: HiveCacheInfoRepository(databaseName: key),
+          fileService: HttpFileService(httpClient: DioHttpClient()),
+        ),
+      );
 
   /// 内存级 URL 索引：记录已知存在于磁盘缓存中的 URL
   ///
@@ -41,6 +42,14 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
 
   /// 正在下载中的 URL，避免并发重复下载
   final Set<String> _pendingUrls = {};
+
+  static Future<void> resetInstance() async {
+    final instance = _instance;
+    _instance = null;
+    if (instance != null) {
+      await instance.dispose();
+    }
+  }
 
   /// 获取图片的字节数据
   ///
@@ -133,17 +142,26 @@ class EmojiCacheManager extends CacheManager with ImageCacheManager {
     return _instance!;
   }
 
-  EmojiCacheManager._() : super(
-    Config(
-      key,
-      // emoji 几乎不变,长期缓存 + 大容量。Discourse 全套 emoji 几千个 +
-      // 自定义 emoji,5000 太紧 → 滚回前面的 emoji 频繁 LRU evict。
-      stalePeriod: const Duration(days: 90),
-      maxNrOfCacheObjects: 15000,
-      repo: HiveCacheInfoRepository(databaseName: key),
-      fileService: HttpFileService(httpClient: DioHttpClient()),
-    ),
-  );
+  EmojiCacheManager._()
+    : super(
+        Config(
+          key,
+          // emoji 几乎不变,长期缓存 + 大容量。Discourse 全套 emoji 几千个 +
+          // 自定义 emoji,5000 太紧 → 滚回前面的 emoji 频繁 LRU evict。
+          stalePeriod: const Duration(days: 90),
+          maxNrOfCacheObjects: 15000,
+          repo: HiveCacheInfoRepository(databaseName: key),
+          fileService: HttpFileService(httpClient: DioHttpClient()),
+        ),
+      );
+
+  static Future<void> resetInstance() async {
+    final instance = _instance;
+    _instance = null;
+    if (instance != null) {
+      await instance.dispose();
+    }
+  }
 }
 
 /// 通用外部图片缓存管理器
@@ -159,14 +177,23 @@ class ExternalImageCacheManager extends CacheManager with ImageCacheManager {
     return _instance!;
   }
 
-  ExternalImageCacheManager._() : super(
-    Config(
-      key,
-      stalePeriod: const Duration(days: 30),
-      maxNrOfCacheObjects: 200,
-      repo: HiveCacheInfoRepository(databaseName: key),
-    ),
-  );
+  ExternalImageCacheManager._()
+    : super(
+        Config(
+          key,
+          stalePeriod: const Duration(days: 30),
+          maxNrOfCacheObjects: 200,
+          repo: HiveCacheInfoRepository(databaseName: key),
+        ),
+      );
+
+  static Future<void> resetInstance() async {
+    final instance = _instance;
+    _instance = null;
+    if (instance != null) {
+      await instance.dispose();
+    }
+  }
 }
 
 /// 表情包（Sticker）专用缓存管理器
@@ -182,18 +209,36 @@ class StickerCacheManager extends CacheManager with ImageCacheManager {
     return _instance!;
   }
 
-  StickerCacheManager._() : super(
-    Config(
-      key,
-      // 用户订阅 10+ group(每 group 100-300 张),原图 + thumbnail PNG
-      // 双 entry,2000 上限 = 1000 张 unique sticker 就满,远不够。
-      // 90 天 + 20000 容量,基本覆盖订阅多 group 的实际用量。
-      stalePeriod: const Duration(days: 90),
-      maxNrOfCacheObjects: 20000,
-      repo: HiveCacheInfoRepository(databaseName: key),
-      fileService: HttpFileService(httpClient: DioHttpClient()),
-    ),
-  );
+  StickerCacheManager._()
+    : super(
+        Config(
+          key,
+          // 用户订阅 10+ group(每 group 100-300 张),原图 + thumbnail PNG
+          // 双 entry,2000 上限 = 1000 张 unique sticker 就满,远不够。
+          // 90 天 + 20000 容量,基本覆盖订阅多 group 的实际用量。
+          stalePeriod: const Duration(days: 90),
+          maxNrOfCacheObjects: 20000,
+          repo: HiveCacheInfoRepository(databaseName: key),
+          fileService: HttpFileService(httpClient: DioHttpClient()),
+        ),
+      );
+
+  static Future<void> resetInstance() async {
+    final instance = _instance;
+    _instance = null;
+    if (instance != null) {
+      await instance.dispose();
+    }
+  }
+}
+
+Future<void> resetAllImageCacheManagers() async {
+  await Future.wait([
+    DiscourseCacheManager.resetInstance(),
+    EmojiCacheManager.resetInstance(),
+    ExternalImageCacheManager.resetInstance(),
+    StickerCacheManager.resetInstance(),
+  ]);
 }
 
 /// 检查 URL 是否指向 AVIF 图片

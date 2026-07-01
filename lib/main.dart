@@ -205,11 +205,12 @@ Future<void> _completeStartupServices(
 
   // 冷启动自动清除图片缓存（如果用户开启了该选项）
   if (prefs.getBool('pref_clear_cache_on_exit') == true) {
-    Future.wait([
-      DiscourseCacheManager().emptyCache(),
-      EmojiCacheManager().emptyCache(),
-      ExternalImageCacheManager().emptyCache(),
-    ]).then((_) => CacheSizeService.deleteImageCacheDirs()).ignore();
+    unawaited(
+      Future<void>(() async {
+        await resetAllImageCacheManagers();
+        await CacheSizeService.deleteImageCacheDirs();
+      }),
+    );
   }
 
   // 应用竖屏锁定设置（仅移动端）

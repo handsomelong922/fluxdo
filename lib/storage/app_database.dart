@@ -50,12 +50,25 @@ class AppDatabase {
     if (cached != null && cached.isOpen) return cached;
     final pending = _openingBoxes[name];
     if (pending != null) return pending;
-    final opening = compactionStrategy == null
-        ? Hive.openBox<Map>(name)
-        : Hive.openBox<Map>(name, compactionStrategy: compactionStrategy);
+    Future<Box<Map>> openBox() {
+      return compactionStrategy == null
+          ? Hive.openBox<Map>(name)
+          : Hive.openBox<Map>(name, compactionStrategy: compactionStrategy);
+    }
+
+    final opening = openBox();
     _openingBoxes[name] = opening;
     try {
-      final box = await opening;
+      Box<Map>? recoveredBox;
+      try {
+        recoveredBox = await opening;
+      } catch (error) {
+        if (!_isRecoverableNamedBoxError(error)) rethrow;
+        debugPrint('[AppDatabase] 检测到损坏的 Hive box，重建: $name, error=$error');
+        await deleteNamedBoxFromDisk(name);
+        recoveredBox = await openBox();
+      }
+      final box = recoveredBox;
       _openBoxes[name] = box;
       return box;
     } finally {
@@ -84,5 +97,21 @@ class AppDatabase {
     if (Hive.isBoxOpen(name)) {
       await Hive.box<Map>(name).close();
     }
+  }
+
+  static Future<void> deleteNamedBoxFromDisk(String name) async {
+    await _ensureInitialized();
+    _openingBoxes.remove(name);
+    _openBoxes.remove(name);
+    if (Hive.isBoxOpen(name)) {
+      await Hive.box<Map>(name).close();
+    }
+    await Hive.deleteBoxFromDisk(name);
+  }
+
+  static bool _isRecoverableNamedBoxError(Object error) {
+    final message = error.toString();
+    return message.contains('unknown typeId') ||
+        message.contains('Cannot read');
   }
 }

@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../discourse_cache_manager.dart';
+import '../../storage/app_database.dart';
 
 /// 缓存大小计算服务
 class CacheSizeService {
@@ -74,6 +75,7 @@ class CacheSizeService {
       if (await dir.exists()) {
         await dir.delete(recursive: true);
       }
+      await AppDatabase.deleteNamedBoxFromDisk('image_cache_meta_$key');
     }
   }
 

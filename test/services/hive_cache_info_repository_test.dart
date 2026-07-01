@@ -8,7 +8,25 @@ import 'package:fluxdo/storage/app_database.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:path/path.dart' as p;
 
+class _NoopLegacyRepository extends JsonCacheInfoRepository {
+  _NoopLegacyRepository({required super.databaseName});
+
+  @override
+  Future<bool> exists() async => false;
+
+  @override
+  Future<bool> open() async => true;
+
+  @override
+  Future<List<CacheObject>> getAllObjects() async => const <CacheObject>[];
+
+  @override
+  Future<void> deleteDataFile() async {}
+}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late Directory tempDir;
   var seq = 0;
 
@@ -27,16 +45,21 @@ void main() {
   });
 
   CacheObject newObject(String key, {String? eTag}) => CacheObject(
-        'https://example.com/$key.png',
-        key: key,
-        relativePath: '$key.png',
-        validTill: DateTime.now().add(const Duration(days: 7)),
-        eTag: eTag,
-      );
+    'https://example.com/$key.png',
+    key: key,
+    relativePath: '$key.png',
+    validTill: DateTime.now().add(const Duration(days: 7)),
+    eTag: eTag,
+  );
+
+  HiveCacheInfoRepository repoFor(String name) => HiveCacheInfoRepository(
+    databaseName: name,
+    legacyRepository: _NoopLegacyRepository(databaseName: name),
+  );
 
   test('insert / get 往返,close 后重开数据与 id 序列保持', () async {
     final name = 'repo_${seq++}';
-    final repo = HiveCacheInfoRepository(databaseName: name);
+    final repo = repoFor(name);
     await repo.open();
 
     final inserted = await repo.insert(newObject('a'));
@@ -46,7 +69,7 @@ void main() {
 
     await repo.close();
 
-    final reopened = HiveCacheInfoRepository(databaseName: name);
+    final reopened = repoFor(name);
     await reopened.open();
     expect((await reopened.get('a'))!.id, inserted.id);
     // id 序列从已有最大值继续,不与旧条目冲突
@@ -57,7 +80,7 @@ void main() {
 
   test('纯 touch 更新在节流窗口内跳过落盘,字段变化立即落盘', () async {
     final name = 'repo_${seq++}';
-    final repo = HiveCacheInfoRepository(databaseName: name);
+    final repo = repoFor(name);
     await repo.open();
     final inserted = await repo.insert(newObject('a'));
     final box = await Hive.openBox<Map>('image_cache_meta_$name');
@@ -106,7 +129,7 @@ void main() {
 
   test('getObjectsOverCapacity / getOldObjects / deleteAll', () async {
     final name = 'repo_${seq++}';
-    final repo = HiveCacheInfoRepository(databaseName: name);
+    final repo = repoFor(name);
     await repo.open();
     final box = await Hive.openBox<Map>('image_cache_meta_$name');
 
@@ -143,24 +166,26 @@ void main() {
     final name = 'repo_${seq++}';
     final jsonFile = File(p.join(tempDir.path, '$name.json'));
     final now = DateTime.now().millisecondsSinceEpoch;
-    await jsonFile.writeAsString(jsonEncode([
-      {
-        CacheObject.columnId: 7,
-        CacheObject.columnUrl: 'https://example.com/m1.png',
-        CacheObject.columnKey: 'm1',
-        CacheObject.columnPath: 'm1.png',
-        CacheObject.columnValidTill: now + 1000000,
-        CacheObject.columnTouched: now,
-      },
-      {
-        CacheObject.columnId: 9,
-        CacheObject.columnUrl: 'https://example.com/m2.png',
-        CacheObject.columnKey: 'm2',
-        CacheObject.columnPath: 'm2.png',
-        CacheObject.columnValidTill: now + 1000000,
-        CacheObject.columnTouched: now,
-      },
-    ]));
+    await jsonFile.writeAsString(
+      jsonEncode([
+        {
+          CacheObject.columnId: 7,
+          CacheObject.columnUrl: 'https://example.com/m1.png',
+          CacheObject.columnKey: 'm1',
+          CacheObject.columnPath: 'm1.png',
+          CacheObject.columnValidTill: now + 1000000,
+          CacheObject.columnTouched: now,
+        },
+        {
+          CacheObject.columnId: 9,
+          CacheObject.columnUrl: 'https://example.com/m2.png',
+          CacheObject.columnKey: 'm2',
+          CacheObject.columnPath: 'm2.png',
+          CacheObject.columnValidTill: now + 1000000,
+          CacheObject.columnTouched: now,
+        },
+      ]),
+    );
 
     final repo = HiveCacheInfoRepository(
       databaseName: name,
@@ -177,5 +202,20 @@ void main() {
     expect(fresh.id, greaterThan(9));
 
     await repo.close();
+  });
+
+  test('删除缓存元数据 box 后可重新打开空仓库', () async {
+    final name = 'repo_${seq++}';
+    final repo = repoFor(name);
+    await repo.open();
+    await repo.insert(newObject('a'));
+    await repo.close();
+
+    await AppDatabase.deleteNamedBoxFromDisk('image_cache_meta_$name');
+
+    final reopened = repoFor(name);
+    await reopened.open();
+    expect(await reopened.get('a'), isNull);
+    await reopened.close();
   });
 }
