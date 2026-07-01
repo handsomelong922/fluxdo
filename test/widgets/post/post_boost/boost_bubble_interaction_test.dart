@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/models/topic.dart';
+import 'package:fluxdo/widgets/common/smart_avatar.dart';
 import 'package:fluxdo/widgets/post/post_boost/boost_bubble.dart';
 import 'package:fluxdo/widgets/post/post_boost/boost_content.dart';
 
@@ -23,7 +24,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byType(CircleAvatar));
+    await tester.tap(find.byType(SmartAvatar));
     await tester.pump();
 
     expect(tappedUser?.username, 'bob');
@@ -82,7 +83,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byType(CircleAvatar).first);
+    await tester.tap(find.byType(SmartAvatar).first);
     await tester.pump();
 
     expect(tappedUser?.username, 'bob');
