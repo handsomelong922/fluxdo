@@ -8564,18 +8564,6 @@ abstract class AppLocalizations {
   /// **'自动验证超时，请手动完成验证'**
   String get cf_autoVerifyTimeout;
 
-  /// No description provided for @cf_manualVerifyBannerMessage.
-  ///
-  /// In zh, this message translates to:
-  /// **'请在页面中手动完成安全验证'**
-  String get cf_manualVerifyBannerMessage;
-
-  /// No description provided for @cf_manualVerifyBannerTitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'手动完成验证'**
-  String get cf_manualVerifyBannerTitle;
-
   /// No description provided for @cf_backgroundVerifying.
   ///
   /// In zh, this message translates to:
@@ -8641,6 +8629,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'加载失败: {description}'**
   String cf_loadFailed(String description);
+
+  /// No description provided for @cf_manualVerifyBannerMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'请在页面中手动完成安全验证'**
+  String get cf_manualVerifyBannerMessage;
+
+  /// No description provided for @cf_manualVerifyBannerTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动完成验证'**
+  String get cf_manualVerifyBannerTitle;
 
   /// No description provided for @cf_noChallengeMessage.
   ///
@@ -9253,6 +9253,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'贴内外部链接优先在应用内打开'**
   String get preferences_openLinksInAppDesc;
+
+  /// No description provided for @preferences_externalBrowser.
+  ///
+  /// In zh, this message translates to:
+  /// **'外部浏览器'**
+  String get preferences_externalBrowser;
+
+  /// No description provided for @preferences_externalBrowserDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择在应用外打开链接时优先使用的浏览器'**
+  String get preferences_externalBrowserDesc;
+
+  /// No description provided for @preferences_externalBrowserSystemDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'系统默认浏览器'**
+  String get preferences_externalBrowserSystemDefault;
 
   /// No description provided for @preferences_skipExternalLinkConfirmation.
   ///

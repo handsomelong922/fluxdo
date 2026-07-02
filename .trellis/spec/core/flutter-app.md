@@ -163,6 +163,58 @@ if (cached != null) {
 - Preferred pattern: call `launchUrl(uri, mode: LaunchMode.externalApplication)` directly, check the returned bool, catch platform errors, and show a visible failure hint when no handler is available.
 - Linux.do internal links must continue through `launchContentLink` internal branches first: user links, topic links (`/t`, `/n`, `/topic`), post short links, CDK links, uploads, and same-prefix internal URLs should not be converted into generic external links.
 
+## Scenario: External Browser Selection
+
+### 1. Scope / Trigger
+- Trigger: changing `launchExternalLink`, `launchInExternalBrowser`, reading settings for external links, or the Android `com.github.lingyan000.fluxdo/browser` MethodChannel.
+
+### 2. Signatures
+- Dart:
+  - `ExternalBrowserService.listAvailableBrowsers() -> Future<List<ExternalBrowserApp>>`
+  - `ExternalBrowserService.openUrl(url, packageName?) -> Future<bool>`
+  - `launchInExternalBrowser(url, preferredBrowserPackageName?) -> Future<bool>`
+- Android channel methods:
+  - `listBrowsers() -> List<{ packageName: String, label: String }>`
+  - `openInBrowser({ url: String, packageName?: String }) -> bool`
+
+### 3. Contracts
+- Persist the user selection in `pref_external_browser_package_name`; `null` means "system default browser".
+- `launchExternalLink` should keep respecting `openExternalLinksInAppBrowser`; only the true external-open path may consult the selected browser package.
+- Only `http/https` links should use the browser-selection path. `mailto:` and other non-browser schemes must continue through the generic external-app launcher.
+- `launchContentLink` must still resolve Linux.do internal routes, uploads, short post links, and CDK links before considering any external-browser preference.
+- Android should exclude this app's own package from the browser list and from fallback selection so `openInBrowser` never loops back into FluxDO.
+
+### 4. Validation & Error Matrix
+- No selected package -> try Android default browser first, then other installed browsers, then report failure.
+- Selected package installed -> call native `openInBrowser` with that package and stop when native launch succeeds.
+- Selected package missing/unavailable -> native layer falls back to default/other browsers; do not crash or block the link.
+- Native browser channel unavailable or returns false -> fall back to `launchUrl(..., externalApplication)` and keep the existing error toast behavior.
+- Non-browser scheme -> skip browser selection entirely and use the generic external-app launch path.
+
+### 5. Good/Base/Bad Cases
+- Good: user sets Chrome in Reading settings, taps an external `https://` link in a post, and FluxDO launches Chrome directly.
+- Base: user keeps "system default browser", and external links behave like before.
+- Bad: applying the browser preference to Linux.do internal topic links, or forcing `mailto:` links through the browser channel.
+
+### 6. Tests Required
+- Preference test: selected browser package persists and can be reset to default (`null`).
+- Service test: `listAvailableBrowsers` parses native maps, and `openUrl` forwards the selected package name.
+- Link-launcher regression: when Android browser selection succeeds, `launchExternalLink` must not call `UrlLauncherPlatform.launchUrl`.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+await launchUrl(uri, mode: LaunchMode.externalApplication);
+```
+
+#### Correct
+```dart
+await launchInExternalBrowser(
+  uri.toString(),
+  preferredBrowserPackageName: prefs.externalBrowserPackageName,
+);
+```
+
 Evidence:
 - `lib/providers/topic_detail/`
 - `lib/providers/search_ai_chat_provider.dart`

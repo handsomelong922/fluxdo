@@ -4593,12 +4593,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cf_autoVerifyTimeout => '自动验证超时，请手动完成验证';
 
   @override
-  String get cf_manualVerifyBannerMessage => '请在页面中手动完成安全验证';
-
-  @override
-  String get cf_manualVerifyBannerTitle => '手动完成验证';
-
-  @override
   String get cf_backgroundVerifying => '后台验证中... (点击打开)';
 
   @override
@@ -4635,6 +4629,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String cf_loadFailed(String description) {
     return '加载失败: $description';
   }
+
+  @override
+  String get cf_manualVerifyBannerMessage => '请在页面中手动完成安全验证';
+
+  @override
+  String get cf_manualVerifyBannerTitle => '手动完成验证';
 
   @override
   String get cf_noChallengeMessage => '页面暂未显示 Cloudflare 验证挑战。你可以重试打开验证，或稍后再试。';
@@ -4957,6 +4957,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get preferences_openLinksInAppDesc => '贴内外部链接优先在应用内打开';
+
+  @override
+  String get preferences_externalBrowser => '外部浏览器';
+
+  @override
+  String get preferences_externalBrowserDesc => '选择在应用外打开链接时优先使用的浏览器';
+
+  @override
+  String get preferences_externalBrowserSystemDefault => '系统默认浏览器';
 
   @override
   String get preferences_skipExternalLinkConfirmation => '直接打开外部链接';

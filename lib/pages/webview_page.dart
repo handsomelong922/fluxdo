@@ -15,6 +15,7 @@ import '../widgets/common/app_link_confirm_dialog.dart';
 import '../providers/web_bookmark_provider.dart';
 import '../providers/web_history_provider.dart';
 import '../providers/download_provider.dart';
+import '../providers/preferences_provider.dart';
 import '../widgets/common/dismissible_popup_menu.dart';
 import '../l10n/s.dart';
 import '../utils/dialog_utils.dart';
@@ -577,7 +578,12 @@ class _WebViewPageState extends ConsumerState<WebViewPage> {
     if (_currentUrl.isEmpty) return;
 
     try {
-      final success = await launchInExternalBrowser(_currentUrl);
+      final success = await launchInExternalBrowser(
+        _currentUrl,
+        preferredBrowserPackageName: ref
+            .read(preferencesProvider)
+            .externalBrowserPackageName,
+      );
       if (!success && mounted) {
         ToastService.showError(S.current.webview_cannotOpenBrowser);
       }

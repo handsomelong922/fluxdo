@@ -1,7 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -12,14 +9,13 @@ import '../pages/cdk_page.dart';
 import '../pages/user_profile_page.dart';
 import '../pages/webview_page.dart';
 import '../providers/preferences_provider.dart';
+import '../services/external_browser_service.dart';
 import '../services/discourse/discourse_service.dart';
 import '../services/toast_service.dart';
 import '../widgets/common/external_link_confirm_dialog.dart';
 import 'discourse_url_parser.dart';
 import 'link_security.dart';
 import 'url_helper.dart';
-
-const _browserChannel = MethodChannel('com.github.lingyan000.fluxdo/browser');
 
 typedef InternalTopicLinkTap =
     void Function(
@@ -122,7 +118,11 @@ Future<void> launchExternalLink(BuildContext context, String url) async {
     return;
   }
 
-  await _launchExternalApplicationUri(uri);
+  await _launchPreferredExternalUri(
+    context,
+    uri,
+    prefs.externalBrowserPackageName,
+  );
 }
 
 /// 打开内容中的链接（统一入口）
@@ -214,7 +214,15 @@ Future<void> launchContentLink(
       final uri = UrlHelper.tryParseLenient(fullUrl);
       if (uri != null) {
         if (!context.mounted) return;
-        await _launchExternalApplicationUri(uri);
+        final prefs = ProviderScope.containerOf(
+          context,
+          listen: false,
+        ).read(preferencesProvider);
+        await _launchPreferredExternalUri(
+          context,
+          uri,
+          prefs.externalBrowserPackageName,
+        );
       }
     }
     return;
@@ -225,7 +233,7 @@ Future<void> launchContentLink(
     final uri = UrlHelper.tryParseLenient(url);
     if (uri != null) {
       if (!context.mounted) return;
-      await _launchExternalApplicationUri(uri);
+      await _launchPreferredExternalUri(context, uri, null);
     }
     return;
   }
@@ -247,25 +255,47 @@ Future<void> launchContentLink(
 ///
 /// 在 Android 上通过原生代码排除自己的应用，直接用外部浏览器打开，
 /// 避免被应用的 intent-filter 拦截导致链接又回到应用本身。
-Future<bool> launchInExternalBrowser(String url) async {
+Future<bool> launchInExternalBrowser(
+  String url, {
+  String? preferredBrowserPackageName,
+}) async {
   final uri = UrlHelper.tryParseLenient(url);
   if (uri == null) return false;
 
-  if (Platform.isAndroid) {
-    try {
-      final result = await _browserChannel.invokeMethod<bool>('openInBrowser', {
-        'url': url,
-      });
-      return result ?? false;
-    } catch (e) {
-      debugPrint('[LinkLauncher] Failed to launch browser: $e');
-      // 回退到 url_launcher
-      return _launchExternalApplicationUri(uri);
-    }
-  } else {
-    // iOS 和其他平台使用 url_launcher
-    return _launchExternalApplicationUri(uri);
+  return _launchBrowserUri(
+    uri,
+    preferredBrowserPackageName: preferredBrowserPackageName,
+  );
+}
+
+Future<bool> _launchPreferredExternalUri(
+  BuildContext context,
+  Uri uri,
+  String? preferredBrowserPackageName,
+) async {
+  if (uri.scheme == 'http' || uri.scheme == 'https') {
+    return _launchBrowserUri(
+      uri,
+      preferredBrowserPackageName: preferredBrowserPackageName,
+    );
   }
+
+  return _launchExternalApplicationUri(uri);
+}
+
+Future<bool> _launchBrowserUri(
+  Uri uri, {
+  String? preferredBrowserPackageName,
+}) async {
+  final launched = await ExternalBrowserService.openUrl(
+    uri.toString(),
+    packageName: preferredBrowserPackageName,
+  );
+  if (launched) {
+    return true;
+  }
+
+  return _launchExternalApplicationUri(uri);
 }
 
 Future<bool> _launchExternalApplicationUri(Uri uri) async {

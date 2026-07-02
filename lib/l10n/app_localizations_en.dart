@@ -4705,13 +4705,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Auto-verification timed out, please complete manually';
 
   @override
-  String get cf_manualVerifyBannerMessage =>
-      'Please complete the security verification on the page';
-
-  @override
-  String get cf_manualVerifyBannerTitle => 'Complete verification manually';
-
-  @override
   String get cf_backgroundVerifying =>
       'Verifying in background... (tap to open)';
 
@@ -4752,6 +4745,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String cf_loadFailed(String description) {
     return 'Failed to load: $description';
   }
+
+  @override
+  String get cf_manualVerifyBannerMessage =>
+      'Please complete the security verification on the page';
+
+  @override
+  String get cf_manualVerifyBannerTitle => 'Complete verification manually';
 
   @override
   String get cf_noChallengeMessage =>
@@ -5100,6 +5100,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get preferences_openLinksInAppDesc =>
       'Open external links in in-app browser';
+
+  @override
+  String get preferences_externalBrowser => 'External browser';
+
+  @override
+  String get preferences_externalBrowserDesc =>
+      'Choose which browser to prefer when opening links outside the app';
+
+  @override
+  String get preferences_externalBrowserSystemDefault =>
+      'System default browser';
 
   @override
   String get preferences_skipExternalLinkConfirmation =>

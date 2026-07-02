@@ -5,9 +5,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/s.dart';
 import '../../providers/preferences_provider.dart';
+import '../../services/external_browser_service.dart';
 import '../settings_model.dart';
 import '../../navigation/page_transition_preferences.dart';
 import '../../utils/dialog_utils.dart';
+
+const _systemDefaultBrowserValue = '__system_default_browser__';
+
+final availableExternalBrowsersProvider =
+    FutureProvider<List<ExternalBrowserApp>>((ref) {
+      return ExternalBrowserService.listAvailableBrowsers();
+    });
 
 /// 阅读设置数据声明
 List<SettingsGroup> buildReadingGroups(BuildContext context) {
@@ -127,6 +135,17 @@ List<SettingsGroup> buildReadingGroups(BuildContext context) {
               .read(preferencesProvider.notifier)
               .setOpenExternalLinksInAppBrowser(v),
         ),
+        PlatformConditionalModel(
+          inner: ActionModel(
+            id: 'externalBrowser',
+            title: l10n.preferences_externalBrowser,
+            subtitle: l10n.preferences_externalBrowserDesc,
+            icon: Icons.public_rounded,
+            getDynamicSubtitle: (ref) => _externalBrowserSubtitle(context, ref),
+            onTap: (context, ref) => _showExternalBrowserPicker(context, ref),
+          ),
+          condition: () => Platform.isAndroid,
+        ),
         SwitchModel(
           id: 'skipExternalLinkConfirmation',
           title: l10n.preferences_skipExternalLinkConfirmation,
@@ -171,6 +190,27 @@ List<SettingsGroup> buildReadingGroups(BuildContext context) {
       ],
     ),
   ];
+}
+
+String _externalBrowserSubtitle(BuildContext context, WidgetRef ref) {
+  final selectedPackage = ref
+      .watch(preferencesProvider)
+      .externalBrowserPackageName;
+  final browsersAsync = ref.watch(availableExternalBrowsersProvider);
+  return browsersAsync.maybeWhen(
+    data: (browsers) {
+      if (selectedPackage == null || selectedPackage.isEmpty) {
+        return context.l10n.preferences_externalBrowserSystemDefault;
+      }
+      for (final browser in browsers) {
+        if (browser.packageName == selectedPackage) {
+          return browser.label;
+        }
+      }
+      return context.l10n.preferences_externalBrowserSystemDefault;
+    },
+    orElse: () => context.l10n.common_loading,
+  );
 }
 
 String _pageTransitionLabel(
@@ -218,4 +258,51 @@ Future<void> _showPageTransitionPicker(
   );
   if (selected == null) return;
   await ref.read(preferencesProvider.notifier).setPageTransition(selected);
+}
+
+Future<void> _showExternalBrowserPicker(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final currentPackage = ref
+      .read(preferencesProvider)
+      .externalBrowserPackageName;
+  final browsers = await ref.read(availableExternalBrowsersProvider.future);
+  if (!context.mounted) return;
+
+  final selected = await showAppDialog<String>(
+    context: context,
+    builder: (dialogContext) => SimpleDialog(
+      title: Text(dialogContext.l10n.preferences_externalBrowser),
+      children: [
+        RadioGroup<String>(
+          groupValue: currentPackage ?? _systemDefaultBrowserValue,
+          onChanged: (value) => Navigator.of(dialogContext).pop(value),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<String>(
+                title: Text(
+                  dialogContext.l10n.preferences_externalBrowserSystemDefault,
+                ),
+                value: _systemDefaultBrowserValue,
+              ),
+              for (final browser in browsers)
+                RadioListTile<String>(
+                  title: Text(browser.label),
+                  subtitle: Text(browser.packageName),
+                  value: browser.packageName,
+                ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+  if (selected == null) return;
+  await ref
+      .read(preferencesProvider.notifier)
+      .setExternalBrowserPackageName(
+        selected == _systemDefaultBrowserValue ? null : selected,
+      );
 }

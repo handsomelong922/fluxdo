@@ -421,7 +421,12 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       return;
     }
 
-    final success = await launchInExternalBrowser(uri.toString());
+    final success = await launchInExternalBrowser(
+      uri.toString(),
+      preferredBrowserPackageName: ref
+          .read(preferencesProvider)
+          .externalBrowserPackageName,
+    );
     if (!success) {
       ToastService.showError(S.current.webview_cannotOpenBrowser);
     }

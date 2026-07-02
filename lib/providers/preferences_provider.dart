@@ -11,6 +11,8 @@ import '../services/network/request_scheduler_config.dart';
 import '../services/cf_clearance_refresh_service.dart';
 import 'theme_provider.dart';
 
+const Object _preferencesUnset = Object();
+
 class AppPreferences {
   final bool autoPanguSpacing;
 
@@ -20,6 +22,7 @@ class AppPreferences {
   final bool longPressPreview;
   final bool openExternalLinksInAppBrowser;
   final bool skipExternalLinkConfirmation;
+  final String? externalBrowserPackageName;
 
   /// 内容字体缩放比例，范围 0.8 ~ 1.4，默认 1.0
   final double contentFontScale;
@@ -127,6 +130,7 @@ class AppPreferences {
     required this.longPressPreview,
     required this.openExternalLinksInAppBrowser,
     required this.skipExternalLinkConfirmation,
+    required this.externalBrowserPackageName,
     required this.contentFontScale,
     required this.shareImageThemeIndex,
     required this.autoFillLogin,
@@ -169,6 +173,7 @@ class AppPreferences {
     bool? longPressPreview,
     bool? openExternalLinksInAppBrowser,
     bool? skipExternalLinkConfirmation,
+    Object? externalBrowserPackageName = _preferencesUnset,
     double? contentFontScale,
     int? shareImageThemeIndex,
     bool? autoFillLogin,
@@ -212,6 +217,10 @@ class AppPreferences {
           openExternalLinksInAppBrowser ?? this.openExternalLinksInAppBrowser,
       skipExternalLinkConfirmation:
           skipExternalLinkConfirmation ?? this.skipExternalLinkConfirmation,
+      externalBrowserPackageName:
+          identical(externalBrowserPackageName, _preferencesUnset)
+          ? this.externalBrowserPackageName
+          : externalBrowserPackageName as String?,
       contentFontScale: contentFontScale ?? this.contentFontScale,
       shareImageThemeIndex: shareImageThemeIndex ?? this.shareImageThemeIndex,
       autoFillLogin: autoFillLogin ?? this.autoFillLogin,
@@ -269,6 +278,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
       'pref_open_external_links_in_app_browser';
   static const String _skipExternalLinkConfirmationKey =
       'pref_skip_external_link_confirmation';
+  static const String _externalBrowserPackageNameKey =
+      'pref_external_browser_package_name';
   static const String _contentFontScaleKey = 'pref_content_font_scale';
   static const String _shareImageThemeIndexKey = 'pref_share_image_theme_index';
   static const String _autoFillLoginKey = 'pref_auto_fill_login';
@@ -329,6 +340,9 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
               _prefs.getBool(_openExternalLinksInAppBrowserKey) ?? false,
           skipExternalLinkConfirmation:
               _prefs.getBool(_skipExternalLinkConfirmationKey) ?? false,
+          externalBrowserPackageName: _prefs.getString(
+            _externalBrowserPackageNameKey,
+          ),
           contentFontScale: _prefs.getDouble(_contentFontScaleKey) ?? 1.0,
           shareImageThemeIndex: _prefs.getInt(_shareImageThemeIndexKey) ?? 0,
           autoFillLogin: _prefs.getBool(_autoFillLoginKey) ?? true,
@@ -423,6 +437,19 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setSkipExternalLinkConfirmation(bool enabled) async {
     state = state.copyWith(skipExternalLinkConfirmation: enabled);
     await _prefs.setBool(_skipExternalLinkConfirmationKey, enabled);
+  }
+
+  Future<void> setExternalBrowserPackageName(String? packageName) async {
+    final normalized = packageName?.trim();
+    final nextValue = (normalized == null || normalized.isEmpty)
+        ? null
+        : normalized;
+    state = state.copyWith(externalBrowserPackageName: nextValue);
+    if (nextValue == null) {
+      await _prefs.remove(_externalBrowserPackageNameKey);
+    } else {
+      await _prefs.setString(_externalBrowserPackageNameKey, nextValue);
+    }
   }
 
   Future<void> setContentFontScale(double scale) async {

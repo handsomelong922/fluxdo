@@ -230,5 +230,27 @@ void main() {
       expect(prefs.getInt('pref_min_request_interval_ms'), 2000);
       expect(RequestSchedulerConfig.minIntervalMs, 2000);
     });
+
+    test(
+      'persists external browser preference and allows resetting to default',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final notifier = PreferencesNotifier(prefs);
+
+        await notifier.setExternalBrowserPackageName('com.android.chrome');
+
+        expect(notifier.state.externalBrowserPackageName, 'com.android.chrome');
+        expect(
+          prefs.getString('pref_external_browser_package_name'),
+          'com.android.chrome',
+        );
+
+        await notifier.setExternalBrowserPackageName(null);
+
+        expect(notifier.state.externalBrowserPackageName, isNull);
+        expect(prefs.getString('pref_external_browser_package_name'), isNull);
+      },
+    );
   });
 }

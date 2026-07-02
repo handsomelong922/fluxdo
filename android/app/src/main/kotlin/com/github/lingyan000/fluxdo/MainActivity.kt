@@ -63,12 +63,16 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "openInBrowser" -> {
                     val url = call.argument<String>("url")
+                    val packageName = call.argument<String>("packageName")
                     if (url != null) {
-                        val success = openInExternalBrowser(url)
+                        val success = openInExternalBrowser(url, packageName)
                         result.success(success)
                     } else {
                         result.error("INVALID_URL", "URL is null", null)
                     }
+                }
+                "listBrowsers" -> {
+                    result.success(listAvailableBrowsers())
                 }
                 "resolveAppLink" -> {
                     val url = call.argument<String>("url")
@@ -746,56 +750,99 @@ class MainActivity : FlutterActivity() {
 
     // ======================== 外部浏览器 ========================
 
-    private fun openInExternalBrowser(url: String): Boolean {
+    private fun listAvailableBrowsers(): List<Map<String, String>> {
         return try {
-            // 使用一个通用的 HTTPS URL 来查询默认浏览器
             val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))
             browserIntent.addCategory(Intent.CATEGORY_BROWSABLE)
 
-            // 获取默认浏览器
-            val defaultBrowser: ResolveInfo? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                packageManager.resolveActivity(
+            val resolveInfoList: List<ResolveInfo> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.queryIntentActivities(
                     browserIntent,
-                    PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
+                    PackageManager.ResolveInfoFlags.of(0)
                 )
             } else {
                 @Suppress("DEPRECATION")
-                packageManager.resolveActivity(browserIntent, PackageManager.MATCH_DEFAULT_ONLY)
+                packageManager.queryIntentActivities(browserIntent, 0)
             }
 
+            val seenPackages = mutableSetOf<String>()
+            resolveInfoList
+                .filter { it.activityInfo.packageName != packageName }
+                .mapNotNull { info ->
+                    val pkg = info.activityInfo.packageName ?: return@mapNotNull null
+                    if (!seenPackages.add(pkg)) return@mapNotNull null
+                    val label = info.loadLabel(packageManager)?.toString()?.trim().orEmpty()
+                    mapOf(
+                        "packageName" to pkg,
+                        "label" to if (label.isEmpty()) pkg else label
+                    )
+                }
+                .sortedWith(compareBy<Map<String, String>> { it["label"] ?: "" })
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    private fun openInExternalBrowser(url: String, preferredPackageName: String? = null): Boolean {
+        return try {
             val targetIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             targetIntent.addCategory(Intent.CATEGORY_BROWSABLE)
             targetIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
 
-            if (defaultBrowser != null && defaultBrowser.activityInfo.packageName != packageName) {
-                // 使用默认浏览器打开
-                targetIntent.setPackage(defaultBrowser.activityInfo.packageName)
-                startActivity(targetIntent)
-                true
+            val normalizedPackage = preferredPackageName?.trim().orEmpty()
+            if (normalizedPackage.isNotEmpty()) {
+                targetIntent.setPackage(normalizedPackage)
+                if (targetIntent.resolveActivity(packageManager) != null) {
+                    startActivity(targetIntent)
+                    true
+                }
             } else {
-                // 默认浏览器是自己或未找到，查找其他浏览器
-                val resolveInfoList: List<ResolveInfo> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    packageManager.queryIntentActivities(
+                // 使用一个通用的 HTTPS URL 来查询默认浏览器
+                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))
+                browserIntent.addCategory(Intent.CATEGORY_BROWSABLE)
+
+                // 获取默认浏览器
+                val defaultBrowser: ResolveInfo? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    packageManager.resolveActivity(
                         browserIntent,
-                        PackageManager.ResolveInfoFlags.of(0)
+                        PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
                     )
                 } else {
                     @Suppress("DEPRECATION")
-                    packageManager.queryIntentActivities(browserIntent, 0)
+                    packageManager.resolveActivity(browserIntent, PackageManager.MATCH_DEFAULT_ONLY)
                 }
 
-                val otherBrowsers = resolveInfoList.filter {
-                    it.activityInfo.packageName != packageName
-                }
-
-                if (otherBrowsers.isNotEmpty()) {
-                    // 使用第一个可用的浏览器
-                    targetIntent.setPackage(otherBrowsers[0].activityInfo.packageName)
+                if (defaultBrowser != null && defaultBrowser.activityInfo.packageName != packageName) {
+                    // 使用默认浏览器打开
+                    targetIntent.setPackage(defaultBrowser.activityInfo.packageName)
                     startActivity(targetIntent)
                     true
                 } else {
-                    // 没有其他浏览器，无法打开
-                    false
+                    // 默认浏览器是自己或未找到，查找其他浏览器
+                    val resolveInfoList: List<ResolveInfo> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        packageManager.queryIntentActivities(
+                            browserIntent,
+                            PackageManager.ResolveInfoFlags.of(0)
+                        )
+                    } else {
+                        @Suppress("DEPRECATION")
+                        packageManager.queryIntentActivities(browserIntent, 0)
+                    }
+
+                    val otherBrowsers = resolveInfoList.filter {
+                        it.activityInfo.packageName != packageName
+                    }
+
+                    if (otherBrowsers.isNotEmpty()) {
+                        // 使用第一个可用的浏览器
+                        targetIntent.setPackage(otherBrowsers[0].activityInfo.packageName)
+                        startActivity(targetIntent)
+                        true
+                    } else {
+                        // 没有其他浏览器，无法打开
+                        false
+                    }
                 }
             }
         } catch (e: Exception) {

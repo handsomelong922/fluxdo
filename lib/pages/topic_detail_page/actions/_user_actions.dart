@@ -411,7 +411,10 @@ extension _UserActions on _TopicDetailPageState {
       anonymousShare: prefs.anonymousShare,
     );
 
-    final success = await launchInExternalBrowser(url);
+    final success = await launchInExternalBrowser(
+      url,
+      preferredBrowserPackageName: prefs.externalBrowserPackageName,
+    );
     if (!success && mounted) {
       ToastService.showError(S.current.topicDetail_cannotOpenBrowser);
     }

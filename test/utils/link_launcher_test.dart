@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/providers/preferences_provider.dart';
+import 'package:fluxdo/services/external_browser_service.dart';
 import 'package:fluxdo/providers/theme_provider.dart';
 import 'package:fluxdo/utils/link_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,6 +13,8 @@ import 'package:url_launcher_platform_interface/url_launcher_platform_interface.
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   group('isInternalUrlString', () {
     test('accepts linux.do topic links with malformed referral spacing', () {
@@ -123,6 +126,11 @@ void main() {
   });
 
   group('launchExternalLink', () {
+    tearDown(() async {
+      ExternalBrowserService.debugIsAndroidOverride = null;
+      messenger.setMockMethodCallHandler(ExternalBrowserService.channel, null);
+    });
+
     testWidgets('launches external URL even when canLaunchUrl is false', (
       tester,
     ) async {
@@ -168,6 +176,55 @@ void main() {
         'https://sub.100xlabs.space/%EF%BC%89',
         'https://greasyfork.org/zh-CN/scripts/123-test',
       ]);
+    });
+
+    testWidgets('prefers selected external browser package on Android', (
+      tester,
+    ) async {
+      final previousLauncher = UrlLauncherPlatform.instance;
+      final launcher = _FakeUrlLauncher(
+        canLaunchResponse: false,
+        launchResponse: true,
+      );
+      UrlLauncherPlatform.instance = launcher;
+      addTearDown(() => UrlLauncherPlatform.instance = previousLauncher);
+
+      ExternalBrowserService.debugIsAndroidOverride = true;
+      messenger.setMockMethodCallHandler(ExternalBrowserService.channel, (
+        call,
+      ) async {
+        expect(call.method, 'openInBrowser');
+        expect(call.arguments, <String, dynamic>{
+          'url': 'https://linux.do',
+          'packageName': 'com.android.chrome',
+        });
+        return true;
+      });
+
+      SharedPreferences.setMockInitialValues({
+        'pref_skip_external_link_confirmation': true,
+        'pref_external_browser_package_name': 'com.android.chrome',
+      });
+      final prefs = await SharedPreferences.getInstance();
+
+      late BuildContext testContext;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) {
+                testContext = context;
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ),
+      );
+
+      await launchExternalLink(testContext, 'https://linux.do');
+
+      expect(launcher.launchCalls, isEmpty);
     });
   });
 }
