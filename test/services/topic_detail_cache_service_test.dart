@@ -51,6 +51,14 @@ void main() {
       expect(cache.shouldRevalidate(stale), isTrue);
     });
 
+    test('preview seed always revalidates in background', () {
+      cache.writePreviewSeed(_detail(topicId: 42, postNumbers: [1]));
+
+      final seeded = cache.read(42)!;
+      expect(seeded.isPreviewSeed, isTrue);
+      expect(cache.shouldRevalidate(seeded), isTrue);
+    });
+
     test('expires entries after the hard ttl', () {
       cache.write(_detail(topicId: 42, postNumbers: [1]));
 

@@ -36,6 +36,7 @@ Evidence:
 - When adding preference-dependent behavior, centralize interpretation in a provider/helper when more than one widget needs it.
 - Startup preloading that provides first-screen data must remain part of the gate that reveals the home page when the UI expects to synchronously consume that cache. Do not convert `PreloadedDataService().ensureLoaded()` into an unawaited warm-up without also changing the home topic provider contract; otherwise the app can show the home shell before `topicList` is available, trigger duplicate `/latest.json` requests, and leave the user on skeleton loading.
 - Initial topic-list backfill for filtered results must not block the first visible page. Return page 0 as soon as it is processed, then append any "fill to minimum visible count" pages in the background or through normal load-more flow.
+- Keep startup gates focused on first-screen hard dependencies. Non-critical work such as home excerpt warmup or decorative minimum splash delays must not block the user after the initial topic list is ready.
 
 ## Scenario: Topic Detail Preview Handoff
 
@@ -49,6 +50,7 @@ Evidence:
 
 ### 3. Contracts
 - Home topic cards that already have first-post HTML must pass preview data and no `scrollToPostNumber`; comments/replies load below the stable first post.
+- For home entry with no explicit target, seed the topic-detail runtime cache/provider with that preview first post and let the full detail arrive through background refresh. Do not render preview through a one-off page branch that is immediately replaced by a second full-page load path.
 - Search result cards may pass preview data and `scrollToPostNumber`; the preview accelerates first paint but must not cancel the search hit jump.
 - Restored reading state is a fallback only. Do not apply it when first-post preview is available and no explicit target was requested.
 - Loading replies, post windows, boosts, likes, or metadata must not replace the visible first-post preview with a global skeleton.
@@ -100,15 +102,17 @@ buildTopicDetailRoute(
 - Provider identity remains `TopicDetailParams(topicId, postNumber?, instanceId)`.
 - Cache lookup key is `topicId + current username`; route `instanceId` is not part of the cache key.
 - Cache service contract:
-  - `read(topicId, username?, targetPostNumber?) -> TopicDetailCacheEntry?`
-  - `write(TopicDetail, username?)`
-  - `shouldRevalidate(entry, targetPostNumber?) -> bool`
+- `read(topicId, username?, targetPostNumber?) -> TopicDetailCacheEntry?`
+- `write(TopicDetail, username?)`
+- `writePreviewSeed(TopicDetail, username?)`
+- `shouldRevalidate(entry, targetPostNumber?) -> bool`
 
 ### 3. Contracts
 - Do not remove `instanceId` from `TopicDetailParams` equality/hashCode; it isolates route-local UI state, scroll targets, filters, and MessageBus ownership.
 - Cache complete `TopicDetail` snapshots, including the currently loaded `postStream.posts` and `postStream.stream`, so reopen can render the same visible detail immediately.
 - Use a hard TTL of 1 day for snapshot validity and a shorter soft TTL for background refresh.
 - A snapshot may render immediately only when the requested `targetPostNumber` is null or already present in `postStream.posts`.
+- Preview-seed snapshots are allowed only for first-post home preview handoff and must always trigger background revalidation.
 - Filtered views (`summary`, author-only, top-level-only) must not overwrite the normal unfiltered topic cache.
 - New replies and volatile action state must be reconciled by background refresh or MessageBus/local mutation updates; cached data is a fast first paint, not an authority for 24 hours.
 

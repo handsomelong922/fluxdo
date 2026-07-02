@@ -1,5 +1,3 @@
-import 'dart:collection';
-
 import '../models/topic.dart';
 
 /// 话题详情快照缓存。
@@ -24,7 +22,7 @@ class TopicDetailCacheService {
   final Duration _hardTtl;
   final Duration _softTtl;
   final DateTime Function() _now;
-  final _entries = LinkedHashMap<String, TopicDetailCacheEntry>();
+  final _entries = <String, TopicDetailCacheEntry>{};
 
   TopicDetailCacheEntry? read(
     int topicId, {
@@ -52,6 +50,18 @@ class TopicDetailCacheService {
   }
 
   void write(TopicDetail detail, {String? username}) {
+    _writeEntry(detail, username: username, isPreviewSeed: false);
+  }
+
+  void writePreviewSeed(TopicDetail detail, {String? username}) {
+    _writeEntry(detail, username: username, isPreviewSeed: true);
+  }
+
+  void _writeEntry(
+    TopicDetail detail, {
+    String? username,
+    required bool isPreviewSeed,
+  }) {
     if (detail.postStream.posts.isEmpty) return;
 
     final key = _key(detail.id, username);
@@ -63,6 +73,7 @@ class TopicDetailCacheService {
       detail: detail,
       loadedAt: now,
       lastAccessedAt: now,
+      isPreviewSeed: isPreviewSeed,
     );
 
     _pruneExpired();
@@ -83,6 +94,7 @@ class TopicDetailCacheService {
     TopicDetailCacheEntry entry, {
     int? targetPostNumber,
   }) {
+    if (entry.isPreviewSeed) return true;
     if (targetPostNumber != null) return true;
     return _now().difference(entry.loadedAt) >= _softTtl;
   }
@@ -111,6 +123,7 @@ class TopicDetailCacheEntry {
     required this.detail,
     required this.loadedAt,
     required this.lastAccessedAt,
+    this.isPreviewSeed = false,
   });
 
   final int topicId;
@@ -118,6 +131,7 @@ class TopicDetailCacheEntry {
   final TopicDetail detail;
   final DateTime loadedAt;
   final DateTime lastAccessedAt;
+  final bool isPreviewSeed;
 
   bool containsPostNumber(int? postNumber) {
     if (postNumber == null) return true;
@@ -127,6 +141,7 @@ class TopicDetailCacheEntry {
   TopicDetailCacheEntry copyWith({
     DateTime? loadedAt,
     DateTime? lastAccessedAt,
+    bool? isPreviewSeed,
   }) {
     return TopicDetailCacheEntry(
       topicId: topicId,
@@ -134,6 +149,7 @@ class TopicDetailCacheEntry {
       detail: detail,
       loadedAt: loadedAt ?? this.loadedAt,
       lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+      isPreviewSeed: isPreviewSeed ?? this.isPreviewSeed,
     );
   }
 }

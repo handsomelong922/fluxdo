@@ -395,6 +395,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _seedTopicDetailPreviewCache();
     _isParentActive = widget.parentActive;
     _restoredReadingState = _canRestoreReadingState
         ? ref.read(topicReadingStateServiceProvider).getState(widget.topicId)
@@ -491,6 +492,20 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         _registerPostShortcuts();
       });
     }
+  }
+
+  void _seedTopicDetailPreviewCache() {
+    if (widget.scrollToPostNumber != null) return;
+    final previewDetail = _initialPreviewDetail;
+    if (previewDetail == null) return;
+
+    final username = ref.read(currentUserProvider).value?.username;
+    final cache = ref.read(topicDetailCacheServiceProvider);
+    final existing = cache.read(widget.topicId, username: username);
+    final existingPostsCount = existing?.detail.postStream.posts.length ?? 0;
+    if (existingPostsCount > 1) return;
+
+    cache.writePreviewSeed(previewDetail, username: username);
   }
 
   bool _isAiSheetOpen = false;

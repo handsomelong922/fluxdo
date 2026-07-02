@@ -31,8 +31,8 @@ class PreheatGate extends StatefulWidget {
 }
 
 class _PreheatGateState extends State<PreheatGate> {
-  static const _minimumLoadingDuration = Duration(milliseconds: 4200);
-  static const _topicListReadyTimeout = Duration(seconds: 3);
+  static const _minimumLoadingDuration = Duration(milliseconds: 900);
+  static const _topicListReadyTimeout = Duration(milliseconds: 1800);
   static const _homeExcerptWarmupTimeout = Duration(milliseconds: 2200);
   static const _maxWarmupHomeExcerpts = 8;
   static const _homeDetailedTopicListKey = 'pref_home_detailed_topic_list';
@@ -84,7 +84,7 @@ class _PreheatGateState extends State<PreheatGate> {
       await PreloadedDataService().waitForInitialTopicListReady(
         timeout: _topicListReadyTimeout,
       );
-      await _warmInitialHomeExcerpts();
+      unawaited(_warmInitialHomeExcerpts());
       unawaited(DiscourseService().getEnabledReactions());
       EmojiHandler().init();
 
