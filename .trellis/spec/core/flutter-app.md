@@ -51,6 +51,7 @@ Evidence:
 ### 3. Contracts
 - Home topic cards that already have first-post HTML must pass preview data and no `scrollToPostNumber`; comments/replies load below the stable first post.
 - For home entry with no explicit target, seed the topic-detail runtime cache/provider with that preview first post and let the full detail arrive through background refresh. Do not render preview through a one-off page branch that is immediately replaced by a second full-page load path.
+- Preview-driven entry from home/search should start in flat post flow by default, even if the saved default topic view is nested. Do not switch into nested-view loading just because the global preference is `defaultNestedTopicView=true`; that causes a second full-page loading transition after preview paint.
 - Search result cards may pass preview data and `scrollToPostNumber`; the preview accelerates first paint but must not cancel the search hit jump.
 - Restored reading state is a fallback only. Do not apply it when first-post preview is available and no explicit target was requested.
 - Loading replies, post windows, boosts, likes, or metadata must not replace the visible first-post preview with a global skeleton.

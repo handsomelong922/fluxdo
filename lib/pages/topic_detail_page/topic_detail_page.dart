@@ -143,8 +143,11 @@ bool resolveInitialNestedView({
   required bool? initialNestedView,
   required bool? restoredNestedView,
   required bool preferenceNestedView,
+  bool hasInitialPreview = false,
 }) {
-  return initialNestedView ?? restoredNestedView ?? preferenceNestedView;
+  if (initialNestedView != null) return initialNestedView;
+  if (hasInitialPreview) return false;
+  return restoredNestedView ?? preferenceNestedView;
 }
 
 int? _validPostNumber(int? postNumber) {
@@ -406,6 +409,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       preferenceNestedView: ref
           .read(preferencesProvider)
           .defaultNestedTopicView,
+      hasInitialPreview: _canShowInitialPreview,
     );
     _pendingNestedRestorePostNumber = resolveInitialPendingNestedPostNumber(
       isNestedView: _isNestedView,

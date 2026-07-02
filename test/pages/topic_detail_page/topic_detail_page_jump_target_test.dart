@@ -70,6 +70,18 @@ void main() {
       );
     });
 
+    test('preview entry defaults to flat view even when nested preference is on', () {
+      expect(
+        resolveInitialNestedView(
+          initialNestedView: null,
+          restoredNestedView: true,
+          preferenceNestedView: true,
+          hasInitialPreview: true,
+        ),
+        isFalse,
+      );
+    });
+
     test('restored nested state remains the fallback pending target', () {
       expect(
         resolveInitialPendingNestedPostNumber(
@@ -90,6 +102,7 @@ void main() {
             initialNestedView: true,
             restoredNestedView: false,
             preferenceNestedView: false,
+            hasInitialPreview: true,
           ),
           isTrue,
         );
