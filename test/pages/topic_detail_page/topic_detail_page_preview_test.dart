@@ -116,6 +116,39 @@ void main() {
     },
   );
 
+  test('buildInitialNestedPreviewState reuses the preview first post as OP', () {
+    final now = DateTime(2026, 6, 30, 12);
+    final preview = TopicDetail(
+      id: 42,
+      title: '标题',
+      slug: 'sample-topic',
+      postsCount: 3,
+      postStream: PostStream(
+        posts: [
+          _post(
+            id: 42000001,
+            postNumber: 1,
+            cooked: '<p>首页预加载正文</p>',
+            createdAt: now,
+          ),
+        ],
+        stream: const [42000001],
+      ),
+      categoryId: 9,
+      closed: false,
+      archived: false,
+    );
+
+    final nestedPreview = buildInitialNestedPreviewState(preview);
+
+    expect(nestedPreview, isNotNull);
+    expect(nestedPreview?.opPost?.postNumber, 1);
+    expect(nestedPreview?.opPost?.cooked, '<p>首页预加载正文</p>');
+    expect(nestedPreview?.roots, isEmpty);
+    expect(nestedPreview?.isLoadingMore, isTrue);
+    expect(nestedPreview?.hasMoreRoots, isTrue);
+  });
+
   test('preview entry without explicit target starts from first post', () {
     expect(
       resolveInitialFlatPostNumber(

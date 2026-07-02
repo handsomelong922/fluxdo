@@ -70,15 +70,14 @@ void main() {
       );
     });
 
-    test('preview entry defaults to flat view even when nested preference is on', () {
+    test('preview entry keeps nested preference when enabled', () {
       expect(
         resolveInitialNestedView(
           initialNestedView: null,
           restoredNestedView: true,
           preferenceNestedView: true,
-          hasInitialPreview: true,
         ),
-        isFalse,
+        isTrue,
       );
     });
 
@@ -102,7 +101,6 @@ void main() {
             initialNestedView: true,
             restoredNestedView: false,
             preferenceNestedView: false,
-            hasInitialPreview: true,
           ),
           isTrue,
         );

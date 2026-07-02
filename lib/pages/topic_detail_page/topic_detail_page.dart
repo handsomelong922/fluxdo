@@ -143,10 +143,8 @@ bool resolveInitialNestedView({
   required bool? initialNestedView,
   required bool? restoredNestedView,
   required bool preferenceNestedView,
-  bool hasInitialPreview = false,
 }) {
   if (initialNestedView != null) return initialNestedView;
-  if (hasInitialPreview) return false;
   return restoredNestedView ?? preferenceNestedView;
 }
 
@@ -205,6 +203,19 @@ TopicDetail buildTopicDetailPreviewFromTopic({
         ? topic.bookmarkReminderAt
         : null,
     hasAcceptedAnswer: topic.hasAcceptedAnswer,
+  );
+}
+
+@visibleForTesting
+NestedTopicState? buildInitialNestedPreviewState(TopicDetail detail) {
+  final previewPost = detail.postStream.posts.firstOrNull;
+  if (previewPost == null || previewPost.postNumber != 1) return null;
+  return NestedTopicState(
+    topicJson: {'title': detail.title},
+    opPost: previewPost,
+    roots: const [],
+    hasMoreRoots: true,
+    isLoadingMore: true,
   );
 }
 
@@ -409,7 +420,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       preferenceNestedView: ref
           .read(preferencesProvider)
           .defaultNestedTopicView,
-      hasInitialPreview: _canShowInitialPreview,
     );
     _pendingNestedRestorePostNumber = resolveInitialPendingNestedPostNumber(
       isNestedView: _isNestedView,
@@ -1868,111 +1878,112 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       final nestedParams = NestedTopicParams(topicId: widget.topicId);
       final AsyncValue<NestedTopicState> nestedAsync =
           primedNestedAsync ?? ref.watch(nestedTopicProvider(nestedParams));
+      Widget buildNestedView(NestedTopicState nestedState) => NestedPostList(
+        nestedState: nestedState,
+        params: nestedParams,
+        detail: detail,
+        blockedUsernames: blockedUsernames,
+        topicId: widget.topicId,
+        scrollController: _controller.scrollController,
+        headerKey: _headerKey,
+        topContentInset: topContentInset,
+        topBoundaryHeight: _topicDetailToolbarHeight,
+        isLoggedIn: isLoggedIn,
+        onReply: _handleReply,
+        onReplyWithInitialContent: (replyToPost, initialContent) =>
+            _handleReply(replyToPost, initialContent: initialContent),
+        onEdit: _handleEdit,
+        onRefreshPost: _handleRefreshPost,
+        onJumpToPost: (postNumber) =>
+            _scrollToPost(postNumber, preserveNestedView: true),
+        onVoteChanged: _handleVoteChanged,
+        onSharedIssueChanged: _handleSharedIssueChanged,
+        onNotificationLevelChanged: (level) =>
+            _handleNotificationLevelChanged(notifier, level),
+        onSolutionChanged: _handleSolutionChanged,
+        onScrollNotification: _controller.handleScrollNotification,
+        onPointerScroll: _controller.handlePointerScroll,
+        onPostNumberScrollIndexMappingChanged: (mapping) {
+          _nestedPostNumberToScrollIndex = mapping;
+          final pendingPostNumber = _pendingNestedRestorePostNumber;
+          final scrollIndex = pendingPostNumber == null
+              ? null
+              : mapping[pendingPostNumber];
+          if (pendingPostNumber != null && scrollIndex != null) {
+            _pendingNestedRestorePostNumber = null;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              unawaited(
+                _controller.scrollController.scrollToIndex(
+                  scrollIndex,
+                  preferPosition: AutoScrollPosition.middle,
+                  duration: const Duration(milliseconds: 1),
+                ),
+              );
+              _controller.updateCurrentPostNumber(pendingPostNumber);
+              _controller.clearJumpTarget();
+              if (!_controller.isPositioned) {
+                _controller.markPositioned();
+              }
+              if (!_controller.skipNextJumpHighlight) {
+                _controller.triggerHighlight(pendingPostNumber);
+              }
+              _controller.skipNextJumpHighlight = false;
+              ref
+                      .read(detailScrollPositionProvider(widget.topicId).notifier)
+                      .state =
+                  pendingPostNumber;
+            });
+          } else if (pendingPostNumber != null && nestedState.hasMoreRoots) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              final latest = ref.read(nestedTopicProvider(nestedParams)).value;
+              if (latest == null ||
+                  !latest.hasMoreRoots ||
+                  latest.isLoadingMore) {
+                return;
+              }
+              unawaited(
+                ref.read(nestedTopicProvider(nestedParams).notifier).loadMoreRoots(),
+              );
+            });
+          } else if (pendingPostNumber != null &&
+              !nestedState.hasMoreRoots &&
+              !nestedState.isLoadingMore) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              _pendingNestedRestorePostNumber = null;
+              _controller.clearJumpTarget();
+              if (!_controller.isPositioned) {
+                _controller.markPositioned();
+              }
+              if (!_controller.skipNextJumpHighlight) {
+                _controller.triggerHighlight(pendingPostNumber);
+              }
+              _controller.skipNextJumpHighlight = false;
+            });
+          }
+        },
+        onContinueAiSummary: _continueAiSummary,
+        onFirstVisiblePostChanged: _updateStreamIndexForPostNumber,
+        onVisiblePostsChanged: _updateVisiblePosts,
+        expandedPostNumbers: _nestedExpandedPostNumbers,
+        searchHighlightQuery: searchHighlightQuery,
+      );
 
       Widget nestedView = nestedAsync.when(
-        loading: () => PostListSkeleton(
-          withHeader: true,
-          animate: !reduceLoadingAnimations,
-        ),
+        loading: () {
+          final previewNestedState = buildInitialNestedPreviewState(detail);
+          if (previewNestedState != null) {
+            return buildNestedView(previewNestedState);
+          }
+          return PostListSkeleton(
+            withHeader: true,
+            animate: !reduceLoadingAnimations,
+          );
+        },
         error: (e, s) => Center(child: Text('$e')),
-        data: (nestedState) => NestedPostList(
-          nestedState: nestedState,
-          params: nestedParams,
-          detail: detail,
-          blockedUsernames: blockedUsernames,
-          topicId: widget.topicId,
-          scrollController: _controller.scrollController,
-          headerKey: _headerKey,
-          topContentInset: topContentInset,
-          topBoundaryHeight: _topicDetailToolbarHeight,
-          isLoggedIn: isLoggedIn,
-          onReply: _handleReply,
-          onReplyWithInitialContent: (replyToPost, initialContent) =>
-              _handleReply(replyToPost, initialContent: initialContent),
-          onEdit: _handleEdit,
-          onRefreshPost: _handleRefreshPost,
-          onJumpToPost: (postNumber) =>
-              _scrollToPost(postNumber, preserveNestedView: true),
-          onVoteChanged: _handleVoteChanged,
-          onSharedIssueChanged: _handleSharedIssueChanged,
-          onNotificationLevelChanged: (level) =>
-              _handleNotificationLevelChanged(notifier, level),
-          onSolutionChanged: _handleSolutionChanged,
-          onScrollNotification: _controller.handleScrollNotification,
-          onPointerScroll: _controller.handlePointerScroll,
-          onPostNumberScrollIndexMappingChanged: (mapping) {
-            _nestedPostNumberToScrollIndex = mapping;
-            final pendingPostNumber = _pendingNestedRestorePostNumber;
-            final scrollIndex = pendingPostNumber == null
-                ? null
-                : mapping[pendingPostNumber];
-            if (pendingPostNumber != null && scrollIndex != null) {
-              _pendingNestedRestorePostNumber = null;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                unawaited(
-                  _controller.scrollController.scrollToIndex(
-                    scrollIndex,
-                    preferPosition: AutoScrollPosition.middle,
-                    duration: const Duration(milliseconds: 1),
-                  ),
-                );
-                _controller.updateCurrentPostNumber(pendingPostNumber);
-                _controller.clearJumpTarget();
-                if (!_controller.isPositioned) {
-                  _controller.markPositioned();
-                }
-                if (!_controller.skipNextJumpHighlight) {
-                  _controller.triggerHighlight(pendingPostNumber);
-                }
-                _controller.skipNextJumpHighlight = false;
-                ref
-                        .read(
-                          detailScrollPositionProvider(widget.topicId).notifier,
-                        )
-                        .state =
-                    pendingPostNumber;
-              });
-            } else if (pendingPostNumber != null && nestedState.hasMoreRoots) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                final latest = ref
-                    .read(nestedTopicProvider(nestedParams))
-                    .value;
-                if (latest == null ||
-                    !latest.hasMoreRoots ||
-                    latest.isLoadingMore) {
-                  return;
-                }
-                unawaited(
-                  ref
-                      .read(nestedTopicProvider(nestedParams).notifier)
-                      .loadMoreRoots(),
-                );
-              });
-            } else if (pendingPostNumber != null &&
-                !nestedState.hasMoreRoots &&
-                !nestedState.isLoadingMore) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                _pendingNestedRestorePostNumber = null;
-                _controller.clearJumpTarget();
-                if (!_controller.isPositioned) {
-                  _controller.markPositioned();
-                }
-                if (!_controller.skipNextJumpHighlight) {
-                  _controller.triggerHighlight(pendingPostNumber);
-                }
-                _controller.skipNextJumpHighlight = false;
-              });
-            }
-          },
-          onContinueAiSummary: _continueAiSummary,
-          onFirstVisiblePostChanged: _updateStreamIndexForPostNumber,
-          onVisiblePostsChanged: _updateVisiblePosts,
-          expandedPostNumbers: _nestedExpandedPostNumbers,
-          searchHighlightQuery: searchHighlightQuery,
-        ),
+        data: buildNestedView,
       );
 
       return _wrapWithConstraint(nestedView);

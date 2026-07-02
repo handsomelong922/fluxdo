@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/search_result.dart';
 import '../../models/topic.dart';
+import '../../providers/home_topic_excerpt_provider.dart';
 import '../../providers/preferences_provider.dart';
 import '../../utils/html_excerpt.dart';
 import '../topic/topic_card.dart';
@@ -12,7 +13,12 @@ String? searchPostPreviewHtml(SearchPost post) {
   return blurb.isEmpty ? null : post.blurb;
 }
 
-Topic searchPostToTopicPreview(SearchPost post) {
+String? searchPostDetailFallbackHtml(SearchPost post) {
+  if (post.postNumber != 1) return null;
+  return searchPostPreviewHtml(post);
+}
+
+Topic searchPostToTopicPreview(SearchPost post, {String? excerptHtml}) {
   final searchTopic = post.topic;
   final title = searchTopic?.title ?? '';
   final slug = searchTopic?.slug ?? '';
@@ -28,7 +34,7 @@ Topic searchPostToTopicPreview(SearchPost post) {
     replyCount: (postsCount - 1).clamp(0, 999999).toInt(),
     views: searchTopic?.views ?? 0,
     likeCount: post.likeCount,
-    excerpt: searchPostPreviewHtml(post),
+    excerpt: excerptHtml ?? searchPostPreviewHtml(post),
     createdAt: createdAt,
     lastPostedAt: createdAt,
     lastPosterUsername: post.username,
@@ -48,6 +54,45 @@ Topic searchPostToTopicPreview(SearchPost post) {
         ),
       ),
     ],
+  );
+}
+
+class SearchTopicDetailPreview {
+  const SearchTopicDetailPreview({
+    required this.topic,
+    required this.firstPostHtml,
+  });
+
+  final Topic topic;
+  final String? firstPostHtml;
+}
+
+Future<SearchTopicDetailPreview> resolveSearchTopicDetailPreview({
+  required HomeTopicExcerptLoader loader,
+  required SearchPost post,
+  Duration waitForFirstPost = const Duration(milliseconds: 250),
+}) async {
+  final searchTopic = post.topic;
+  String? firstPostHtml;
+  if (searchTopic != null) {
+    firstPostHtml = loader.peekCached(searchTopic.id);
+    final needsFetch = firstPostHtml == null || firstPostHtml.trim().isEmpty;
+    if (needsFetch) {
+      firstPostHtml = await loader.load(searchTopic.id).timeout(
+        waitForFirstPost,
+        onTimeout: () => null,
+      );
+    }
+  }
+
+  final fallbackHtml = searchPostDetailFallbackHtml(post);
+  final previewHtml = (firstPostHtml?.trim().isNotEmpty ?? false)
+      ? firstPostHtml
+      : fallbackHtml;
+
+  return SearchTopicDetailPreview(
+    topic: searchPostToTopicPreview(post, excerptHtml: previewHtml),
+    firstPostHtml: previewHtml,
   );
 }
 

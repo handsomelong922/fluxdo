@@ -60,6 +60,60 @@ void main() {
     expect(searchPostToTopicPreview(post).excerpt, isNull);
   });
 
+  test('searchPostDetailFallbackHtml only uses blurb for first-post hits', () {
+    final firstPost = SearchPost(
+      id: 1,
+      username: 'tester',
+      avatarTemplate: '/user_avatar/example/{size}/1.png',
+      createdAt: DateTime.now(),
+      likeCount: 0,
+      blurb: '<p>主帖摘要</p>',
+      postNumber: 1,
+    );
+    final replyHit = SearchPost(
+      id: 2,
+      username: 'tester',
+      avatarTemplate: '/user_avatar/example/{size}/1.png',
+      createdAt: DateTime.now(),
+      likeCount: 0,
+      blurb: '<p>回复命中片段</p>',
+      postNumber: 8,
+    );
+
+    expect(searchPostDetailFallbackHtml(firstPost), '<p>主帖摘要</p>');
+    expect(searchPostDetailFallbackHtml(replyHit), isNull);
+  });
+
+  test('searchPostToTopicPreview accepts explicit first-post html override', () {
+    final createdAt = DateTime.now();
+    final post = SearchPost(
+      id: 1,
+      username: 'tester',
+      avatarTemplate: '/user_avatar/example/{size}/1.png',
+      createdAt: createdAt,
+      likeCount: 5,
+      blurb: '<p>搜索命中片段</p>',
+      postNumber: 3,
+      topic: SearchTopic(
+        id: 9,
+        title: '搜索结果标题',
+        slug: 'search-topic',
+        tags: const [Tag(id: 1, name: 'flutter')],
+        postsCount: 12,
+        views: 99,
+        closed: false,
+        archived: false,
+      ),
+    );
+
+    final topic = searchPostToTopicPreview(
+      post,
+      excerptHtml: '<p>真实主帖正文</p>',
+    );
+
+    expect(topic.excerpt, '<p>真实主帖正文</p>');
+  });
+
   testWidgets('SearchPostCard keeps home-style meta info on the right side', (
     tester,
   ) async {

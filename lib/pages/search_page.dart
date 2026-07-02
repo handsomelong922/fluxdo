@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/discourse_providers.dart';
+import '../providers/home_topic_excerpt_provider.dart';
 import '../models/search_filter.dart';
 import '../models/search_result.dart';
 import '../services/preloaded_data_service.dart';
@@ -440,14 +441,19 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
     FocusManager.instance.primaryFocus?.unfocus();
     _focusNode.unfocus();
+    final detailPreview = await resolveSearchTopicDetailPreview(
+      loader: ref.read(homeTopicExcerptLoaderProvider),
+      post: searchPost,
+    );
+    if (!mounted) return;
     await Navigator.push(
       context,
       buildTopicDetailRoute<void>(
         topicId: topic.id,
         initialTitle: topic.title,
         scrollToPostNumber: searchPost.postNumber,
-        initialTopicPreview: searchPostToTopicPreview(searchPost),
-        initialFirstPostHtml: searchPostPreviewHtml(searchPost),
+        initialTopicPreview: detailPreview.topic,
+        initialFirstPostHtml: detailPreview.firstPostHtml,
       ),
     );
     if (mounted) {

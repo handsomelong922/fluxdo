@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/s.dart';
+import '../../providers/home_topic_excerpt_provider.dart';
 import '../../providers/topic_search_provider.dart';
 import '../common/loading_spinner.dart';
 import '../../services/navigation/topic_detail_route.dart';
@@ -164,16 +167,23 @@ class _TopicSearchViewState extends ConsumerState<TopicSearchView> {
                     // 否则打开新页面
                     final topic = post.topic;
                     if (topic != null) {
-                      Navigator.push(
-                        context,
-                        buildTopicDetailRoute<void>(
-                          topicId: topic.id,
-                          initialTitle: topic.title,
-                          scrollToPostNumber: post.postNumber,
-                          initialTopicPreview: searchPostToTopicPreview(post),
-                          initialFirstPostHtml: searchPostPreviewHtml(post),
-                        ),
-                      );
+                      unawaited(() async {
+                        final detailPreview = await resolveSearchTopicDetailPreview(
+                          loader: ref.read(homeTopicExcerptLoaderProvider),
+                          post: post,
+                        );
+                        if (!context.mounted) return;
+                        await Navigator.push(
+                          context,
+                          buildTopicDetailRoute<void>(
+                            topicId: topic.id,
+                            initialTitle: topic.title,
+                            scrollToPostNumber: post.postNumber,
+                            initialTopicPreview: detailPreview.topic,
+                            initialFirstPostHtml: detailPreview.firstPostHtml,
+                          ),
+                        );
+                      }());
                     }
                   }
                 },

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/s.dart';
 import '../../models/search_filter.dart';
+import '../../providers/home_topic_excerpt_provider.dart';
 import '../../providers/user_content_search_provider.dart';
 import '../../services/settings/content_filter_service.dart';
 import '../../utils/blocked_user_filter.dart';
@@ -289,16 +292,23 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
                 onTap: () {
                   final topic = post.topic;
                   if (topic != null) {
-                    Navigator.push(
-                      context,
-                      buildTopicDetailRoute<void>(
-                        topicId: topic.id,
-                        initialTitle: topic.title,
-                        scrollToPostNumber: post.postNumber,
-                        initialTopicPreview: searchPostToTopicPreview(post),
-                        initialFirstPostHtml: searchPostPreviewHtml(post),
-                      ),
-                    );
+                    unawaited(() async {
+                      final detailPreview = await resolveSearchTopicDetailPreview(
+                        loader: ref.read(homeTopicExcerptLoaderProvider),
+                        post: post,
+                      );
+                      if (!context.mounted) return;
+                      await Navigator.push(
+                        context,
+                        buildTopicDetailRoute<void>(
+                          topicId: topic.id,
+                          initialTitle: topic.title,
+                          scrollToPostNumber: post.postNumber,
+                          initialTopicPreview: detailPreview.topic,
+                          initialFirstPostHtml: detailPreview.firstPostHtml,
+                        ),
+                      );
+                    }());
                   }
                 },
                 onLongPress: enableLongPress
@@ -308,20 +318,27 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
                         onOpen: () {
                           final topic = post.topic;
                           if (topic != null) {
-                            Navigator.push(
-                              context,
-                              buildTopicDetailRoute<void>(
-                                topicId: topic.id,
-                                initialTitle: topic.title,
-                                scrollToPostNumber: post.postNumber,
-                                initialTopicPreview: searchPostToTopicPreview(
-                                  post,
+                            unawaited(() async {
+                              final detailPreview =
+                                  await resolveSearchTopicDetailPreview(
+                                    loader: ref.read(
+                                      homeTopicExcerptLoaderProvider,
+                                    ),
+                                    post: post,
+                                  );
+                              if (!context.mounted) return;
+                              await Navigator.push(
+                                context,
+                                buildTopicDetailRoute<void>(
+                                  topicId: topic.id,
+                                  initialTitle: topic.title,
+                                  scrollToPostNumber: post.postNumber,
+                                  initialTopicPreview: detailPreview.topic,
+                                  initialFirstPostHtml:
+                                      detailPreview.firstPostHtml,
                                 ),
-                                initialFirstPostHtml: searchPostPreviewHtml(
-                                  post,
-                                ),
-                              ),
-                            );
+                              );
+                            }());
                           }
                         },
                       )
