@@ -90,6 +90,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   bool _isLoadMoreFailed = false;
   bool _isLoadPreviousFailed = false;
   String? _cacheUsername;
+  bool _usingPreviewSeed = false;
   String? _filter; // 当前过滤模式（如 'summary' 表示热门回复）
   String? _usernameFilter; // 当前用户名过滤（如只看题主）
   bool _filterTopLevelReplies = false; // 只看顶层回复
@@ -103,6 +104,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   bool get isLoadingMore => _isLoadingMore;
   bool get isLoadMoreFailed => _isLoadMoreFailed;
   bool get isLoadPreviousFailed => _isLoadPreviousFailed;
+  bool get isUsingPreviewSeed => _usingPreviewSeed;
   bool get isSummaryMode => _filter == 'summary';
   bool get isAuthorOnlyMode => _usernameFilter != null;
   bool get isTopLevelMode => _filterTopLevelReplies;
@@ -173,13 +175,13 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   void _cacheTopicDetail(TopicDetail detail) {
     if (_isFilteredMode) return;
     final username = _cacheUsername;
-    if (username == null) return;
     ref
         .read(topicDetailCacheServiceProvider)
         .write(detail, username: username);
   }
 
   void _setDataAndCache(TopicDetail detail) {
+    _usingPreviewSeed = false;
     _cacheTopicDetail(detail);
     state = AsyncValue.data(detail);
   }
@@ -189,6 +191,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
       final detail = await _loadInitialTopicDetailWithRetry(background: true);
       if (!ref.mounted) return;
 
+      _usingPreviewSeed = false;
       _cacheTopicDetail(detail);
       final filteredDetail = _applyUserFilter(detail);
       _updateBoundaryState(
@@ -228,17 +231,17 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     _isLoadMoreFailed = false;
     _isLoadPreviousFailed = false;
     _cacheUsername = ref.read(currentUserProvider).value?.username;
+    _usingPreviewSeed = false;
 
     final cacheService = ref.read(topicDetailCacheServiceProvider);
     final username = _cacheUsername;
-    final cachedEntry = username == null
-        ? null
-        : cacheService.read(
-            arg.topicId,
-            username: username,
-            targetPostNumber: arg.postNumber,
-          );
+    final cachedEntry = cacheService.read(
+      arg.topicId,
+      username: username,
+      targetPostNumber: arg.postNumber,
+    );
     if (cachedEntry != null) {
+      _usingPreviewSeed = cachedEntry.isPreviewSeed;
       final cachedDetail = _applyUserFilter(cachedEntry.detail);
       _updateBoundaryState(
         cachedDetail.postStream.posts,

@@ -57,7 +57,7 @@ Evidence:
 
 ### 4. Validation & Error Matrix
 - Preview + no explicit target -> render first post immediately; fetch the normal first page/window for replies.
-- Preview + explicit target -> render preview immediately; preserve the target post number and position when loaded.
+- Preview + explicit target -> render preview immediately; preserve the target post number and position when loaded, and do not swap back to a global skeleton while waiting for the target window.
 - No preview + explicit target -> existing jump-target skeleton behavior is allowed.
 - Target post missing after load -> use the existing unreachable-target fallback; do not silently jump to the wrong floor.
 

@@ -495,7 +495,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   }
 
   void _seedTopicDetailPreviewCache() {
-    if (widget.scrollToPostNumber != null) return;
     final previewDetail = _initialPreviewDetail;
     if (previewDetail == null) return;
 
@@ -1592,6 +1591,19 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         lastLoadedPostNumber: posts.isEmpty ? null : posts.last.postNumber,
       );
       if (shouldBlock) {
+        if (notifier.isUsingPreviewSeed) {
+          return _buildBodyWithDetail(
+            context,
+            detail,
+            notifier,
+            isLoggedIn,
+            topContentInset: topContentInset,
+            searchHighlightQuery: searchQuery,
+            forceFlatView: true,
+            forceLoadMoreIndicator: true,
+            showTopicOverlay: false,
+          );
+        }
         if (!detailAsync.isLoading) {
           _scheduleUnreachableJumpFallback(jumpTarget);
         }

@@ -59,6 +59,15 @@ void main() {
       expect(cache.shouldRevalidate(seeded), isTrue);
     });
 
+    test('preview seed can bootstrap explicit target routes before target loads', () {
+      cache.writePreviewSeed(_detail(topicId: 42, postNumbers: [1]));
+
+      final seeded = cache.read(42, targetPostNumber: 9);
+      expect(seeded, isNotNull);
+      expect(seeded?.isPreviewSeed, isTrue);
+      expect(seeded?.detail.postStream.posts.single.postNumber, 1);
+    });
+
     test('expires entries after the hard ttl', () {
       cache.write(_detail(topicId: 42, postNumbers: [1]));
 

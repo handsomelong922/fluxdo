@@ -42,7 +42,8 @@ class TopicDetailCacheService {
     final promoted = entry.copyWith(lastAccessedAt: _now());
     _entries[key] = promoted;
 
-    if (!promoted.containsPostNumber(targetPostNumber)) {
+    if (!promoted.containsPostNumber(targetPostNumber) &&
+        !promoted.isPreviewSeed) {
       return null;
     }
 
