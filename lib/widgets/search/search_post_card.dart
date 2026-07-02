@@ -18,7 +18,11 @@ String? searchPostDetailFallbackHtml(SearchPost post) {
   return searchPostPreviewHtml(post);
 }
 
-Topic searchPostToTopicPreview(SearchPost post, {String? excerptHtml}) {
+Topic searchPostToTopicPreview(
+  SearchPost post, {
+  String? excerptHtml,
+  bool allowBlurbFallback = true,
+}) {
   final searchTopic = post.topic;
   final title = searchTopic?.title ?? '';
   final slug = searchTopic?.slug ?? '';
@@ -34,7 +38,7 @@ Topic searchPostToTopicPreview(SearchPost post, {String? excerptHtml}) {
     replyCount: (postsCount - 1).clamp(0, 999999).toInt(),
     views: searchTopic?.views ?? 0,
     likeCount: post.likeCount,
-    excerpt: excerptHtml ?? searchPostPreviewHtml(post),
+    excerpt: excerptHtml ?? (allowBlurbFallback ? searchPostPreviewHtml(post) : null),
     createdAt: createdAt,
     lastPostedAt: createdAt,
     lastPosterUsername: post.username,
@@ -91,7 +95,11 @@ Future<SearchTopicDetailPreview> resolveSearchTopicDetailPreview({
       : fallbackHtml;
 
   return SearchTopicDetailPreview(
-    topic: searchPostToTopicPreview(post, excerptHtml: previewHtml),
+    topic: searchPostToTopicPreview(
+      post,
+      excerptHtml: previewHtml,
+      allowBlurbFallback: false,
+    ),
     firstPostHtml: previewHtml,
   );
 }
