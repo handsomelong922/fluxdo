@@ -225,6 +225,7 @@ Evidence:
 ## Build And Release Verification
 
 - APK release artifacts are normally produced by GitHub Actions, not by local desktop builds.
+- For this workspace/user, local APK and Windows packaging should be treated as unavailable for final verification. Do not ask the user to rely on local packaging here; use GitHub Actions as the authoritative packaging path unless the user says that environment changed.
 - Local Windows workspaces can fail `flutter build apk` before project compilation because of non-ASCII workspace paths, missing Visual Studio C++ `link.exe` for Rust build scripts, Android SDK/NDK differences, or local signing file layout.
 - For APK packaging fixes, use local `flutter analyze`, targeted tests, and the closest build smoke test the machine can support; treat GitHub Actions as the authoritative APK packaging verification.
 - Do not add project configuration such as `android.overridePathCheck=true` only to make one local Windows path build. Prefer fixing repository code and validating through Actions.

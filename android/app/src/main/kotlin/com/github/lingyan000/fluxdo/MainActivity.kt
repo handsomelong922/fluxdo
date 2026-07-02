@@ -796,6 +796,8 @@ class MainActivity : FlutterActivity() {
                 if (targetIntent.resolveActivity(packageManager) != null) {
                     startActivity(targetIntent)
                     true
+                } else {
+                    false
                 }
             } else {
                 // 使用一个通用的 HTTPS URL 来查询默认浏览器
