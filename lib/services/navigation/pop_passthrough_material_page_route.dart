@@ -127,7 +127,7 @@ class PopPassthroughMaterialPageRoute<T> extends MaterialPageRoute<T> {
         : CurvedAnimation(
             parent: animation,
             curve: Curves.easeOutCubic,
-            reverseCurve: Curves.easeInCubic,
+            reverseCurve: Curves.easeOutCubic,
           );
     final textDirection = Directionality.of(context);
     final begin = textDirection == TextDirection.rtl
@@ -143,7 +143,8 @@ class PopPassthroughMaterialPageRoute<T> extends MaterialPageRoute<T> {
 const double _horizontalPopMinDragDistance = 12.0;
 const double _horizontalPopCommitThreshold = 0.68;
 const double _horizontalPopMinFlingVelocity = 0.8;
-const Duration _horizontalPopSettleDuration = Duration(milliseconds: 220);
+const Duration _horizontalPopSettleDuration = Duration(milliseconds: 320);
+const Curve _horizontalPopSettleCurve = Curves.easeOutCubic;
 
 class _HorizontalPopGestureDetector<T> extends StatefulWidget {
   const _HorizontalPopGestureDetector({
@@ -331,7 +332,6 @@ class _HorizontalPopGestureController<T> {
   }
 
   void dragEnd(double velocity) {
-    const curve = Curves.fastEaseInToSlowEaseOut;
     final isCurrent = route.isCurrent;
     final bool shouldRestore;
 
@@ -346,8 +346,8 @@ class _HorizontalPopGestureController<T> {
     if (shouldRestore) {
       _controller.animateTo(
         1.0,
-        duration: _horizontalPopSettleDuration,
-        curve: curve,
+        duration: _settleDurationForTarget(1.0),
+        curve: _horizontalPopSettleCurve,
       );
     } else {
       if (isCurrent) {
@@ -357,8 +357,8 @@ class _HorizontalPopGestureController<T> {
       if (_controller.isAnimating) {
         _controller.animateBack(
           0.0,
-          duration: _horizontalPopSettleDuration,
-          curve: curve,
+          duration: _settleDurationForTarget(0.0),
+          curve: _horizontalPopSettleCurve,
         );
       }
     }
@@ -383,11 +383,10 @@ class _HorizontalPopGestureController<T> {
   }
 
   void cancel() {
-    const curve = Curves.fastEaseInToSlowEaseOut;
     _controller.animateTo(
       1.0,
-      duration: _horizontalPopSettleDuration,
-      curve: curve,
+      duration: _settleDurationForTarget(1.0),
+      curve: _horizontalPopSettleCurve,
     );
 
     late AnimationStatusListener listener;
@@ -398,6 +397,15 @@ class _HorizontalPopGestureController<T> {
       _controller.removeStatusListener(listener);
     };
     _controller.addStatusListener(listener);
+  }
+
+  Duration _settleDurationForTarget(double targetValue) {
+    final distance = (targetValue - _controller.value).abs().clamp(0.0, 1.0);
+    final factor = 0.45 + (distance * 0.55);
+    return Duration(
+      milliseconds: (_horizontalPopSettleDuration.inMilliseconds * factor)
+          .round(),
+    );
   }
 }
 

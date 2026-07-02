@@ -11,6 +11,7 @@ import '../../../widgets/nested/nested_post_card.dart';
 import '../../../widgets/post/post_item/post_item.dart';
 import 'nested_load_more_trigger.dart';
 import 'topic_detail_header.dart';
+import 'topic_linear_loading_indicator.dart';
 
 /// 嵌套视图帖子列表 — 在现有 TopicDetailPage 内替换平铺帖子流
 class NestedPostList extends ConsumerStatefulWidget {
@@ -372,12 +373,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
             ),
 
             if (ns.isRefreshingSort)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: LinearProgressIndicator(minHeight: 2),
-                ),
-              ),
+              const SliverToBoxAdapter(child: TopicLinearLoadingIndicator()),
 
             if (ns.newRootPostIds.isNotEmpty)
               SliverToBoxAdapter(
@@ -451,7 +447,9 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: ns.isLoadingMore
-          ? const Center(child: CircularProgressIndicator())
+          ? const TopicLinearLoadingIndicator(
+              padding: EdgeInsets.symmetric(horizontal: 0),
+            )
           : Center(
               child: TextButton(
                 onPressed: () =>

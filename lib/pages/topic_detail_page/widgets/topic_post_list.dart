@@ -13,12 +13,12 @@ import '../../../utils/blocked_user_filter.dart';
 import '../../../utils/code_selection_context.dart';
 import '../../../utils/responsive.dart';
 import '../../../utils/time_utils.dart';
-import '../../../widgets/common/loading_spinner.dart';
 import '../../../widgets/content/discourse_html_content/chunked/html_chunk.dart';
 import '../../../widgets/post/post_item/post_item.dart';
 import '../../../widgets/post/post_item/quote_selection_helper.dart';
 import '../../../widgets/post/post_item/segmented_long_post.dart';
 import '../../../widgets/post/post_item/widgets/post_footer_section/post_footer_section.dart';
+import 'topic_linear_loading_indicator.dart';
 import 'topic_detail_header.dart';
 import 'typing_indicator.dart';
 
@@ -1230,9 +1230,8 @@ class _LoadMoreIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 16),
-      child: Center(child: LoadingSpinner(size: 24)),
+    return const TopicLinearLoadingIndicator(
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
     );
   }
 }
