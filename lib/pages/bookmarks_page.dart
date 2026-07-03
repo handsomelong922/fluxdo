@@ -14,6 +14,7 @@ import '../services/toast_service.dart';
 import '../utils/blocked_user_filter.dart';
 import '../utils/time_utils.dart';
 import '../utils/html_excerpt.dart';
+import '../utils/responsive.dart';
 import '../widgets/bookmark/bookmark_edit_sheet.dart';
 import '../widgets/search/searchable_app_bar.dart';
 import '../widgets/search/user_content_search_view.dart';
@@ -365,6 +366,7 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
           return ListView.builder(
             key: const PageStorageKey<String>('bookmarks-list'),
             controller: _scrollController,
+            cacheExtent: Responsive.isMobile(context) ? 180.0 : null,
             padding: const EdgeInsets.all(12),
             itemCount: visibleTopics.length + 1,
             itemBuilder: (context, index) {

@@ -6,6 +6,7 @@ import '../models/topic.dart';
 import '../navigation/nav_action_bus.dart';
 import '../providers/user_content_providers.dart';
 import '../providers/preferences_provider.dart';
+import '../utils/responsive.dart';
 import '../widgets/topic/topic_item_builder.dart';
 import '../widgets/topic/topic_list_skeleton.dart';
 import '../widgets/common/error_view.dart';
@@ -250,6 +251,7 @@ class _PrivateMessageTabViewState extends ConsumerState<_PrivateMessageTabView>
           return ListView.builder(
             key: PageStorageKey<String>('pm-list-${widget.filter.name}'),
             controller: _scrollController,
+            cacheExtent: Responsive.isMobile(context) ? 180.0 : null,
             padding: const EdgeInsets.all(12),
             itemCount: topics.length + 1,
             itemBuilder: (context, index) {

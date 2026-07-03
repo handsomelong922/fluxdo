@@ -6,6 +6,7 @@ import '../providers/selected_topic_provider.dart';
 import '../providers/preferences_provider.dart';
 import '../services/settings/content_filter_service.dart';
 import '../utils/pagination_helper.dart';
+import '../utils/responsive.dart';
 import '../widgets/topic/topic_list_skeleton.dart';
 import '../widgets/topic/sort_and_tags_bar.dart';
 import '../widgets/topic/topic_item_builder.dart';
@@ -320,6 +321,7 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage> {
       onRefresh: _loadTopics,
       child: ListView.builder(
         controller: _scrollController,
+        cacheExtent: Responsive.isMobile(context) ? 180.0 : null,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
         itemCount: visibleTopics.length + 1,

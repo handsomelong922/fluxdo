@@ -9,6 +9,7 @@ import '../widgets/search/user_content_search_view.dart';
 import '../widgets/topic/topic_item_builder.dart';
 import '../widgets/topic/topic_list_skeleton.dart';
 import '../providers/preferences_provider.dart';
+import '../utils/responsive.dart';
 import '../widgets/common/error_view.dart';
 import '../l10n/s.dart';
 import '../widgets/desktop_refresh_indicator.dart';
@@ -30,7 +31,9 @@ class _MyTopicsPageState extends ConsumerState<MyTopicsPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    _searchNotifier = ref.read(userContentSearchProvider(SearchInType.created).notifier);
+    _searchNotifier = ref.read(
+      userContentSearchProvider(SearchInType.created).notifier,
+    );
   }
 
   @override
@@ -67,14 +70,18 @@ class _MyTopicsPageState extends ConsumerState<MyTopicsPage> {
   @override
   Widget build(BuildContext context) {
     final myTopicsAsync = ref.watch(myTopicsProvider);
-    final searchState = ref.watch(userContentSearchProvider(SearchInType.created));
+    final searchState = ref.watch(
+      userContentSearchProvider(SearchInType.created),
+    );
 
     return PopScope(
       canPop: !searchState.isSearchMode,
       onPopInvokedWithResult: (bool didPop, dynamic result) {
         if (!didPop) {
           // 搜索模式下按返回键，退出搜索而不是退出页面
-          ref.read(userContentSearchProvider(SearchInType.created).notifier).exitSearchMode();
+          ref
+              .read(userContentSearchProvider(SearchInType.created).notifier)
+              .exitSearchMode();
         }
       },
       child: Scaffold(
@@ -124,9 +131,16 @@ class _MyTopicsPageState extends ConsumerState<MyTopicsPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.article_outlined, size: 64, color: Colors.grey),
+                  const Icon(
+                    Icons.article_outlined,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(height: 16),
-                  Text(context.l10n.myTopics_empty, style: const TextStyle(color: Colors.grey)),
+                  Text(
+                    context.l10n.myTopics_empty,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
                 ],
               ),
             );
@@ -135,6 +149,7 @@ class _MyTopicsPageState extends ConsumerState<MyTopicsPage> {
           return ListView.builder(
             key: const PageStorageKey<String>('my-topics-list'),
             controller: _scrollController,
+            cacheExtent: Responsive.isMobile(context) ? 180.0 : null,
             padding: const EdgeInsets.all(12),
             itemCount: topics.length + 1,
             itemBuilder: (context, index) {
@@ -160,11 +175,18 @@ class _MyTopicsPageState extends ConsumerState<MyTopicsPage> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.refresh, size: 16, color: Theme.of(context).colorScheme.primary),
+                            Icon(
+                              Icons.refresh,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               context.l10n.common_loadFailedTapRetry,
-                              style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.primary),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                             ),
                           ],
                         ),
@@ -182,7 +204,9 @@ class _MyTopicsPageState extends ConsumerState<MyTopicsPage> {
               }
 
               final topic = topics[index];
-              final enableLongPress = ref.watch(preferencesProvider).longPressPreview;
+              final enableLongPress = ref
+                  .watch(preferencesProvider)
+                  .longPressPreview;
               return buildTopicItem(
                 context: context,
                 topic: topic,
@@ -194,11 +218,8 @@ class _MyTopicsPageState extends ConsumerState<MyTopicsPage> {
           );
         },
         loading: () => const TopicListSkeleton(),
-        error: (error, stack) => ErrorView(
-          error: error,
-          stackTrace: stack,
-          onRetry: _onRefresh,
-        ),
+        error: (error, stack) =>
+            ErrorView(error: error, stackTrace: stack, onRetry: _onRefresh),
       ),
     );
   }

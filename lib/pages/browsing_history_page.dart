@@ -6,6 +6,7 @@ import '../navigation/nav_action_bus.dart';
 import '../providers/discourse_providers.dart';
 import '../services/settings/content_filter_service.dart';
 import '../utils/blocked_user_filter.dart';
+import '../utils/responsive.dart';
 import '../providers/user_content_search_provider.dart';
 import '../widgets/search/searchable_app_bar.dart';
 import '../widgets/search/user_content_search_view.dart';
@@ -185,6 +186,7 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
           return ListView.builder(
             key: const PageStorageKey<String>('browsing-history-list'),
             controller: _scrollController,
+            cacheExtent: Responsive.isMobile(context) ? 180.0 : null,
             padding: const EdgeInsets.all(12),
             itemCount: visibleTopics.length + 1,
             itemBuilder: (context, index) {
