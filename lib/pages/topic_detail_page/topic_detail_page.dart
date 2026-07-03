@@ -1903,12 +1903,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                 _controller.triggerHighlight(pendingPostNumber);
               }
               _controller.skipNextJumpHighlight = false;
-              ref
-                      .read(
-                        detailScrollPositionProvider(widget.topicId).notifier,
-                      )
-                      .state =
-                  pendingPostNumber;
+              _updateEmbeddedDetailScrollPosition(pendingPostNumber);
             });
           } else if (pendingPostNumber != null && nestedState.hasMoreRoots) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
