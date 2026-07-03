@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:collection';
+import 'dart:io' show Platform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/topic.dart';
 import '../../../providers/preferences_provider.dart';
@@ -15,7 +16,8 @@ import 'widgets/post_segment_frame.dart';
 import 'widgets/accepted_solution_marker.dart';
 
 class LongPostRenderData {
-  static const int _maxCacheEntries = 128;
+  static final int _maxCacheEntries =
+      Platform.isAndroid || Platform.isIOS ? 48 : 128;
   static final LinkedHashMap<(int, int), LongPostRenderData> _cache =
       LinkedHashMap<(int, int), LongPostRenderData>();
 

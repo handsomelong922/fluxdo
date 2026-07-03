@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'dart:io' show Platform;
 import '../../models/topic.dart';
 import '../../models/category.dart';
 import '../../providers/discourse_providers.dart';
@@ -17,7 +18,8 @@ import '../../utils/number_utils.dart';
 import '../common/emoji_text.dart';
 
 class _TextWidthCache {
-  static const int _maxEntries = 512;
+  static final int _maxEntries =
+      Platform.isAndroid || Platform.isIOS ? 256 : 512;
   static final Map<int, double> _cache = <int, double>{};
 
   static double measure(

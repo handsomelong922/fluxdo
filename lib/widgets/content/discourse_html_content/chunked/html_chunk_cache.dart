@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'dart:io' show Platform;
 import 'html_chunk.dart';
 import 'html_chunker.dart';
 
@@ -15,7 +16,8 @@ class HtmlChunkCache {
   final Map<(int, int), List<HtmlChunk>> _cache = {};
 
   /// 缓存最大条目数
-  static const int _maxCacheSize = 100;
+  static final int _maxCacheSize =
+      Platform.isAndroid || Platform.isIOS ? 48 : 100;
 
   /// 正在解析中的任务
   final Set<(int, int)> _pendingKeys = {};

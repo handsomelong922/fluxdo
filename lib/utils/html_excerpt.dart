@@ -1,5 +1,8 @@
+import 'dart:io' show Platform;
+
 final Map<int, String> _htmlExcerptCache = <int, String>{};
-const int _htmlExcerptCacheMaxEntries = 512;
+final int _htmlExcerptCacheMaxEntries =
+    Platform.isAndroid || Platform.isIOS ? 256 : 512;
 
 String cleanHtmlExcerpt(String html) {
   final key = Object.hash(html.length, html.hashCode);

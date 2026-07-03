@@ -6,6 +6,7 @@
 
 // ignore: depend_on_referenced_packages
 import 'dart:collection';
+import 'dart:io' show Platform;
 
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter/foundation.dart';
@@ -16,7 +17,8 @@ import '../../providers/theme_provider.dart'; // sharedPreferencesProvider
 // CUSTOM: Keyword Filter
 class KeywordFilterNotifier extends StateNotifier<List<String>> {
   static const String _storageKey = 'custom_keyword_filter_patterns';
-  static const int _maxMatchCacheEntries = 512;
+  static final int _maxMatchCacheEntries =
+      Platform.isAndroid || Platform.isIOS ? 256 : 512;
 
   final SharedPreferences _prefs;
   List<RegExp> _compiledPatterns = const <RegExp>[];

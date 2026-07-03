@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:html/parser.dart' as html_parser;
@@ -30,7 +31,8 @@ class GalleryInfo {
 
   /// 全局 LRU 缓存，避免对同一 HTML 重复执行 DOM 解析
   static final Map<(int, int), GalleryInfo> _cache = {};
-  static const int _maxCacheSize = 100;
+  static final int _maxCacheSize =
+      Platform.isAndroid || Platform.isIOS ? 48 : 100;
 
   static void clearCache() {
     _cache.clear();
