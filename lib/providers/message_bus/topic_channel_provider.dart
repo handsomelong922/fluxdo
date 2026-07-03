@@ -1,7 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/message_bus_service.dart';
 import '../../services/discourse/discourse_service.dart';
+import '../../services/log/runtime_log_settings.dart';
 import '../../utils/time_utils.dart';
 import '../discourse_providers.dart';
 import 'message_bus_service_provider.dart';
@@ -32,7 +32,9 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
       final reloadTopic = data['reload_topic'] as bool? ?? false;
       if (reloadTopic) {
         final refreshStream = data['refresh_stream'] as bool? ?? false;
-        debugPrint('[TopicChannel] reload_topic, refreshStream=$refreshStream');
+        runtimeDebugPrint(
+          '[TopicChannel] reload_topic, refreshStream=$refreshStream',
+        );
         state = state.copyWith(
           reloadRequested: true,
           refreshStreamRequested: refreshStream,
@@ -43,7 +45,9 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
       // 2. notification_level_change（通知级别变更）
       final notifLevel = data['notification_level_change'] as int?;
       if (notifLevel != null) {
-        debugPrint('[TopicChannel] notification_level_change: $notifLevel');
+        runtimeDebugPrint(
+          '[TopicChannel] notification_level_change: $notifLevel',
+        );
         state = state.copyWith(notificationLevelChange: notifLevel);
         return;
       }
@@ -53,7 +57,7 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
       final updatedAtStr = data['updated_at'] as String?;
       final updatedAt = TimeUtils.parseUtcTime(updatedAtStr) ?? DateTime.now();
 
-      debugPrint('[TopicChannel] 收到消息: type=$type, postId=$postId');
+      runtimeDebugPrint('[TopicChannel] 收到消息: type=$type, postId=$postId');
 
       switch (type) {
         case 'created':
@@ -151,7 +155,7 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
           break;
 
         case 'remove_allowed_user':
-          debugPrint('[TopicChannel] 用户被移出私信');
+          runtimeDebugPrint('[TopicChannel] 用户被移出私信');
           break;
 
         case 'boost_added':
@@ -199,13 +203,13 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
           break;
 
         default:
-          debugPrint('[TopicChannel] 未知消息类型: $type');
+          runtimeDebugPrint('[TopicChannel] 未知消息类型: $type');
       }
     }
 
     void onPresenceMessage(MessageBusMessage message) {
       final data = message.data;
-      debugPrint('[Presence] 收到消息: $data');
+      runtimeDebugPrint('[Presence] 收到消息: $data');
 
       if (data is! Map<String, dynamic>) return;
 
@@ -263,7 +267,7 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
       final postId = data['post_id'] as int?;
       if (postId == null) return;
 
-      debugPrint('[TopicChannel] 收到 reactions 消息: postId=$postId');
+      runtimeDebugPrint('[TopicChannel] 收到 reactions 消息: postId=$postId');
       _addPostUpdate(postId, TopicMessageType.acted, DateTime.now());
     }
 
@@ -298,7 +302,7 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
   ) async {
     try {
       final presence = await service.getPresence(topicId);
-      debugPrint(
+      runtimeDebugPrint(
         '[Presence] 初始状态: users=${presence.users.length}, messageId=${presence.messageId}',
       );
 
@@ -319,7 +323,7 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
         presence.messageId,
       );
     } catch (e) {
-      debugPrint('[Presence] 初始化失败: $e');
+      runtimeDebugPrint('[Presence] 初始化失败: $e');
       // 订阅已经在 build() 中完成，这里不需要再次订阅
     }
   }

@@ -1,8 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/s.dart';
 import '../../services/message_bus_service.dart';
 import '../../services/local_notification_service.dart';
+import '../../services/log/runtime_log_settings.dart';
 import '../../models/notification.dart';
 import '../../services/settings/content_filter_service.dart';
 import '../../utils/blocked_user_filter.dart';
@@ -63,21 +63,21 @@ class NotificationChannelNotifier extends Notifier<void> {
 
     // 清理之前的订阅
     if (_subscribedChannel != null && _callback != null) {
-      debugPrint('[NotificationChannel] 清理旧订阅: $_subscribedChannel');
+      runtimeDebugPrint('[NotificationChannel] 清理旧订阅: $_subscribedChannel');
       messageBus.unsubscribe(_subscribedChannel!, _callback);
       _subscribedChannel = null;
       _callback = null;
     }
 
     if (currentUser == null) {
-      debugPrint('[NotificationChannel] 用户未登录，跳过订阅');
+      runtimeDebugPrint('[NotificationChannel] 用户未登录，跳过订阅');
       return;
     }
 
     final channel = '/notification/${currentUser.id}';
     final initialMessageId = currentUser.notificationChannelPosition;
 
-    debugPrint(
+    runtimeDebugPrint(
       '[NotificationChannel] 订阅频道: $channel, 初始 messageId: $initialMessageId',
     );
 
@@ -89,7 +89,7 @@ class NotificationChannelNotifier extends Notifier<void> {
         final unreadHighPriority =
             data['unread_high_priority_notifications'] as int?;
 
-        debugPrint(
+        runtimeDebugPrint(
           '[Notification] 计数更新: allUnread=$allUnreadCount, unread=$unreadCount, highPriority=$unreadHighPriority',
         );
 
@@ -131,13 +131,13 @@ class NotificationChannelNotifier extends Notifier<void> {
                     newNotification,
                     blockedUsernames,
                   )) {
-                    debugPrint(
+                    runtimeDebugPrint(
                       '[Notification] 添加新通知到列表: id=${newNotification.id}',
                     );
                     recentNotifier.addNotification(newNotification);
                   }
                 } catch (e) {
-                  debugPrint('[Notification] 解析新通知失败: $e');
+                  runtimeDebugPrint('[Notification] 解析新通知失败: $e');
                 }
               }
             }
@@ -172,7 +172,7 @@ class NotificationChannelNotifier extends Notifier<void> {
 
     ref.onDispose(() {
       if (_subscribedChannel != null && _callback != null) {
-        debugPrint('[NotificationChannel] 取消订阅频道: $_subscribedChannel');
+        runtimeDebugPrint('[NotificationChannel] 取消订阅频道: $_subscribedChannel');
         messageBus.unsubscribe(_subscribedChannel!, _callback);
       }
     });
@@ -199,25 +199,25 @@ class NotificationAlertChannelNotifier extends Notifier<void> {
 
     // 清理之前的订阅
     if (_subscribedChannel != null && _callback != null) {
-      debugPrint('[NotificationAlert] 清理旧订阅: $_subscribedChannel');
+      runtimeDebugPrint('[NotificationAlert] 清理旧订阅: $_subscribedChannel');
       messageBus.unsubscribe(_subscribedChannel!, _callback);
       _subscribedChannel = null;
       _callback = null;
     }
 
     if (currentUser == null) {
-      debugPrint('[NotificationAlert] 用户未登录，跳过订阅');
+      runtimeDebugPrint('[NotificationAlert] 用户未登录，跳过订阅');
       return;
     }
 
     // Discourse 官方使用 /notification-alert/{userId} 频道触发桌面通知
     final channel = '/notification-alert/${currentUser.id}';
 
-    debugPrint('[NotificationAlert] 订阅频道: $channel');
+    runtimeDebugPrint('[NotificationAlert] 订阅频道: $channel');
 
     void onAlert(MessageBusMessage message) {
       final data = message.data;
-      debugPrint('[NotificationAlert] 收到提醒: $data');
+      runtimeDebugPrint('[NotificationAlert] 收到提醒: $data');
 
       if (data is Map<String, dynamic>) {
         // Discourse payload 格式:
@@ -256,7 +256,7 @@ class NotificationAlertChannelNotifier extends Notifier<void> {
           body = username;
         }
 
-        debugPrint(
+        runtimeDebugPrint(
           '[NotificationAlert] 发送系统通知: title=$title, body=$body, topicId=$topicId, postNumber=$postNumber',
         );
 
@@ -277,7 +277,7 @@ class NotificationAlertChannelNotifier extends Notifier<void> {
 
     ref.onDispose(() {
       if (_subscribedChannel != null && _callback != null) {
-        debugPrint('[NotificationAlert] 取消订阅频道: $_subscribedChannel');
+        runtimeDebugPrint('[NotificationAlert] 取消订阅频道: $_subscribedChannel');
         messageBus.unsubscribe(_subscribedChannel!, _callback);
       }
     });

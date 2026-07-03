@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/message_bus_service.dart';
 import '../../services/preloaded_data_service.dart';
 import '../../services/background/ios_background_fetch.dart';
+import '../../services/log/runtime_log_settings.dart';
 import '../discourse_providers.dart';
 import 'message_bus_service_provider.dart';
 
@@ -110,14 +110,14 @@ class TopicTrackingStateNotifier extends Notifier<Map<int, TrackedTopicState>> {
     }
     // 调试：打印首条数据的字段和计数
     if (states.isNotEmpty) {
-      debugPrint(
+      runtimeDebugPrint(
         '[TopicTrackingState] 首条原始数据 keys: ${states.first.keys.toList()}',
       );
-      debugPrint('[TopicTrackingState] 首条原始数据: ${states.first}');
+      runtimeDebugPrint('[TopicTrackingState] 首条原始数据: ${states.first}');
     }
     final newCount = map.values.where((s) => _isNew(s)).length;
     final unreadCount = map.values.where((s) => _isUnread(s)).length;
-    debugPrint(
+    runtimeDebugPrint(
       '[TopicTrackingState] 从预加载数据初始化 ${map.length} 条追踪状态, new=$newCount, unread=$unreadCount',
     );
     return map;
@@ -137,7 +137,7 @@ class TopicTrackingStateNotifier extends Notifier<Map<int, TrackedTopicState>> {
           })
           .catchError((Object e, StackTrace st) {
             _loadingPreloadedStates = false;
-            debugPrint('[TopicTrackingState] 异步加载预加载追踪状态失败: $e');
+            runtimeDebugPrint('[TopicTrackingState] 异步加载预加载追踪状态失败: $e');
           }),
     );
   }
@@ -182,7 +182,7 @@ class TopicTrackingStateNotifier extends Notifier<Map<int, TrackedTopicState>> {
     if (data is! Map<String, dynamic>) return;
 
     final messageType = data['message_type'] as String?;
-    debugPrint(
+    runtimeDebugPrint(
       '[TopicTrackingState] 处理消息: type=$messageType, channel=${message.channel}, data=$data',
     );
 
@@ -376,7 +376,7 @@ class MessageBusInitNotifier extends Notifier<void> {
 
     // 清理之前的订阅
     if (_allCallbacks.isNotEmpty) {
-      debugPrint('[MessageBusInit] 清理旧订阅: ${_allCallbacks.keys}');
+      runtimeDebugPrint('[MessageBusInit] 清理旧订阅: ${_allCallbacks.keys}');
       for (final entry in _allCallbacks.entries) {
         messageBus.unsubscribe(entry.key, entry.value);
       }
@@ -392,7 +392,7 @@ class MessageBusInitNotifier extends Notifier<void> {
     );
 
     if (currentUser == null) {
-      debugPrint('[MessageBusInit] 用户未登录，仅配置公开频道轮询域名');
+      runtimeDebugPrint('[MessageBusInit] 用户未登录，仅配置公开频道轮询域名');
       return;
     }
 
@@ -404,7 +404,7 @@ class MessageBusInitNotifier extends Notifier<void> {
 
     final meta = metaAsync.value;
     if (meta == null) {
-      debugPrint('[MessageBusInit] topicTrackingStateMeta 未加载');
+      runtimeDebugPrint('[MessageBusInit] topicTrackingStateMeta 未加载');
       return;
     }
 
@@ -412,13 +412,13 @@ class MessageBusInitNotifier extends Notifier<void> {
     // 注意: /notification/ 和 /notification-alert/ 频道由专门的
     // NotificationChannelNotifier 和 NotificationAlertChannelNotifier 管理，
     // 此处只负责话题追踪频道
-    debugPrint('[MessageBusInit] 订阅 ${meta.length} 个频道: ${meta.keys}');
+    runtimeDebugPrint('[MessageBusInit] 订阅 ${meta.length} 个频道: ${meta.keys}');
     for (final entry in meta.entries) {
       final channel = entry.key;
       final messageId = entry.value as int;
 
       void onTopicTracking(MessageBusMessage message) {
-        debugPrint(
+        runtimeDebugPrint(
           '[TopicTracking] 收到消息: ${message.channel} #${message.messageId}',
         );
         // 转发给 TopicTrackingStateNotifier 更新追踪计数
@@ -432,7 +432,7 @@ class MessageBusInitNotifier extends Notifier<void> {
     }
 
     ref.onDispose(() {
-      debugPrint('[MessageBusInit] 取消所有订阅: ${_allCallbacks.keys}');
+      runtimeDebugPrint('[MessageBusInit] 取消所有订阅: ${_allCallbacks.keys}');
       for (final entry in _allCallbacks.entries) {
         messageBus.unsubscribe(entry.key, entry.value);
       }
@@ -531,7 +531,7 @@ class LatestChannelNotifier extends Notifier<TopicListIncomingState> {
         return;
       }
 
-      debugPrint(
+      runtimeDebugPrint(
         '[LatestChannel] incoming +1: type=$messageType, topicId=$topicId, category=$topicCategoryId',
       );
 

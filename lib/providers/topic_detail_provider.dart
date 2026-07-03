@@ -7,6 +7,7 @@ import '../l10n/s.dart';
 import '../models/topic.dart';
 import '../models/user.dart';
 import '../services/preloaded_data_service.dart';
+import '../services/log/runtime_log_settings.dart';
 import '../services/settings/content_filter_service.dart'; // CUSTOM: User Filter
 import '../services/topic_detail_cache_service.dart';
 import 'core_providers.dart';
@@ -201,13 +202,13 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
       );
       state = AsyncValue.data(filteredDetail);
     } catch (e) {
-      debugPrint('[TopicDetailNotifier] 后台刷新缓存话题失败: $e');
+      runtimeDebugPrint('[TopicDetailNotifier] 后台刷新缓存话题失败: $e');
     }
   }
 
   @override
   Future<TopicDetail> build() async {
-    debugPrint(
+    runtimeDebugPrint(
       '[TopicDetailNotifier] build called with topicId=${arg.topicId}, postNumber=${arg.postNumber}',
     );
 
@@ -278,7 +279,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     for (var attempt = 0; attempt < _topicInitialLoadMaxAttempts; attempt++) {
       if (attempt > 0) {
         final delay = _topicInitialLoadRetryDelay(attempt - 1);
-        debugPrint(
+        runtimeDebugPrint(
           '[TopicDetailNotifier] retry initial load '
           'topicId=${arg.topicId}, attempt=${attempt + 1}',
         );

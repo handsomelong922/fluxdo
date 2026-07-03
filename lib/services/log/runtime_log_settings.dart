@@ -54,3 +54,8 @@ class RuntimeLogSettings {
     return false;
   }
 }
+
+void runtimeDebugPrint(String message) {
+  if (!RuntimeLogSettings.emitVerboseConsoleDiagnostics) return;
+  debugPrint(message);
+}
