@@ -195,6 +195,7 @@ class _PostItemState extends ConsumerState<PostItem> {
                   searchHighlightQuery: widget.searchHighlightQuery,
                   post: post,
                   topicId: widget.topicId,
+                  enableSelectionArea: false,
                   onQuoteImage: widget.onQuoteImage,
                   onInternalLinkTap:
                       (topicId, topicSlug, postNumber, {initialNestedView}) {

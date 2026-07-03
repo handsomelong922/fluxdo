@@ -39,6 +39,10 @@ class ChunkedHtmlContent extends StatefulWidget {
   /// 文本选择变化回调
   final void Function(SelectedContent?)? onSelectionChanged;
 
+  /// 是否由当前组件负责包裹 SelectionArea。
+  /// 平铺详情页等已由外层统一提供选择区域的场景可关闭，避免每条短帖再套一层。
+  final bool enableSelectionArea;
+
   /// 自定义右键/长按菜单构建器
   final Widget Function(BuildContext, SelectableRegionState)?
   contextMenuBuilder;
@@ -90,6 +94,7 @@ class ChunkedHtmlContent extends StatefulWidget {
     this.post,
     this.topicId,
     this.onSelectionChanged,
+    this.enableSelectionArea = true,
     this.contextMenuBuilder,
     this.onQuoteImage,
     this.searchHighlightQuery,
@@ -161,6 +166,7 @@ class _ChunkedHtmlContentState extends State<ChunkedHtmlContent> {
         mentionedUsers: widget.mentionedUsers,
         post: widget.post,
         topicId: widget.topicId,
+        enableSelectionArea: widget.enableSelectionArea,
         onSelectionChanged: widget.onSelectionChanged,
         contextMenuBuilder: widget.contextMenuBuilder,
         onQuoteImage: widget.onQuoteImage,
@@ -195,6 +201,14 @@ class _ChunkedHtmlContentState extends State<ChunkedHtmlContent> {
       );
     }
 
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
+    if (!widget.enableSelectionArea) {
+      return content;
+    }
+
     return SelectionArea(
       onSelectionChanged: widget.onSelectionChanged,
       contextMenuBuilder:
@@ -205,10 +219,7 @@ class _ChunkedHtmlContentState extends State<ChunkedHtmlContent> {
               buttonItems: state.contextMenuButtonItems,
             );
           },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
-      ),
+      child: content,
     );
   }
 }
