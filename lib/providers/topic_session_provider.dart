@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// 话题会话状态（仅在当前会话有效）
@@ -20,12 +23,26 @@ class TopicSessionState {
 }
 
 class TopicSessionNotifier extends Notifier<TopicSessionState> {
+  @visibleForTesting
+  static Duration cacheRetention = const Duration(minutes: 3);
   final int topicId;
-  
+
   TopicSessionNotifier(this.topicId);
 
   @override
   TopicSessionState build() {
+    final link = ref.keepAlive();
+    Timer? disposeTimer;
+    ref.onCancel(() {
+      disposeTimer = Timer(cacheRetention, link.close);
+    });
+    ref.onResume(() {
+      disposeTimer?.cancel();
+      disposeTimer = null;
+    });
+    ref.onDispose(() {
+      disposeTimer?.cancel();
+    });
     return const TopicSessionState();
   }
 
@@ -42,6 +59,7 @@ class TopicSessionNotifier extends Notifier<TopicSessionState> {
 
 /// 话题会话状态 Provider
 /// family 参数为 topicId
-final topicSessionProvider = NotifierProvider.family<TopicSessionNotifier, TopicSessionState, int>(
-  TopicSessionNotifier.new,
-);
+final topicSessionProvider = NotifierProvider.family
+    .autoDispose<TopicSessionNotifier, TopicSessionState, int>(
+      TopicSessionNotifier.new,
+    );
