@@ -7,10 +7,12 @@ import '../models/topic.dart';
 class TopicDetailCacheService {
   TopicDetailCacheService({
     int maxEntries = 20,
+    int maxCacheablePosts = 160,
     Duration hardTtl = defaultHardTtl,
     Duration softTtl = defaultSoftTtl,
     DateTime Function()? now,
   }) : _maxEntries = maxEntries < 1 ? 1 : maxEntries,
+       _maxCacheablePosts = maxCacheablePosts < 1 ? 1 : maxCacheablePosts,
        _hardTtl = hardTtl,
        _softTtl = softTtl,
        _now = now ?? DateTime.now;
@@ -19,6 +21,7 @@ class TopicDetailCacheService {
   static const defaultSoftTtl = Duration(minutes: 5);
 
   final int _maxEntries;
+  final int _maxCacheablePosts;
   final Duration _hardTtl;
   final Duration _softTtl;
   final DateTime Function() _now;
@@ -66,8 +69,13 @@ class TopicDetailCacheService {
     if (detail.postStream.posts.isEmpty) return;
 
     final key = _key(detail.id, username);
-    final now = _now();
     _entries.remove(key);
+    if (!isPreviewSeed && detail.postStream.posts.length > _maxCacheablePosts) {
+      _pruneExpired();
+      return;
+    }
+
+    final now = _now();
     _entries[key] = TopicDetailCacheEntry(
       topicId: detail.id,
       username: username,

@@ -87,6 +87,18 @@ void main() {
       expect(cache.read(2), isNull);
       expect(cache.read(3), isNotNull);
     });
+
+    test('skips caching oversized runtime snapshots', () {
+      final oversizedCache = TopicDetailCacheService(
+        maxEntries: 2,
+        maxCacheablePosts: 2,
+        now: () => now,
+      );
+
+      oversizedCache.write(_detail(topicId: 42, postNumbers: [1, 2, 3]));
+
+      expect(oversizedCache.read(42), isNull);
+    });
   });
 }
 
