@@ -360,6 +360,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   Map<int, int> _postNumberToLoadedPostIndex = const {};
   Map<int, int> _postNumberToStreamIndex = const {};
   Map<int, int> _preloadedHtmlHashByPostId = const {};
+  int? _readPostNumbersSourceKey;
+  Set<int> _cachedReadPostNumbers = const <int>{};
 
   String? get _initialPreviewHtml {
     final firstPostHtml = widget.initialFirstPostHtml?.trim();
@@ -2070,6 +2072,17 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     TopicDetail detail,
     Set<int> sessionReadPostNumbers,
   ) {
+    final sourceKey = Object.hash(
+      detail.id,
+      detail.postStream.posts,
+      sessionReadPostNumbers,
+      sessionReadPostNumbers.length,
+    );
+    if (_readPostNumbersSourceKey == sourceKey) {
+      _updateReadPostNumbers(_cachedReadPostNumbers);
+      return;
+    }
+
     final posts = detail.postStream.posts;
     if (posts.isEmpty) return;
     final readPostNumbers = <int>{};
@@ -2079,6 +2092,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       }
     }
     readPostNumbers.addAll(sessionReadPostNumbers);
+    _cachedReadPostNumbers = Set.unmodifiable(readPostNumbers);
+    _readPostNumbersSourceKey = sourceKey;
     _updateReadPostNumbers(readPostNumbers);
   }
 
