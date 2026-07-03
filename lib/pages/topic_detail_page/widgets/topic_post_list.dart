@@ -100,6 +100,7 @@ class TopicPostList extends StatefulWidget {
   /// 高亮指定用户的 boost（从 boost 通知跳转时使用）
   final String? highlightBoostUsername;
   final String? searchHighlightQuery;
+  final bool enableTypingIndicator;
 
   const TopicPostList({
     super.key,
@@ -147,6 +148,7 @@ class TopicPostList extends StatefulWidget {
     this.onExpandHiddenPost,
     this.useReplyDialog = false,
     this.onShowPostDetail,
+    this.enableTypingIndicator = true,
   });
 
   @override
@@ -770,16 +772,18 @@ class _TopicPostListState extends State<TopicPostList> {
                       child: AnimatedSize(
                         duration: const Duration(milliseconds: 200),
                         alignment: Alignment.topCenter,
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            final typingUsers = ref.watch(
-                              topicChannelProvider(
-                                detail.id,
-                              ).select((s) => s.typingUsers),
-                            );
-                            return TypingAvatars(users: typingUsers);
-                          },
-                        ),
+                        child: widget.enableTypingIndicator
+                            ? Consumer(
+                                builder: (context, ref, _) {
+                                  final typingUsers = ref.watch(
+                                    topicChannelProvider(
+                                      detail.id,
+                                    ).select((s) => s.typingUsers),
+                                  );
+                                  return TypingAvatars(users: typingUsers);
+                                },
+                              )
+                            : const SizedBox.shrink(),
                       ),
                     ),
                   ),

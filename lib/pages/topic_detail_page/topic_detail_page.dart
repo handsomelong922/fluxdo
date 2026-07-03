@@ -363,6 +363,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   Map<int, int> _preloadedHtmlHashByPostId = const {};
   int? _readPostNumbersSourceKey;
   Set<int> _cachedReadPostNumbers = const <int>{};
+  ProviderSubscription<TopicChannelState>? _topicChannelSubscription;
+  bool _topicChannelNeedsCatchUp = false;
 
   String? get _initialPreviewHtml {
     final firstPostHtml = widget.initialFirstPostHtml?.trim();
@@ -600,6 +602,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       _syncScreenTrackState(
         reason: _isParentActive ? 'parent_active' : 'parent_inactive',
       );
+      _syncTopicChannelSubscription();
     }
   }
 
@@ -619,6 +622,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _syncScreenTrackState(reason: 'route_subscribed');
+      _syncTopicChannelSubscription();
     });
   }
 
@@ -638,6 +642,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _currentPageNotifier.dispose();
     _controller.scrollController.removeListener(_onScroll);
     _screenTrack.stop();
+    _topicChannelSubscription?.close();
+    _topicChannelSubscription = null;
     _controller.dispose();
     if (PlatformUtils.isDesktop) {
       toggleAiPanelNotifier.removeListener(_onToggleAiPanel);
@@ -678,8 +684,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
   void _setRouteVisible(bool visible, String reason) {
     if (_isRouteVisible == visible) return;
-    _isRouteVisible = visible;
+    setState(() {
+      _isRouteVisible = visible;
+    });
     _syncScreenTrackState(reason: reason);
+    _syncTopicChannelSubscription();
   }
 
   void _syncScreenTrackState({required String reason}) {
@@ -713,6 +722,85 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         'parentActive': _isParentActive,
         'reason': reason,
       });
+    }
+  }
+
+  void _syncTopicChannelSubscription() {
+    final shouldListen = _isRouteVisible && _isParentActive;
+    if (shouldListen) {
+      if (_topicChannelSubscription != null) return;
+      _topicChannelSubscription = ref.listenManual<TopicChannelState>(
+        topicChannelProvider(widget.topicId),
+        _handleTopicChannelState,
+      );
+      if (_topicChannelNeedsCatchUp) {
+        _topicChannelNeedsCatchUp = false;
+        final postNumber = _controller.currentPostNumber ?? 1;
+        unawaited(
+          ref
+              .read(topicDetailProvider(_params).notifier)
+              .refreshWithPostNumber(postNumber),
+        );
+      }
+      return;
+    }
+
+    if (_topicChannelSubscription != null) {
+      _topicChannelSubscription?.close();
+      _topicChannelSubscription = null;
+      _topicChannelNeedsCatchUp = true;
+    }
+  }
+
+  void _handleTopicChannelState(
+    TopicChannelState? previous,
+    TopicChannelState next,
+  ) {
+    if (!mounted) return;
+    final notifier = ref.read(topicDetailProvider(_params).notifier);
+    if (next.reloadRequested && !(previous?.reloadRequested ?? false)) {
+      ref
+          .read(topicChannelProvider(widget.topicId).notifier)
+          .clearReloadRequest();
+      _handleReloadTopic(notifier, next.refreshStreamRequested);
+      return;
+    }
+
+    if (next.notificationLevelChange != null &&
+        previous?.notificationLevelChange != next.notificationLevelChange) {
+      final level = TopicNotificationLevel.fromValue(
+        next.notificationLevelChange!,
+      );
+      ref
+          .read(topicChannelProvider(widget.topicId).notifier)
+          .clearNotificationLevelChange();
+      notifier.updateNotificationLevelLocally(level);
+      return;
+    }
+
+    if (next.statsUpdate != null &&
+        previous?.statsUpdate != next.statsUpdate) {
+      notifier.applyStatsUpdate(next.statsUpdate!);
+      ref
+          .read(topicChannelProvider(widget.topicId).notifier)
+          .clearStatsUpdate();
+    }
+
+    if (next.sharedIssueUpdate != null &&
+        previous?.sharedIssueUpdate != next.sharedIssueUpdate) {
+      notifier.updateSharedIssue(next.sharedIssueUpdate!.count);
+      ref
+          .read(topicChannelProvider(widget.topicId).notifier)
+          .clearSharedIssueUpdate();
+    }
+
+    final prevLen = previous?.postUpdates.length ?? 0;
+    final nextLen = next.postUpdates.length;
+    if (nextLen > prevLen) {
+      final newUpdates = next.postUpdates.sublist(prevLen);
+      for (final update in newUpdates) {
+        _handlePostUpdate(notifier, update);
+      }
     }
   }
 
@@ -1189,60 +1277,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     });
 
     _maybeSwitchToMasterDetail(canShowDetailPane, detail);
-
-    // 监听 MessageBus 事件
-    ref.listen(topicChannelProvider(widget.topicId), (previous, next) {
-      if (!context.mounted) return;
-      // 1. reload_topic（话题状态变更：关闭/打开/固定等）
-      if (next.reloadRequested && !(previous?.reloadRequested ?? false)) {
-        ref
-            .read(topicChannelProvider(widget.topicId).notifier)
-            .clearReloadRequest();
-        _handleReloadTopic(notifier, next.refreshStreamRequested);
-        return;
-      }
-
-      // 2. notification_level_change（通知级别变更）
-      if (next.notificationLevelChange != null &&
-          previous?.notificationLevelChange != next.notificationLevelChange) {
-        final level = TopicNotificationLevel.fromValue(
-          next.notificationLevelChange!,
-        );
-        ref
-            .read(topicChannelProvider(widget.topicId).notifier)
-            .clearNotificationLevelChange();
-        notifier.updateNotificationLevelLocally(level);
-        return;
-      }
-
-      // 3. stats 更新
-      if (next.statsUpdate != null &&
-          previous?.statsUpdate != next.statsUpdate) {
-        notifier.applyStatsUpdate(next.statsUpdate!);
-        ref
-            .read(topicChannelProvider(widget.topicId).notifier)
-            .clearStatsUpdate();
-      }
-
-      // 4. shared_issue 计数更新
-      if (next.sharedIssueUpdate != null &&
-          previous?.sharedIssueUpdate != next.sharedIssueUpdate) {
-        notifier.updateSharedIssue(next.sharedIssueUpdate!.count);
-        ref
-            .read(topicChannelProvider(widget.topicId).notifier)
-            .clearSharedIssueUpdate();
-      }
-
-      // 5. 帖子级别更新（created/revised/deleted/liked 等）
-      final prevLen = previous?.postUpdates.length ?? 0;
-      final nextLen = next.postUpdates.length;
-      if (nextLen > prevLen) {
-        final newUpdates = next.postUpdates.sublist(prevLen);
-        for (final update in newUpdates) {
-          _handlePostUpdate(notifier, update);
-        }
-      }
-    });
 
     // 预解析帖子 HTML
     ref.listen(topicDetailProvider(params), (previous, next) {
@@ -2022,6 +2056,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           onFillGapAfter: (postId) => notifier.fillGapAfter(postId),
           onExpandHiddenPost: (postId) => notifier.expandHiddenPost(postId),
           useReplyDialog: notifier.isTopLevelMode,
+          enableTypingIndicator: _isRouteVisible && _isParentActive,
           onShowPostDetail: (post) => showPostRepliesSheet(
             context: context,
             post: post,
