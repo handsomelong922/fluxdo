@@ -90,11 +90,15 @@ class _SmartAvatarState extends State<SmartAvatar> {
       child =
           _buildSvg(_svgContent!, innerSize) ??
           _buildFallback(fgColor, innerRadius);
-    } else if (AvifImageProvider.isAvifUrl(imageUrl) ||
-        isNativeAnimatedUrl(imageUrl)) {
+    } else if (AvifImageProvider.isAvifUrl(imageUrl)) {
       child = RepaintBoundary(
         child: Image(
-          image: discourseImageProvider(imageUrl),
+          image: AvifImageProvider(
+            imageUrl,
+            cacheManager: _cacheManager,
+            singleFrame: true,
+            targetSize: cacheExtentPx,
+          ),
           width: innerSize,
           height: innerSize,
           fit: BoxFit.cover,
@@ -106,6 +110,21 @@ class _SmartAvatarState extends State<SmartAvatar> {
           errorBuilder: (context, error, stack) =>
               _buildFallback(fgColor, innerRadius),
         ),
+      );
+    } else if (isNativeAnimatedUrl(imageUrl)) {
+      child = CachedNetworkImage(
+        imageUrl: imageUrl,
+        cacheManager: _cacheManager,
+        width: innerSize,
+        height: innerSize,
+        memCacheWidth: cacheExtentPx,
+        memCacheHeight: cacheExtentPx,
+        fit: BoxFit.cover,
+        fadeInDuration: Duration.zero,
+        fadeOutDuration: Duration.zero,
+        placeholder: (context, url) => _buildLoading(fgColor, innerRadius),
+        errorWidget: (context, url, error) =>
+            _buildFallback(fgColor, innerRadius),
       );
     } else {
       final shouldTrySvgFallback = SvgUtils.looksLikeSvgUrl(imageUrl);
