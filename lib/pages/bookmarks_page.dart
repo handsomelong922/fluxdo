@@ -24,6 +24,7 @@ import '../widgets/common/error_view.dart';
 import '../l10n/s.dart';
 import '../widgets/desktop_refresh_indicator.dart';
 import '../services/navigation/topic_detail_route.dart';
+import 'topic_detail_page/widgets/topic_linear_loading_indicator.dart';
 
 /// 我的书签页面
 class BookmarksPage extends ConsumerStatefulWidget {
@@ -414,7 +415,7 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
                 if (bookmarksAsync.isLoading && !bookmarksAsync.hasError) {
                   return const Padding(
                     padding: EdgeInsets.all(16.0),
-                    child: Center(child: CircularProgressIndicator()),
+                    child: TopicLinearLoadingIndicator(),
                   );
                 }
                 return const SizedBox();

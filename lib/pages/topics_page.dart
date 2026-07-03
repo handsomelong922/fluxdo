@@ -27,6 +27,7 @@ import '../widgets/topic/filter_dropdown.dart';
 import '../widgets/topic/topic_item_builder.dart';
 import '../widgets/topic/topic_notification_button.dart';
 import '../widgets/topic/category_tab_manager_sheet.dart';
+import 'topic_detail_page/widgets/topic_linear_loading_indicator.dart';
 import '../widgets/common/tag_selection_sheet.dart';
 import '../navigation/nav_action_bus.dart';
 import '../providers/app_state_refresher.dart';
@@ -1588,7 +1589,12 @@ class _TopicListState extends ConsumerState<_TopicList>
                                 ),
                               )
                             : notifier.hasMore
-                            ? const CircularProgressIndicator()
+                            ? const SizedBox(
+                                width: 140,
+                                child: TopicLinearLoadingIndicator(
+                                  padding: EdgeInsets.zero,
+                                ),
+                              )
                             : Text(
                                 context.l10n.common_noMore,
                                 style: const TextStyle(color: Colors.grey),

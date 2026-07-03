@@ -16,6 +16,7 @@ import '../widgets/common/error_view.dart';
 import '../l10n/s.dart';
 import '../widgets/desktop_refresh_indicator.dart';
 import '../services/navigation/topic_detail_route.dart';
+import 'topic_detail_page/widgets/topic_linear_loading_indicator.dart';
 
 /// 浏览历史页面
 class BrowsingHistoryPage extends ConsumerStatefulWidget {
@@ -234,7 +235,7 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
                 if (historyAsync.isLoading && !historyAsync.hasError) {
                   return const Padding(
                     padding: EdgeInsets.all(16.0),
-                    child: Center(child: CircularProgressIndicator()),
+                    child: TopicLinearLoadingIndicator(),
                   );
                 }
                 return const SizedBox();
