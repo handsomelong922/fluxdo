@@ -368,54 +368,7 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
             itemCount: visibleTopics.length + 1,
             itemBuilder: (context, index) {
               if (index == visibleTopics.length) {
-                final notifier = ref.watch(bookmarksProvider.notifier);
-                if (!notifier.hasMore) {
-                  return Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Center(
-                      child: Text(
-                        context.l10n.common_noMore,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  );
-                }
-                if (notifier.isLoadMoreFailed) {
-                  return Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: () => notifier.retryLoadMore(),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.refresh,
-                              size: 16,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              context.l10n.common_loadFailedTapRetry,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }
-                final isLoadingMore = ref.watch(bookmarksLoadMoreProvider);
-                if (isLoadingMore) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: TopicLinearLoadingIndicator(),
-                  );
-                }
-                return const SizedBox();
+                return const _BookmarksFooter();
               }
 
               final topic = visibleTopics[index];
@@ -442,5 +395,62 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
             ErrorView(error: error, stackTrace: stack, onRetry: _onRefresh),
       ),
     );
+  }
+}
+
+class _BookmarksFooter extends ConsumerWidget {
+  const _BookmarksFooter();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.watch(bookmarksProvider.notifier);
+    final isLoadingMore = ref.watch(bookmarksLoadMoreProvider);
+
+    if (!notifier.hasMore) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: Text(
+            context.l10n.common_noMore,
+            style: const TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+    if (notifier.isLoadMoreFailed) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: GestureDetector(
+            onTap: () => notifier.retryLoadMore(),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.refresh,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  context.l10n.common_loadFailedTapRetry,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    if (isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: TopicLinearLoadingIndicator(),
+      );
+    }
+    return const SizedBox();
   }
 }

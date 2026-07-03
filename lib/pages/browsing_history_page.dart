@@ -188,54 +188,7 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
             itemCount: visibleTopics.length + 1,
             itemBuilder: (context, index) {
               if (index == visibleTopics.length) {
-                final notifier = ref.watch(browsingHistoryProvider.notifier);
-                if (!notifier.hasMore) {
-                  return Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Center(
-                      child: Text(
-                        context.l10n.common_noMore,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  );
-                }
-                if (notifier.isLoadMoreFailed) {
-                  return Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: () => notifier.retryLoadMore(),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.refresh,
-                              size: 16,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              context.l10n.common_loadFailedTapRetry,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }
-                final isLoadingMore = ref.watch(browsingHistoryLoadMoreProvider);
-                if (isLoadingMore) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: TopicLinearLoadingIndicator(),
-                  );
-                }
-                return const SizedBox();
+                return const _BrowsingHistoryFooter();
               }
 
               final topic = visibleTopics[index];
@@ -257,5 +210,62 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
             ErrorView(error: error, stackTrace: stack, onRetry: _onRefresh),
       ),
     );
+  }
+}
+
+class _BrowsingHistoryFooter extends ConsumerWidget {
+  const _BrowsingHistoryFooter();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.watch(browsingHistoryProvider.notifier);
+    final isLoadingMore = ref.watch(browsingHistoryLoadMoreProvider);
+
+    if (!notifier.hasMore) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: Text(
+            context.l10n.common_noMore,
+            style: const TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+    if (notifier.isLoadMoreFailed) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: GestureDetector(
+            onTap: () => notifier.retryLoadMore(),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.refresh,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  context.l10n.common_loadFailedTapRetry,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    if (isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: TopicLinearLoadingIndicator(),
+      );
+    }
+    return const SizedBox();
   }
 }

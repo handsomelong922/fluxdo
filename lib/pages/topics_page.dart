@@ -1581,56 +1581,7 @@ class _TopicListState extends ConsumerState<_TopicList>
 
                   final topicIndex = index - newTopicOffset;
                   if (topicIndex >= topics.length) {
-                    final notifier = ref.watch(
-                      topicListProvider(providerKey).notifier,
-                    );
-                    final isLoadingMore = ref.watch(
-                      topicListLoadMoreProvider(providerKey),
-                    );
-                    return Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Center(
-                        child: notifier.isLoadMoreFailed
-                            ? GestureDetector(
-                                onTap: () => notifier.retryLoadMore(),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.refresh,
-                                      size: 16,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      context.l10n.common_loadFailedTapRetry,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : (notifier.hasMore && isLoadingMore)
-                            ? const SizedBox(
-                                width: 140,
-                                child: TopicLinearLoadingIndicator(
-                                  padding: EdgeInsets.zero,
-                                ),
-                              )
-                            : notifier.hasMore
-                            ? const SizedBox.shrink()
-                            : Text(
-                                context.l10n.common_noMore,
-                                style: const TextStyle(color: Colors.grey),
-                              ),
-                      ),
-                    );
+                    return _TopicListFooter(providerKey: providerKey);
                   }
 
                   final topic = topics[topicIndex];
@@ -1820,6 +1771,59 @@ class _TopicListState extends ConsumerState<_TopicList>
     }
 
     return _HomeExcerptLoader(topicId: topic.id, maxLines: maxLines);
+  }
+}
+
+class _TopicListFooter extends ConsumerWidget {
+  const _TopicListFooter({required this.providerKey});
+
+  final int? providerKey;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.watch(topicListProvider(providerKey).notifier);
+    final isLoadingMore = ref.watch(topicListLoadMoreProvider(providerKey));
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Center(
+        child: notifier.isLoadMoreFailed
+            ? GestureDetector(
+                onTap: () => notifier.retryLoadMore(),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.refresh,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      context.l10n.common_loadFailedTapRetry,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : (notifier.hasMore && isLoadingMore)
+            ? const SizedBox(
+                width: 140,
+                child: TopicLinearLoadingIndicator(
+                  padding: EdgeInsets.zero,
+                ),
+              )
+            : notifier.hasMore
+            ? const SizedBox.shrink()
+            : Text(
+                context.l10n.common_noMore,
+                style: const TextStyle(color: Colors.grey),
+              ),
+      ),
+    );
   }
 }
 
