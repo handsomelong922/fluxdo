@@ -107,6 +107,7 @@ class _SmartAvatarState extends State<SmartAvatar> {
         ),
       );
     } else {
+      final shouldTrySvgFallback = SvgUtils.looksLikeSvgUrl(imageUrl);
       child = CachedNetworkImage(
         imageUrl: imageUrl,
         cacheManager: _cacheManager,
@@ -116,21 +117,23 @@ class _SmartAvatarState extends State<SmartAvatar> {
         fadeInDuration: Duration.zero,
         fadeOutDuration: Duration.zero,
         placeholder: (context, url) => _buildLoading(fgColor, innerRadius),
-        errorWidget: (context, url, error) => _SvgFallbackBuilder(
-          imageUrl: imageUrl,
-          cacheManager: _cacheManager,
-          size: innerSize,
-          onSvgDetected: (detectedSvgContent) {
-            // 缓存 SVG 内容，下次直接渲染。
-            if (mounted) {
-              setState(() {
-                _svgContent = detectedSvgContent;
-                _isSvgDetected = true;
-              });
-            }
-          },
-          fallback: _buildFallback(fgColor, innerRadius),
-        ),
+        errorWidget: (context, url, error) => shouldTrySvgFallback
+            ? _SvgFallbackBuilder(
+                imageUrl: imageUrl,
+                cacheManager: _cacheManager,
+                size: innerSize,
+                onSvgDetected: (detectedSvgContent) {
+                  // 缓存 SVG 内容，下次直接渲染。
+                  if (mounted) {
+                    setState(() {
+                      _svgContent = detectedSvgContent;
+                      _isSvgDetected = true;
+                    });
+                  }
+                },
+                fallback: _buildFallback(fgColor, innerRadius),
+              )
+            : _buildFallback(fgColor, innerRadius),
       );
     }
 

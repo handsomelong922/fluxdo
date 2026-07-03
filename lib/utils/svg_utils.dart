@@ -13,6 +13,15 @@ import 'dart:math' as math;
 class SvgUtils {
   SvgUtils._();
 
+  /// 基于 URL/数据前缀做轻量判断，避免对明显不是 SVG 的资源走昂贵的内容探测。
+  static bool looksLikeSvgUrl(String url) {
+    if (url.isEmpty) return false;
+    final lowerUrl = url.toLowerCase();
+    if (lowerUrl.startsWith('data:image/svg+xml')) return true;
+    if (lowerUrl.contains('.svg')) return true;
+    return lowerUrl.contains('format=svg') || lowerUrl.contains('mime=svg');
+  }
+
   /// 通过文件内容判断是否为 SVG，而不是依赖 URL 后缀。
   static bool isSvgBytes(List<int> bytes) {
     if (bytes.isEmpty) return false;
