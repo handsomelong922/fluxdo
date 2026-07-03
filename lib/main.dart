@@ -1268,7 +1268,13 @@ class _MainPageState extends ConsumerState<MainPage>
               KeyedSubtree(
                 key: ValueKey('nav-entry-${pageEntries[i].id}'),
                 child: _mountedPageIds.contains(pageEntries[i].id)
-                    ? pageEntries[i].pageBuilder!(context, safePageIndex == i)
+                    ? TickerMode(
+                        enabled: safePageIndex == i,
+                        child: pageEntries[i].pageBuilder!(
+                          context,
+                          safePageIndex == i,
+                        ),
+                      )
                     : const SizedBox.shrink(),
               ),
           ],
