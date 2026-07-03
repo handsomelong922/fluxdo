@@ -3,6 +3,7 @@ part of '../post_footer_section.dart';
 extension _PostFooterReplyActions on _PostFooterSectionState {
   Future<void> _loadReplies() async {
     if (_isLoadingRepliesNotifier.value) return;
+    if (_repliesUnavailable) return;
 
     _isLoadingRepliesNotifier.value = true;
     try {
@@ -16,9 +17,14 @@ extension _PostFooterReplyActions on _PostFooterSectionState {
         _isLoadingRepliesNotifier.value = false;
         _emitInlineRepliesState();
       }
-    } on DioException catch (_) {
+    } on DioException catch (e) {
       // 网络错误已由 ErrorInterceptor 处理
       if (mounted) {
+        if (e.response?.statusCode == 404) {
+          _repliesUnavailable = true;
+          _showRepliesNotifier.value = false;
+          _emitInlineRepliesState();
+        }
         _isLoadingRepliesNotifier.value = false;
       }
     } catch (e, s) {
@@ -54,6 +60,10 @@ extension _PostFooterReplyActions on _PostFooterSectionState {
       return;
     }
 
+    if (_repliesUnavailable) {
+      return;
+    }
+
     if (_isLoadingRepliesNotifier.value) return;
 
     _isLoadingRepliesNotifier.value = true;
@@ -65,9 +75,13 @@ extension _PostFooterReplyActions on _PostFooterSectionState {
         _showRepliesNotifier.value = true;
         _emitInlineRepliesState();
       }
-    } on DioException catch (_) {
+    } on DioException catch (e) {
       // 网络错误已由 ErrorInterceptor 处理
       if (mounted) {
+        if (e.response?.statusCode == 404) {
+          _repliesUnavailable = true;
+          _emitInlineRepliesState();
+        }
         _isLoadingRepliesNotifier.value = false;
       }
     } catch (e, s) {

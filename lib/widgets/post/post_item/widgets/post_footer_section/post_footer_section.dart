@@ -40,10 +40,15 @@ part 'actions/reaction_actions.dart';
 part 'actions/reply_actions.dart';
 
 class InlineRepliesState {
-  const InlineRepliesState({required this.replies, required this.showReplies});
+  const InlineRepliesState({
+    required this.replies,
+    required this.showReplies,
+    this.repliesUnavailable = false,
+  });
 
   final List<Post> replies;
   final bool showReplies;
+  final bool repliesUnavailable;
 }
 
 class PostFooterSection extends ConsumerStatefulWidget {
@@ -138,6 +143,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
     false,
   );
   late final ValueNotifier<bool> _showRepliesNotifier;
+  bool _repliesUnavailable = false;
   bool _isAcceptedAnswer = false;
   bool _isTogglingAnswer = false;
   bool _isDeleting = false;
@@ -156,6 +162,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
     super.initState();
     final inlineState = _restorableInlineRepliesState;
     _replies.addAll(inlineState?.replies ?? const []);
+    _repliesUnavailable = inlineState?.repliesUnavailable ?? false;
     _showRepliesNotifier = ValueNotifier<bool>(
       inlineState?.showReplies ?? _shouldAutoExpandReplies,
     )..addListener(_emitInlineRepliesState);
@@ -172,6 +179,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
         final inlineState = _restorableInlineRepliesState;
         _replies.clear();
         _replies.addAll(inlineState?.replies ?? const []);
+        _repliesUnavailable = inlineState?.repliesUnavailable ?? false;
         _showRepliesNotifier.value =
             inlineState?.showReplies ?? _shouldAutoExpandReplies;
         _autoReplyLoadScheduled = false;
@@ -222,6 +230,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
       InlineRepliesState(
         replies: List<Post>.unmodifiable(_replies),
         showReplies: _showRepliesNotifier.value,
+        repliesUnavailable: _repliesUnavailable,
       ),
     );
   }
@@ -229,6 +238,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   void _scheduleAutoLoadReplies() {
     if (!_shouldAutoExpandReplies ||
         _replies.isNotEmpty ||
+        _repliesUnavailable ||
         _isLoadingRepliesNotifier.value ||
         _autoReplyLoadScheduled) {
       return;
@@ -240,6 +250,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
       if (!mounted ||
           !_shouldAutoExpandReplies ||
           _replies.isNotEmpty ||
+          _repliesUnavailable ||
           _isLoadingRepliesNotifier.value) {
         return;
       }
