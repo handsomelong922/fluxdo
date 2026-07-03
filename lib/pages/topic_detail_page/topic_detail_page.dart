@@ -404,6 +404,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _topicPage,
   );
   bool _aiPageInitialized = false;
+  bool _retainTopicAiProvider = false;
   bool _aiGuideChecked = false;
   // 缓存清理快捷键的回调，避免在 dispose 中使用 ref.read
   VoidCallback? _clearShortcuts;
@@ -555,6 +556,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
     _controller.scrollController.addListener(_onScroll);
     _pageController = PageController(initialPage: _topicPage);
+    _retainTopicAiProvider =
+        widget.autoOpenAiChat || widget.initialSessionId != null;
 
     // 桌面端：注册 J/K 帖子导航 + AI 面板切换
     if (PlatformUtils.isDesktop) {
@@ -592,6 +595,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
   void _onToggleAiPanel() {
     if (!mounted) return;
+    if (!_retainTopicAiProvider) {
+      setState(() {
+        _retainTopicAiProvider = true;
+      });
+    }
     final swipeMode = ref.read(preferencesProvider).aiSwipeEntry;
     if (swipeMode) {
       // 滑动模式：PageView 切换
@@ -1410,7 +1418,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     );
 
     // 保持 AI 聊天 provider 存活，避免 BottomSheet 关闭后状态丢失
-    if (hasAiModel) {
+    if (hasAiModel && _retainTopicAiProvider) {
       ref.watch(topicAiChatProvider(widget.topicId));
     }
 
@@ -1530,9 +1538,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             : const ClampingScrollPhysics(),
         onPageChanged: (page) {
           _currentPageNotifier.value = page;
-          if (page == _aiPage && !_aiPageInitialized) {
+          if (page == _aiPage && (!_aiPageInitialized || !_retainTopicAiProvider)) {
             setState(() {
               _aiPageInitialized = true;
+              _retainTopicAiProvider = true;
             });
           }
           // 离开 AI 页面时取消输入框焦点，防止返回时键盘意外弹出
@@ -1589,6 +1598,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   }
 
   void _showAiAssistantSheet(TopicDetail detail) {
+    if (!_retainTopicAiProvider) {
+      setState(() {
+        _retainTopicAiProvider = true;
+      });
+    }
     // 在 modal 外部获取状态栏高度，因为 showModalBottomSheet 会清零 padding.top
     final topPadding = MediaQuery.of(context).padding.top;
     showAppBottomSheet(
