@@ -102,6 +102,7 @@ class TopicCard extends ConsumerWidget {
     );
     final badgeSize = denseMetadata ? BadgeSize.dense : BadgeSize.compact;
     final badgeLineHeight = denseMetadata ? 21.0 : 24.0;
+    final isMobile = Responsive.isMobile(context);
     // 依赖头像策略开关，确保切换“优先静态头像”后卡片立即重建。
     ref.watch(preferencesProvider.select((p) => p.preferStaticAvatars));
     final hideTopicListAvatars = ref.watch(
@@ -112,9 +113,7 @@ class TopicCard extends ConsumerWidget {
     // 全部读完：进入过话题且没有未读帖子
     final isFullyRead =
         !topic.unseen && topic.unread == 0 && topic.lastReadPostNumber != null;
-    final readOpacity = Responsive.isMobile(context)
-        ? 1.0
-        : (isFullyRead ? 0.5 : 1.0);
+    final readOpacity = isMobile ? 1.0 : (isFullyRead ? 0.5 : 1.0);
 
     // 获取分类信息
     final categoryMap = ref.watch(categoryMapProvider).value;
@@ -204,6 +203,7 @@ class TopicCard extends ConsumerWidget {
                           context,
                           showReplyOrUnread: showReplyOrUnread,
                           showLike: showLike,
+                          isMobile: isMobile,
                         ),
                       ],
                     ),
@@ -334,8 +334,16 @@ class TopicCard extends ConsumerWidget {
     BuildContext context, {
     required bool showReplyOrUnread,
     required bool showLike,
+    required bool isMobile,
   }) {
     final theme = Theme.of(context);
+    final topicTime = topic.createdAt ?? topic.lastPostedAt;
+    final timeText = Text(
+      TimeUtils.formatRelativeTime(topicTime),
+      style: theme.textTheme.labelSmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+      ),
+    );
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 58, maxWidth: 88),
       child: Column(
@@ -362,30 +370,14 @@ class TopicCard extends ConsumerWidget {
                     ),
                     const SizedBox(width: 5),
                   ],
-                  Builder(
-                    builder: (context) {
-                      final timeText = Text(
-                        TimeUtils.formatRelativeTime(
-                          topic.createdAt ?? topic.lastPostedAt,
-                        ),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant.withValues(
-                            alpha: 0.7,
-                          ),
-                        ),
-                      );
-                      if (Responsive.isMobile(context)) {
-                        return timeText;
-                      }
-                      return Tooltip(
-                        message: TimeUtils.formatTooltipTime(
-                          topic.createdAt ?? topic.lastPostedAt,
-                        ),
-                        preferBelow: true,
-                        child: timeText,
-                      );
-                    },
-                  ),
+                  if (isMobile)
+                    timeText
+                  else
+                    Tooltip(
+                      message: TimeUtils.formatTooltipTime(topicTime),
+                      preferBelow: true,
+                      child: timeText,
+                    ),
                 ],
               ),
             ),
