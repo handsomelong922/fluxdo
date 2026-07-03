@@ -303,7 +303,7 @@ extension LoadingMethods on TopicDetailNotifier {
     } catch (e) {
       // 失败时将 post IDs 放回队列
       _pendingNewPostIds.insertAll(0, postIds);
-      debugPrint('[TopicDetail] 加载新回复失败: $e');
+      runtimeDebugPrint('[TopicDetail] 加载新回复失败: $e');
     } finally {
       _isLoadingNewPosts = false;
       // 如果在加载期间又有新帖子进入队列，继续加载
@@ -436,7 +436,7 @@ extension LoadingMethods on TopicDetailNotifier {
         (p) => p.postNumber == postNumber,
       );
     } catch (e) {
-      debugPrint('[TopicDetail] 加载帖子 #$postNumber 失败: $e');
+      runtimeDebugPrint('[TopicDetail] 加载帖子 #$postNumber 失败: $e');
       return -1;
     }
   }

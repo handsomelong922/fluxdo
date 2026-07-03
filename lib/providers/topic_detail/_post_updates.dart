@@ -64,7 +64,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
 
       _applyPostUpdate(postId, updatedPost, preserveCooked: preserveCooked);
     } catch (e) {
-      debugPrint('[TopicDetail] 刷新帖子 $postId 失败: $e');
+      runtimeDebugPrint('[TopicDetail] 刷新帖子 $postId 失败: $e');
     } finally {
       _pendingRefresh.remove(postId);
       // 在途期间有新消息到达 → 自动重试一次获取最新状态
@@ -394,7 +394,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
         currentDetail.copyWith(notificationLevel: level),
       );
     } catch (e) {
-      debugPrint('[TopicDetail] 更新订阅级别失败: $e');
+      runtimeDebugPrint('[TopicDetail] 更新订阅级别失败: $e');
       rethrow;
     }
   }
@@ -537,7 +537,7 @@ extension PostUpdateMethods on TopicDetailNotifier {
         ),
       );
     } catch (e) {
-      debugPrint('[TopicDetail] reloadTopicMetadata 失败: $e');
+      runtimeDebugPrint('[TopicDetail] reloadTopicMetadata 失败: $e');
     }
   }
 }

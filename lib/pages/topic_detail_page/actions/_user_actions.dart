@@ -310,7 +310,7 @@ extension _UserActions on _TopicDetailPageState {
           );
         }
       } on DioException catch (e) {
-        debugPrint('[TopicDetail] 添加书签失败: $e');
+        runtimeDebugPrint('[TopicDetail] 添加书签失败: $e');
       } catch (e, s) {
         AppErrorHandler.handleUnexpected(e, s);
       }
@@ -383,7 +383,7 @@ extension _UserActions on _TopicDetailPageState {
       }
     } on DioException catch (e) {
       // 网络错误已由 ErrorInterceptor 处理
-      debugPrint('[TopicDetail] 更新订阅级别失败: $e');
+      runtimeDebugPrint('[TopicDetail] 更新订阅级别失败: $e');
     } catch (e, s) {
       AppErrorHandler.handleUnexpected(e, s);
     }
@@ -609,7 +609,7 @@ extension _UserActions on _TopicDetailPageState {
           .read(nestedTopicProvider(nestedParams).notifier)
           .addNewPost(post, isOwnPost: isOwnPost);
     } catch (e) {
-      debugPrint('[TopicDetail] 树形视图加载新回复失败: $e');
+      runtimeDebugPrint('[TopicDetail] 树形视图加载新回复失败: $e');
     }
   }
 

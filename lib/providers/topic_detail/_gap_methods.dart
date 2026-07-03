@@ -78,7 +78,7 @@ extension GapMethods on TopicDetailNotifier {
         ),
       );
     } catch (e) {
-      debugPrint('[TopicDetail] fillGapBefore($postId) 失败: $e');
+      runtimeDebugPrint('[TopicDetail] fillGapBefore($postId) 失败: $e');
     }
   }
 
@@ -155,7 +155,7 @@ extension GapMethods on TopicDetailNotifier {
         ),
       );
     } catch (e) {
-      debugPrint('[TopicDetail] fillGapAfter($postId) 失败: $e');
+      runtimeDebugPrint('[TopicDetail] fillGapAfter($postId) 失败: $e');
     }
   }
 
@@ -194,7 +194,7 @@ extension GapMethods on TopicDetailNotifier {
         (post) => post.copyWith(cooked: cooked, cookedHidden: false),
       );
     } catch (e) {
-      debugPrint('[TopicDetail] expandHiddenPost($postId) 失败: $e');
+      runtimeDebugPrint('[TopicDetail] expandHiddenPost($postId) 失败: $e');
     }
   }
 }

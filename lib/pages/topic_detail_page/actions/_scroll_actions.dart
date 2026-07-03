@@ -139,7 +139,7 @@ extension _ScrollActions on _TopicDetailPageState {
       return;
     }
 
-    debugPrint('[TopicDetail] First post not loaded, reloading from post 1');
+    runtimeDebugPrint('[TopicDetail] First post not loaded, reloading from post 1');
     _controller.prepareJumpToPost(1);
     _controller.skipNextJumpHighlight = false;
 
@@ -235,7 +235,7 @@ extension _ScrollActions on _TopicDetailPageState {
     final notifier = ref.read(topicDetailProvider(params).notifier);
 
     if (postIndex == -1) {
-      debugPrint(
+      runtimeDebugPrint(
         '[TopicDetail] Post $postNumber not in list, loading target post window',
       );
       _controller.skipNextJumpHighlight = false;
@@ -364,7 +364,7 @@ extension _ScrollActions on _TopicDetailPageState {
       return posts[postIndex].postNumber;
     }
 
-    debugPrint(
+    runtimeDebugPrint(
       '[TopicDetail] Post ID $postId not in loaded posts, fetching post info...',
     );
 
@@ -373,18 +373,18 @@ extension _ScrollActions on _TopicDetailPageState {
       final postStream = await service.getPosts(widget.topicId, [postId]);
 
       if (postStream.posts.isEmpty) {
-        debugPrint('[TopicDetail] Failed to fetch post $postId');
+        runtimeDebugPrint('[TopicDetail] Failed to fetch post $postId');
         return fallbackPostNumber;
       }
 
       final targetPost = postStream.posts.first;
       final realPostNumber = targetPost.postNumber;
-      debugPrint(
+      runtimeDebugPrint(
         '[TopicDetail] Got real post_number: $realPostNumber for post ID $postId',
       );
       return realPostNumber;
     } catch (e) {
-      debugPrint('[TopicDetail] Error fetching post $postId: $e');
+      runtimeDebugPrint('[TopicDetail] Error fetching post $postId: $e');
       return fallbackPostNumber;
     }
   }
@@ -479,7 +479,7 @@ extension _ScrollActions on _TopicDetailPageState {
           }
         }
       } catch (e, stack) {
-        debugPrint('[TopicDetail] Scroll error: $e\n$stack');
+        runtimeDebugPrint('[TopicDetail] Scroll error: $e\n$stack');
       } finally {
         if (mounted && !_controller.isPositioned) {
           _controller.markPositioned();
