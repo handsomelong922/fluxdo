@@ -51,6 +51,6 @@ class RuntimeLogSettings {
     if (!_appLogsEnabled) return false;
     if (persistVerboseDiagnostics) return true;
     if (level == 'warning' || level == 'error') return true;
-    return !isSilent;
+    return false;
   }
 }

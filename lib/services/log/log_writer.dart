@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -25,6 +26,7 @@ class LogWriter {
 
   /// 最大文件大小 2MB
   static const int _maxFileSize = 2 * 1024 * 1024;
+  static const int _retentionSlack = 25;
 
   /// 新日志文件名
   static const String _fileName = 'app_log.jsonl';
@@ -50,7 +52,7 @@ class LogWriter {
     _writeChain = _writeChain.then((_) async {
       final file = await getLogFile();
       await _loadEntryCountIfNeeded(file);
-      await _enforceRetentionIfNeeded(file);
+      await _enforceRetentionIfNeeded(file, force: true);
     });
     return _writeChain;
   }
@@ -81,12 +83,32 @@ class LogWriter {
         .length;
   }
 
-  Future<void> _enforceRetentionIfNeeded(File file) async {
+  @visibleForTesting
+  static bool shouldTrimRetention({
+    required int entryCount,
+    required int fileSizeBytes,
+    required int entryLimit,
+    bool force = false,
+  }) {
+    final normalizedLimit = entryLimit.clamp(1, 300);
+    final exceedsCount = force
+        ? entryCount > normalizedLimit
+        : entryCount > normalizedLimit + _retentionSlack;
+    return exceedsCount || fileSizeBytes >= _maxFileSize;
+  }
+
+  Future<void> _enforceRetentionIfNeeded(File file, {bool force = false}) async {
     if (!file.existsSync()) return;
     final entryCount = _cachedEntryCount ?? 0;
-    final withinLimit = entryCount <= RuntimeLogSettings.appLogEntryLimit;
     final size = await file.length();
-    if (withinLimit && size < _maxFileSize) return;
+    if (!shouldTrimRetention(
+      entryCount: entryCount,
+      fileSizeBytes: size,
+      entryLimit: RuntimeLogSettings.appLogEntryLimit,
+      force: force,
+    )) {
+      return;
+    }
 
     final content = await readContentSafely(file);
     final lines = content

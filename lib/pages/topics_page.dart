@@ -611,6 +611,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
     // 监听滚动到顶部的通知
     ref.listen(scrollToTopProvider, (previous, next) {
       ref.read(fabRefreshModeProvider.notifier).state = false;
+      _cancelSnap(cancelPointerScrollSession: true);
       // 通过 outer controller 的 animateTo 驱动 coordinator 统一动画。
       // 目标设为 outer 当前 offset，这样 coordinator 的 nestOffset 会：
       //   - outer → 保持当前位置（header 状态不变）
@@ -630,6 +631,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
 
     ref.listen(refreshScrollToTopProvider, (previous, next) {
       ref.read(fabRefreshModeProvider.notifier).state = false;
+      _cancelSnap(cancelPointerScrollSession: true);
       if (_outerScrollController.hasClients &&
           _outerScrollController.positions.length == 1) {
         _outerScrollController.animateTo(

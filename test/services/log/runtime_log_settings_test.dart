@@ -23,7 +23,7 @@ void main() {
     );
   });
 
-  test('keeps non-silent request logs but drops silent info by default', () {
+  test('drops info request persistence by default', () {
     RuntimeLogSettings.configure(developerModeEnabled: false);
 
     expect(
@@ -31,7 +31,7 @@ void main() {
         level: 'info',
         isSilent: false,
       ),
-      isTrue,
+      isFalse,
     );
     expect(
       RuntimeLogSettings.shouldPersistRequestLog(level: 'info', isSilent: true),
