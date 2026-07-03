@@ -150,7 +150,7 @@ class _TopicsScreenState extends ConsumerState<TopicsScreen> {
           break;
         case NavAction.refresh:
           ref.read(fabRefreshModeProvider.notifier).state = false;
-          ref.read(scrollToTopProvider.notifier).trigger();
+          ref.read(refreshScrollToTopProvider.notifier).trigger();
           ref.read(fabRefreshSignalProvider.notifier).trigger();
           ref.resetNavScrollProgress(NavEntryIds.home);
           break;
@@ -447,7 +447,7 @@ class _TopicsFabState extends ConsumerState<_TopicsFab>
 
   void _refreshTopics() {
     ref.read(fabRefreshModeProvider.notifier).state = false;
-    ref.read(scrollToTopProvider.notifier).trigger();
+    ref.read(refreshScrollToTopProvider.notifier).trigger();
     ref.read(fabRefreshSignalProvider.notifier).trigger();
   }
 

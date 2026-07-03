@@ -1247,6 +1247,7 @@ class _TopicListState extends ConsumerState<_TopicList>
   final _refreshIndicatorKey = GlobalKey<RefreshIndicatorState>();
   bool _isLoadingNewTopics = false;
   Timer? _resumeExcerptLoadingTimer;
+  Timer? _pendingFabRefreshTimer;
 
   /// 需要高亮的话题 IDs（loadBefore 插入后设置，渐变消失后清除）
   final Set<int> _highlightedTopicIds = {};
@@ -1266,6 +1267,7 @@ class _TopicListState extends ConsumerState<_TopicList>
   @override
   void dispose() {
     _resumeExcerptLoadingTimer?.cancel();
+    _pendingFabRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -1311,6 +1313,13 @@ class _TopicListState extends ConsumerState<_TopicList>
     ref
         .read(latestChannelProvider.notifier)
         .clearNewTopicsForCategory(widget.categoryId);
+  }
+
+  Future<void> _refreshCurrentTopicList() async {
+    try {
+      // ignore: unused_result
+      await ref.refresh(topicListProvider(widget.categoryId).future);
+    } catch (_) {}
   }
 
   /// J/K 键盘导航：移动焦点（含 150ms 防抖）
@@ -1439,7 +1448,14 @@ class _TopicListState extends ConsumerState<_TopicList>
 
       // 以下 listener 仅当前 tab 需要
       ref.listen(fabRefreshSignalProvider, (_, _) {
-        unawaited(_onRefresh());
+        _pendingFabRefreshTimer?.cancel();
+        _pendingFabRefreshTimer = Timer(
+          const Duration(milliseconds: 90),
+          () {
+            if (!mounted) return;
+            unawaited(_refreshCurrentTopicList());
+          },
+        );
       });
       ref.listen(tabTagsProvider(widget.categoryId), (prev, next) {
         if (prev != next) {
@@ -1493,12 +1509,7 @@ class _TopicListState extends ConsumerState<_TopicList>
       data: (topics) {
         if (topics.isEmpty) {
           return RefreshIndicator(
-            onRefresh: () async {
-              try {
-                // ignore: unused_result
-                await ref.refresh(topicListProvider(providerKey).future);
-              } catch (_) {}
-            },
+            onRefresh: _refreshCurrentTopicList,
             child: ClipRRect(
               borderRadius: _topBorderRadius,
               child: ListView(
@@ -1529,10 +1540,7 @@ class _TopicListState extends ConsumerState<_TopicList>
           shouldRefresh: () =>
               ref.read(currentTabCategoryIdProvider) == widget.categoryId,
           onRefresh: () async {
-            try {
-              // ignore: unused_result
-              await ref.refresh(topicListProvider(providerKey).future);
-            } catch (_) {}
+            await _refreshCurrentTopicList();
             if (ref.read(topicFilterProvider) == TopicListFilter.latest) {
               ref
                   .read(latestChannelProvider.notifier)
