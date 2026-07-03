@@ -131,6 +131,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
             }
 
             return ListView.builder(
+              key: const PageStorageKey<String>('drafts-list'),
               controller: _scrollController,
               padding: const EdgeInsets.all(12),
               itemCount: drafts.length,

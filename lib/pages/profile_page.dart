@@ -438,6 +438,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       shouldRefresh: () => widget.isActive,
       onRefresh: _refreshData,
       child: ListView(
+        key: const PageStorageKey<String>('profile-mobile-list'),
         controller: _scrollController,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
@@ -551,6 +552,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       shouldRefresh: () => widget.isActive,
       onRefresh: _refreshData,
       child: ListView(
+        key: const PageStorageKey<String>('profile-right-list'),
         controller: _rightScrollController,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [

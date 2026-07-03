@@ -248,6 +248,7 @@ class _PrivateMessageTabViewState extends ConsumerState<_PrivateMessageTabView>
           }
 
           return ListView.builder(
+            key: PageStorageKey<String>('pm-list-${widget.filter.name}'),
             controller: _scrollController,
             padding: const EdgeInsets.all(12),
             itemCount: topics.length + 1,

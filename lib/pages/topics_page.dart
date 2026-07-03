@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' hide Category;
@@ -132,6 +133,8 @@ class TopicsPage extends ConsumerStatefulWidget {
 
 class _TopicsPageState extends ConsumerState<TopicsPage>
     with TickerProviderStateMixin, RouteAware {
+  static const int _maxMountedCategoryTabsDesktop = 4;
+
   late TabController _tabController;
   int _tabLength = 1; // 初始只有"全部"
   int _currentTabIndex = 0;
@@ -146,6 +149,9 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   ModalRoute<dynamic>? _route;
   Timer? _pointerScrollIdleTimer;
   bool _pointerScrolling = false;
+  final LinkedHashSet<int?> _mountedCategoryTabIds = LinkedHashSet<int?>.of({
+    null,
+  });
 
   @override
   void initState() {
@@ -434,6 +440,27 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
     return null;
   }
 
+  void _rememberMountedCategoryTab(int? categoryId, List<int> pinnedIds) {
+    final validIds = <int?>{null, ...pinnedIds};
+    _mountedCategoryTabIds.removeWhere((id) => !validIds.contains(id));
+
+    if (Platform.isAndroid || Platform.isIOS) {
+      _mountedCategoryTabIds
+        ..clear()
+        ..add(null);
+      if (categoryId != null) {
+        _mountedCategoryTabIds.add(categoryId);
+      }
+      return;
+    }
+
+    _mountedCategoryTabIds.remove(categoryId);
+    _mountedCategoryTabIds.add(categoryId);
+    while (_mountedCategoryTabIds.length > _maxMountedCategoryTabsDesktop) {
+      _mountedCategoryTabIds.remove(_mountedCategoryTabIds.first);
+    }
+  }
+
   /// 构建排序栏右侧的按钮
   /// - 新/未读排序且已登录时：显示忽略按钮
   /// - 分类 Tab 且已登录时：显示分类通知按钮
@@ -587,6 +614,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
     final currentCategoryId = _currentCategoryId(pinnedIds);
     final currentTags = ref.watch(tabTagsProvider(currentCategoryId));
     final currentCategory = _getCurrentCategory(pinnedIds, categoryMap);
+    _rememberMountedCategoryTab(currentCategoryId, pinnedIds);
 
     // 监听全局筛选/排序变化：刷新当前 tab，清除非活跃 tab 数据
     // 所有全局参数统一聚合在 topicListGlobalParamsSignal 中，
@@ -737,12 +765,16 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
                     children: [
                       ExtendedVisibilityDetector(
                         uniqueKey: const Key('tab_all'),
-                        child: _buildTabPage(null),
+                        child: _mountedCategoryTabIds.contains(null)
+                            ? _buildTabPage(null)
+                            : const SizedBox.shrink(),
                       ),
                       for (int i = 0; i < pinnedIds.length; i++)
                         ExtendedVisibilityDetector(
                           uniqueKey: Key('tab_${pinnedIds[i]}'),
-                          child: _buildTabPage(pinnedIds[i]),
+                          child: _mountedCategoryTabIds.contains(pinnedIds[i])
+                              ? _buildTabPage(pinnedIds[i])
+                              : const SizedBox.shrink(),
                         ),
                     ],
                   ),

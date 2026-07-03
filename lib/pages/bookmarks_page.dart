@@ -363,6 +363,7 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
           }
 
           return ListView.builder(
+            key: const PageStorageKey<String>('bookmarks-list'),
             controller: _scrollController,
             padding: const EdgeInsets.all(12),
             itemCount: visibleTopics.length + 1,

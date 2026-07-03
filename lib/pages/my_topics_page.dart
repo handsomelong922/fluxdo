@@ -133,6 +133,7 @@ class _MyTopicsPageState extends ConsumerState<MyTopicsPage> {
           }
 
           return ListView.builder(
+            key: const PageStorageKey<String>('my-topics-list'),
             controller: _scrollController,
             padding: const EdgeInsets.all(12),
             itemCount: topics.length + 1,

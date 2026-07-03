@@ -708,7 +708,6 @@ enum _AuthErrorDialogAction { confirm, clearData }
 
 class _MainPageState extends ConsumerState<MainPage>
     with WidgetsBindingObserver {
-  static const int _maxMountedBottomPagesMobile = 3;
   static const int _maxMountedBottomPagesDesktop = 5;
 
   int _currentIndex = 0;
@@ -1321,17 +1320,26 @@ class _MainPageState extends ConsumerState<MainPage>
   }
 
   void _rememberMountedPage(String activePageId, List<NavEntry> pageEntries) {
+    if (Platform.isAndroid || Platform.isIOS) {
+      final retainHome = pageEntries.any((entry) => entry.id == NavEntryIds.home);
+      final nextMounted = <String>{};
+      if (retainHome) {
+        nextMounted.add(NavEntryIds.home);
+      }
+      nextMounted.add(activePageId);
+      _mountedPageIds
+        ..clear()
+        ..addAll(nextMounted);
+      return;
+    }
+
     _mountedPageIds.removeWhere(
       (id) => !pageEntries.any((entry) => entry.id == id),
     );
     _mountedPageIds.remove(activePageId);
     _mountedPageIds.add(activePageId);
 
-    final maxMountedPages =
-        Platform.isAndroid || Platform.isIOS
-        ? _maxMountedBottomPagesMobile
-        : _maxMountedBottomPagesDesktop;
-    while (_mountedPageIds.length > maxMountedPages) {
+    while (_mountedPageIds.length > _maxMountedBottomPagesDesktop) {
       _mountedPageIds.remove(_mountedPageIds.first);
     }
   }
