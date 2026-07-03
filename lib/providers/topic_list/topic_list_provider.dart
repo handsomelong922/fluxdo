@@ -23,6 +23,22 @@ final topicListLoadMoreProvider = StateProvider.family<bool, int?>(
 final topicListRefreshingProvider = StateProvider.family<bool, int?>(
   (ref, categoryId) => false,
 );
+const Duration _topicListProviderRetention = Duration(seconds: 20);
+
+void _retainTopicListProvider(Ref ref, Duration duration) {
+  final link = ref.keepAlive();
+  Timer? disposeTimer;
+  ref.onCancel(() {
+    disposeTimer = Timer(duration, link.close);
+  });
+  ref.onResume(() {
+    disposeTimer?.cancel();
+    disposeTimer = null;
+  });
+  ref.onDispose(() {
+    disposeTimer?.cancel();
+  });
+}
 
 /// 话题列表 Notifier (支持分页、静默刷新和筛选)
 class TopicListNotifier extends AsyncNotifier<List<Topic>> {
@@ -47,6 +63,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
 
   @override
   Future<List<Topic>> build() async {
+    _retainTopicListProvider(ref, _topicListProviderRetention);
     ref.onDispose(() => _refreshGeneration++);
     final generation = ++_refreshGeneration;
 
@@ -799,7 +816,7 @@ class _TopicRefreshResult {
 }
 
 final topicListProvider =
-    AsyncNotifierProvider.family<TopicListNotifier, List<Topic>, int?>(
+    AsyncNotifierProvider.family.autoDispose<TopicListNotifier, List<Topic>, int?>(
       TopicListNotifier.new,
     );
 

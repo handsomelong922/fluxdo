@@ -526,6 +526,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           final pinnedIds = ref.read(pinnedCategoriesProvider);
           final categoryIds = [null, ...pinnedIds];
           for (final categoryId in categoryIds) {
+            if (!ref.exists(topicListProvider(categoryId))) continue;
             ref
                 .read(topicListProvider(categoryId).notifier)
                 .updateSeen(topicId, highestSeen);
