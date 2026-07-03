@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,10 +53,12 @@ class TopicReadingState {
 }
 
 class TopicReadingStateService {
-  TopicReadingStateService(
-    this._prefs, {
-    this.saveDebounce = const Duration(milliseconds: 400),
-  });
+  TopicReadingStateService(this._prefs, {Duration? saveDebounce})
+    : saveDebounce =
+          saveDebounce ??
+          (Platform.isAndroid || Platform.isIOS
+              ? const Duration(milliseconds: 1200)
+              : const Duration(milliseconds: 400));
 
   static const _keyPrefix = 'topic_reading_state_';
   static const _maxAge = Duration(days: 30);
