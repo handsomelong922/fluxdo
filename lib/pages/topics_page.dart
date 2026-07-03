@@ -1317,8 +1317,7 @@ class _TopicListState extends ConsumerState<_TopicList>
 
   Future<void> _refreshCurrentTopicList() async {
     try {
-      // ignore: unused_result
-      await ref.refresh(topicListProvider(widget.categoryId).future);
+      await ref.read(topicListProvider(widget.categoryId).notifier).refresh();
     } catch (_) {}
   }
 
