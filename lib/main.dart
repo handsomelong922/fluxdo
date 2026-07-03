@@ -1051,6 +1051,18 @@ class _MainPageState extends ConsumerState<MainPage>
     DiscourseHtmlContent.clearRuntimeCaches();
     EmojiText.clearTokenCache();
     HighlighterService.instance.clearCache();
+    final pageEntries = _lastResolvedEntries
+        .where((entry) => entry.kind == NavEntryKind.page)
+        .toList();
+    if (pageEntries.isNotEmpty) {
+      final safePageIndex = _currentIndex.clamp(0, pageEntries.length - 1);
+      final activePageId = pageEntries[safePageIndex].id;
+      setState(() {
+        _mountedPageIds
+          ..clear()
+          ..add(activePageId);
+      });
+    }
     debugPrint('[MainPage] 收到内存压力，已清理运行期缓存');
   }
 
