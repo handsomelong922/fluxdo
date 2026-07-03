@@ -701,6 +701,15 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
             );
             final isNew = !post.read;
             final showDot = isNew && !isReadInSession;
+            final dot = Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                shape: BoxShape.circle,
+                border: Border.all(color: theme.colorScheme.surface, width: 1),
+              ),
+            );
 
             return Stack(
               clipBehavior: Clip.none,
@@ -715,23 +724,14 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
                 Positioned(
                   right: -6,
                   top: -2,
-                  child: AnimatedOpacity(
-                    opacity: showDot ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 500),
-                    curve: Curves.easeOut,
-                    child: Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: theme.colorScheme.surface,
-                          width: 1,
+                  child: Responsive.isMobile(context)
+                      ? Opacity(opacity: showDot ? 1.0 : 0.0, child: dot)
+                      : AnimatedOpacity(
+                          opacity: showDot ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeOut,
+                          child: dot,
                         ),
-                      ),
-                    ),
-                  ),
                 ),
               ],
             );

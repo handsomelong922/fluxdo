@@ -4,6 +4,7 @@ import '../../../../l10n/s.dart';
 import '../../../../models/topic.dart';
 import '../../../../providers/discourse_providers.dart';
 import '../../../../providers/preferences_provider.dart';
+import '../../../../utils/responsive.dart';
 import 'package:dio/dio.dart';
 import '../../../../services/app_error_handler.dart';
 import '../../../../services/discourse/discourse_service.dart';
@@ -322,23 +323,31 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
                                   );
                                   final isNew = !widget.post.read;
                                   final show = isNew && !isReadInSession;
+                                  final dot = Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primary,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: theme.colorScheme.surface,
+                                        width: 1,
+                                      ),
+                                    ),
+                                  );
+
+                                  if (Responsive.isMobile(context)) {
+                                    return Opacity(
+                                      opacity: show ? 1.0 : 0.0,
+                                      child: dot,
+                                    );
+                                  }
 
                                   return AnimatedOpacity(
                                     opacity: show ? 1.0 : 0.0,
                                     duration: const Duration(milliseconds: 500),
                                     curve: Curves.easeOut,
-                                    child: Container(
-                                      width: 6,
-                                      height: 6,
-                                      decoration: BoxDecoration(
-                                        color: theme.colorScheme.primary,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: theme.colorScheme.surface,
-                                          width: 1,
-                                        ),
-                                      ),
-                                    ),
+                                    child: dot,
                                   );
                                 },
                               ),
