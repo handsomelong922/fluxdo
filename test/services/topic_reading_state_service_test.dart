@@ -10,6 +10,7 @@ void main() {
       final service = TopicReadingStateService(prefs);
 
       await service.saveState(topicId: 42, postNumber: 128, nestedView: true);
+      await service.flushPendingWrites();
 
       final state = service.getState(42);
 
@@ -25,6 +26,7 @@ void main() {
       final service = TopicReadingStateService(prefs);
 
       await service.saveState(topicId: 42, postNumber: 0, nestedView: false);
+      await service.flushPendingWrites();
 
       expect(service.getState(42), isNull);
     });
@@ -37,6 +39,32 @@ void main() {
       final service = TopicReadingStateService(prefs);
 
       expect(service.getState(42), isNull);
+    });
+
+    test('debounces repeated writes and keeps latest visible immediately', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final service = TopicReadingStateService(
+        prefs,
+        saveDebounce: const Duration(milliseconds: 50),
+      );
+
+      await service.saveState(topicId: 42, postNumber: 10, nestedView: false);
+      await service.saveState(topicId: 42, postNumber: 20, nestedView: true);
+
+      final immediate = service.getState(42);
+      expect(immediate, isNotNull);
+      expect(immediate!.postNumber, 20);
+      expect(immediate.nestedView, isTrue);
+
+      expect(prefs.getString('topic_reading_state_42'), isNull);
+
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      final persisted = service.getState(42);
+      expect(persisted, isNotNull);
+      expect(persisted!.postNumber, 20);
+      expect(persisted.nestedView, isTrue);
     });
   });
 }

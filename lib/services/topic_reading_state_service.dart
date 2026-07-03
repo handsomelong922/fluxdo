@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -50,14 +52,23 @@ class TopicReadingState {
 }
 
 class TopicReadingStateService {
-  TopicReadingStateService(this._prefs);
+  TopicReadingStateService(
+    this._prefs, {
+    this.saveDebounce = const Duration(milliseconds: 400),
+  });
 
   static const _keyPrefix = 'topic_reading_state_';
   static const _maxAge = Duration(days: 30);
 
   final SharedPreferences _prefs;
+  final Duration saveDebounce;
+  final Map<int, TopicReadingState> _pendingStates = {};
+  final Map<int, Timer> _saveTimers = {};
 
   TopicReadingState? getState(int topicId) {
+    final pending = _pendingStates[topicId];
+    if (pending != null) return pending;
+
     final raw = _prefs.getString('$_keyPrefix$topicId');
     if (raw == null || raw.isEmpty) return null;
     try {
@@ -86,11 +97,49 @@ class TopicReadingStateService {
       nestedView: nestedView,
       updatedAt: DateTime.now(),
     );
-    await _prefs.setString('$_keyPrefix$topicId', jsonEncode(state.toJson()));
+    _pendingStates[topicId] = state;
+
+    final existingTimer = _saveTimers.remove(topicId);
+    existingTimer?.cancel();
+
+    if (saveDebounce == Duration.zero) {
+      await _persistState(topicId, state);
+      return;
+    }
+
+    _saveTimers[topicId] = Timer(saveDebounce, () {
+      final latest = _pendingStates[topicId];
+      if (latest == null) return;
+      unawaited(_persistState(topicId, latest));
+    });
   }
 
   Future<void> clearState(int topicId) async {
+    _saveTimers.remove(topicId)?.cancel();
+    _pendingStates.remove(topicId);
     await _prefs.remove('$_keyPrefix$topicId');
+  }
+
+  Future<void> _persistState(int topicId, TopicReadingState state) async {
+    final latest = _pendingStates[topicId];
+    if (latest != state) return;
+    _saveTimers.remove(topicId);
+    await _prefs.setString('$_keyPrefix$topicId', jsonEncode(state.toJson()));
+    if (_pendingStates[topicId] == state) {
+      _pendingStates.remove(topicId);
+    }
+  }
+
+  @visibleForTesting
+  Future<void> flushPendingWrites() async {
+    final topicIds = _pendingStates.keys.toList(growable: false);
+    for (final topicId in topicIds) {
+      _saveTimers.remove(topicId)?.cancel();
+      final state = _pendingStates[topicId];
+      if (state != null) {
+        await _persistState(topicId, state);
+      }
+    }
   }
 }
 
