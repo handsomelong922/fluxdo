@@ -36,6 +36,7 @@ import '../../services/screen_track.dart';
 import '../../services/topic_reading_state_service.dart';
 import '../../services/toast_service.dart';
 import '../../services/log/log_writer.dart';
+import '../../services/log/runtime_log_settings.dart';
 import '../../services/navigation/app_route_observer.dart';
 import '../../services/navigation/pop_passthrough_material_page_route.dart';
 import '../../widgets/content/lazy_load_scope.dart';
@@ -458,9 +459,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       DiscourseService(),
       debugSourceId: _instanceId,
       onTimingsSent: (topicId, postNumbers, highestSeen) {
-        debugPrint(
-          '[TopicDetail] onTimingsSent callback triggered: topicId=$topicId, highestSeen=$highestSeen',
-        );
         // 更新会话已读状态，触发 PostItem 消除未读圆点
         ref
             .read(topicSessionProvider(topicId).notifier)
@@ -706,18 +704,20 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
     _isScreenTrackRunning = shouldRun;
 
-    LogWriter.instance.write({
-      'timestamp': DateTime.now().toIso8601String(),
-      'level': 'info',
-      'type': 'lifecycle',
-      'event': 'screen_track_state',
-      'message': shouldRun ? 'ScreenTrack 启动' : 'ScreenTrack 停止',
-      'topicId': widget.topicId,
-      'screenTrackSourceId': _instanceId,
-      'routeVisible': _isRouteVisible,
-      'parentActive': _isParentActive,
-      'reason': reason,
-    });
+    if (RuntimeLogSettings.persistVerboseDiagnostics) {
+      LogWriter.instance.write({
+        'timestamp': DateTime.now().toIso8601String(),
+        'level': 'info',
+        'type': 'lifecycle',
+        'event': 'screen_track_state',
+        'message': shouldRun ? 'ScreenTrack 启动' : 'ScreenTrack 停止',
+        'topicId': widget.topicId,
+        'screenTrackSourceId': _instanceId,
+        'routeVisible': _isRouteVisible,
+        'parentActive': _isParentActive,
+        'reason': reason,
+      });
+    }
   }
 
   void _scheduleCheckTitleVisibility() {
@@ -1936,7 +1936,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               }
               _controller.skipNextJumpHighlight = false;
               ref
-                      .read(detailScrollPositionProvider(widget.topicId).notifier)
+                      .read(
+                        detailScrollPositionProvider(widget.topicId).notifier,
+                      )
                       .state =
                   pendingPostNumber;
             });
@@ -1950,7 +1952,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                 return;
               }
               unawaited(
-                ref.read(nestedTopicProvider(nestedParams).notifier).loadMoreRoots(),
+                ref
+                    .read(nestedTopicProvider(nestedParams).notifier)
+                    .loadMoreRoots(),
               );
             });
           } else if (pendingPostNumber != null &&

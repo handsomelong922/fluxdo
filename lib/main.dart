@@ -58,6 +58,7 @@ import 'services/message_bus_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/log/json_file_handler.dart';
 import 'services/log/log_writer.dart';
+import 'services/log/runtime_log_settings.dart';
 import 'services/log/logger_utils.dart';
 import 'services/download_service.dart';
 import 'services/migration_service.dart';
@@ -145,6 +146,9 @@ Future<void> _completeStartupServices(
   SharedPreferences prefs, {
   required bool startupPreloadStarted,
 }) async {
+  RuntimeLogSettings.configure(
+    developerModeEnabled: prefs.getBool('developer_mode') ?? false,
+  );
   // 阶段 2：依赖 prefs 的步骤并行
   final crashlyticsEnabled = prefs.getBool('pref_crashlytics') ?? true;
   await Future.wait([
@@ -394,6 +398,9 @@ Future<void> main() async {
 
   if (AppNetworkProfile.isDirect && Platform.isAndroid) {
     final prefs = await SharedPreferences.getInstance();
+    RuntimeLogSettings.configure(
+      developerModeEnabled: prefs.getBool('developer_mode') ?? false,
+    );
     _configureAiRuntime(prefs);
 
     final preloadPrerequisites = _prepareDirectAndroidPreloadPrerequisites(

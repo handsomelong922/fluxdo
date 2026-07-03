@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../log/log_writer.dart';
+import '../../log/runtime_log_settings.dart';
 import '../adapters/adapter_log_metadata.dart';
 import '../startup_request_recorder.dart';
 
@@ -102,6 +103,11 @@ class NetworkLogInterceptor extends Interceptor {
     if (adapterName != null) {
       entry['networkAdapter'] = adapterName;
     }
-    LogWriter.instance.write(entry);
+    if (RuntimeLogSettings.shouldPersistRequestLog(
+      level: level,
+      isSilent: isSilent,
+    )) {
+      LogWriter.instance.write(entry);
+    }
   }
 }

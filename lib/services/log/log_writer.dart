@@ -47,7 +47,7 @@ class LogWriter {
     try {
       final file = await getLogFile();
       await _truncateIfNeeded(file);
-      await file.writeAsString(line, mode: FileMode.append, flush: true);
+      await file.writeAsString(line, mode: FileMode.append);
     } catch (_) {
       // 写入失败时静默忽略，避免日志写入导致应用崩溃
     }

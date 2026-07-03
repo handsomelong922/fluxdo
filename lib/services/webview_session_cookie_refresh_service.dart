@@ -7,6 +7,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../constants.dart';
 import 'log/log_writer.dart';
+import 'log/runtime_log_settings.dart';
 import 'network/cookie/boundary_sync_service.dart';
 import 'network/cookie/cookie_jar_service.dart';
 import 'network/cookie/webview_cookie_priming.dart';
@@ -77,6 +78,7 @@ class WebViewSessionCookieRefreshService {
   }) {
     _lastSuccessAt = DateTime.now();
     _lastSuccessToken = tToken;
+    if (!RuntimeLogSettings.persistVerboseDiagnostics) return;
     final extra = <String, dynamic>{
       'tokenBound': tToken != null && tToken.isNotEmpty,
     };
@@ -340,6 +342,9 @@ class WebViewSessionCookieRefreshService {
     String level = 'debug',
     Map<String, dynamic>? extra,
   }) {
+    if (!RuntimeLogSettings.shouldPersistDiagnosticEvent(level: level)) {
+      return;
+    }
     LogWriter.instance.write({
       'timestamp': DateTime.now().toIso8601String(),
       'level': level,
@@ -371,9 +376,13 @@ class WebViewSessionCookieRefreshService {
           .where((name) => name.isNotEmpty)
           .toList(growable: false);
 
+      final level = bootstrapOk == false ? 'warning' : 'info';
+      if (!RuntimeLogSettings.shouldPersistDiagnosticEvent(level: level)) {
+        return;
+      }
       final entry = <String, dynamic>{
         'timestamp': DateTime.now().toIso8601String(),
-        'level': 'info',
+        'level': level,
         'type': 'cookie_trace',
         'event': 'webview_session_bootstrap_cookie_summary',
         'message': 'WebView session bootstrap 后的主域 cookie 摘要',
@@ -446,21 +455,24 @@ class WebViewSessionCookieRefreshService {
         'plugin=${result['plugin']} endpoint=$endpoint status=$status '
         'error=${result['error']}',
       );
-      LogWriter.instance.write({
-        'timestamp': DateTime.now().toIso8601String(),
-        'level': ok ? 'info' : 'warning',
-        'type': 'cookie_trace',
-        'event': 'webview_session_bootstrap_result',
-        'message': 'WebView session bootstrap 执行结果',
-        'reason': reason,
-        'ok': ok,
-        if (cfBlocked) 'cfBlocked': true,
-        'phase': phase,
-        'plugin': result['plugin']?.toString(),
-        'endpoint': endpoint,
-        'status': status,
-        'error': result['error']?.toString(),
-      });
+      final logLevel = ok ? 'info' : 'warning';
+      if (RuntimeLogSettings.shouldPersistDiagnosticEvent(level: logLevel)) {
+        LogWriter.instance.write({
+          'timestamp': DateTime.now().toIso8601String(),
+          'level': logLevel,
+          'type': 'cookie_trace',
+          'event': 'webview_session_bootstrap_result',
+          'message': 'WebView session bootstrap 执行结果',
+          'reason': reason,
+          'ok': ok,
+          if (cfBlocked) 'cfBlocked': true,
+          'phase': phase,
+          'plugin': result['plugin']?.toString(),
+          'endpoint': endpoint,
+          'status': status,
+          'error': result['error']?.toString(),
+        });
+      }
       return ok
           ? const SessionBootstrapResult.success()
           : SessionBootstrapResult.failure(

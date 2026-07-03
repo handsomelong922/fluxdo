@@ -8,6 +8,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../constants.dart';
 import 'eruda_settings_service.dart';
 import 'log/log_writer.dart';
+import 'log/runtime_log_settings.dart';
 import 'network/doh/network_settings_service.dart';
 
 /// WebView 配置工具类
@@ -230,6 +231,9 @@ class WebViewSettings {
           if (source == 'lifecycle') {
             final message =
                 data['message']?.toString() ?? 'compat_bundle_loaded';
+            if (!RuntimeLogSettings.persistVerboseDiagnostics) {
+              return null;
+            }
             LogWriter.instance.write({
               'timestamp': DateTime.now().toIso8601String(),
               'level': 'info',

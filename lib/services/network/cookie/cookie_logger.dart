@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../log/log_writer.dart';
+import '../../log/runtime_log_settings.dart';
 
 /// Cookie 模块统一结构化日志。
 ///
@@ -8,6 +9,16 @@ import '../../log/log_writer.dart';
 /// 和 LogWriter（持久化 JSONL，用于线上排查）。
 class CookieLogger {
   CookieLogger._();
+
+  static void _debug(String message) {
+    if (RuntimeLogSettings.emitVerboseConsoleDiagnostics) {
+      debugPrint(message);
+    }
+  }
+
+  static bool _shouldPersist(String level) {
+    return RuntimeLogSettings.shouldPersistDiagnosticEvent(level: level);
+  }
 
   // ---------------------------------------------------------------------------
   // 保存
@@ -26,7 +37,8 @@ class CookieLogger {
         '$name, domain=${domain ?? '<null>'}, '
         'hostOnly=$hostOnly, source=$source, len=$valueLength'
         '${replaced ? ', replaced=true' : ''}';
-    debugPrint('[Cookie:Save] $msg');
+    _debug('[Cookie:Save] $msg');
+    if (!_shouldPersist('info')) return;
     LogWriter.instance.write({
       'timestamp': DateTime.now().toIso8601String(),
       'level': 'info',
@@ -52,7 +64,7 @@ class CookieLogger {
     required int count,
     required List<String> names,
   }) {
-    debugPrint('[Cookie:Load] $url, count=$count, names=$names');
+    _debug('[Cookie:Load] $url, count=$count, names=$names');
   }
 
   // ---------------------------------------------------------------------------
@@ -72,7 +84,8 @@ class CookieLogger {
     final msg =
         '$direction, count=$count, names=$names'
         '${url != null ? ', url=$url' : ''}';
-    debugPrint('[Cookie:Sync] $msg');
+    _debug('[Cookie:Sync] $msg');
+    if (!_shouldPersist('info')) return;
     final entry = <String, dynamic>{
       'timestamp': DateTime.now().toIso8601String(),
       'level': 'info',
@@ -102,13 +115,14 @@ class CookieLogger {
     required String url,
     required int queueSize,
   }) {
-    debugPrint('[Cookie:Queue] enqueue $name for $url, queueSize=$queueSize');
+    _debug('[Cookie:Queue] enqueue $name for $url, queueSize=$queueSize');
   }
 
   /// 队列 flush 到 WebView
   static void flush({required int queued, required int written}) {
     final msg = 'queued=$queued, written=$written';
-    debugPrint('[Cookie:Flush] $msg');
+    _debug('[Cookie:Flush] $msg');
+    if (!_shouldPersist('info')) return;
     LogWriter.instance.write({
       'timestamp': DateTime.now().toIso8601String(),
       'level': 'info',
@@ -126,7 +140,8 @@ class CookieLogger {
 
   /// cookie 删除
   static void delete({required String name, required String source}) {
-    debugPrint('[Cookie:Delete] $name, source=$source');
+    _debug('[Cookie:Delete] $name, source=$source');
+    if (!_shouldPersist('info')) return;
     LogWriter.instance.write({
       'timestamp': DateTime.now().toIso8601String(),
       'level': 'info',
@@ -144,7 +159,7 @@ class CookieLogger {
 
   /// cookie 操作错误
   static void error({required String operation, required String error}) {
-    debugPrint('[Cookie:Error] $operation: $error');
+    _debug('[Cookie:Error] $operation: $error');
     LogWriter.instance.write({
       'timestamp': DateTime.now().toIso8601String(),
       'level': 'error',
@@ -181,7 +196,8 @@ class CookieLogger {
       _ => 'info',
     };
     final msg = 'sweep_$event: $name @ $url';
-    debugPrint('[Cookie:Sweep] $msg');
+    _debug('[Cookie:Sweep] $msg');
+    if (!_shouldPersist(level)) return;
     LogWriter.instance.write({
       'timestamp': DateTime.now().toIso8601String(),
       'level': level,
@@ -190,14 +206,16 @@ class CookieLogger {
       'message': msg,
       'url': url,
       'name': name,
-      if (intent != null) 'intent': intent,
-      if (variantsBefore != null) 'variantsBefore': variantsBefore,
-      if (variantsAfter != null) 'variantsAfter': variantsAfter,
-      if (winnerSource != null) 'winnerSource': winnerSource,
-      if (reason != null) 'reason': reason,
-      if (elapsedMs != null) 'elapsedMs': elapsedMs,
-      if (entryGeneration != null) 'entryGeneration': entryGeneration,
-      if (currentGeneration != null) 'currentGeneration': currentGeneration,
+      ...?intent != null ? {'intent': intent} : null,
+      ...?variantsBefore != null ? {'variantsBefore': variantsBefore} : null,
+      ...?variantsAfter != null ? {'variantsAfter': variantsAfter} : null,
+      ...?winnerSource != null ? {'winnerSource': winnerSource} : null,
+      ...?reason != null ? {'reason': reason} : null,
+      ...?elapsedMs != null ? {'elapsedMs': elapsedMs} : null,
+      ...?entryGeneration != null ? {'entryGeneration': entryGeneration} : null,
+      ...?currentGeneration != null
+          ? {'currentGeneration': currentGeneration}
+          : null,
     });
   }
 
@@ -212,7 +230,8 @@ class CookieLogger {
   }) {
     final level = event == 'triggered' ? 'warning' : 'info';
     final msg = 'nuclear_reset_$event @ $url';
-    debugPrint('[Cookie:Nuclear] $msg');
+    _debug('[Cookie:Nuclear] $msg');
+    if (!_shouldPersist(level)) return;
     LogWriter.instance.write({
       'timestamp': DateTime.now().toIso8601String(),
       'level': level,
@@ -220,9 +239,11 @@ class CookieLogger {
       'event': 'nuclear_reset_$event',
       'message': msg,
       'url': url,
-      if (reason != null) 'reason': reason,
-      if (primingDurationMs != null) 'primingDurationMs': primingDurationMs,
-      if (totalElapsedMs != null) 'totalElapsedMs': totalElapsedMs,
+      ...?reason != null ? {'reason': reason} : null,
+      ...?primingDurationMs != null
+          ? {'primingDurationMs': primingDurationMs}
+          : null,
+      ...?totalElapsedMs != null ? {'totalElapsedMs': totalElapsedMs} : null,
     });
   }
 
@@ -242,7 +263,8 @@ class CookieLogger {
       _ => 'info',
     };
     final msg = 'priming_$event @ $url';
-    debugPrint('[Cookie:Priming] $msg');
+    _debug('[Cookie:Priming] $msg');
+    if (!_shouldPersist(level)) return;
     LogWriter.instance.write({
       'timestamp': DateTime.now().toIso8601String(),
       'level': level,
@@ -250,10 +272,10 @@ class CookieLogger {
       'event': 'priming_$event',
       'message': msg,
       'url': url,
-      if (isPrimed != null) 'isPrimed': isPrimed,
-      if (cookiesInjected != null) 'cookiesInjected': cookiesInjected,
-      if (durationMs != null) 'durationMs': durationMs,
-      if (reason != null) 'reason': reason,
+      ...?isPrimed != null ? {'isPrimed': isPrimed} : null,
+      ...?cookiesInjected != null ? {'cookiesInjected': cookiesInjected} : null,
+      ...?durationMs != null ? {'durationMs': durationMs} : null,
+      ...?reason != null ? {'reason': reason} : null,
     });
   }
 
@@ -273,7 +295,8 @@ class CookieLogger {
       _ => 'info',
     };
     final msg = 'self_healing_$event @ $url';
-    debugPrint('[Cookie:SelfHealing] $msg');
+    _debug('[Cookie:SelfHealing] $msg');
+    if (!_shouldPersist(level)) return;
     LogWriter.instance.write({
       'timestamp': DateTime.now().toIso8601String(),
       'level': level,
@@ -281,11 +304,13 @@ class CookieLogger {
       'event': 'self_healing_$event',
       'message': msg,
       'url': url,
-      if (status != null) 'status': status,
-      if (jarHasValidToken != null) 'jarHasValidToken': jarHasValidToken,
-      if (attempt != null) 'attempt': attempt,
-      if (attemptsUsed != null) 'attemptsUsed': attemptsUsed,
-      if (finalAction != null) 'finalAction': finalAction,
+      ...?status != null ? {'status': status} : null,
+      ...?jarHasValidToken != null
+          ? {'jarHasValidToken': jarHasValidToken}
+          : null,
+      ...?attempt != null ? {'attempt': attempt} : null,
+      ...?attemptsUsed != null ? {'attemptsUsed': attemptsUsed} : null,
+      ...?finalAction != null ? {'finalAction': finalAction} : null,
     });
   }
 
@@ -298,7 +323,7 @@ class CookieLogger {
     final msg =
         'lock_timeout: $name'
         '${consecutiveCount != null ? ' (consecutive=$consecutiveCount)' : ''}';
-    debugPrint('[Cookie:Lock] $msg');
+    _debug('[Cookie:Lock] $msg');
     LogWriter.instance.write({
       'timestamp': DateTime.now().toIso8601String(),
       'level': 'error',
@@ -306,8 +331,10 @@ class CookieLogger {
       'event': 'lock_timeout',
       'message': msg,
       'name': name,
-      if (consecutiveCount != null) 'consecutiveCount': consecutiveCount,
-      if (currentHolder != null) 'currentHolder': currentHolder,
+      ...?consecutiveCount != null
+          ? {'consecutiveCount': consecutiveCount}
+          : null,
+      ...?currentHolder != null ? {'currentHolder': currentHolder} : null,
     });
   }
 }
