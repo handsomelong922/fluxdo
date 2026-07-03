@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../l10n/s.dart';
 import '../../../../models/topic.dart';
+import '../../../../utils/html_excerpt.dart';
 import '../../../common/smart_avatar.dart';
-import '../../../content/discourse_html_content/discourse_html_content.dart';
 
 /// 回复列表组件
 class PostRepliesList extends StatelessWidget {
@@ -125,17 +125,15 @@ class PostRepliesList extends StatelessWidget {
                                 ],
                               ),
                               const SizedBox(height: 4),
-                              IgnorePointer(
-                                child: DiscourseHtmlContent(
-                                  html: reply.cooked,
-                                  textStyle: theme.textTheme.bodySmall
-                                      ?.copyWith(
-                                        fontSize: 13 * contentFontScale,
-                                        height: 1.4,
-                                      ),
-                                  compact: true,
-                                  enableSelectionArea: false,
+                              Text(
+                                cleanHtmlExcerpt(reply.cooked),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontSize: 13 * contentFontScale,
+                                  height: 1.4,
+                                  color: theme.colorScheme.onSurfaceVariant,
                                 ),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),

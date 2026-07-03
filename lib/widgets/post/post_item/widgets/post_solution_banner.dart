@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../../l10n/s.dart';
 import '../../../../models/avatar_url_policy.dart';
 import '../../../../models/topic.dart';
+import '../../../../utils/html_excerpt.dart';
 import '../../../../utils/time_utils.dart';
 import '../../../common/smart_avatar.dart';
-import '../../../content/discourse_html_content/discourse_html_content.dart';
 
 /// 解决方案横幅（仅在主贴下方展示）。
 class PostSolutionBanner extends StatefulWidget {
@@ -258,15 +258,15 @@ class _ExpandedExcerpt extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          DiscourseHtmlContent(
-            html: excerpt,
-            textStyle: theme.textTheme.bodyMedium?.copyWith(
+          Text(
+            cleanHtmlExcerpt(excerpt),
+            style: theme.textTheme.bodyMedium?.copyWith(
               fontSize: 14,
               height: 1.5,
               color: theme.colorScheme.onSurface,
             ),
-            compact: true,
-            enableSelectionArea: false,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 6),
           InkWell(

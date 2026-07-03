@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../l10n/s.dart';
 import '../../../../models/topic.dart';
+import '../../../../utils/html_excerpt.dart';
 import '../../../common/smart_avatar.dart';
-import '../../../content/discourse_html_content/discourse_html_content.dart';
 
 /// 回复历史预览组件
 class PostReplyHistory extends StatelessWidget {
@@ -143,18 +143,15 @@ class PostReplyHistory extends StatelessWidget {
                                 constraints: const BoxConstraints(
                                   maxHeight: 60,
                                 ),
-                                child: SingleChildScrollView(
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  child: DiscourseHtmlContent(
-                                    html: replyPost.cooked,
-                                    textStyle: theme.textTheme.bodySmall
-                                        ?.copyWith(
-                                          fontSize: 13 * contentFontScale,
-                                          height: 1.4,
-                                        ),
-                                    compact: true,
-                                    enableSelectionArea: false,
+                                child: Text(
+                                  cleanHtmlExcerpt(replyPost.cooked),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontSize: 13 * contentFontScale,
+                                    height: 1.4,
+                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ),
