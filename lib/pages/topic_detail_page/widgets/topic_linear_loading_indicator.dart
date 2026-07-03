@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../utils/responsive.dart';
 
 class TopicLinearLoadingIndicator extends StatelessWidget {
   const TopicLinearLoadingIndicator({
@@ -10,9 +11,26 @@ class TopicLinearLoadingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: padding,
-      child: const LinearProgressIndicator(minHeight: 2),
-    );
+    final colorScheme = Theme.of(context).colorScheme;
+    final indicator = Responsive.isMobile(context)
+        ? Container(
+            height: 2,
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: 0.42,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+          )
+        : const LinearProgressIndicator(minHeight: 2);
+    return Padding(padding: padding, child: indicator);
   }
 }
