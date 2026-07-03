@@ -136,7 +136,6 @@ class TopicCard extends ConsumerWidget {
     return RepaintBoundary(
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
-        clipBehavior: Clip.antiAlias,
         color: isSelected
             ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
             : highlightColor,
@@ -648,7 +647,6 @@ class CompactTopicCard extends ConsumerWidget {
     return RepaintBoundary(
       child: Card(
         margin: const EdgeInsets.only(bottom: 6),
-        clipBehavior: Clip.antiAlias,
         color: isSelected
             ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
             : highlightColor ??
@@ -685,6 +683,8 @@ class CompactTopicCard extends ConsumerWidget {
                     Image(
                       image: discourseImageProvider(
                         UrlHelper.resolveUrlWithCdn(logoUrl),
+                        maxWidth: 24,
+                        maxHeight: 24,
                       ),
                       width: 12,
                       height: 12,

@@ -271,6 +271,8 @@ class CategoryBadge extends StatelessWidget {
             Image(
               image: discourseImageProvider(
                 UrlHelper.resolveUrlWithCdn(logoUrl!),
+                maxWidth: size.iconSize.ceil().clamp(1, 64),
+                maxHeight: size.iconSize.ceil().clamp(1, 64),
               ),
               width: size.iconSize,
               height: size.iconSize,
