@@ -76,15 +76,13 @@ class HtmlChunkCache {
 
   /// 预加载：异步解析但不等待结果
   void preload(String html) {
+    if (html.length <= 5000) {
+      return;
+    }
+
     final key = _keyOf(html);
     if (_cache.containsKey(key) || _pendingKeys.contains(key)) {
       return; // 已缓存或正在解析
-    }
-
-    // 短内容直接同步解析
-    if (html.length < 5000) {
-      parseSync(html);
-      return;
     }
 
     // 长内容后台解析
