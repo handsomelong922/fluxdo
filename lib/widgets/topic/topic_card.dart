@@ -16,6 +16,48 @@ import '../common/relative_time_text.dart';
 import '../../utils/number_utils.dart';
 import '../common/emoji_text.dart';
 
+class _TextWidthCache {
+  static const int _maxEntries = 512;
+  static final Map<int, double> _cache = <int, double>{};
+
+  static double measure(
+    BuildContext context,
+    String text,
+    TextStyle style,
+  ) {
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final key = Object.hash(
+      text,
+      Directionality.of(context),
+      textScale,
+      style.fontFamily,
+      style.fontSize,
+      style.fontWeight,
+      style.fontStyle,
+      style.letterSpacing,
+      style.wordSpacing,
+      style.height,
+    );
+    final cached = _cache[key];
+    if (cached != null) {
+      return cached;
+    }
+
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+
+    if (_cache.length >= _maxEntries) {
+      _cache.remove(_cache.keys.first);
+    }
+    _cache[key] = painter.width;
+    return painter.width;
+  }
+}
+
 /// 话题卡片组件 — 紧凑横向布局
 class TopicCard extends ConsumerWidget {
   final Topic topic;
@@ -556,13 +598,7 @@ class TopicCard extends ConsumerWidget {
   }
 
   double _measureTextWidth(BuildContext context, String text, TextStyle style) {
-    final painter = TextPainter(
-      text: TextSpan(text: text, style: style),
-      maxLines: 1,
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-    )..layout();
-    return painter.width;
+    return _TextWidthCache.measure(context, text, style);
   }
 }
 

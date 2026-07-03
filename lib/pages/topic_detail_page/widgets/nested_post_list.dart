@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -88,7 +90,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
   final Map<int, int> _scrollIndexToPostNumber = {};
   final NestedLoadMoreTrigger _loadMoreTrigger = NestedLoadMoreTrigger();
   int _nextScrollIndex = 0;
-  bool _isVisibilityUpdateThrottled = false;
+  Timer? _visibilityUpdateTimer;
   int? _lastReportedPostNumber;
 
   @override
@@ -105,6 +107,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
   @override
   void dispose() {
     widget.scrollController.removeListener(_onScroll);
+    _visibilityUpdateTimer?.cancel();
     super.dispose();
   }
 
@@ -163,12 +166,20 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
     return index;
   }
 
-  void _scheduleVisiblePostsUpdate() {
-    if (_isVisibilityUpdateThrottled) return;
-    _isVisibilityUpdateThrottled = true;
-    Future.delayed(const Duration(milliseconds: 16), () {
+  void _scheduleVisiblePostsUpdate({bool immediate = false}) {
+    if (immediate) {
+      _visibilityUpdateTimer?.cancel();
+      _visibilityUpdateTimer = null;
+      if (mounted) {
+        _updateVisiblePostsFromViewport();
+      }
+      return;
+    }
+
+    if (_visibilityUpdateTimer != null) return;
+    _visibilityUpdateTimer = Timer(const Duration(milliseconds: 120), () {
+      _visibilityUpdateTimer = null;
       if (!mounted) return;
-      _isVisibilityUpdateThrottled = false;
       _updateVisiblePostsFromViewport();
     });
   }
@@ -194,8 +205,15 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
 
       final ctx = entry.value.context;
       if (!ctx.mounted) continue;
-      final renderBox = ctx.findRenderObject() as RenderBox?;
-      if (renderBox == null || !renderBox.hasSize) continue;
+      final RenderBox? renderBox;
+      try {
+        renderBox = ctx.findRenderObject() as RenderBox?;
+      } catch (_) {
+        continue;
+      }
+      if (renderBox == null || !renderBox.hasSize || !renderBox.attached) {
+        continue;
+      }
 
       final topY = renderBox.localToGlobal(Offset.zero).dy;
       final bottomY = topY + renderBox.size.height;
@@ -261,7 +279,13 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
     );
 
     return NotificationListener<ScrollNotification>(
-      onNotification: widget.onScrollNotification,
+      onNotification: (notification) {
+        final result = widget.onScrollNotification(notification);
+        if (notification is ScrollEndNotification) {
+          _scheduleVisiblePostsUpdate(immediate: true);
+        }
+        return result;
+      },
       child: Listener(
         behavior: HitTestBehavior.translucent,
         onPointerSignal: (event) {

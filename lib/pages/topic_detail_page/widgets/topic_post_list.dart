@@ -382,7 +382,7 @@ class _TopicPostListState extends State<TopicPostList> {
       return;
     }
 
-    _visiblePostUpdateTimer = Timer(const Duration(milliseconds: 80), () {
+    _visiblePostUpdateTimer = Timer(const Duration(milliseconds: 120), () {
       _visiblePostUpdateTimer = null;
       _scheduleVisiblePostUpdateFrame();
     });

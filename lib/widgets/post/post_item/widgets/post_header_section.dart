@@ -313,13 +313,14 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
                               top: -2,
                               child: Consumer(
                                 builder: (context, ref, _) {
-                                  final sessionState = ref.watch(
-                                    topicSessionProvider(widget.topicId),
+                                  final isReadInSession = ref.watch(
+                                    topicSessionProvider(widget.topicId).select(
+                                      (state) => state.readPostNumbers.contains(
+                                        widget.post.postNumber,
+                                      ),
+                                    ),
                                   );
                                   final isNew = !widget.post.read;
-                                  final isReadInSession = sessionState
-                                      .readPostNumbers
-                                      .contains(widget.post.postNumber);
                                   final show = isNew && !isReadInSession;
 
                                   return AnimatedOpacity(
