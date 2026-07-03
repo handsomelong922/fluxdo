@@ -67,7 +67,7 @@ class PostRepliesList extends StatelessWidget {
 
           // 已加载的回复列表
           ...replies.map((reply) {
-            final avatarUrl = reply.getAvatarUrl(size: 60);
+            final avatarUrl = reply.getAvatarUrl(size: 40);
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(

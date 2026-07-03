@@ -82,7 +82,7 @@ class PostReplyHistory extends StatelessWidget {
           ),
           // Reply Items
           ...replyHistory!.map((replyPost) {
-            final avatarUrl = replyPost.getAvatarUrl(size: 60);
+            final avatarUrl = replyPost.getAvatarUrl(size: 40);
             return InkWell(
               onTap: () => onJumpToPost?.call(replyPost.postNumber),
               child: Padding(

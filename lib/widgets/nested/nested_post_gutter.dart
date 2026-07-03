@@ -27,7 +27,7 @@ class NestedPostAvatar extends StatelessWidget {
         builder: (context, _, _) {
           final avatarUrl = AvatarUrlPolicy.resolveTemplate(
             avatarTemplate,
-            size: 48,
+            size: 36,
           );
           return SmartAvatar(
             imageUrl: avatarUrl.isNotEmpty ? avatarUrl : null,

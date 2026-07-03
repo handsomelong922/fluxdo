@@ -139,6 +139,7 @@ class TopicCard extends ConsumerWidget {
     return RepaintBoundary(
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
+        elevation: isMobile ? 0 : null,
         color: isSelected
             ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
             : highlightColor,
@@ -659,6 +660,7 @@ class CompactTopicCard extends ConsumerWidget {
     return RepaintBoundary(
       child: Card(
         margin: const EdgeInsets.only(bottom: 6),
+        elevation: Responsive.isMobile(context) ? 0 : null,
         color: isSelected
             ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
             : highlightColor ??
