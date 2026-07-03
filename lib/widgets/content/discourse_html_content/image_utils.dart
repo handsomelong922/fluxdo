@@ -9,6 +9,13 @@ import '../../../utils/url_helper.dart';
 /// 画廊信息类
 /// 同时保存缩略图 URL（用于匹配）和原图 URL（用于显示）
 class GalleryInfo {
+  static final GalleryInfo _empty = GalleryInfo._(
+    originalUrls: const <String>[],
+    thumbnailToIndex: const <String, int>{},
+    filenames: const <String?>[],
+    spoilerImageUrls: const <String>{},
+  );
+
   /// 原图 URL 列表（用于画廊显示）
   final List<String> originalUrls;
 
@@ -62,6 +69,10 @@ class GalleryInfo {
   /// 收集所有 a.lightbox 内的图片（标记 spoiler 内的，揭示后才加入可见画廊）
   /// 结果会被全局 LRU 缓存，相同 HTML 不会重复解析 DOM
   static GalleryInfo fromHtml(String html) {
+    if (!html.contains('lightbox')) {
+      return _empty;
+    }
+
     final cacheKey = (html.hashCode, html.length);
 
     // 检查缓存
