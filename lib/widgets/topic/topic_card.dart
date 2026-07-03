@@ -18,15 +18,12 @@ import '../../utils/number_utils.dart';
 import '../common/emoji_text.dart';
 
 class _TextWidthCache {
-  static final int _maxEntries =
-      Platform.isAndroid || Platform.isIOS ? 256 : 512;
+  static final int _maxEntries = Platform.isAndroid || Platform.isIOS
+      ? 256
+      : 512;
   static final Map<int, double> _cache = <int, double>{};
 
-  static double measure(
-    BuildContext context,
-    String text,
-    TextStyle style,
-  ) {
+  static double measure(BuildContext context, String text, TextStyle style) {
     final textScale = MediaQuery.textScalerOf(context).scale(1);
     final key = Object.hash(
       text,
@@ -136,96 +133,98 @@ class TopicCard extends ConsumerWidget {
       logoUrl = parent?.uploadedLogo;
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      clipBehavior: Clip.antiAlias,
-      color: isSelected
-          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
-          : highlightColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: isSelected
-            ? BorderSide(
-                color: theme.colorScheme.primary.withValues(alpha: 0.5),
-              )
-            : BorderSide.none,
-      ),
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        onSecondaryTap: PlatformUtils.isDesktop ? onLongPress : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 顶部附属区域（如书签元信息色带）
-            ...switch (topWidget) {
-              final topWidget? => [topWidget],
-              null => const <Widget>[],
-            },
-            Opacity(
-              opacity: isFullyRead ? 0.5 : 1.0,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (!hideTopicListAvatars) ...[
-                      // 左侧：楼主头像
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: _buildOriginalPosterAvatar(context),
+    return RepaintBoundary(
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        clipBehavior: Clip.antiAlias,
+        color: isSelected
+            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
+            : highlightColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: isSelected
+              ? BorderSide(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                )
+              : BorderSide.none,
+        ),
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          onSecondaryTap: PlatformUtils.isDesktop ? onLongPress : null,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 顶部附属区域（如书签元信息色带）
+              ...switch (topWidget) {
+                final topWidget? => [topWidget],
+                null => const <Widget>[],
+              },
+              Opacity(
+                opacity: isFullyRead ? 0.5 : 1.0,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!hideTopicListAvatars) ...[
+                        // 左侧：楼主头像
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: _buildOriginalPosterAvatar(context),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      // 右侧：标题、标签和可选摘要
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 第1行：标题
+                            _buildTitleRow(
+                              context,
+                              theme,
+                              titleStyle,
+                              effectiveTitleColor,
+                            ),
+
+                            const SizedBox(height: 6),
+
+                            // 第2行：分类和标签
+                            _buildBadgeLine(
+                              context,
+                              category,
+                              faIcon,
+                              logoUrl,
+                              badgeSize,
+                              badgeLineHeight,
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(width: 10),
-                    ],
-                    // 右侧：标题、标签和可选摘要
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // 第1行：标题
-                          _buildTitleRow(
-                            context,
-                            theme,
-                            titleStyle,
-                            effectiveTitleColor,
-                          ),
-
-                          const SizedBox(height: 6),
-
-                          // 第2行：分类和标签
-                          _buildBadgeLine(
-                            context,
-                            category,
-                            faIcon,
-                            logoUrl,
-                            badgeSize,
-                            badgeLineHeight,
-                          ),
-                        ],
+                      _buildTrailingMeta(
+                        context,
+                        showReplyOrUnread: showReplyOrUnread,
+                        showLike: showLike,
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    _buildTrailingMeta(
-                      context,
-                      showReplyOrUnread: showReplyOrUnread,
-                      showLike: showLike,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            // 底部附属区域
-            if (bottomWidget case final bottomWidget?)
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  hideTopicListAvatars ? 12 : 56,
-                  2,
-                  14,
-                  8,
+              // 底部附属区域
+              if (bottomWidget case final bottomWidget?)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    hideTopicListAvatars ? 12 : 56,
+                    2,
+                    14,
+                    8,
+                  ),
+                  child: bottomWidget,
                 ),
-                child: bottomWidget,
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -646,169 +645,175 @@ class CompactTopicCard extends ConsumerWidget {
       logoUrl = parent?.uploadedLogo;
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 6),
-      clipBehavior: Clip.antiAlias,
-      color: isSelected
-          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
-          : highlightColor ??
-                theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: isSelected
-            ? BorderSide(
-                color: theme.colorScheme.primary.withValues(alpha: 0.5),
-              )
-            : BorderSide.none,
-      ),
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        onSecondaryTap: PlatformUtils.isDesktop ? onLongPress : null,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              // 1. 置顶图标
-              Icon(
-                Icons.push_pin_rounded,
-                size: 14,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-
-              // 2. 分类图标/Dot
-              if (category != null) ...[
-                if (faIcon != null)
-                  FaIcon(faIcon, size: 12, color: _parseColor(category.color))
-                else if (logoUrl != null && logoUrl.isNotEmpty)
-                  Image(
-                    image: discourseImageProvider(
-                      UrlHelper.resolveUrlWithCdn(logoUrl),
-                    ),
-                    width: 12,
-                    height: 12,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      return _buildCategoryDot(category);
-                    },
-                  )
-                else
-                  _buildCategoryDot(category),
+    return RepaintBoundary(
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 6),
+        clipBehavior: Clip.antiAlias,
+        color: isSelected
+            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
+            : highlightColor ??
+                  theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: isSelected
+              ? BorderSide(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                )
+              : BorderSide.none,
+        ),
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          onSecondaryTap: PlatformUtils.isDesktop ? onLongPress : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                // 1. 置顶图标
+                Icon(
+                  Icons.push_pin_rounded,
+                  size: 14,
+                  color: theme.colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
-              ],
 
-              // 3. 标题
-              Expanded(
-                child: Text.rich(
-                  TextSpan(
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: isUnread ? FontWeight.w500 : FontWeight.w400,
-                      color: isUnread
-                          ? unreadTitleColor
-                          : theme.colorScheme.onSurfaceVariant,
+                // 2. 分类图标/Dot
+                if (category != null) ...[
+                  if (faIcon != null)
+                    FaIcon(faIcon, size: 12, color: _parseColor(category.color))
+                  else if (logoUrl != null && logoUrl.isNotEmpty)
+                    Image(
+                      image: discourseImageProvider(
+                        UrlHelper.resolveUrlWithCdn(logoUrl),
+                      ),
+                      width: 12,
+                      height: 12,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return _buildCategoryDot(category);
+                      },
+                    )
+                  else
+                    _buildCategoryDot(category),
+                  const SizedBox(width: 8),
+                ],
+
+                // 3. 标题
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: isUnread
+                            ? FontWeight.w500
+                            : FontWeight.w400,
+                        color: isUnread
+                            ? unreadTitleColor
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                      children: [
+                        if (topic.closed)
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 3),
+                              child: Icon(
+                                Icons.lock_outline,
+                                size: 12,
+                                color: isUnread
+                                    ? unreadTitleColor
+                                    : theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        if (topic.hasAcceptedAnswer)
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 3),
+                              child: Icon(
+                                Icons.check_box,
+                                size: 12,
+                                color: Colors.green,
+                              ),
+                            ),
+                          )
+                        else if (topic.canHaveAnswer)
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 3),
+                              child: Icon(
+                                Icons.check_box_outline_blank,
+                                size: 12,
+                                color: theme.colorScheme.outline,
+                              ),
+                            ),
+                          ),
+                        ...EmojiText.buildEmojiSpans(
+                          context,
+                          topic.title,
+                          theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: isUnread
+                                ? FontWeight.w500
+                                : FontWeight.w400,
+                            color: isUnread
+                                ? unreadTitleColor
+                                : theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+
+                const SizedBox(width: 8),
+
+                // 4. 未读数或简单状态
+                if (topic.unread > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer.withValues(
+                        alpha: 0.7,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${topic.unread}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onPrimaryContainer,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 9,
+                      ),
+                    ),
+                  )
+                else if (topic.postsCount > 1)
+                  Row(
                     children: [
-                      if (topic.closed)
-                        WidgetSpan(
-                          alignment: PlaceholderAlignment.middle,
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 3),
-                            child: Icon(
-                              Icons.lock_outline,
-                              size: 12,
-                              color: isUnread
-                                  ? unreadTitleColor
-                                  : theme.colorScheme.onSurfaceVariant,
-                            ),
+                      Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        size: 12,
+                        color: theme.colorScheme.outline.withValues(alpha: 0.7),
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        '${topic.postsCount - 1}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.outline.withValues(
+                            alpha: 0.7,
                           ),
-                        ),
-                      if (topic.hasAcceptedAnswer)
-                        WidgetSpan(
-                          alignment: PlaceholderAlignment.middle,
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 3),
-                            child: Icon(
-                              Icons.check_box,
-                              size: 12,
-                              color: Colors.green,
-                            ),
-                          ),
-                        )
-                      else if (topic.canHaveAnswer)
-                        WidgetSpan(
-                          alignment: PlaceholderAlignment.middle,
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 3),
-                            child: Icon(
-                              Icons.check_box_outline_blank,
-                              size: 12,
-                              color: theme.colorScheme.outline,
-                            ),
-                          ),
-                        ),
-                      ...EmojiText.buildEmojiSpans(
-                        context,
-                        topic.title,
-                        theme.textTheme.labelMedium?.copyWith(
-                          fontWeight: isUnread
-                              ? FontWeight.w500
-                              : FontWeight.w400,
-                          color: isUnread
-                              ? unreadTitleColor
-                              : theme.colorScheme.onSurfaceVariant,
+                          fontSize: 10,
                         ),
                       ),
                     ],
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-
-              const SizedBox(width: 8),
-
-              // 4. 未读数或简单状态
-              if (topic.unread > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withValues(
-                      alpha: 0.7,
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '${topic.unread}',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 9,
-                    ),
-                  ),
-                )
-              else if (topic.postsCount > 1)
-                Row(
-                  children: [
-                    Icon(
-                      Icons.chat_bubble_outline_rounded,
-                      size: 12,
-                      color: theme.colorScheme.outline.withValues(alpha: 0.7),
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      '${topic.postsCount - 1}',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.7),
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

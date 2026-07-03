@@ -543,7 +543,9 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       );
     }
 
-    return widget.buildScrollTag?.call(post.postNumber, card) ?? card;
+    final builtCard =
+        widget.buildScrollTag?.call(post.postNumber, card) ?? card;
+    return RepaintBoundary(child: builtCard);
   }
 
   /// 帖子文章区
