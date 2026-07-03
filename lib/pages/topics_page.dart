@@ -62,6 +62,11 @@ final scrollToTopProvider = StateNotifierProvider<ScrollToTopNotifier, int>((
   return ScrollToTopNotifier();
 });
 
+final refreshScrollToTopProvider =
+    StateNotifierProvider<ScrollToTopNotifier, int>((ref) {
+      return ScrollToTopNotifier();
+    });
+
 /// 顶栏/底栏可见性进度（0.0 = 完全隐藏, 1.0 = 完全显示）
 final barVisibilityProvider = StateProvider<double>((ref) => 1.0);
 
@@ -618,6 +623,18 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
         _outerScrollController.animateTo(
           _outerScrollController.offset,
           duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+
+    ref.listen(refreshScrollToTopProvider, (previous, next) {
+      ref.read(fabRefreshModeProvider.notifier).state = false;
+      if (_outerScrollController.hasClients &&
+          _outerScrollController.positions.length == 1) {
+        _outerScrollController.animateTo(
+          _outerScrollController.offset,
+          duration: const Duration(milliseconds: 80),
           curve: Curves.easeOut,
         );
       }

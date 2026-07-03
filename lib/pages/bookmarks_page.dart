@@ -113,11 +113,7 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
           break;
         case NavAction.refresh:
           if (_scrollController.hasClients) {
-            _scrollController.animateTo(
-              0,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
+            _scrollController.jumpTo(0);
           }
           _onRefresh();
           ref.resetNavScrollProgress(NavEntryIds.bookmarks);
