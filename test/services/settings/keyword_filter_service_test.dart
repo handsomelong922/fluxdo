@@ -34,5 +34,21 @@ void main() {
         expect(notifier.state, ['广告']);
       },
     );
+
+    test('matches caches titles and clears cache when patterns change', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final notifier = KeywordFilterNotifier(prefs);
+
+      expect(notifier.replaceAllPatterns(['广告']), isTrue);
+
+      expect(notifier.matches('广告位招租'), isTrue);
+      expect(notifier.matches('普通帖子'), isFalse);
+      expect(notifier.debugMatchCacheSize, 2);
+
+      expect(notifier.replaceAllPatterns(['普通']), isTrue);
+      expect(notifier.debugMatchCacheSize, 0);
+      expect(notifier.matches('普通帖子'), isTrue);
+    });
   });
 }

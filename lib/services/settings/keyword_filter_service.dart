@@ -5,7 +5,10 @@
 // - 通过 keywordFilterProvider 在 Riverpod 中共享状态
 
 // ignore: depend_on_referenced_packages
+import 'dart:collection';
+
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../providers/theme_provider.dart'; // sharedPreferencesProvider
@@ -13,9 +16,11 @@ import '../../providers/theme_provider.dart'; // sharedPreferencesProvider
 // CUSTOM: Keyword Filter
 class KeywordFilterNotifier extends StateNotifier<List<String>> {
   static const String _storageKey = 'custom_keyword_filter_patterns';
+  static const int _maxMatchCacheEntries = 512;
 
   final SharedPreferences _prefs;
   List<RegExp> _compiledPatterns = const <RegExp>[];
+  final LinkedHashMap<String, bool> _matchCache = LinkedHashMap<String, bool>();
 
   KeywordFilterNotifier(this._prefs) : super(_load(_prefs)) {
     _rebuildCompiledPatterns();
@@ -97,13 +102,24 @@ class KeywordFilterNotifier extends StateNotifier<List<String>> {
   bool matches(String? title) {
     if (title == null || title.isEmpty) return false;
     if (_compiledPatterns.isEmpty) return false;
+    if (_matchCache.containsKey(title)) {
+      final cached = _matchCache.remove(title)!;
+      _matchCache[title] = cached;
+      return cached;
+    }
+
     for (final pattern in _compiledPatterns) {
       if (pattern.hasMatch(title)) {
+        _cacheMatchResult(title, true);
         return true;
       }
     }
+    _cacheMatchResult(title, false);
     return false;
   }
+
+  @visibleForTesting
+  int get debugMatchCacheSize => _matchCache.length;
 
   static bool isValidRegex(String pattern) {
     try {
@@ -128,6 +144,14 @@ class KeywordFilterNotifier extends StateNotifier<List<String>> {
       }
     }
     _compiledPatterns = compiled;
+    _matchCache.clear();
+  }
+
+  void _cacheMatchResult(String title, bool matched) {
+    if (_matchCache.length >= _maxMatchCacheEntries) {
+      _matchCache.remove(_matchCache.keys.first);
+    }
+    _matchCache[title] = matched;
   }
 }
 
