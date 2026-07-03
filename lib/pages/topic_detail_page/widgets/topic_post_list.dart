@@ -168,7 +168,12 @@ class _TopicPostListState extends State<TopicPostList> {
   Map<int, int> _postIndexToScrollIndex = const {};
   Map<int, int> _scrollIndexToPostNumber = const {};
   int? _renderSegmentsSourceKey;
-  int? _visiblePostsSourceKey;
+  List<Post>? _visiblePostsSourcePosts;
+  Set<String>? _visiblePostsSourceBlockedUsernames;
+  List<Post>? _renderSegmentsSourcePosts;
+  List<int>? _renderSegmentsSourceStream;
+  PostStreamGaps? _renderSegmentsSourceGaps;
+  Set<String>? _renderSegmentsSourceBlockedUsernames;
   List<Post> _visiblePostsCache = const [];
 
   /// postNumber → postIndex 反查表（避免 indexWhere 线性查找）
@@ -194,8 +199,12 @@ class _TopicPostListState extends State<TopicPostList> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.detail.id != widget.detail.id) {
       _inlineRepliesStateByPostNumber.clear();
-      _renderSegmentsSourceKey = null;
-      _visiblePostsSourceKey = null;
+      _renderSegmentsSourcePosts = null;
+      _renderSegmentsSourceStream = null;
+      _renderSegmentsSourceGaps = null;
+      _renderSegmentsSourceBlockedUsernames = null;
+      _visiblePostsSourcePosts = null;
+      _visiblePostsSourceBlockedUsernames = null;
       _visiblePostsCache = const [];
     }
   }
@@ -258,17 +267,11 @@ class _TopicPostListState extends State<TopicPostList> {
 
   void _ensureVisiblePosts() {
     final posts = detail.postStream.posts;
-    final sourceKey = Object.hashAll(<Object?>[
-      detail.id,
-      widget.blockedUsernames,
-      widget.blockedUsernames.length,
-      posts.length,
-      posts.isEmpty ? null : posts.first.id,
-      posts.isEmpty ? null : posts.last.id,
-      posts.isEmpty ? null : posts.first.username,
-      posts.isEmpty ? null : posts.last.username,
-    ]);
-    if (_visiblePostsSourceKey == sourceKey) {
+    if (identical(_visiblePostsSourcePosts, posts) &&
+        identical(
+          _visiblePostsSourceBlockedUsernames,
+          widget.blockedUsernames,
+        )) {
       return;
     }
 
@@ -276,7 +279,8 @@ class _TopicPostListState extends State<TopicPostList> {
       detail.postStream.posts,
       widget.blockedUsernames,
     );
-    _visiblePostsSourceKey = sourceKey;
+    _visiblePostsSourcePosts = posts;
+    _visiblePostsSourceBlockedUsernames = widget.blockedUsernames;
   }
 
   /// 检测当前可见帖子（Eyeline 机制）
@@ -511,7 +515,18 @@ class _TopicPostListState extends State<TopicPostList> {
   }
 
   int _computeRenderSegmentsSourceKey() {
-    return Object.hashAll(<Object?>[
+    final posts = _visiblePosts;
+    if (identical(_renderSegmentsSourcePosts, posts) &&
+        identical(_renderSegmentsSourceStream, detail.postStream.stream) &&
+        identical(_renderSegmentsSourceGaps, detail.postStream.gaps) &&
+        identical(
+          _renderSegmentsSourceBlockedUsernames,
+          widget.blockedUsernames,
+        )) {
+      return _renderSegmentsSourceKey ?? 0;
+    }
+
+    final sourceKey = Object.hashAll(<Object?>[
       detail.id,
       widget.blockedUsernames,
       widget.blockedUsernames.length,
@@ -530,7 +545,7 @@ class _TopicPostListState extends State<TopicPostList> {
       for (final entry in detail.postStream.gaps?.after.entries ??
           const <MapEntry<int, List<int>>>[])
         Object.hash(entry.key, entry.value.length),
-      for (final post in _visiblePosts)
+      for (final post in posts)
         Object.hash(
           post.id,
           post.postNumber,
@@ -539,6 +554,12 @@ class _TopicPostListState extends State<TopicPostList> {
           post.cooked.hashCode,
         ),
     ]);
+    _renderSegmentsSourcePosts = posts;
+    _renderSegmentsSourceStream = detail.postStream.stream;
+    _renderSegmentsSourceGaps = detail.postStream.gaps;
+    _renderSegmentsSourceBlockedUsernames = widget.blockedUsernames;
+    _renderSegmentsSourceKey = sourceKey;
+    return sourceKey;
   }
 
   void _ensureRenderSegments(List<Post> posts) {
