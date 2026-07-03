@@ -447,10 +447,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
     if (Platform.isAndroid || Platform.isIOS) {
       _mountedCategoryTabIds
         ..clear()
-        ..add(null);
-      if (categoryId != null) {
-        _mountedCategoryTabIds.add(categoryId);
-      }
+        ..add(categoryId);
       return;
     }
 
