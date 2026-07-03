@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../utils/dialog_utils.dart';
@@ -29,12 +30,15 @@ class TopicProgress extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isMobile =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
 
     return Card(
-      elevation: 4,
-      shadowColor: Colors.black26,
+      elevation: isMobile ? 0 : 4,
+      shadowColor: isMobile ? Colors.transparent : Colors.black26,
       shape: const StadiumBorder(),
-      clipBehavior: Clip.antiAlias,
+      clipBehavior: isMobile ? Clip.none : Clip.antiAlias,
       margin: EdgeInsets.zero,
       child: InkWell(
         onTap: onTap,
