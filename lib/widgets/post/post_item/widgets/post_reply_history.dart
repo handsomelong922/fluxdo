@@ -128,33 +128,15 @@ class PostReplyHistory extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 4),
-                          IgnorePointer(
-                            child: ShaderMask(
-                              shaderCallback: (rect) {
-                                return const LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [Colors.black, Colors.transparent],
-                                  stops: [0.6, 1.0],
-                                ).createShader(rect);
-                              },
-                              blendMode: BlendMode.dstIn,
-                              child: Container(
-                                constraints: const BoxConstraints(
-                                  maxHeight: 60,
-                                ),
-                                child: Text(
-                                  cleanHtmlExcerpt(replyPost.cooked),
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    fontSize: 13 * contentFontScale,
-                                    height: 1.4,
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
+                          Text(
+                            cleanHtmlExcerpt(replyPost.cooked),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: 13 * contentFontScale,
+                              height: 1.4,
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
