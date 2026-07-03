@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'runtime_log_settings.dart';
+
 /// 统一日志写入器，所有日志通过此类写入同一个 JSONL 文件
 class LogWriter {
   LogWriter._();
@@ -32,9 +34,11 @@ class LogWriter {
 
   /// 用 Future 链串行化写入，避免并发冲突
   Future<void> _writeChain = Future.value();
+  int? _cachedEntryCount;
 
   /// 写入一条日志条目，自动注入 appVersion
   void write(Map<String, dynamic> entry) {
+    if (!RuntimeLogSettings.appLogsEnabled) return;
     if (_appVersion != null) {
       entry['appVersion'] = _appVersion;
     }
@@ -42,29 +46,60 @@ class LogWriter {
     _writeChain = _writeChain.then((_) => _writeLine(line));
   }
 
+  Future<void> applySettings() {
+    _writeChain = _writeChain.then((_) async {
+      final file = await getLogFile();
+      await _loadEntryCountIfNeeded(file);
+      await _enforceRetentionIfNeeded(file);
+    });
+    return _writeChain;
+  }
+
   /// 写入一行日志到文件
   Future<void> _writeLine(String line) async {
     try {
       final file = await getLogFile();
-      await _truncateIfNeeded(file);
+      await _loadEntryCountIfNeeded(file);
       await file.writeAsString(line, mode: FileMode.append);
+      _cachedEntryCount = (_cachedEntryCount ?? 0) + 1;
+      await _enforceRetentionIfNeeded(file);
     } catch (_) {
       // 写入失败时静默忽略，避免日志写入导致应用崩溃
     }
   }
 
-  /// 超过 2MB 时截断保留后半部分
-  Future<void> _truncateIfNeeded(File file) async {
+  Future<void> _loadEntryCountIfNeeded(File file) async {
+    if (_cachedEntryCount != null) return;
+    if (!file.existsSync()) {
+      _cachedEntryCount = 0;
+      return;
+    }
+    final content = await readContentSafely(file);
+    _cachedEntryCount = content
+        .split('\n')
+        .where((line) => line.trim().isNotEmpty)
+        .length;
+  }
+
+  Future<void> _enforceRetentionIfNeeded(File file) async {
     if (!file.existsSync()) return;
+    final entryCount = _cachedEntryCount ?? 0;
+    final withinLimit = entryCount <= RuntimeLogSettings.appLogEntryLimit;
     final size = await file.length();
-    if (size < _maxFileSize) return;
+    if (withinLimit && size < _maxFileSize) return;
 
     final content = await readContentSafely(file);
-    final lines = content.split('\n');
-    // 保留后半部分
-    final halfIndex = lines.length ~/ 2;
-    final retained = lines.sublist(halfIndex).join('\n');
-    await file.writeAsString(retained);
+    final lines = content
+        .split('\n')
+        .where((line) => line.trim().isNotEmpty)
+        .toList(growable: false);
+    final keepCount = RuntimeLogSettings.appLogEntryLimit.clamp(1, 300);
+    final retained = lines.length <= keepCount
+        ? lines
+        : lines.sublist(lines.length - keepCount);
+    final retainedContent = retained.isEmpty ? '' : '${retained.join('\n')}\n';
+    await file.writeAsString(retainedContent);
+    _cachedEntryCount = retained.length;
   }
 
   /// 获取日志文件，包含旧文件迁移逻辑

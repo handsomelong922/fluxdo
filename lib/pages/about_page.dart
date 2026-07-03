@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/apk_download_service.dart';
 import '../services/cf_challenge_logger.dart';
+import '../services/log/app_log_settings_service.dart';
 import '../services/log/runtime_log_settings.dart';
 import '../services/toast_service.dart';
 import '../services/update_service.dart';
@@ -68,6 +69,7 @@ class _AboutPageState extends State<AboutPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('developer_mode', enabled);
     RuntimeLogSettings.configure(developerModeEnabled: enabled);
+    AppLogSettingsService.instance.refreshDeveloperMode(enabled);
     if (!enabled) {
       await CfChallengeLogger.clear();
     }

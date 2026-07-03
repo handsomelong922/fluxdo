@@ -10,12 +10,28 @@ class RuntimeLogSettings {
   RuntimeLogSettings._();
 
   static bool _developerModeEnabled = false;
+  static bool _appLogsEnabled = true;
+  static int _appLogEntryLimit = 150;
 
-  static void configure({required bool developerModeEnabled}) {
-    _developerModeEnabled = developerModeEnabled;
+  static void configure({
+    bool? developerModeEnabled,
+    bool? appLogsEnabled,
+    int? appLogEntryLimit,
+  }) {
+    if (developerModeEnabled != null) {
+      _developerModeEnabled = developerModeEnabled;
+    }
+    if (appLogsEnabled != null) {
+      _appLogsEnabled = appLogsEnabled;
+    }
+    if (appLogEntryLimit != null) {
+      _appLogEntryLimit = appLogEntryLimit.clamp(50, 300).toInt();
+    }
   }
 
   static bool get developerModeEnabled => _developerModeEnabled;
+  static bool get appLogsEnabled => _appLogsEnabled;
+  static int get appLogEntryLimit => _appLogEntryLimit;
 
   static bool get emitVerboseConsoleDiagnostics =>
       kDebugMode || _developerModeEnabled;
@@ -23,6 +39,7 @@ class RuntimeLogSettings {
   static bool get persistVerboseDiagnostics => _developerModeEnabled;
 
   static bool shouldPersistDiagnosticEvent({required String level}) {
+    if (!_appLogsEnabled) return false;
     if (persistVerboseDiagnostics) return true;
     return level == 'warning' || level == 'error';
   }
@@ -31,6 +48,7 @@ class RuntimeLogSettings {
     required String level,
     required bool isSilent,
   }) {
+    if (!_appLogsEnabled) return false;
     if (persistVerboseDiagnostics) return true;
     if (level == 'warning' || level == 'error') return true;
     return !isSilent;

@@ -3,7 +3,11 @@ import 'package:fluxdo/services/log/runtime_log_settings.dart';
 
 void main() {
   tearDown(() {
-    RuntimeLogSettings.configure(developerModeEnabled: false);
+    RuntimeLogSettings.configure(
+      developerModeEnabled: false,
+      appLogsEnabled: true,
+      appLogEntryLimit: 150,
+    );
   });
 
   test('drops verbose info diagnostics by default', () {
@@ -55,6 +59,25 @@ void main() {
         isSilent: true,
       ),
       isTrue,
+    );
+  });
+
+  test('disabling app logs suppresses request and diagnostic persistence', () {
+    RuntimeLogSettings.configure(
+      developerModeEnabled: true,
+      appLogsEnabled: false,
+    );
+
+    expect(
+      RuntimeLogSettings.shouldPersistDiagnosticEvent(level: 'error'),
+      isFalse,
+    );
+    expect(
+      RuntimeLogSettings.shouldPersistRequestLog(
+        level: 'warning',
+        isSilent: false,
+      ),
+      isFalse,
     );
   });
 }

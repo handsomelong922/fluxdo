@@ -6,10 +6,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../l10n/s.dart';
 import '../../../utils/share_utils.dart';
 import '../../../services/network_logger.dart';
+import '../../../services/log/app_log_settings_service.dart';
 import '../../../utils/dialog_utils.dart';
 import '../../../services/cf_challenge_service.dart';
 import '../../../services/cf_challenge_logger.dart';
 import '../../../services/toast_service.dart';
+import '../../../widgets/log/app_log_settings_sheet.dart';
 
 /// 调试工具卡片
 class DebugToolsCard extends StatefulWidget {
@@ -47,6 +49,29 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         children: [
+          AnimatedBuilder(
+            animation: AppLogSettingsService.instance,
+            builder: (context, _) {
+              final settings = AppLogSettingsService.instance.settings;
+              return ListTile(
+                leading: Icon(
+                  settings.enabled
+                      ? Icons.receipt_long_outlined
+                      : Icons.receipt_long_rounded,
+                ),
+                title: const Text('日志记录设置'),
+                subtitle: Text(
+                  AppLogSettingsService.describeSettings(settings),
+                ),
+                trailing: const Icon(Icons.chevron_right, size: 20),
+                onTap: () => showAppLogSettingsSheet(context),
+              );
+            },
+          ),
+          Divider(
+            height: 1,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+          ),
           ListTile(
             leading: const Icon(Icons.article_outlined),
             title: Text(context.l10n.appLogs_title),

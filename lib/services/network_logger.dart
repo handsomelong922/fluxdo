@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
+import 'log/runtime_log_settings.dart';
+
 /// 网络日志工具
 /// 写入到应用文档目录，方便在生产环境查看
 class NetworkLogger {
@@ -61,7 +63,7 @@ class NetworkLogger {
 
   /// 写入日志
   static Future<void> log(String message) async {
-    if (!_enabled) return;
+    if (!_enabled || !RuntimeLogSettings.appLogsEnabled) return;
     if (!_initialized) {
       await _ensureInitialized();
     }

@@ -4,6 +4,8 @@ import 'dart:io';
 import 'network/doh/network_settings_service.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'log/runtime_log_settings.dart';
+
 /// CF 验证日志服务
 /// 记录 Cloudflare 验证相关的详细信息，便于诊断问题
 class CfChallengeLogger {
@@ -52,10 +54,7 @@ class CfChallengeLogger {
           await _logFile!.writeAsString('');
         }
       }
-      await _logFile!.writeAsString(
-        '$line\n',
-        mode: FileMode.append,
-      );
+      await _logFile!.writeAsString('$line\n', mode: FileMode.append);
     } catch (e) {
       // 忽略写入错误
     }
@@ -86,7 +85,7 @@ class CfChallengeLogger {
 
   /// 写入日志
   static Future<void> log(String message) async {
-    if (!_enabled) return;
+    if (!_enabled || !RuntimeLogSettings.appLogsEnabled) return;
     if (!_initialized) {
       await _ensureInitialized();
     }
@@ -104,17 +103,20 @@ class CfChallengeLogger {
     required String direction,
     required List<CookieLogEntry> cookies,
   }) async {
-    if (!_enabled) return;
+    if (!_enabled || !RuntimeLogSettings.appLogsEnabled) return;
     if (!_initialized) {
       await _ensureInitialized();
     }
     if (_logFile == null) return;
     final timestamp = DateTime.now().toIso8601String();
     final buffer = StringBuffer();
-    buffer.write('[$timestamp] [COOKIE] $direction - ${cookies.length} cookies');
+    buffer.write(
+      '[$timestamp] [COOKIE] $direction - ${cookies.length} cookies',
+    );
     for (final cookie in cookies) {
       buffer.write(
-          '\n[$timestamp]   - ${cookie.name}: domain=${cookie.domain}, path=${cookie.path}, expires=${cookie.expires}, valueLen=${cookie.valueLength}');
+        '\n[$timestamp]   - ${cookie.name}: domain=${cookie.domain}, path=${cookie.path}, expires=${cookie.expires}, valueLen=${cookie.valueLength}',
+      );
     }
     await _appendLine(buffer.toString());
   }
@@ -146,10 +148,14 @@ class CfChallengeLogger {
 
     final clientIp = await _fetchClientIp(uri);
     final serverIps = await _resolveServerIps(host);
-    final clientText = (clientIp == null || clientIp.isEmpty) ? 'unknown' : clientIp;
+    final clientText = (clientIp == null || clientIp.isEmpty)
+        ? 'unknown'
+        : clientIp;
     final serverText = serverIps.isEmpty ? 'unknown' : serverIps.join(', ');
 
-    await log('[IP]${_formatContext(context)} host=$host client=$clientText server=$serverText');
+    await log(
+      '[IP]${_formatContext(context)} host=$host client=$clientText server=$serverText',
+    );
   }
 
   /// 记录验证检查
@@ -159,7 +165,9 @@ class CfChallengeLogger {
     String? cfClearance,
     bool clearanceChanged = false,
   }) async {
-    await log('[VERIFY] Check #$checkCount: isChallenge=$isChallenge, hasClearance=${cfClearance != null}, clearanceChanged=$clearanceChanged');
+    await log(
+      '[VERIFY] Check #$checkCount: isChallenge=$isChallenge, hasClearance=${cfClearance != null}, clearanceChanged=$clearanceChanged',
+    );
   }
 
   /// 记录验证结果
@@ -168,7 +176,9 @@ class CfChallengeLogger {
     String? reason,
   }) async {
     if (success) {
-      await log('[VERIFY] Result: SUCCESS${reason != null ? ' ($reason)' : ''}');
+      await log(
+        '[VERIFY] Result: SUCCESS${reason != null ? ' ($reason)' : ''}',
+      );
     } else {
       await log('[VERIFY] Result: FAILED${reason != null ? ' ($reason)' : ''}');
     }

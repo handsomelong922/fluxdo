@@ -2,19 +2,29 @@ import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 
+import '../log/runtime_log_settings.dart';
+
 /// 记录当前进程启动后的网络请求，用于在日志页查看首屏请求耗时排序。
 class StartupRequestRecorder extends ChangeNotifier {
   StartupRequestRecorder._() : processStartedAt = DateTime.now();
 
   static final StartupRequestRecorder instance = StartupRequestRecorder._();
-  static const int _maxRecords = 300;
 
-  static StartupRequestRecorder ensureInitialized() => instance;
+  static StartupRequestRecorder ensureInitialized() {
+    instance.configure(
+      enabled: RuntimeLogSettings.appLogsEnabled,
+      maxRecords: RuntimeLogSettings.appLogEntryLimit,
+      clearWhenDisabled: false,
+    );
+    return instance;
+  }
 
   final DateTime processStartedAt;
   final ListQueue<StartupRequestRecord> _records =
       ListQueue<StartupRequestRecord>();
   int _nextSequence = 0;
+  bool _enabled = true;
+  int _maxRecords = 150;
 
   List<StartupRequestRecord> get records =>
       List.unmodifiable(_records.toList(growable: false));
@@ -31,6 +41,36 @@ class StartupRequestRecorder extends ChangeNotifier {
 
   int get sessionAgeMs =>
       DateTime.now().difference(processStartedAt).inMilliseconds;
+
+  void configure({
+    required bool enabled,
+    required int maxRecords,
+    required bool clearWhenDisabled,
+  }) {
+    final normalizedMaxRecords = maxRecords.clamp(50, 300).toInt();
+    final enabledChanged = _enabled != enabled;
+    final limitChanged = _maxRecords != normalizedMaxRecords;
+    _enabled = enabled;
+    _maxRecords = normalizedMaxRecords;
+
+    if (!_enabled && clearWhenDisabled && _records.isNotEmpty) {
+      _records.clear();
+      notifyListeners();
+      return;
+    }
+
+    if (_records.length > _maxRecords) {
+      while (_records.length > _maxRecords) {
+        _records.removeFirst();
+      }
+      notifyListeners();
+      return;
+    }
+
+    if (enabledChanged || limitChanged) {
+      notifyListeners();
+    }
+  }
 
   StartupRequestRecord record({
     required int? startedAtMillis,
@@ -63,6 +103,8 @@ class StartupRequestRecorder extends ChangeNotifier {
       networkAdapter: networkAdapter,
       errorType: errorType,
     );
+
+    if (!_enabled) return entry;
 
     _records.add(entry);
     while (_records.length > _maxRecords) {

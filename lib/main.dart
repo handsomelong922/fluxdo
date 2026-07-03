@@ -57,6 +57,7 @@ import 'services/background/background_notification_service.dart';
 import 'services/message_bus_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/log/json_file_handler.dart';
+import 'services/log/app_log_settings_service.dart';
 import 'services/log/log_writer.dart';
 import 'services/log/runtime_log_settings.dart';
 import 'services/log/logger_utils.dart';
@@ -146,9 +147,6 @@ Future<void> _completeStartupServices(
   SharedPreferences prefs, {
   required bool startupPreloadStarted,
 }) async {
-  RuntimeLogSettings.configure(
-    developerModeEnabled: prefs.getBool('developer_mode') ?? false,
-  );
   // 阶段 2：依赖 prefs 的步骤并行
   final crashlyticsEnabled = prefs.getBool('pref_crashlytics') ?? true;
   await Future.wait([
@@ -401,6 +399,7 @@ Future<void> main() async {
     RuntimeLogSettings.configure(
       developerModeEnabled: prefs.getBool('developer_mode') ?? false,
     );
+    AppLogSettingsService.instance.initialize(prefs);
     _configureAiRuntime(prefs);
 
     final preloadPrerequisites = _prepareDirectAndroidPreloadPrerequisites(
@@ -443,6 +442,10 @@ Future<void> main() async {
   }
   final results = await Future.wait(futures);
   final prefs = results[0] as SharedPreferences;
+  RuntimeLogSettings.configure(
+    developerModeEnabled: prefs.getBool('developer_mode') ?? false,
+  );
+  AppLogSettingsService.instance.initialize(prefs);
   await AuthIssueNoticeService.instance.initialize(prefs);
 
   // v0.4.0: 注册 Cookie 引擎 DevTools service extensions (仅 debug/profile 模式)

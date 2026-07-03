@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:cross_file/cross_file.dart';
 
 import '../services/app_error_handler.dart';
+import '../services/log/app_log_settings_service.dart';
 import '../utils/share_utils.dart';
 import '../services/discourse/discourse_service.dart';
 import '../services/log/logger_utils.dart';
@@ -13,6 +14,7 @@ import '../services/network/adapters/platform_adapter.dart';
 import '../services/network/startup_request_recorder.dart';
 import '../services/toast_service.dart';
 import '../widgets/common/dismissible_popup_menu.dart';
+import '../widgets/log/app_log_settings_sheet.dart';
 import '../widgets/post/reply_sheet.dart';
 import '../l10n/s.dart';
 import '../utils/dialog_utils.dart';
@@ -113,6 +115,10 @@ class _AppLogsPageState extends State<AppLogsPage> {
   }
 
   void _showStartupRequestRanking() {
+    if (!AppLogSettingsService.instance.enabled) {
+      ToastService.showInfo('日志记录已关闭，请先开启后再查看请求耗时榜');
+      return;
+    }
     final recorder = StartupRequestRecorder.instance;
     showAppBottomSheet(
       context: context,
@@ -719,88 +725,114 @@ class _AppLogsPageState extends State<AppLogsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(context.l10n.appLogs_title),
-        centerTitle: true,
-        actions: [
-          SwipeDismissiblePopupMenuButton<String>(
-            onSelected: (value) {
-              switch (value) {
-                case 'deviceInfo':
-                  _copyDeviceInfo();
-                case 'copy':
-                  _copyAll();
-                case 'share':
-                  _shareLog();
-                case 'startupRequests':
-                  _showStartupRequestRanking();
-                case 'feedback':
-                  _sendFeedback();
-                case 'clear':
-                  _clearLogs();
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'deviceInfo',
-                child: ListTile(
-                  leading: const Icon(Icons.smartphone),
-                  title: Text(context.l10n.appLogs_copyDeviceInfo),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'copy',
-                child: ListTile(
-                  leading: const Icon(Icons.copy),
-                  title: Text(context.l10n.appLogs_copyAll),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'share',
-                child: ListTile(
-                  leading: const Icon(Icons.share),
-                  title: Text(context.l10n.appLogs_shareLogs),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'startupRequests',
-                child: ListTile(
-                  leading: const Icon(Icons.speed_outlined),
-                  title: const Text('启动请求耗时榜'),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'feedback',
-                child: ListTile(
-                  leading: const Icon(Icons.mail_outline),
-                  title: Text(context.l10n.appLogs_sendFeedback),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'clear',
-                child: ListTile(
-                  leading: const Icon(Icons.delete_outline),
-                  title: Text(context.l10n.appLogs_clearLogs),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
+    return AnimatedBuilder(
+      animation: AppLogSettingsService.instance,
+      builder: (context, _) {
+        final logSettings = AppLogSettingsService.instance.settings;
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(context.l10n.appLogs_title),
+            centerTitle: true,
+            actions: [
+              SwipeDismissiblePopupMenuButton<String>(
+                onSelected: (value) {
+                  switch (value) {
+                    case 'settings':
+                      showAppLogSettingsSheet(context);
+                    case 'deviceInfo':
+                      _copyDeviceInfo();
+                    case 'copy':
+                      _copyAll();
+                    case 'share':
+                      _shareLog();
+                    case 'startupRequests':
+                      _showStartupRequestRanking();
+                    case 'feedback':
+                      _sendFeedback();
+                    case 'clear':
+                      _clearLogs();
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'settings',
+                    child: ListTile(
+                      leading: const Icon(Icons.tune_rounded),
+                      title: const Text('日志记录设置'),
+                      subtitle: Text(
+                        logSettings.enabled
+                            ? '已开启 · 上限 ${logSettings.maxEntries} 条'
+                            : '已关闭',
+                      ),
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'deviceInfo',
+                    child: ListTile(
+                      leading: const Icon(Icons.smartphone),
+                      title: Text(context.l10n.appLogs_copyDeviceInfo),
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'copy',
+                    child: ListTile(
+                      leading: const Icon(Icons.copy),
+                      title: Text(context.l10n.appLogs_copyAll),
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'share',
+                    child: ListTile(
+                      leading: const Icon(Icons.share),
+                      title: Text(context.l10n.appLogs_shareLogs),
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'startupRequests',
+                    enabled: logSettings.enabled,
+                    child: ListTile(
+                      leading: const Icon(Icons.speed_outlined),
+                      title: const Text('启动请求耗时榜'),
+                      subtitle: logSettings.enabled
+                          ? Text('最多保留 ${logSettings.maxEntries} 条')
+                          : const Text('日志关闭时不可用'),
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'feedback',
+                    child: ListTile(
+                      leading: const Icon(Icons.mail_outline),
+                      title: Text(context.l10n.appLogs_sendFeedback),
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'clear',
+                    child: ListTile(
+                      leading: const Icon(Icons.delete_outline),
+                      title: Text(context.l10n.appLogs_clearLogs),
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
-      body: _buildBody(),
+          body: _buildBody(),
+        );
+      },
     );
   }
 
@@ -810,6 +842,7 @@ class _AppLogsPageState extends State<AppLogsPage> {
     }
 
     if (_entries.isEmpty) {
+      final logSettings = AppLogSettingsService.instance.settings;
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -821,11 +854,20 @@ class _AppLogsPageState extends State<AppLogsPage> {
             ),
             const SizedBox(height: 16),
             Text(
-              context.l10n.appLogs_noLogs,
+              logSettings.enabled ? context.l10n.appLogs_noLogs : '日志记录已关闭',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: Theme.of(context).colorScheme.outline,
               ),
             ),
+            if (!logSettings.enabled) ...[
+              const SizedBox(height: 8),
+              Text(
+                '可在右上角菜单的“日志记录设置”中重新开启',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+              ),
+            ],
           ],
         ),
       );
