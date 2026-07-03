@@ -365,6 +365,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   int? _pendingNestedRestorePostNumber;
   int? _lastPrimedNestedTargetPostNumber;
   int? _lastUnreachableJumpTarget;
+  int? _postLookupCacheSignature;
+  Map<int, int> _postNumberToLoadedPostIndex = const {};
+  Map<int, int> _postNumberToStreamIndex = const {};
 
   String? get _initialPreviewHtml {
     final firstPostHtml = widget.initialFirstPostHtml?.trim();

@@ -4,6 +4,41 @@ part of '../topic_detail_page.dart';
 
 /// 滚动和导航相关方法
 extension _ScrollActions on _TopicDetailPageState {
+  void _ensurePostLookupCaches(TopicDetail detail) {
+    final posts = detail.postStream.posts;
+    final stream = detail.postStream.stream;
+    final signature = Object.hash(
+      detail.id,
+      posts.length,
+      stream.length,
+      posts.isEmpty ? null : posts.first.id,
+      posts.isEmpty ? null : posts.last.id,
+      stream.isEmpty ? null : stream.first,
+      stream.isEmpty ? null : stream.last,
+    );
+    if (_postLookupCacheSignature == signature) return;
+
+    final postIdToStreamIndex = <int, int>{};
+    for (int i = 0; i < stream.length; i++) {
+      postIdToStreamIndex[stream[i]] = i + 1;
+    }
+
+    final loadedPostIndexByNumber = <int, int>{};
+    final streamIndexByPostNumber = <int, int>{};
+    for (int i = 0; i < posts.length; i++) {
+      final post = posts[i];
+      loadedPostIndexByNumber[post.postNumber] = i;
+      final streamIndex = postIdToStreamIndex[post.id];
+      if (streamIndex != null) {
+        streamIndexByPostNumber[post.postNumber] = streamIndex;
+      }
+    }
+
+    _postLookupCacheSignature = signature;
+    _postNumberToLoadedPostIndex = Map.unmodifiable(loadedPostIndexByNumber);
+    _postNumberToStreamIndex = Map.unmodifiable(streamIndexByPostNumber);
+  }
+
   void _onScroll() {
     if (_isRefreshing) return;
 
@@ -65,19 +100,11 @@ extension _ScrollActions on _TopicDetailPageState {
     final params = _params;
     final detail = ref.read(topicDetailProvider(params)).value;
     if (detail == null) return;
+    _ensurePostLookupCaches(detail);
 
-    final posts = detail.postStream.posts;
-    final stream = detail.postStream.stream;
-
-    final post = posts.firstWhere(
-      (p) => p.postNumber == postNumber,
-      orElse: () => posts.first,
-    );
-
-    final streamIndex = stream.indexOf(post.id);
-    if (streamIndex != -1) {
-      final newIndex = streamIndex + 1;
-      _controller.updateStreamIndex(newIndex);
+    final streamIndex = _postNumberToStreamIndex[postNumber];
+    if (streamIndex != null) {
+      _controller.updateStreamIndex(streamIndex);
     }
   }
 
@@ -194,7 +221,8 @@ extension _ScrollActions on _TopicDetailPageState {
     }
 
     final posts = detail.postStream.posts;
-    final postIndex = posts.indexWhere((p) => p.postNumber == postNumber);
+    _ensurePostLookupCaches(detail);
+    final postIndex = _postNumberToLoadedPostIndex[postNumber] ?? -1;
     final notifier = ref.read(topicDetailProvider(params).notifier);
 
     if (postIndex == -1) {
@@ -233,14 +261,8 @@ extension _ScrollActions on _TopicDetailPageState {
 
     // 计算距离，如果距离过大直接使用本地跳转
     bool forceLocalJump = false;
-    final stream = detail.postStream.stream;
     final currentVisibleIndex = _controller.currentVisibleStreamIndex;
-
-    final targetPost = posts.firstWhere(
-      (p) => p.postNumber == postNumber,
-      orElse: () => posts.first,
-    );
-    final targetStreamIndex = stream.indexOf(targetPost.id);
+    final targetStreamIndex = _postNumberToStreamIndex[postNumber] ?? -1;
 
     if (currentVisibleIndex != -1 && targetStreamIndex != -1) {
       if ((targetStreamIndex - currentVisibleIndex).abs() > 15) {
