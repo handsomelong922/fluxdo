@@ -5,13 +5,16 @@ void main() {
   tearDown(() {
     RuntimeLogSettings.configure(
       developerModeEnabled: false,
-      appLogsEnabled: true,
-      appLogEntryLimit: 150,
+      appLogsEnabled: false,
+      appLogEntryLimit: 100,
     );
   });
 
-  test('drops verbose info diagnostics by default', () {
-    RuntimeLogSettings.configure(developerModeEnabled: false);
+  test('drops diagnostics by default when app logs are off', () {
+    RuntimeLogSettings.configure(
+      developerModeEnabled: false,
+      appLogsEnabled: false,
+    );
 
     expect(
       RuntimeLogSettings.shouldPersistDiagnosticEvent(level: 'info'),
@@ -19,12 +22,15 @@ void main() {
     );
     expect(
       RuntimeLogSettings.shouldPersistDiagnosticEvent(level: 'warning'),
-      isTrue,
+      isFalse,
     );
   });
 
   test('drops info request persistence by default', () {
-    RuntimeLogSettings.configure(developerModeEnabled: false);
+    RuntimeLogSettings.configure(
+      developerModeEnabled: false,
+      appLogsEnabled: false,
+    );
 
     expect(
       RuntimeLogSettings.shouldPersistRequestLog(
@@ -42,12 +48,15 @@ void main() {
         level: 'warning',
         isSilent: true,
       ),
-      isTrue,
+      isFalse,
     );
   });
 
   test('keeps verbose diagnostics in developer mode', () {
-    RuntimeLogSettings.configure(developerModeEnabled: true);
+    RuntimeLogSettings.configure(
+      developerModeEnabled: true,
+      appLogsEnabled: true,
+    );
 
     expect(
       RuntimeLogSettings.shouldPersistDiagnosticEvent(level: 'info'),

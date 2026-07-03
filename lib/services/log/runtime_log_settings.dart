@@ -10,8 +10,8 @@ class RuntimeLogSettings {
   RuntimeLogSettings._();
 
   static bool _developerModeEnabled = false;
-  static bool _appLogsEnabled = true;
-  static int _appLogEntryLimit = 150;
+  static bool _appLogsEnabled = false;
+  static int _appLogEntryLimit = 100;
 
   static void configure({
     bool? developerModeEnabled,

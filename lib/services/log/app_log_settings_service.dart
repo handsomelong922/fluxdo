@@ -35,11 +35,11 @@ class AppLogSettingsService extends ChangeNotifier {
   static const String prefEnabledKey = 'pref_app_logs_enabled';
   static const String prefMaxEntriesKey = 'pref_app_logs_max_entries';
 
-  static const bool defaultEnabled = true;
+  static const bool defaultEnabled = false;
   static const int minEntries = 50;
   static const int maxEntries = 300;
   static const int stepEntries = 25;
-  static const int defaultMaxEntries = 150;
+  static const int defaultMaxEntries = 100;
 
   SharedPreferences? _prefs;
   AppLogSettings _settings = const AppLogSettings(
