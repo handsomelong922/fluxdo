@@ -66,6 +66,7 @@ class HomeTopicExcerptLoader {
   HomeTopicExcerptLoader({
     required TopicPreviewFetcher fetchPreview,
     int maxCacheEntries = 160,
+    int maxPreviewEntries = 48,
     Duration cacheTtl = defaultCacheTtl,
     int maxConcurrentRequests = 3,
     Duration minRequestInterval = const Duration(milliseconds: 120),
@@ -74,6 +75,7 @@ class HomeTopicExcerptLoader {
     HomeTopicExcerptPersistentCache? persistentCache,
   }) : _fetchPreview = fetchPreview,
        _maxCacheEntries = maxCacheEntries,
+       _maxPreviewEntries = maxPreviewEntries,
        _cacheTtl = cacheTtl,
        _maxConcurrentRequests = maxConcurrentRequests.clamp(1, 8).toInt(),
        _minRequestInterval = minRequestInterval,
@@ -83,6 +85,7 @@ class HomeTopicExcerptLoader {
 
   final TopicPreviewFetcher _fetchPreview;
   final int _maxCacheEntries;
+  final int _maxPreviewEntries;
   final Duration _cacheTtl;
   final int _maxConcurrentRequests;
   final Duration _minRequestInterval;
@@ -299,7 +302,7 @@ class HomeTopicExcerptLoader {
   void _writePreviewCache(int topicId, TopicDetail detail) {
     _previewCache.remove(topicId);
     _previewCache[topicId] = _CachedPreviewDetail(detail, DateTime.now());
-    while (_previewCache.length > _maxCacheEntries) {
+    while (_previewCache.length > _maxPreviewEntries) {
       _previewCache.remove(_previewCache.keys.first);
     }
   }

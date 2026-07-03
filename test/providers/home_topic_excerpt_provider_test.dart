@@ -191,6 +191,27 @@ void main() {
     },
   );
 
+  test('HomeTopicExcerptLoader keeps preview cache smaller than excerpt cache', () async {
+    final loader = HomeTopicExcerptLoader(
+      minRequestInterval: Duration.zero,
+      maxCacheEntries: 4,
+      maxPreviewEntries: 2,
+      fetchPreview: (topicId) async => _previewDetail(topicId),
+    );
+    addTearDown(loader.dispose);
+
+    await loader.load(1);
+    await loader.load(2);
+    await loader.load(3);
+
+    expect(loader.peekCached(1), isNotNull);
+    expect(loader.peekCached(2), isNotNull);
+    expect(loader.peekCached(3), isNotNull);
+    expect(loader.peekCachedPreview(1), isNull);
+    expect(loader.peekCachedPreview(2)?.id, 2);
+    expect(loader.peekCachedPreview(3)?.id, 3);
+  });
+
   test(
     'HomeTopicExcerptLoader warmupTopics dedupes ids and respects maxTopics',
     () async {
