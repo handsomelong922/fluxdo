@@ -257,9 +257,30 @@ class _AnimatedBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final theme = Theme.of(context);
+    final isMobile = Responsive.isMobile(context);
     final clampedVisibility = visibility.clamp(0.0, 1.0).toDouble();
     final maxWidth = (mediaQuery.size.width - 72).clamp(0.0, 420.0) * 0.85;
     final bottomInset = mediaQuery.padding.bottom;
+    final navDecoration = BoxDecoration(
+      color: theme.colorScheme.surface.withValues(
+        alpha: isMobile ? 0.96 : 0.72,
+      ),
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(
+        color: theme.colorScheme.outlineVariant.withValues(
+          alpha: isMobile ? 0.28 : 0.45,
+        ),
+      ),
+      boxShadow: isMobile
+          ? const <BoxShadow>[]
+          : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+    );
 
     return IgnorePointer(
       ignoring: clampedVisibility < 0.01,
@@ -275,36 +296,28 @@ class _AnimatedBottomNav extends StatelessWidget {
                 padding: EdgeInsets.fromLTRB(36, 0, 36, bottomInset + 18),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(22),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surface.withValues(
-                          alpha: 0.72,
-                        ),
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: theme.colorScheme.outlineVariant.withValues(
-                            alpha: 0.45,
+                  child: DecoratedBox(
+                    decoration: navDecoration,
+                    child: isMobile
+                        ? ConstrainedBox(
+                            constraints: BoxConstraints(maxWidth: maxWidth),
+                            child: AdaptiveBottomNavigation(
+                              selectedIndex: selectedIndex,
+                              onDestinationSelected: onDestinationSelected,
+                              destinations: destinations,
+                            ),
+                          )
+                        : BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(maxWidth: maxWidth),
+                              child: AdaptiveBottomNavigation(
+                                selectedIndex: selectedIndex,
+                                onDestinationSelected: onDestinationSelected,
+                                destinations: destinations,
+                              ),
+                            ),
                           ),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.10),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: maxWidth),
-                        child: AdaptiveBottomNavigation(
-                          selectedIndex: selectedIndex,
-                          onDestinationSelected: onDestinationSelected,
-                          destinations: destinations,
-                        ),
-                      ),
-                    ),
                   ),
                 ),
               ),
