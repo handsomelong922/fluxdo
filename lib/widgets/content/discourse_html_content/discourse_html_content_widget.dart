@@ -124,6 +124,10 @@ class DiscourseHtmlContent extends ConsumerStatefulWidget {
     _DiscourseHtmlContentState._preloadPangu(htmlList);
   }
 
+  static void clearRuntimeCaches() {
+    _DiscourseHtmlContentState.clearRuntimeCaches();
+  }
+
   @override
   ConsumerState<DiscourseHtmlContent> createState() =>
       _DiscourseHtmlContentState();
@@ -161,6 +165,14 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
   static final Map<(int, int), String> _panguCache = {};
   static const int _maxPanguCacheSize = 200;
   static final Set<(int, int)> _pendingPanguKeys = {};
+
+  static void clearRuntimeCaches() {
+    _globalPreprocessCache.clear();
+    _panguCache.clear();
+    _pendingPanguKeys.clear();
+    GalleryInfo.clearCache();
+    DiscourseImageUtils.clearRuntimeCache();
+  }
 
   static (int, int) _panguKeyOf(String html) => (html.hashCode, html.length);
 

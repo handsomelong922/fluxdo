@@ -20,6 +20,7 @@ import 'services/auth_issue_notice_service.dart';
 import 'providers/app_state_refresher.dart';
 import 'services/highlighter_service.dart';
 import 'widgets/common/notification_icon_button.dart';
+import 'widgets/common/emoji_text.dart';
 import 'widgets/common/clipboard_topic_link_snack_content.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'services/network/cookie/csrf_token_service.dart';
@@ -86,6 +87,8 @@ import 'widgets/layout/adaptive_scaffold.dart';
 import 'widgets/layout/adaptive_navigation.dart';
 import 'widgets/notification/notification_quick_panel.dart';
 import 'widgets/read_later/read_later_bubble.dart';
+import 'widgets/content/discourse_html_content/chunked/html_chunk_cache.dart';
+import 'widgets/content/discourse_html_content/discourse_html_content_widget.dart';
 import 'navigation/nav_action_bus.dart';
 import 'navigation/nav_entry.dart';
 import 'navigation/nav_entry_registry.dart';
@@ -368,17 +371,15 @@ Future<void> main() async {
 
   // Flutter ImageCache 默认 100 MB / 1000 项。两个上限任一超过就 LRU evict。
   //
-  // sticker / emoji 场景非常吃缓存:用户订阅 10+ 个表情包 group(每 group
-  // 100-300 张)+ Discourse 自带几千个 emoji + 头像 + 贴内图,加起来很容易
-  // 超过 5000 项,触发 LRU evict 后滚回去就要重新解码,用户感知卡顿。
-  //
-  // 256 MB / 30000 项:emoji thumbnail(64px)~16 KB、sticker thumbnail
-  // (160px)~100 KB,256 MB 足够装下"全部 emoji + 几个 sticker group +
-  // 当前贴图"。之前调过 800 MB,但中端 Android 机上内存压力换来系统级
-  // GC / LMK 卡顿,得不偿失 —— 磁盘 PNG 缩略图缓存命中本来就是毫秒级,
-  // evict 的重解成本远比内存压力的代价低。
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 256 * 1024 * 1024;
-  PaintingBinding.instance.imageCache.maximumSize = 30000;
+  // 移动端如果把 decoded image cache 放得太大，长时间刷头像/贴图后更容易
+  // 触发整机 GC，表现成“越刷越钝”。这里继续保留足够大的图片缓存，但把
+  // 移动端上限收得比桌面更保守：回滚图片时多一次解码，代价通常小于持续高
+  // 内存占用带来的卡顿。
+  final isMobilePlatform = Platform.isAndroid || Platform.isIOS;
+  PaintingBinding.instance.imageCache.maximumSizeBytes =
+      (isMobilePlatform ? 160 : 256) * 1024 * 1024;
+  PaintingBinding.instance.imageCache.maximumSize =
+      isMobilePlatform ? 12000 : 30000;
 
   // 启用 Edge-to-Edge 模式（小白条沉浸式）
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -1038,6 +1039,19 @@ class _MainPageState extends ConsumerState<MainPage>
         unawaited(_checkClipboardTopicLink());
       });
     }
+  }
+
+  @override
+  void didHaveMemoryPressure() {
+    super.didHaveMemoryPressure();
+    // 系统已经发出内存压力信号时，优先释放运行期缓存，减轻后续滚动中的 GC 抖动。
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+    HtmlChunkCache.instance.clear();
+    DiscourseHtmlContent.clearRuntimeCaches();
+    EmojiText.clearTokenCache();
+    HighlighterService.instance.clearCache();
+    debugPrint('[MainPage] 收到内存压力，已清理运行期缓存');
   }
 
   Future<void> _checkClipboardTopicLink() async {

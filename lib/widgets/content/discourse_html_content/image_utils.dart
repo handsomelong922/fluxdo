@@ -25,6 +25,10 @@ class GalleryInfo {
   static final Map<(int, int), GalleryInfo> _cache = {};
   static const int _maxCacheSize = 100;
 
+  static void clearCache() {
+    _cache.clear();
+  }
+
   GalleryInfo._({
     required this.originalUrls,
     required Map<String, int> thumbnailToIndex,
@@ -224,6 +228,10 @@ class DiscourseImageUtils {
   static final LinkedHashMap<String, String?> _uploadUrlCache =
       LinkedHashMap<String, String?>();
   static const int _maxUploadUrlCacheEntries = 512;
+
+  static void clearRuntimeCache() {
+    _uploadUrlCache.clear();
+  }
 
   /// 检查是否是 upload:// 短链接
   static bool isUploadUrl(String url) => url.startsWith('upload://');

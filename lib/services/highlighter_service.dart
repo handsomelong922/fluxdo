@@ -212,6 +212,10 @@ class HighlighterService {
     _cache[key] = tokens;
   }
 
+  void clearCache() {
+    _cache.clear();
+  }
+
   /// 异步获取高亮 tokens（带并发限制）
   Future<List<HighlightToken>> highlightAsync(String code, {String? language}) async {
     final key = _cacheKey(code, language);

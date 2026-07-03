@@ -30,6 +30,10 @@ class EmojiText extends StatelessWidget {
     this.softWrap,
   });
 
+  static void clearTokenCache() {
+    _tokenCache.clear();
+  }
+
   // 匹配 :emoji_name: 模式
   static final RegExp emojiRegex = emojiShortcodeRegex;
 
