@@ -229,6 +229,7 @@ class LongPostFooterSegment extends StatelessWidget {
   final bool userCreatedSharedIssue;
   final void Function(int count, bool userCreated)? onSharedIssueChanged;
   final bool autoLoadRepliesPaused;
+  final Set<String> blockedUsernames;
 
   const LongPostFooterSegment({
     super.key,
@@ -256,6 +257,7 @@ class LongPostFooterSegment extends StatelessWidget {
     this.userCreatedSharedIssue = false,
     this.onSharedIssueChanged,
     this.autoLoadRepliesPaused = false,
+    this.blockedUsernames = const <String>{},
   });
 
   @override
@@ -307,6 +309,7 @@ class LongPostFooterSegment extends StatelessWidget {
               userCreatedSharedIssue: userCreatedSharedIssue,
               onSharedIssueChanged: onSharedIssueChanged,
               autoLoadRepliesPaused: autoLoadRepliesPaused,
+              blockedUsernames: blockedUsernames,
             ),
           ),
         ],

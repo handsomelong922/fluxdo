@@ -958,6 +958,7 @@ class _TopicPostListState extends State<TopicPostList> {
           onSharedIssueChanged: onSharedIssueChanged,
           searchHighlightQuery: widget.searchHighlightQuery,
           autoLoadRepliesPaused: _autoLoadRepliesPaused,
+          blockedUsernames: widget.blockedUsernames,
         );
         break;
       case _PostRenderSegmentType.longHeader:
@@ -1023,6 +1024,7 @@ class _TopicPostListState extends State<TopicPostList> {
           userCreatedSharedIssue: detail.userCreatedSharedIssue,
           onSharedIssueChanged: onSharedIssueChanged,
           autoLoadRepliesPaused: _autoLoadRepliesPaused,
+          blockedUsernames: widget.blockedUsernames,
         );
         break;
       case _PostRenderSegmentType.gapBefore:

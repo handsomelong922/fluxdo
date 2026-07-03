@@ -50,6 +50,7 @@ class PostItem extends ConsumerStatefulWidget {
   final bool userCreatedSharedIssue;
   final void Function(int count, bool userCreated)? onSharedIssueChanged;
   final bool autoLoadRepliesPaused;
+  final Set<String> blockedUsernames;
 
   const PostItem({
     super.key,
@@ -85,6 +86,7 @@ class PostItem extends ConsumerStatefulWidget {
     this.userCreatedSharedIssue = false,
     this.onSharedIssueChanged,
     this.autoLoadRepliesPaused = false,
+    this.blockedUsernames = const <String>{},
   });
 
   @override
@@ -307,6 +309,7 @@ class _PostItemState extends ConsumerState<PostItem> {
                 userCreatedSharedIssue: widget.userCreatedSharedIssue,
                 onSharedIssueChanged: widget.onSharedIssueChanged,
                 autoLoadRepliesPaused: widget.autoLoadRepliesPaused,
+                blockedUsernames: widget.blockedUsernames,
                 onAcceptedAnswerChanged: (accepted) {
                   if (!mounted) return;
                   setState(() {

@@ -11,7 +11,6 @@ import '../../../../../modules/ldc_reward/ldc_reward.dart';
 import '../../../../../pages/user_profile_page.dart';
 import '../../../../../providers/discourse_providers.dart';
 import '../../../../../providers/preferences_provider.dart';
-import '../../../../../services/settings/content_filter_service.dart';
 import '../../../../../utils/blocked_user_filter.dart';
 import 'package:dio/dio.dart';
 import '../../../../../services/app_error_handler.dart';
@@ -91,6 +90,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
   final bool userCreatedSharedIssue;
   final void Function(int count, bool userCreated)? onSharedIssueChanged;
   final bool autoLoadRepliesPaused;
+  final Set<String> blockedUsernames;
 
   const PostFooterSection({
     super.key,
@@ -121,6 +121,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
     this.userCreatedSharedIssue = false,
     this.onSharedIssueChanged,
     this.autoLoadRepliesPaused = false,
+    this.blockedUsernames = const <String>{},
   });
 
   @override
@@ -561,20 +562,17 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
             onChanged: widget.onSharedIssueChanged,
           )
         : null;
-    final blockedUsernames = ref.watch(
-      contentFilterProvider.select((state) => state.normalizedBlockedUsers),
-    );
     final visibleBoosts = BlockedUserFilter.visibleBoosts(
       _boosts,
-      blockedUsernames,
+      widget.blockedUsernames,
     );
     final visibleReplies = BlockedUserFilter.visiblePosts(
       _replies,
-      blockedUsernames,
+      widget.blockedUsernames,
     );
 
     // 预热打赏凭证，避免首次打开更多菜单时因 AsyncLoading 导致打赏选项不显示
-    ref.watch(ldcRewardCredentialsProvider);
+    ref.read(ldcRewardCredentialsProvider);
 
     return Padding(
       padding: widget.padding,
@@ -583,7 +581,9 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
         children: [
           PostLinks(
             linkCounts: widget.post.linkCounts,
-            defaultExpanded: ref.watch(preferencesProvider).expandRelatedLinks,
+            defaultExpanded: ref.watch(
+              preferencesProvider.select((p) => p.expandRelatedLinks),
+            ),
           ),
           if (widget.post.postNumber == 1 &&
               widget.topicHasAcceptedAnswer &&
@@ -640,9 +640,9 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
                 showRepliesNotifier: _showRepliesNotifier,
                 onLoadMore: _loadReplies,
                 onJumpToPost: widget.onJumpToPost,
-                contentFontScale: ref
-                    .watch(preferencesProvider)
-                    .contentFontScale,
+                contentFontScale: ref.watch(
+                  preferencesProvider.select((p) => p.contentFontScale),
+                ),
               );
             },
           ),
