@@ -52,6 +52,8 @@ class TopicScrollState {
   }
 }
 
+const Duration _topicDetailScreenTrackThrottle = Duration(milliseconds: 160);
+
 @visibleForTesting
 Set<int> resolveReadOnscreenPostNumbers({
   required Set<int> visiblePostNumbers,
@@ -458,7 +460,7 @@ class TopicDetailController extends ChangeNotifier {
 
   void _throttledUpdateScreenTrack() {
     if (_screenTrackThrottleTimer?.isActive ?? false) return;
-    _screenTrackThrottleTimer = Timer(const Duration(milliseconds: 80), () {
+    _screenTrackThrottleTimer = Timer(_topicDetailScreenTrackThrottle, () {
       if (_trackEnabled) {
         final readOnscreen = resolveReadOnscreenPostNumbers(
           visiblePostNumbers: _visiblePostNumbers,

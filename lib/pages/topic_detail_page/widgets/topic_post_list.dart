@@ -156,6 +156,8 @@ class TopicPostList extends StatefulWidget {
 }
 
 class _TopicPostListState extends State<TopicPostList> {
+  static const Duration _visiblePostUpdateDelay = Duration(milliseconds: 180);
+
   int? _lastReportedPostNumber;
   Timer? _visiblePostUpdateTimer;
   bool _visiblePostUpdateFrameScheduled = false;
@@ -407,7 +409,7 @@ class _TopicPostListState extends State<TopicPostList> {
       return;
     }
 
-    _visiblePostUpdateTimer = Timer(const Duration(milliseconds: 120), () {
+    _visiblePostUpdateTimer = Timer(_visiblePostUpdateDelay, () {
       _visiblePostUpdateTimer = null;
       _scheduleVisiblePostUpdateFrame();
     });
