@@ -691,13 +691,12 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         // 时间 + 未读蓝点（蓝点在时间右上角，和 PostItem 一致）
         Consumer(
           builder: (context, ref, _) {
-            final sessionState = ref.watch(
-              topicSessionProvider(widget.topicId),
+            final isReadInSession = ref.watch(
+              topicSessionProvider(widget.topicId).select(
+                (state) => state.readPostNumbers.contains(post.postNumber),
+              ),
             );
             final isNew = !post.read;
-            final isReadInSession = sessionState.readPostNumbers.contains(
-              post.postNumber,
-            );
             final showDot = isNew && !isReadInSession;
 
             return Stack(
