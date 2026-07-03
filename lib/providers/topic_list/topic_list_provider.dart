@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// ignore: depend_on_referenced_packages
+import 'package:flutter_riverpod/legacy.dart';
 import '../../models/topic.dart';
 import '../../services/preloaded_data_service.dart';
 import '../../services/discourse/discourse_service.dart';
@@ -14,6 +16,13 @@ import '../message_bus/topic_tracking_providers.dart';
 import 'filter_provider.dart';
 import 'sort_provider.dart';
 import 'tab_state_provider.dart';
+
+final topicListLoadMoreProvider = StateProvider.family<bool, int?>(
+  (ref, categoryId) => false,
+);
+final topicListRefreshingProvider = StateProvider.family<bool, int?>(
+  (ref, categoryId) => false,
+);
 
 /// 话题列表 Notifier (支持分页、静默刷新和筛选)
 class TopicListNotifier extends AsyncNotifier<List<Topic>> {
@@ -52,6 +61,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     _page = 0;
     _hasMore = true;
     _isLoadMoreFailed = false;
+    ref.read(topicListLoadMoreProvider(_categoryId).notifier).state = false;
 
     // 获取排序 API 参数
     final orderParam = sortOrder.apiValue;
@@ -422,8 +432,15 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
   /// 刷新列表
   Future<void> refresh() async {
     final generation = ++_refreshGeneration;
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
+    final refreshingState = topicListRefreshingProvider(_categoryId);
+    final currentTopics = state.value;
+    if (currentTopics == null) {
+      state = const AsyncValue.loading();
+    } else {
+      ref.read(refreshingState.notifier).state = true;
+    }
+
+    final result = await AsyncValue.guard(() async {
       _page = 0;
       _hasMore = true;
       _isLoadMoreFailed = false;
@@ -464,6 +481,18 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       );
       return result.state.items;
     });
+
+    if (currentTopics != null) {
+      ref.read(refreshingState.notifier).state = false;
+      if (result.hasError) {
+        state = AsyncValue.data(currentTopics);
+      } else {
+        state = result;
+      }
+      return;
+    }
+
+    state = result;
   }
 
   /// 静默刷新
@@ -555,12 +584,15 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
   Future<void> loadMore() async {
     if (_isLoadMoreFailed) return; // 失败后需手动重试
     if (!_hasMore || state.isLoading) return;
+    final loadMoreState = topicListLoadMoreProvider(_categoryId);
+    if (ref.read(topicListRefreshingProvider(_categoryId))) return;
+    if (ref.read(loadMoreState)) return;
+    final currentTopics = state.value;
+    if (currentTopics == null) return;
 
-    // ignore: invalid_use_of_internal_member
-    state = const AsyncLoading<List<Topic>>().copyWithPrevious(state);
+    ref.read(loadMoreState.notifier).state = true;
 
-    final result = await AsyncValue.guard(() async {
-      final currentTopics = state.requireValue;
+    try {
       final nextPage = _page + 1;
 
       final service = ref.read(discourseServiceProvider);
@@ -577,7 +609,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         subset: _subsetForFilter(currentFilter),
       );
 
-      final currentState = PaginationState(items: currentTopics);
+      final currentState = PaginationState<Topic>(items: currentTopics);
       final paginationResult = _paginationHelper.processLoadMore(
         currentState,
         // CUSTOM: Keyword Filter 先过滤掉命中关键词的新帖，再合并
@@ -591,13 +623,12 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       if (paginationResult.items.length > currentTopics.length) {
         _page = nextPage;
       }
-      return paginationResult.items;
-    });
-    if (result.hasError) {
+      state = AsyncValue.data(paginationResult.items);
+    } catch (_) {
       _isLoadMoreFailed = true;
-      state = AsyncValue.data(state.requireValue);
-    } else {
-      state = result;
+      state = AsyncValue.data(currentTopics);
+    } finally {
+      ref.read(loadMoreState.notifier).state = false;
     }
   }
 

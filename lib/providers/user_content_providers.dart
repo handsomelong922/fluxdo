@@ -1,7 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// ignore: depend_on_referenced_packages
+import 'package:flutter_riverpod/legacy.dart';
 import '../models/topic.dart';
 import '../utils/pagination_helper.dart';
 import 'core_providers.dart';
+
+final browsingHistoryLoadMoreProvider = StateProvider<bool>((ref) => false);
+final bookmarksLoadMoreProvider = StateProvider<bool>((ref) => false);
+final browsingHistoryRefreshingProvider = StateProvider<bool>((ref) => false);
+final bookmarksRefreshingProvider = StateProvider<bool>((ref) => false);
 
 /// 分页助手（所有用户内容列表共用）
 final _topicPaginationHelper = PaginationHelpers.forTopics<Topic>(
@@ -21,6 +28,7 @@ class BrowsingHistoryNotifier extends AsyncNotifier<List<Topic>> {
     _page = 0;
     _hasMore = true;
     _isLoadMoreFailed = false;
+    ref.read(browsingHistoryLoadMoreProvider.notifier).state = false;
     final service = ref.read(discourseServiceProvider);
     final response = await service.getBrowsingHistory(page: 0);
 
@@ -33,8 +41,14 @@ class BrowsingHistoryNotifier extends AsyncNotifier<List<Topic>> {
 
   Future<void> refresh() async {
     _isLoadMoreFailed = false;
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
+    final currentList = state.value;
+    if (currentList == null) {
+      state = const AsyncValue.loading();
+    } else {
+      ref.read(browsingHistoryRefreshingProvider.notifier).state = true;
+    }
+
+    final result = await AsyncValue.guard(() async {
       _page = 0;
       _hasMore = true;
       final service = ref.read(discourseServiceProvider);
@@ -49,23 +63,37 @@ class BrowsingHistoryNotifier extends AsyncNotifier<List<Topic>> {
       _hasMore = result.hasMore;
       return result.items;
     });
+
+    if (currentList != null) {
+      ref.read(browsingHistoryRefreshingProvider.notifier).state = false;
+      if (result.hasError) {
+        state = AsyncValue.data(currentList);
+      } else {
+        state = result;
+      }
+      return;
+    }
+
+    state = result;
   }
 
   Future<void> loadMore() async {
     if (_isLoadMoreFailed) return;
     if (!_hasMore || state.isLoading) return;
+    if (ref.read(browsingHistoryRefreshingProvider)) return;
+    if (ref.read(browsingHistoryLoadMoreProvider)) return;
+    final currentList = state.value;
+    if (currentList == null) return;
 
-    // ignore: invalid_use_of_internal_member
-    state = const AsyncLoading<List<Topic>>().copyWithPrevious(state);
+    ref.read(browsingHistoryLoadMoreProvider.notifier).state = true;
 
-    final result = await AsyncValue.guard(() async {
-      final currentList = state.requireValue;
+    try {
       final nextPage = _page + 1;
 
       final service = ref.read(discourseServiceProvider);
       final response = await service.getBrowsingHistory(page: nextPage);
 
-      final currentState = PaginationState(items: currentList);
+      final currentState = PaginationState<Topic>(items: currentList);
       final paginationResult = _topicPaginationHelper.processLoadMore(
         currentState,
         PaginationResult(
@@ -78,13 +106,12 @@ class BrowsingHistoryNotifier extends AsyncNotifier<List<Topic>> {
       if (paginationResult.items.length > currentList.length) {
         _page = nextPage;
       }
-      return paginationResult.items;
-    });
-    if (result.hasError) {
+      state = AsyncValue.data(paginationResult.items);
+    } catch (_) {
       _isLoadMoreFailed = true;
-      state = AsyncValue.data(state.requireValue);
-    } else {
-      state = result;
+      state = AsyncValue.data(currentList);
+    } finally {
+      ref.read(browsingHistoryLoadMoreProvider.notifier).state = false;
     }
   }
 
@@ -112,6 +139,7 @@ class BookmarksNotifier extends AsyncNotifier<List<Topic>> {
     _page = 0;
     _hasMore = true;
     _isLoadMoreFailed = false;
+    ref.read(bookmarksLoadMoreProvider.notifier).state = false;
     final service = ref.read(discourseServiceProvider);
     final response = await service.getUserBookmarks(page: 0);
 
@@ -124,8 +152,14 @@ class BookmarksNotifier extends AsyncNotifier<List<Topic>> {
 
   Future<void> refresh() async {
     _isLoadMoreFailed = false;
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
+    final currentList = state.value;
+    if (currentList == null) {
+      state = const AsyncValue.loading();
+    } else {
+      ref.read(bookmarksRefreshingProvider.notifier).state = true;
+    }
+
+    final result = await AsyncValue.guard(() async {
       _page = 0;
       _hasMore = true;
       final service = ref.read(discourseServiceProvider);
@@ -140,23 +174,37 @@ class BookmarksNotifier extends AsyncNotifier<List<Topic>> {
       _hasMore = result.hasMore;
       return result.items;
     });
+
+    if (currentList != null) {
+      ref.read(bookmarksRefreshingProvider.notifier).state = false;
+      if (result.hasError) {
+        state = AsyncValue.data(currentList);
+      } else {
+        state = result;
+      }
+      return;
+    }
+
+    state = result;
   }
 
   Future<void> loadMore() async {
     if (_isLoadMoreFailed) return;
     if (!_hasMore || state.isLoading) return;
+    if (ref.read(bookmarksRefreshingProvider)) return;
+    if (ref.read(bookmarksLoadMoreProvider)) return;
+    final currentList = state.value;
+    if (currentList == null) return;
 
-    // ignore: invalid_use_of_internal_member
-    state = const AsyncLoading<List<Topic>>().copyWithPrevious(state);
+    ref.read(bookmarksLoadMoreProvider.notifier).state = true;
 
-    final result = await AsyncValue.guard(() async {
-      final currentList = state.requireValue;
+    try {
       final nextPage = _page + 1;
 
       final service = ref.read(discourseServiceProvider);
       final response = await service.getUserBookmarks(page: nextPage);
 
-      final currentState = PaginationState(items: currentList);
+      final currentState = PaginationState<Topic>(items: currentList);
       final paginationResult = _topicPaginationHelper.processLoadMore(
         currentState,
         PaginationResult(
@@ -169,13 +217,12 @@ class BookmarksNotifier extends AsyncNotifier<List<Topic>> {
       if (paginationResult.items.length > currentList.length) {
         _page = nextPage;
       }
-      return paginationResult.items;
-    });
-    if (result.hasError) {
+      state = AsyncValue.data(paginationResult.items);
+    } catch (_) {
       _isLoadMoreFailed = true;
-      state = AsyncValue.data(state.requireValue);
-    } else {
-      state = result;
+      state = AsyncValue.data(currentList);
+    } finally {
+      ref.read(bookmarksLoadMoreProvider.notifier).state = false;
     }
   }
 
