@@ -17,6 +17,7 @@ mixin _NestedMixin on _DiscourseServiceBase {
         'page': page,
         if (trackVisit) 'track_visit': true,
       },
+      options: _withSkipWebViewSessionSync(_foregroundReadOptions()),
     );
     return NestedRootsResponse.fromJson(response.data as Map<String, dynamic>);
   }
@@ -37,6 +38,7 @@ mixin _NestedMixin on _DiscourseServiceBase {
         'page': page,
         'depth': depth,
       },
+      options: _withSkipWebViewSessionSync(_foregroundReadOptions()),
     );
     return NestedChildrenResponse.fromJson(response.data as Map<String, dynamic>);
   }

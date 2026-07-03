@@ -61,6 +61,7 @@ class WebViewSessionCookieRefreshService {
   static const Duration _attemptCooldown = Duration(seconds: 45);
   static const Duration _successTtl = Duration(minutes: 15);
   static const Duration _bootstrapTimeout = Duration(seconds: 18);
+  static const Duration _cookieSummaryDedupeWindow = Duration(minutes: 2);
 
   final CookieJarService _jar = CookieJarService();
 
@@ -68,6 +69,8 @@ class WebViewSessionCookieRefreshService {
   DateTime? _lastAttemptAt;
   DateTime? _lastSuccessAt;
   String? _lastSuccessToken;
+  String? _lastCookieSummarySignature;
+  DateTime? _lastCookieSummaryLoggedAt;
 
   DateTime? get lastSuccessAt => _lastSuccessAt;
 
@@ -380,20 +383,41 @@ class WebViewSessionCookieRefreshService {
       if (!RuntimeLogSettings.shouldPersistDiagnosticEvent(level: level)) {
         return;
       }
-      final entry = <String, dynamic>{
-        'timestamp': DateTime.now().toIso8601String(),
-        'level': level,
-        'type': 'cookie_trace',
-        'event': 'webview_session_bootstrap_cookie_summary',
-        'message': 'WebView session bootstrap 后的主域 cookie 摘要',
-        'reason': reason,
-        'cookieNames': names,
-        'cookieDetails': details,
-      };
-      if (bootstrapOk != null) entry['bootstrapOk'] = bootstrapOk;
-      if (endpoint != null) entry['endpoint'] = endpoint;
-      if (status != null) entry['status'] = status;
-      LogWriter.instance.write(entry);
+      final includeCookieDetails = RuntimeLogSettings.persistVerboseDiagnostics;
+      final signature = _cookieSummarySignature(
+        reason: reason,
+        level: level,
+        bootstrapOk: bootstrapOk,
+        endpoint: endpoint,
+        status: status,
+        cookieNames: names,
+      );
+      final now = DateTime.now();
+      if (shouldSkipRepeatedCookieSummary(
+        signature: signature,
+        lastSignature: _lastCookieSummarySignature,
+        lastLoggedAt: _lastCookieSummaryLoggedAt,
+        now: now,
+        dedupeWindow: _cookieSummaryDedupeWindow,
+        verboseMode: includeCookieDetails,
+      )) {
+        return;
+      }
+      _lastCookieSummarySignature = signature;
+      _lastCookieSummaryLoggedAt = now;
+      LogWriter.instance.write(
+        buildCookieSummaryLogEntry(
+          timestamp: now,
+          level: level,
+          reason: reason,
+          cookieNames: names,
+          cookieDetails: details,
+          bootstrapOk: bootstrapOk,
+          endpoint: endpoint,
+          status: status,
+          includeCookieDetails: includeCookieDetails,
+        ),
+      );
     } catch (e) {
       debugPrint('[WebViewSessionSync] 记录 cookie 摘要失败: $e');
     }
@@ -726,4 +750,67 @@ document.close();
 })();
 ''';
   }
+}
+
+String _cookieSummarySignature({
+  required String reason,
+  required String level,
+  required bool? bootstrapOk,
+  required String? endpoint,
+  required int? status,
+  required List<String> cookieNames,
+}) {
+  return [
+    reason,
+    level,
+    '$bootstrapOk',
+    endpoint ?? '',
+    '$status',
+    cookieNames.join(','),
+  ].join('|');
+}
+
+@visibleForTesting
+bool shouldSkipRepeatedCookieSummary({
+  required String signature,
+  required String? lastSignature,
+  required DateTime? lastLoggedAt,
+  required DateTime now,
+  required Duration dedupeWindow,
+  required bool verboseMode,
+}) {
+  if (verboseMode) return false;
+  if (lastSignature != signature || lastLoggedAt == null) return false;
+  return now.difference(lastLoggedAt) < dedupeWindow;
+}
+
+@visibleForTesting
+Map<String, dynamic> buildCookieSummaryLogEntry({
+  required DateTime timestamp,
+  required String level,
+  required String reason,
+  required List<String> cookieNames,
+  required List<Map<String, dynamic>> cookieDetails,
+  required bool includeCookieDetails,
+  bool? bootstrapOk,
+  String? endpoint,
+  int? status,
+}) {
+  final entry = <String, dynamic>{
+    'timestamp': timestamp.toIso8601String(),
+    'level': level,
+    'type': 'cookie_trace',
+    'event': 'webview_session_bootstrap_cookie_summary',
+    'message': 'WebView session bootstrap 后的主域 cookie 摘要',
+    'reason': reason,
+    'cookieNames': cookieNames,
+    'cookieCount': cookieNames.length,
+  };
+  if (includeCookieDetails) {
+    entry['cookieDetails'] = cookieDetails;
+  }
+  if (bootstrapOk != null) entry['bootstrapOk'] = bootstrapOk;
+  if (endpoint != null) entry['endpoint'] = endpoint;
+  if (status != null) entry['status'] = status;
+  return entry;
 }

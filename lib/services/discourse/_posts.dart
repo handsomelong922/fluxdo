@@ -102,7 +102,10 @@ mixin _PostsMixin on _DiscourseServiceBase {
 
   /// 获取帖子的回复历史
   Future<List<Post>> getPostReplyHistory(int postId) async {
-    final response = await _dio.get('/posts/$postId/reply-history');
+    final response = await _dio.get(
+      '/posts/$postId/reply-history',
+      options: _withSkipWebViewSessionSync(_foregroundReadOptions()),
+    );
     final data = response.data as List<dynamic>;
     return data.map((e) => Post.fromJson(e as Map<String, dynamic>)).toList();
   }
@@ -112,6 +115,7 @@ mixin _PostsMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/posts/$postId/replies',
       queryParameters: {'after': after},
+      options: _withSkipWebViewSessionSync(_foregroundReadOptions()),
     );
     final data = response.data as List<dynamic>;
     return data.map((e) => Post.fromJson(e as Map<String, dynamic>)).toList();
@@ -133,7 +137,10 @@ mixin _PostsMixin on _DiscourseServiceBase {
 
   /// 获取帖子所有层级回复的 ID 列表（递归查询）
   Future<List<int>> getPostReplyIds(int postId) async {
-    final response = await _dio.get('/posts/$postId/reply-ids.json');
+    final response = await _dio.get(
+      '/posts/$postId/reply-ids.json',
+      options: _withSkipWebViewSessionSync(_foregroundReadOptions()),
+    );
     final data = response.data as List<dynamic>;
     return data.map((e) => (e as Map<String, dynamic>)['id'] as int).toList();
   }

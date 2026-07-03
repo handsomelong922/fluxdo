@@ -68,6 +68,19 @@ part '_revisions.dart';
 @visibleForTesting
 const String skipWebViewSessionSyncExtraKey = 'skipWebViewSessionSync';
 
+@visibleForTesting
+bool shouldAwaitWebViewSessionSyncForRequest({
+  required Map<String, dynamic> extra,
+  required Map<String, dynamic> headers,
+}) {
+  if (extra[skipWebViewSessionSyncExtraKey] == true) return false;
+  final isSilentRequest = extra['isSilent'] == true;
+  final isBackgroundRequest =
+      isSilentRequest ||
+      headers['Discourse-Background']?.toString() == 'true';
+  return !isBackgroundRequest;
+}
+
 Options _withSkipWebViewSessionSync(Options? options) {
   final extra = <String, dynamic>{...?options?.extra};
   extra[skipWebViewSessionSyncExtraKey] = true;

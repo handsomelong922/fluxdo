@@ -20,7 +20,7 @@ mixin _PresenceMixin on _DiscourseServiceBase {
       final response = await _dio.post(
         '/topics/timings',
         data: data,
-        options: Options(
+        options: _withSkipWebViewSessionSync(Options(
           contentType: Headers.formUrlEncodedContentType,
           headers: {
             'X-SILENCE-LOGGER': 'true',
@@ -35,7 +35,7 @@ mixin _PresenceMixin on _DiscourseServiceBase {
               if (logContext != null) ...logContext,
             },
           },
-        ),
+        )),
       );
       return response.statusCode;
     } on DioException catch (e) {
@@ -51,6 +51,9 @@ mixin _PresenceMixin on _DiscourseServiceBase {
       queryParameters: {
         'channels[]': '/discourse-presence/reply/$topicId',
       },
+      options: _withSkipWebViewSessionSync(
+        _backgroundReadOptions(background: true),
+      ),
     );
     return PresenceResponse.fromJson(response.data, topicId);
   }
@@ -78,14 +81,14 @@ mixin _PresenceMixin on _DiscourseServiceBase {
       await _dio.post(
         '/presence/update',
         data: data,
-        options: Options(
+        options: _withSkipWebViewSessionSync(Options(
           contentType: Headers.formUrlEncodedContentType,
           headers: {
             'X-SILENCE-LOGGER': 'true',
             'Discourse-Background': 'true',
           },
           extra: {'isSilent': true},
-        ),
+        )),
       );
     } on DioException catch (e) {
       debugPrint('[DiscourseService] updatePresence failed: ${e.response?.statusCode}');

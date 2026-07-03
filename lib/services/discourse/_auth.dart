@@ -844,13 +844,17 @@ mixin _AuthMixin on _DiscourseServiceBase {
 
           if (_tToken != null && _tToken!.isNotEmpty) {
             if (!_isLoggingOut) {
+              final shouldAwait = shouldAwaitWebViewSessionSyncForRequest(
+                extra: options.extra,
+                headers: options.headers,
+              );
               final skipWebViewSessionSync =
                   options.extra[skipWebViewSessionSyncExtraKey] == true;
-              if (skipWebViewSessionSync) {
+              if (!shouldAwait && !skipWebViewSessionSync) {
                 WebViewSessionCookieRefreshService.instance.ensureInBackground(
-                  reason: 'dio_request:${options.method}:fast_read',
+                  reason: 'dio_request:${options.method}:background',
                 );
-              } else {
+              } else if (shouldAwait) {
                 await WebViewSessionCookieRefreshService.instance.ensureSynced(
                   reason: 'dio_request:${options.method}',
                 );
