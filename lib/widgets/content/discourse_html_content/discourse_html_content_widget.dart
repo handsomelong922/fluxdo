@@ -176,13 +176,15 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
   /// 全局预处理 HTML 缓存（跨 State 实例共享）
   /// 当帖子滑出再滑回时新 State 可直接命中，避免重复正则 + Pangu 处理
   static final Map<int, String> _globalPreprocessCache = {};
-  static final int _maxGlobalCacheSize =
-      Platform.isAndroid || Platform.isIOS ? 96 : 200;
+  static final int _maxGlobalCacheSize = Platform.isAndroid || Platform.isIOS
+      ? 48
+      : 200;
 
   /// Pangu 预处理缓存（支持 isolate 预热，避免首次渲染阻塞主线程）
   static final Map<(int, int), String> _panguCache = {};
-  static final int _maxPanguCacheSize =
-      Platform.isAndroid || Platform.isIOS ? 96 : 200;
+  static final int _maxPanguCacheSize = Platform.isAndroid || Platform.isIOS
+      ? 48
+      : 200;
   static final Set<(int, int)> _pendingPanguKeys = {};
 
   static void clearRuntimeCaches() {

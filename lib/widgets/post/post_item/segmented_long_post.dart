@@ -16,8 +16,9 @@ import 'widgets/post_segment_frame.dart';
 import 'widgets/accepted_solution_marker.dart';
 
 class LongPostRenderData {
-  static final int _maxCacheEntries =
-      Platform.isAndroid || Platform.isIOS ? 48 : 128;
+  static final int _maxCacheEntries = Platform.isAndroid || Platform.isIOS
+      ? 24
+      : 128;
   static final LinkedHashMap<(int, int), LongPostRenderData> _cache =
       LinkedHashMap<(int, int), LongPostRenderData>();
 

@@ -40,9 +40,7 @@ final homeTopicExcerptLoaderProvider = Provider<HomeTopicExcerptLoader>((ref) {
 
 final homeTopicExcerptProvider = FutureProvider.autoDispose
     .family<String?, int>((ref, topicId) async {
-      return ref
-          .watch(homeTopicExcerptLoaderProvider)
-          .load(topicId);
+      return ref.watch(homeTopicExcerptLoaderProvider).load(topicId);
     });
 
 @visibleForTesting
@@ -61,7 +59,7 @@ class HomeTopicExcerptLoader {
   HomeTopicExcerptLoader({
     required TopicPreviewFetcher fetchPreview,
     int maxCacheEntries = 160,
-    int maxPreviewEntries = 48,
+    int maxPreviewEntries = 24,
     Duration cacheTtl = defaultCacheTtl,
     int maxConcurrentRequests = 3,
     Duration minRequestInterval = const Duration(milliseconds: 120),
