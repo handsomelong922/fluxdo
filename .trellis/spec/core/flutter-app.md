@@ -39,6 +39,70 @@ Evidence:
 - Keep startup gates focused on first-screen hard dependencies. Non-critical work such as home excerpt warmup or decorative minimum splash delays must not block the user after the initial topic list is ready.
 - Bottom navigation pages that are not currently active must not be eagerly mounted if their build path can watch providers that issue network requests. Use lazy mounting or an explicit `isActive` gate so default home startup does not trigger profile, bookmarks, messages, or other non-first-screen requests. Account-authenticated home preload, Cookie/CSRF/CF trust, and `data-preloaded.topicList` remain first-screen dependencies and must not be delayed by this rule.
 - Home topic excerpts load asynchronously inside a `NestedScrollView`; keep the final card height adaptive to the real excerpt content and the user-selected max-line setting. Do not force every card into the same fixed excerpt height just to suppress scroll jank. If loading-time layout updates need smoothing, prefer isolating rebuild scope or temporarily pausing excerpt fetch/render work during the active drag.
+- Scroll-linked feedback providers must publish only the minimum state their consumers need. If the selected tab icon only cares about "at top / below threshold / above threshold", do not emit per-pixel provider updates on every drag frame; quantize the state before writing to Riverpod.
+- Startup request ranking and other performance diagnostics must not depend on verbose release-mode disk logging. Keep ranking/session inspection in memory when possible, and gate high-frequency request/cookie/WebView trace persistence behind explicit developer mode or warning/error paths.
+
+## Scenario: Scroll-Linked Navigation Feedback And Diagnostic Logging
+
+### 1. Scope / Trigger
+- Trigger: changing `navScrollProgressProvider` publishers/consumers, bottom-navigation selected-icon feedback, startup request ranking, or request/cookie/WebView diagnostics that can fire during active scrolling or page bootstrap.
+
+### 2. Signatures
+- `double collapseNavScrollProgress(double rawProgress)`
+- `WidgetRef.publishNavScrollProgress(String id, double rawProgress)`
+- `RuntimeLogSettings.configure({required bool developerModeEnabled})`
+- `RuntimeLogSettings.shouldPersistRequestLog({required String level, required bool isSilent})`
+- `RuntimeLogSettings.shouldPersistDiagnosticEvent({required String level})`
+
+### 3. Contracts
+- `navScrollProgressProvider` is a feedback-state channel, not a telemetry stream. Publishers must quantize values to:
+  - `0.0` -> at top
+  - `1.0` -> left the top but still below `navScrollIconThreshold`
+  - `navScrollIconThreshold` -> crossed the action-icon threshold
+- Selected navigation icons should watch only whether the threshold is crossed, not raw pixel deltas.
+- `StartupRequestRecorder` remains the authoritative in-memory source for launch request ranking; ranking must keep working even when persistent request logs are reduced.
+- Silent/background request logs may still be recorded in memory for ranking, but must not be persisted to JSONL by default in normal mode.
+- High-frequency cookie/session/WebView lifecycle diagnostics must default to warning/error-only persistence. Full verbose persistence requires explicit developer mode.
+
+### 4. Validation & Error Matrix
+- Scroll stays below threshold -> provider state remains `1.0`; selected icon does not switch to the action glyph.
+- Scroll crosses threshold -> provider state becomes `navScrollIconThreshold`; selected icon may switch.
+- Scroll returns to top -> provider state returns to `0.0`.
+- Developer mode off + silent info request -> request may appear in in-memory ranking, but JSONL write is skipped.
+- Developer mode off + warning/error diagnostic -> persistent log is still written.
+- Developer mode on -> verbose request/cookie/WebView diagnostics persist as before.
+
+### 5. Good/Base/Bad Cases
+- Good: list scrolling flips navigation feedback only on top/threshold transitions, while startup ranking still shows silent excerpt requests in-memory.
+- Base: normal browsing persists only actionable warnings/errors, and developers can opt into full traces when investigating session issues.
+- Bad: every scroll frame writes new pixel values into `navScrollProgressProvider`, or release browsing flushes every silent request / cookie trace to disk.
+
+### 6. Tests Required
+- Unit-test `collapseNavScrollProgress()` for top / below-threshold / above-threshold quantization.
+- Unit-test `RuntimeLogSettings` for silent-request suppression and warning/error retention.
+- Keep startup request recorder tests proving in-memory ranking still records request timing independently from persistent logs.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+ref.read(navScrollProgressProvider(id).notifier).state = scrollController.offset;
+LogWriter.instance.write({
+  'level': 'info',
+  'type': 'cookie_trace',
+  'message': 'every silent request persisted',
+});
+```
+
+#### Correct
+```dart
+ref.publishNavScrollProgress(id, scrollController.offset);
+if (RuntimeLogSettings.shouldPersistRequestLog(
+  level: level,
+  isSilent: isSilent,
+)) {
+  LogWriter.instance.write(entry);
+}
+```
 
 ## Scenario: Topic Detail Preview Handoff
 
