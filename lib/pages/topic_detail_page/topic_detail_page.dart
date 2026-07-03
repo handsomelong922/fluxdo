@@ -314,16 +314,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   final GlobalKey _headerKey = GlobalKey();
   final GlobalKey _centerKey = GlobalKey();
   bool _hasFirstPost = false;
-  bool _isCheckTitleVisibilityScheduled = false;
   bool _isRefreshing = false;
-
-  /// 标题是否显示（用 ValueNotifier 隔离 AppBar 更新）
-  final ValueNotifier<bool> _showTitleNotifier = ValueNotifier<bool>(false);
-
-  /// AppBar 是否有阴影（用 ValueNotifier 隔离 AppBar 更新）
-  final ValueNotifier<bool> _isScrolledUnderNotifier = ValueNotifier<bool>(
-    false,
-  );
 
   /// 展开头部是否可见（用 ValueNotifier 隔离 UI 更新）
   final ValueNotifier<bool> _isOverlayVisibleNotifier = ValueNotifier<bool>(
@@ -635,8 +626,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
     WidgetsBinding.instance.removeObserver(this);
     _expandController.dispose();
-    _showTitleNotifier.dispose();
-    _isScrolledUnderNotifier.dispose();
     _isOverlayVisibleNotifier.dispose();
     _isAtTopNotifier.dispose();
     _searchController.dispose();
@@ -720,38 +709,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         'parentActive': _isParentActive,
         'reason': reason,
       });
-    }
-  }
-
-  void _scheduleCheckTitleVisibility() {
-    if (_isCheckTitleVisibilityScheduled || !mounted) return;
-    _isCheckTitleVisibilityScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _isCheckTitleVisibilityScheduled = false;
-      if (mounted) {
-        _checkTitleVisibility();
-      }
-    });
-  }
-
-  void _checkTitleVisibility() {
-    final barHeight =
-        _topicDetailToolbarHeight + MediaQuery.of(context).padding.top;
-    final ctx = _headerKey.currentContext;
-
-    if (ctx == null) {
-      if (_hasFirstPost) {
-        _showTitleNotifier.value = true;
-      }
-      _isScrolledUnderNotifier.value = true;
-    } else {
-      final box = ctx.findRenderObject() as RenderBox?;
-      if (box != null && box.hasSize) {
-        final position = box.localToGlobal(Offset.zero);
-        final headerVisible = position.dy >= barHeight;
-        _showTitleNotifier.value = !headerVisible;
-        _isScrolledUnderNotifier.value = !_hasFirstPost || !headerVisible;
-      }
     }
   }
 
@@ -1301,7 +1258,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               setState(() => _hasFirstPost = hasFirstPost);
-              _scheduleCheckTitleVisibility();
             }
           });
         }

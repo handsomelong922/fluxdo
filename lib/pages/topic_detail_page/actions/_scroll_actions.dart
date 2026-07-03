@@ -43,7 +43,6 @@ extension _ScrollActions on _TopicDetailPageState {
     if (_isRefreshing) return;
 
     _syncTopEdgeState();
-    _scheduleCheckTitleVisibility();
     _controller.handleScroll();
 
     if (_isNestedView) {
