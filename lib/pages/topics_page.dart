@@ -1305,6 +1305,13 @@ class _TopicListState extends ConsumerState<_TopicList> {
     topRight: Radius.circular(12),
   );
 
+  Widget _wrapTopicListViewport(BuildContext context, Widget child) {
+    if (Responsive.isMobile(context)) {
+      return child;
+    }
+    return ClipRRect(borderRadius: _topBorderRadius, child: child);
+  }
+
   void _setHomeExcerptLoadingPaused(bool paused) {
     if (widget.categoryId != null) return;
 
@@ -1534,9 +1541,9 @@ class _TopicListState extends ConsumerState<_TopicList> {
         if (topics.isEmpty) {
           return RefreshIndicator(
             onRefresh: _refreshCurrentTopicList,
-            child: ClipRRect(
-              borderRadius: _topBorderRadius,
-              child: ListView(
+            child: _wrapTopicListViewport(
+              context,
+              ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: EdgeInsets.zero,
                 children: [
@@ -1571,9 +1578,9 @@ class _TopicListState extends ConsumerState<_TopicList> {
                   .clearNewTopicsForCategory(widget.categoryId);
             }
           },
-          child: ClipRRect(
-            borderRadius: _topBorderRadius,
-            child: NotificationListener<ScrollNotification>(
+          child: _wrapTopicListViewport(
+            context,
+            NotificationListener<ScrollNotification>(
               onNotification: (notification) {
                 if (notification.metrics.axis == Axis.vertical) {
                   if (notification is ScrollStartNotification) {
@@ -1673,15 +1680,13 @@ class _TopicListState extends ConsumerState<_TopicList> {
           ),
         );
       },
-      loading: () => ClipRRect(
-        borderRadius: _topBorderRadius,
-        child: const TopicListSkeleton(
-          padding: EdgeInsets.only(top: 8, bottom: 12),
-        ),
+      loading: () => _wrapTopicListViewport(
+        context,
+        const TopicListSkeleton(padding: EdgeInsets.only(top: 8, bottom: 12)),
       ),
-      error: (error, stack) => ClipRRect(
-        borderRadius: _topBorderRadius,
-        child: ErrorView(
+      error: (error, stack) => _wrapTopicListViewport(
+        context,
+        ErrorView(
           error: error,
           stackTrace: stack,
           onRetry: () => ref.refresh(topicListProvider(providerKey)),
@@ -1839,9 +1844,7 @@ class _TopicListFooter extends ConsumerWidget {
             : (notifier.hasMore && isLoadingMore)
             ? const SizedBox(
                 width: 140,
-                child: TopicLinearLoadingIndicator(
-                  padding: EdgeInsets.zero,
-                ),
+                child: TopicLinearLoadingIndicator(padding: EdgeInsets.zero),
               )
             : notifier.hasMore
             ? const SizedBox.shrink()
