@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:collection';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/topic.dart';
 import '../../../providers/preferences_provider.dart';
@@ -14,6 +15,10 @@ import 'widgets/post_segment_frame.dart';
 import 'widgets/accepted_solution_marker.dart';
 
 class LongPostRenderData {
+  static const int _maxCacheEntries = 128;
+  static final LinkedHashMap<(int, int), LongPostRenderData> _cache =
+      LinkedHashMap<(int, int), LongPostRenderData>();
+
   final List<HtmlChunk> chunks;
   final List<String> galleryImages;
   final Set<String> spoilerImageUrls;
@@ -27,21 +32,46 @@ class LongPostRenderData {
   }) : revealedImageUrls = revealedImageUrls ?? <String>{};
 
   factory LongPostRenderData.fromHtml(String html) {
+    final cacheKey = (html.hashCode, html.length);
+    final cached = _cache.remove(cacheKey);
+    if (cached != null) {
+      _cache[cacheKey] = cached;
+      return cached;
+    }
+
     final chunks = ChunkedHtmlContent.getChunks(html) ?? const <HtmlChunk>[];
     if (chunks.isEmpty) {
-      return LongPostRenderData(
+      final renderData = LongPostRenderData(
         chunks: chunks,
         galleryImages: const <String>[],
         spoilerImageUrls: <String>{},
       );
+      _cacheRenderData(cacheKey, renderData);
+      return renderData;
     }
 
     final galleryInfo = GalleryInfo.fromHtml(html);
-    return LongPostRenderData(
+    final renderData = LongPostRenderData(
       chunks: chunks,
       galleryImages: galleryInfo.images,
       spoilerImageUrls: galleryInfo.spoilerImageUrls,
     );
+    _cacheRenderData(cacheKey, renderData);
+    return renderData;
+  }
+
+  static void clearCache() {
+    _cache.clear();
+  }
+
+  static void _cacheRenderData(
+    (int, int) cacheKey,
+    LongPostRenderData renderData,
+  ) {
+    while (_cache.length >= _maxCacheEntries) {
+      _cache.remove(_cache.keys.first);
+    }
+    _cache[cacheKey] = renderData;
   }
 }
 

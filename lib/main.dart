@@ -90,6 +90,7 @@ import 'widgets/notification/notification_quick_panel.dart';
 import 'widgets/read_later/read_later_bubble.dart';
 import 'widgets/content/discourse_html_content/chunked/html_chunk_cache.dart';
 import 'widgets/content/discourse_html_content/discourse_html_content_widget.dart';
+import 'widgets/post/post_item/segmented_long_post.dart';
 import 'navigation/nav_action_bus.dart';
 import 'navigation/nav_entry.dart';
 import 'navigation/nav_entry_registry.dart';
@@ -1054,6 +1055,7 @@ class _MainPageState extends ConsumerState<MainPage>
     PaintingBinding.instance.imageCache.clearLiveImages();
     HtmlChunkCache.instance.clear();
     DiscourseHtmlContent.clearRuntimeCaches();
+    LongPostRenderData.clearCache();
     EmojiText.clearTokenCache();
     HighlighterService.instance.clearCache();
     final pageEntries = _lastResolvedEntries
