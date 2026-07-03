@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../models/topic.dart';
 import '../../../widgets/topic/topic_progress.dart';
@@ -13,7 +14,7 @@ const topicDetailBarAnimationCurve = Curves.easeOutCubic;
 class TopicDetailOverlay extends StatelessWidget {
   final bool showBottomBar;
   final bool isLoggedIn;
-  final int currentStreamIndex;
+  final ValueListenable<int> currentStreamIndexListenable;
   final int totalCount;
   final TopicDetail detail;
   final VoidCallback onScrollToTop;
@@ -39,7 +40,7 @@ class TopicDetailOverlay extends StatelessWidget {
     super.key,
     required this.showBottomBar,
     required this.isLoggedIn,
-    required this.currentStreamIndex,
+    required this.currentStreamIndexListenable,
     required this.totalCount,
     required this.detail,
     required this.onScrollToTop,
@@ -65,9 +66,6 @@ class TopicDetailOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final progressPercent = totalCount > 1
-        ? (currentStreamIndex - 1) / (totalCount - 1)
-        : 0.0;
     const progressVisibleBottom = 96.0;
     final progressHiddenBottom = 24.0 + bottomPadding;
     final progressHiddenOffsetY = progressVisibleBottom - progressHiddenBottom;
@@ -92,22 +90,30 @@ class TopicDetailOverlay extends StatelessWidget {
             right: 0,
             child: _PaintOffsetTransition(
               offsetY: showBottomBar ? 0 : progressHiddenOffsetY,
-              child: Center(
-                child: TopicProgressGestures(
-                  onAction: (action) {
-                    if (action == ProgressGestureAction.openTimeline) {
-                      onProgressTap();
-                    } else {
-                      onProgressAction?.call(action);
-                    }
-                  },
-                  child: TopicProgress(
-                    currentIndex: currentStreamIndex,
-                    totalCount: totalCount,
-                    progressPercent: progressPercent,
-                    onTap: onProgressTap,
-                  ),
-                ),
+              child: ValueListenableBuilder<int>(
+                valueListenable: currentStreamIndexListenable,
+                builder: (context, currentStreamIndex, _) {
+                  final progressPercent = totalCount > 1
+                      ? (currentStreamIndex - 1) / (totalCount - 1)
+                      : 0.0;
+                  return Center(
+                    child: TopicProgressGestures(
+                      onAction: (action) {
+                        if (action == ProgressGestureAction.openTimeline) {
+                          onProgressTap();
+                        } else {
+                          onProgressAction?.call(action);
+                        }
+                      },
+                      child: TopicProgress(
+                        currentIndex: currentStreamIndex,
+                        totalCount: totalCount,
+                        progressPercent: progressPercent,
+                        onTap: onProgressTap,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),

@@ -1683,39 +1683,34 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                     preferencesProvider.select((p) => p.hideBarOnScroll),
                   ) ||
                   showBottomBar;
-              return ValueListenableBuilder<int>(
-                valueListenable: _controller.streamIndexNotifier,
-                builder: (context, currentStreamIndex, _) {
-                  return TopicDetailOverlay(
-                    showBottomBar: effectiveShowBottomBar,
-                    isLoggedIn: isLoggedIn,
-                    currentStreamIndex: currentStreamIndex,
-                    totalCount: detail.postStream.stream.length,
-                    detail: detail,
-                    onScrollToTop: _scrollToTop,
-                    onShare: _shareTopic,
-                    onShareAsImage: _shareAsImage,
-                    onExport: _showExportSheet,
-                    onBookmark: () => _quickAddTopicBookmark(notifier),
-                    onBookmarkLongPress: () => _handleBookmarkOptions(notifier),
-                    onReply: () => _handleReply(null),
-                    onProgressTap: () => _showTimelineSheet(detail),
-                    onProgressAction: (action) =>
-                        _handleProgressGestureAction(action, detail, notifier),
-                    showProgress: shouldShowTopicTimelineProgress(
-                      isNestedView: _isNestedView,
-                      isTopLevelMode: notifier.isTopLevelMode,
-                    ),
-                    isSummaryMode: notifier.isSummaryMode,
-                    isAuthorOnlyMode: notifier.isAuthorOnlyMode,
-                    isTopLevelMode: notifier.isTopLevelMode,
-                    isLoading: _isSwitchingMode,
-                    onShowTopReplies: _handleShowTopReplies,
-                    onShowAuthorOnly: _handleShowAuthorOnly,
-                    onShowTopLevelReplies: _handleShowTopLevelReplies,
-                    onCancelFilter: _handleCancelFilter,
-                  );
-                },
+              return TopicDetailOverlay(
+                showBottomBar: effectiveShowBottomBar,
+                isLoggedIn: isLoggedIn,
+                currentStreamIndexListenable: _controller.streamIndexNotifier,
+                totalCount: detail.postStream.stream.length,
+                detail: detail,
+                onScrollToTop: _scrollToTop,
+                onShare: _shareTopic,
+                onShareAsImage: _shareAsImage,
+                onExport: _showExportSheet,
+                onBookmark: () => _quickAddTopicBookmark(notifier),
+                onBookmarkLongPress: () => _handleBookmarkOptions(notifier),
+                onReply: () => _handleReply(null),
+                onProgressTap: () => _showTimelineSheet(detail),
+                onProgressAction: (action) =>
+                    _handleProgressGestureAction(action, detail, notifier),
+                showProgress: shouldShowTopicTimelineProgress(
+                  isNestedView: _isNestedView,
+                  isTopLevelMode: notifier.isTopLevelMode,
+                ),
+                isSummaryMode: notifier.isSummaryMode,
+                isAuthorOnlyMode: notifier.isAuthorOnlyMode,
+                isTopLevelMode: notifier.isTopLevelMode,
+                isLoading: _isSwitchingMode,
+                onShowTopReplies: _handleShowTopReplies,
+                onShowAuthorOnly: _handleShowAuthorOnly,
+                onShowTopLevelReplies: _handleShowTopLevelReplies,
+                onCancelFilter: _handleCancelFilter,
               );
             },
           ),
