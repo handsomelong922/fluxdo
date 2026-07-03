@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 import '../../navigation/nav_action_bus.dart';
 import '../../providers/preferences_provider.dart';
 import '../../utils/platform_utils.dart';
+import '../../utils/responsive.dart';
 
 /// 导航目标项配置
 class AdaptiveDestination {
@@ -398,6 +399,9 @@ class _SelectedDestinationIconFeedback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!Responsive.showNavigationRail(context)) {
+      return child;
+    }
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 1.0, end: 1.14),
       duration: const Duration(milliseconds: 180),
@@ -442,6 +446,10 @@ class _ActiveDestinationIcon extends ConsumerWidget {
     final child = showActionIcon
         ? Icon(actionIcon, key: ValueKey('nav-action-${action.name}'))
         : KeyedSubtree(key: const ValueKey('nav-default'), child: defaultIcon);
+
+    if (!Responsive.showNavigationRail(context)) {
+      return child;
+    }
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 220),
