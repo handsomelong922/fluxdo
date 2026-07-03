@@ -8,6 +8,11 @@ import '../models/topic.dart';
 class BlockedUserFilter {
   BlockedUserFilter._();
 
+  static const int _maxVisibleCacheEntries = 256;
+  static final Map<int, List<Topic>> _visibleTopicsCache = <int, List<Topic>>{};
+  static final Map<int, List<Post>> _visiblePostsCache = <int, List<Post>>{};
+  static final Map<int, List<Boost>> _visibleBoostsCache = <int, List<Boost>>{};
+
   /// 兼容用户输入 `@alice` 的情况，持久化和匹配统一使用不带 `@` 的用户名。
   static String stripAtPrefix(String username) {
     final trimmed = username.trim();
@@ -60,9 +65,17 @@ class BlockedUserFilter {
     Set<String> blockedUsernames,
   ) {
     if (blockedUsernames.isEmpty) return List<Topic>.from(topics);
-    return topics
+    final cacheKey = Object.hash(topics, blockedUsernames, blockedUsernames.length);
+    final cached = _visibleTopicsCache.remove(cacheKey);
+    if (cached != null) {
+      _visibleTopicsCache[cacheKey] = cached;
+      return cached;
+    }
+    final visible = topics
         .where((topic) => !isBlockedTopic(topic, blockedUsernames))
         .toList(growable: false);
+    _cacheVisible(_visibleTopicsCache, cacheKey, visible);
+    return visible;
   }
 
   static List<Post> visiblePosts(
@@ -70,9 +83,17 @@ class BlockedUserFilter {
     Set<String> blockedUsernames,
   ) {
     if (blockedUsernames.isEmpty) return List<Post>.from(posts);
-    return posts
+    final cacheKey = Object.hash(posts, blockedUsernames, blockedUsernames.length);
+    final cached = _visiblePostsCache.remove(cacheKey);
+    if (cached != null) {
+      _visiblePostsCache[cacheKey] = cached;
+      return cached;
+    }
+    final visible = posts
         .where((post) => !isBlockedUsername(post.username, blockedUsernames))
         .toList(growable: false);
+    _cacheVisible(_visiblePostsCache, cacheKey, visible);
+    return visible;
   }
 
   static List<Boost> visibleBoosts(
@@ -80,11 +101,19 @@ class BlockedUserFilter {
     Set<String> blockedUsernames,
   ) {
     if (blockedUsernames.isEmpty) return List<Boost>.from(boosts);
-    return boosts
+    final cacheKey = Object.hash(boosts, blockedUsernames, blockedUsernames.length);
+    final cached = _visibleBoostsCache.remove(cacheKey);
+    if (cached != null) {
+      _visibleBoostsCache[cacheKey] = cached;
+      return cached;
+    }
+    final visible = boosts
         .where(
           (boost) => !isBlockedUsername(boost.user.username, blockedUsernames),
         )
         .toList(growable: false);
+    _cacheVisible(_visibleBoostsCache, cacheKey, visible);
+    return visible;
   }
 
   static bool isBlockedNotification(
@@ -117,5 +146,16 @@ class BlockedUserFilter {
       }
     }
     return result;
+  }
+
+  static void _cacheVisible<T>(
+    Map<int, List<T>> cache,
+    int cacheKey,
+    List<T> visible,
+  ) {
+    if (cache.length >= _maxVisibleCacheEntries) {
+      cache.remove(cache.keys.first);
+    }
+    cache[cacheKey] = visible;
   }
 }
