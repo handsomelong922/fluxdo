@@ -4,6 +4,12 @@ part of '../topic_detail_page.dart';
 
 /// 滚动和导航相关方法
 extension _ScrollActions on _TopicDetailPageState {
+  void _updateEmbeddedDetailScrollPosition(int postNumber) {
+    if (!widget.embeddedMode) return;
+    ref.read(detailScrollPositionProvider(widget.topicId).notifier).state =
+        postNumber;
+  }
+
   void _ensurePostLookupCaches(TopicDetail detail) {
     final posts = detail.postStream.posts;
     final stream = detail.postStream.stream;
@@ -84,8 +90,7 @@ extension _ScrollActions on _TopicDetailPageState {
   void _updateStreamIndexForPostNumber(int postNumber) {
     // 记录当前浏览位置，用于布局切换时恢复
     _controller.updateCurrentPostNumber(postNumber);
-    ref.read(detailScrollPositionProvider(widget.topicId).notifier).state =
-        postNumber;
+    _updateEmbeddedDetailScrollPosition(postNumber);
     unawaited(
       ref
           .read(topicReadingStateServiceProvider)
@@ -159,8 +164,7 @@ extension _ScrollActions on _TopicDetailPageState {
   void _rememberNestedJumpPosition(int postNumber) {
     _pendingNestedRestorePostNumber = postNumber;
     _controller.updateCurrentPostNumber(postNumber);
-    ref.read(detailScrollPositionProvider(widget.topicId).notifier).state =
-        postNumber;
+    _updateEmbeddedDetailScrollPosition(postNumber);
     unawaited(
       ref
           .read(topicReadingStateServiceProvider)
