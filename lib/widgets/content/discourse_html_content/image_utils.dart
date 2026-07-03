@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter/material.dart';
 import 'package:html/parser.dart' as html_parser;
 import '../../../pages/image_viewer_page.dart';
@@ -219,7 +221,9 @@ class DiscourseImageUtils {
   DiscourseImageUtils._();
 
   /// upload:// 短链接解析缓存（全局共享）
-  static final Map<String, String?> _uploadUrlCache = {};
+  static final LinkedHashMap<String, String?> _uploadUrlCache =
+      LinkedHashMap<String, String?>();
+  static const int _maxUploadUrlCacheEntries = 512;
 
   /// 检查是否是 upload:// 短链接
   static bool isUploadUrl(String url) => url.startsWith('upload://');
@@ -228,8 +232,10 @@ class DiscourseImageUtils {
   /// 返回 null 表示未缓存，需要异步解析
   static String? getCachedUploadUrl(String shortUrl) {
     if (!isUploadUrl(shortUrl)) return shortUrl;
-    if (_uploadUrlCache.containsKey(shortUrl)) {
-      return _uploadUrlCache[shortUrl];
+    final cached = _uploadUrlCache.remove(shortUrl);
+    if (cached != null || _uploadUrlCache.containsKey(shortUrl)) {
+      _uploadUrlCache[shortUrl] = cached;
+      return cached;
     }
     return null;
   }
@@ -245,19 +251,27 @@ class DiscourseImageUtils {
 
     // 已缓存
     if (_uploadUrlCache.containsKey(shortUrl)) {
-      return _uploadUrlCache[shortUrl];
+      return getCachedUploadUrl(shortUrl);
     }
 
     // 调用 API 解析
     try {
       final resolved = await DiscourseService().resolveShortUrl(shortUrl);
-      _uploadUrlCache[shortUrl] = resolved;
+      _cacheResolvedUploadUrl(shortUrl, resolved);
       return resolved;
     } catch (e) {
       debugPrint('[DiscourseImageUtils] Failed to resolve upload url: $shortUrl, error: $e');
-      _uploadUrlCache[shortUrl] = null; // 缓存失败结果，避免重复请求
+      _cacheResolvedUploadUrl(shortUrl, null); // 缓存失败结果，避免重复请求
       return null;
     }
+  }
+
+  static void _cacheResolvedUploadUrl(String shortUrl, String? resolvedUrl) {
+    _uploadUrlCache.remove(shortUrl);
+    if (_uploadUrlCache.length >= _maxUploadUrlCacheEntries) {
+      _uploadUrlCache.remove(_uploadUrlCache.keys.first);
+    }
+    _uploadUrlCache[shortUrl] = resolvedUrl;
   }
 
   /// 将优化图 URL 转换为原图 URL
@@ -418,4 +432,3 @@ class DiscourseImageUtils {
     );
   }
 }
-
