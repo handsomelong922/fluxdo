@@ -330,7 +330,11 @@ class PostHeader extends StatelessWidget {
                 radius: 10,
                 backgroundColor: theme.colorScheme.primaryContainer,
                 backgroundImage: avatarUrl.isNotEmpty
-                    ? discourseImageProvider(avatarUrl)
+                    ? discourseImageProvider(
+                        avatarUrl,
+                        maxWidth: 40,
+                        maxHeight: 40,
+                      )
                     : null,
                 child: avatarUrl.isEmpty && replyToUser.username.isNotEmpty
                     ? Text(

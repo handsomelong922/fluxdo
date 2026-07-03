@@ -374,18 +374,22 @@ Future<void> main() async {
 
   // Flutter ImageCache 默认 100 MB / 1000 项。两个上限任一超过就 LRU evict。
   //
-  // 移动端如果把 decoded image cache 放得太大，长时间刷头像/贴图后更容易
-  // 触发整机 GC，表现成“越刷越钝”。这里继续保留足够大的图片缓存，但把
-  // 移动端上限收得比桌面更保守：回滚图片时多一次解码，代价通常小于持续高
-  // 内存占用带来的卡顿。
+  // 之前移动端把 decoded image cache 放得过大（160 MB / 12000 项），
+  // 连续刷头像/正文图片一段时间后，会更容易把大量解码后的位图长期压在内存里，
+  // 触发更频繁、更重的 GC，体感就是“越刷越钝、越滑越不跟手”。
+  //
+  // 这里把移动端预算收回到更稳妥的范围：允许正常回滚命中，但优先避免整机
+  // 内存压力把所有页面的滚动一起拖慢。
   final isMobilePlatform = Platform.isAndroid || Platform.isIOS;
   PaintingBinding.instance.imageCache.maximumSizeBytes =
-      (isMobilePlatform ? 160 : 256) * 1024 * 1024;
-  PaintingBinding.instance.imageCache.maximumSize =
-      isMobilePlatform ? 12000 : 30000;
+      (isMobilePlatform ? 96 : 256) * 1024 * 1024;
+  PaintingBinding.instance.imageCache.maximumSize = isMobilePlatform
+      ? 3000
+      : 30000;
   if (isMobilePlatform) {
-    VisibilityDetectorController.instance.updateInterval =
-        const Duration(milliseconds: 800);
+    VisibilityDetectorController.instance.updateInterval = const Duration(
+      milliseconds: 800,
+    );
   }
 
   // 启用 Edge-to-Edge 模式（小白条沉浸式）
@@ -1328,7 +1332,9 @@ class _MainPageState extends ConsumerState<MainPage>
 
   void _rememberMountedPage(String activePageId, List<NavEntry> pageEntries) {
     if (Platform.isAndroid || Platform.isIOS) {
-      final retainHome = pageEntries.any((entry) => entry.id == NavEntryIds.home);
+      final retainHome = pageEntries.any(
+        (entry) => entry.id == NavEntryIds.home,
+      );
       final nextMounted = <String>{};
       if (retainHome) {
         nextMounted.add(NavEntryIds.home);

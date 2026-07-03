@@ -71,6 +71,7 @@ class _SmartAvatarState extends State<SmartAvatar> {
     }
     final innerRadius = widget.radius - borderWidth;
     final innerSize = innerRadius * 2;
+    final cacheExtentPx = innerSize.ceil().clamp(1, 4096);
     final imageUrl = AvatarUrlPolicy.resolveDirectAvatarUrl(
       widget.imageUrl,
       size: innerSize.round(),
@@ -113,6 +114,8 @@ class _SmartAvatarState extends State<SmartAvatar> {
         cacheManager: _cacheManager,
         width: innerSize,
         height: innerSize,
+        memCacheWidth: cacheExtentPx,
+        memCacheHeight: cacheExtentPx,
         fit: BoxFit.cover,
         fadeInDuration: Duration.zero,
         fadeOutDuration: Duration.zero,
