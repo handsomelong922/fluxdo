@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// 全息渐变动画文字（模拟 CSS holographic 效果）
-class HolographicText extends StatefulWidget {
+class HolographicText extends StatelessWidget {
   final String text;
   final double fontSize;
 
@@ -10,14 +10,6 @@ class HolographicText extends StatefulWidget {
     required this.text,
     required this.fontSize,
   });
-
-  @override
-  State<HolographicText> createState() => _HolographicTextState();
-}
-
-class _HolographicTextState extends State<HolographicText>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
 
   // 深色背景：高饱和亮色
   static const _darkColors = [
@@ -38,50 +30,27 @@ class _HolographicTextState extends State<HolographicText>
   ];
 
   @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 15),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colors = isDark ? _darkColors : _lightColors;
 
-    // RepaintBoundary 隔离 60fps 的 ShaderMask 重建，
-    // 避免持续连累整个 post header / list item 重绘。
+    // 使用静态渐变，保留辨识度同时避免列表中常驻 60fps 动画。
     return RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          final offset = _controller.value;
-          return ShaderMask(
-            shaderCallback: (bounds) {
-              return LinearGradient(
-                colors: colors,
-                stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
-                begin: Alignment(-1.0 + offset * 4, -1.0 + offset * 4),
-                end: Alignment(1.0 + offset * 4, 1.0 + offset * 4),
-                tileMode: TileMode.mirror,
-              ).createShader(bounds);
-            },
-            blendMode: BlendMode.srcIn,
-            child: child!,
-          );
+      child: ShaderMask(
+        shaderCallback: (bounds) {
+          return LinearGradient(
+            colors: colors,
+            stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            tileMode: TileMode.clamp,
+          ).createShader(bounds);
         },
+        blendMode: BlendMode.srcIn,
         child: Text(
-          widget.text,
+          text,
           style: TextStyle(
-            fontSize: widget.fontSize,
+            fontSize: fontSize,
             fontWeight: FontWeight.w600,
           ),
           overflow: TextOverflow.ellipsis,
