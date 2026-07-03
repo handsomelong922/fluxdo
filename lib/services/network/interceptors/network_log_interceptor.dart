@@ -56,6 +56,10 @@ class NetworkLogInterceptor extends Interceptor {
     required String level,
     String? errorType,
   }) {
+    if (!RuntimeLogSettings.appLogsEnabled) {
+      return;
+    }
+
     final startTime = options.extra[_startTimeKey] as int?;
     final duration = startTime != null
         ? DateTime.now().millisecondsSinceEpoch - startTime
