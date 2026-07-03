@@ -1242,8 +1242,7 @@ class _TopicList extends ConsumerStatefulWidget {
   ConsumerState<_TopicList> createState() => _TopicListState();
 }
 
-class _TopicListState extends ConsumerState<_TopicList>
-    with AutomaticKeepAliveClientMixin {
+class _TopicListState extends ConsumerState<_TopicList> {
   final _refreshIndicatorKey = GlobalKey<RefreshIndicatorState>();
   bool _isLoadingNewTopics = false;
   Timer? _resumeExcerptLoadingTimer;
@@ -1260,9 +1259,6 @@ class _TopicListState extends ConsumerState<_TopicList>
 
   /// J/K 防抖：上次触发时间
   DateTime _lastKeyNavTime = DateTime(0);
-
-  @override
-  bool get wantKeepAlive => true;
 
   @override
   void dispose() {
@@ -1432,8 +1428,6 @@ class _TopicListState extends ConsumerState<_TopicList>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // AutomaticKeepAliveClientMixin 需要
-
     final providerKey = widget.categoryId;
     final isCurrentTab =
         ref.watch(currentTabCategoryIdProvider) == widget.categoryId;
@@ -1565,6 +1559,9 @@ class _TopicListState extends ConsumerState<_TopicList>
                 return false;
               },
               child: ListView.builder(
+                key: PageStorageKey<String>(
+                  'topics-tab-${providerKey?.toString() ?? 'all'}',
+                ),
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.only(top: 8, bottom: 12),
                 itemCount: topics.length + newTopicOffset + 1,
