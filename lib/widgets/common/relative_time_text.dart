@@ -4,6 +4,36 @@ import 'package:flutter/material.dart';
 
 import '../../utils/time_utils.dart';
 
+class _RelativeTimeRefreshTicker {
+  _RelativeTimeRefreshTicker._();
+
+  static final _RelativeTimeRefreshTicker instance =
+      _RelativeTimeRefreshTicker._();
+
+  static const Duration _refreshInterval = Duration(seconds: 15);
+
+  final ValueNotifier<int> tick = ValueNotifier<int>(0);
+  Timer? _timer;
+  int _listenerCount = 0;
+
+  void attach() {
+    _listenerCount += 1;
+    _timer ??= Timer.periodic(_refreshInterval, (_) {
+      tick.value += 1;
+    });
+  }
+
+  void detach() {
+    if (_listenerCount > 0) {
+      _listenerCount -= 1;
+    }
+    if (_listenerCount == 0) {
+      _timer?.cancel();
+      _timer = null;
+    }
+  }
+}
+
 /// 时间显示样式
 enum TimeDisplayStyle {
   /// 纯相对时间："3小时前"
@@ -20,8 +50,8 @@ enum TimeDisplayStyle {
 ///
 /// 特性：
 /// - 长按 Tooltip 显示精确时间
-/// - Timer 根据时间差动态调整刷新频率
-/// - 页面不可见时自动暂停 Timer
+/// - 使用全局共享时钟，避免列表中每个条目各自持有 Timer
+/// - 页面不可见时跳过无意义的重建
 class RelativeTimeText extends StatefulWidget {
   const RelativeTimeText({
     super.key,
@@ -52,48 +82,40 @@ class RelativeTimeText extends StatefulWidget {
 }
 
 class _RelativeTimeTextState extends State<RelativeTimeText> {
-  Timer? _timer;
+  bool _tickerModeEnabled = true;
 
   @override
   void initState() {
     super.initState();
-    _scheduleTimer();
+    _RelativeTimeRefreshTicker.instance.attach();
+    _RelativeTimeRefreshTicker.instance.tick.addListener(_handleGlobalTick);
   }
 
   @override
   void didUpdateWidget(RelativeTimeText oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.dateTime != widget.dateTime) {
-      _timer?.cancel();
-      _scheduleTimer();
+    if (oldWidget.dateTime != widget.dateTime && mounted) {
+      setState(() {});
     }
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _tickerModeEnabled = TickerMode.of(context);
+  }
+
+  void _handleGlobalTick() {
+    if (!mounted) return;
+    if (!_tickerModeEnabled) return;
+    setState(() {});
+  }
+
+  @override
   void dispose() {
-    _timer?.cancel();
+    _RelativeTimeRefreshTicker.instance.tick.removeListener(_handleGlobalTick);
+    _RelativeTimeRefreshTicker.instance.detach();
     super.dispose();
-  }
-
-  /// 根据时间差动态调整刷新频率
-  Duration _getRefreshInterval() {
-    if (widget.dateTime == null) return const Duration(minutes: 30);
-
-    final diff = DateTime.now().difference(widget.dateTime!);
-    if (diff.inMinutes < 1) return const Duration(seconds: 15);
-    if (diff.inHours < 1) return const Duration(seconds: 30);
-    if (diff.inHours < 24) return const Duration(minutes: 5);
-    return const Duration(minutes: 30);
-  }
-
-  void _scheduleTimer() {
-    // 通过 TickerMode 检查页面是否可见
-    _timer = Timer(_getRefreshInterval(), () {
-      if (mounted) {
-        setState(() {});
-        _scheduleTimer();
-      }
-    });
   }
 
   String _buildDisplayText() {
@@ -111,12 +133,7 @@ class _RelativeTimeTextState extends State<RelativeTimeText> {
 
   @override
   Widget build(BuildContext context) {
-    // TickerMode 为 false 时暂停 Timer
-    if (!TickerMode.of(context)) {
-      _timer?.cancel();
-    } else if (_timer == null || !_timer!.isActive) {
-      _scheduleTimer();
-    }
+    _tickerModeEnabled = TickerMode.of(context);
 
     final displayText = _buildDisplayText();
     final tooltipText = TimeUtils.formatTooltipTime(widget.dateTime);
