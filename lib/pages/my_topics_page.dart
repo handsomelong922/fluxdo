@@ -14,6 +14,7 @@ import '../widgets/common/error_view.dart';
 import '../l10n/s.dart';
 import '../widgets/desktop_refresh_indicator.dart';
 import 'topic_detail_page/topic_detail_page.dart';
+import 'topic_detail_page/widgets/topic_linear_loading_indicator.dart';
 
 /// 我的话题页面
 class MyTopicsPage extends ConsumerStatefulWidget {
@@ -195,9 +196,8 @@ class _MyTopicsPageState extends ConsumerState<MyTopicsPage> {
                   );
                 }
                 if (myTopicsAsync.isLoading && !myTopicsAsync.hasError) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Center(child: CircularProgressIndicator()),
+                  return const TopicLinearLoadingIndicator(
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
                   );
                 }
                 return const SizedBox();

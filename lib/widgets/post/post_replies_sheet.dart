@@ -567,13 +567,17 @@ class _PostRepliesSheetContentState
         child: TextButton.icon(
           onPressed: _isLoadingMore ? null : _loadMore,
           icon: _isLoadingMore
-              ? const SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+              ? Icon(
+                  Icons.more_horiz,
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
                 )
               : const Icon(Icons.expand_more, size: 16),
-          label: Text(S.current.post_loadMoreReplies),
+          label: Text(
+            _isLoadingMore
+                ? S.current.topicDetail_loading
+                : S.current.post_loadMoreReplies,
+          ),
           style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
         ),
       ),

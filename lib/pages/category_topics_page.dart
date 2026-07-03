@@ -21,6 +21,7 @@ import 'package:dio/dio.dart';
 import '../services/app_error_handler.dart';
 import '../l10n/s.dart';
 import '../widgets/desktop_refresh_indicator.dart';
+import 'topic_detail_page/widgets/topic_linear_loading_indicator.dart';
 import 'create_topic_page.dart';
 import '../utils/dialog_utils.dart';
 
@@ -510,9 +511,8 @@ class _CategoryTopicsPageState extends ConsumerState<CategoryTopicsPage> {
                 ),
               );
             }
-            return const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Center(child: CircularProgressIndicator()),
+            return const TopicLinearLoadingIndicator(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
             );
           }
 

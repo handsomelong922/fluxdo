@@ -13,6 +13,7 @@ import '../widgets/common/error_view.dart';
 import '../widgets/desktop_refresh_indicator.dart';
 import '../l10n/s.dart';
 import 'topic_detail_page/topic_detail_page.dart';
+import 'topic_detail_page/widgets/topic_linear_loading_indicator.dart';
 
 /// 内部 tab 动作：外层根据当前激活 filter 派发给对应子 widget。
 /// 用 nonce 让连续同类事件也能触发 Riverpod 监听。
@@ -324,9 +325,8 @@ class _PrivateMessageTabViewState extends ConsumerState<_PrivateMessageTabView>
       );
     }
     if (messagesAsync.isLoading && !messagesAsync.hasError) {
-      return const Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Center(child: CircularProgressIndicator()),
+      return const TopicLinearLoadingIndicator(
+        padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
       );
     }
     return const SizedBox();
