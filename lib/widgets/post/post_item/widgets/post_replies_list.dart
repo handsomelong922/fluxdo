@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../l10n/s.dart';
 import '../../../../models/topic.dart';
 import '../../../../utils/html_excerpt.dart';
+import '../../../../utils/responsive.dart';
 import '../../../common/smart_avatar.dart';
 
 /// 回复列表组件
@@ -157,13 +158,17 @@ class PostRepliesList extends StatelessWidget {
                     TextButton.icon(
                       onPressed: isLoadingReplies ? null : onLoadMore,
                       icon: isLoadingReplies
-                          ? const SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                          ? Icon(
+                              Icons.more_horiz,
+                              size: 16,
+                              color: theme.colorScheme.onSurfaceVariant,
                             )
                           : const Icon(Icons.refresh, size: 16),
-                      label: Text(context.l10n.post_loadMoreReplies),
+                      label: Text(
+                        isLoadingReplies && Responsive.isMobile(context)
+                            ? context.l10n.topicDetail_loading
+                            : context.l10n.post_loadMoreReplies,
+                      ),
                       style: TextButton.styleFrom(
                         visualDensity: VisualDensity.compact,
                       ),

@@ -1762,12 +1762,12 @@ class _TopicListState extends ConsumerState<_TopicList> {
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Center(
               child: _isLoadingNewTopics
-                  ? SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+                  ? Text(
+                      context.l10n.topicDetail_loading,
+                      style: TextStyle(
                         color: Theme.of(context).colorScheme.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
                     )
                   : Row(
