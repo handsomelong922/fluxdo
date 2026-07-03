@@ -10,7 +10,7 @@ class _RelativeTimeRefreshTicker {
   static final _RelativeTimeRefreshTicker instance =
       _RelativeTimeRefreshTicker._();
 
-  static const Duration _refreshInterval = Duration(seconds: 15);
+  static const Duration _refreshInterval = Duration(minutes: 1);
 
   final ValueNotifier<int> tick = ValueNotifier<int>(0);
   Timer? _timer;
