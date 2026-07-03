@@ -41,6 +41,32 @@ class DiscourseWidgetFactory extends WidgetFactory {
     this.onQuoteImage,
   }) : revealedImageUrls = revealedImageUrls ?? {};
 
+  ImageProvider? _buildSizedImageProvider(
+    BuildContext context,
+    String? resolvedUrl, {
+    required bool isEmoji,
+    double? width,
+    double? height,
+  }) {
+    if (resolvedUrl == null) return null;
+    if (isEmoji) return emojiImageProvider(resolvedUrl);
+
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final maxWidth =
+        ((width ?? (screenWidth - 32).clamp(120.0, screenWidth)) * dpr)
+            .round()
+            .clamp(1, 4096);
+    final int? maxHeight = height == null
+        ? null
+        : (height * dpr).round().clamp(1, 4096);
+    return discourseImageProvider(
+      resolvedUrl,
+      maxWidth: maxWidth,
+      maxHeight: maxHeight,
+    );
+  }
+
   @override
   Widget? buildListMarker(
     BuildTree tree,
@@ -74,7 +100,8 @@ class DiscourseWidgetFactory extends WidgetFactory {
     // 检查是否是显式的 emoji class
     final bool isEmoji = tree.element.classes.contains('emoji');
     // 独立大表情：消息仅包含 emoji 时 Discourse 会添加 only-emoji class
-    final bool isOnlyEmoji = isEmoji && tree.element.classes.contains('only-emoji');
+    final bool isOnlyEmoji =
+        isEmoji && tree.element.classes.contains('only-emoji');
 
     // 获取 emoji title（用于 SelectableAdapter，使 emoji 可被选中）
     final String? emojiTitle = isEmoji
@@ -95,14 +122,32 @@ class DiscourseWidgetFactory extends WidgetFactory {
 
     // 普通 URL：直接构建 widget，无需 FutureBuilder
     if (!DiscourseImageUtils.isUploadUrl(url)) {
-      return _buildImageWidget(url, url, width, height, isEmoji, isOnlyEmoji: isOnlyEmoji, emojiTitle: emojiTitle, emojiFontSize: emojiFontSize);
+      return _buildImageWidget(
+        url,
+        url,
+        width,
+        height,
+        isEmoji,
+        isOnlyEmoji: isOnlyEmoji,
+        emojiTitle: emojiTitle,
+        emojiFontSize: emojiFontSize,
+      );
     }
 
     // upload:// 短链接：检查缓存
     if (DiscourseImageUtils.isUploadUrlCached(url)) {
       final resolvedUrl = DiscourseImageUtils.getCachedUploadUrl(url);
       if (resolvedUrl != null) {
-        return _buildImageWidget(resolvedUrl, url, width, height, isEmoji, isOnlyEmoji: isOnlyEmoji, emojiTitle: emojiTitle, emojiFontSize: emojiFontSize);
+        return _buildImageWidget(
+          resolvedUrl,
+          url,
+          width,
+          height,
+          isEmoji,
+          isOnlyEmoji: isOnlyEmoji,
+          emojiTitle: emojiTitle,
+          emojiFontSize: emojiFontSize,
+        );
       }
       // 解析失败的 URL，显示错误图标
       return Icon(
@@ -116,9 +161,9 @@ class DiscourseWidgetFactory extends WidgetFactory {
     return FutureBuilder<String?>(
       future: DiscourseImageUtils.resolveUploadUrl(url),
       builder: (context, snapshot) {
-
         // 解析失败
-        if (snapshot.connectionState == ConnectionState.done && snapshot.data == null) {
+        if (snapshot.connectionState == ConnectionState.done &&
+            snapshot.data == null) {
           return Icon(
             Icons.broken_image,
             color: Theme.of(context).colorScheme.outline,
@@ -126,28 +171,50 @@ class DiscourseWidgetFactory extends WidgetFactory {
           );
         }
 
-        return _buildImageWidget(snapshot.data, url, width, height, isEmoji, isOnlyEmoji: isOnlyEmoji, emojiTitle: emojiTitle, emojiFontSize: emojiFontSize);
+        return _buildImageWidget(
+          snapshot.data,
+          url,
+          width,
+          height,
+          isEmoji,
+          isOnlyEmoji: isOnlyEmoji,
+          emojiTitle: emojiTitle,
+          emojiFontSize: emojiFontSize,
+        );
       },
     );
   }
 
   /// 构建图片 widget（从缓存或 FutureBuilder 调用）
-  Widget _buildImageWidget(String? resolvedUrl, String originalUrl, double? width, double? height, bool isEmoji, {bool isOnlyEmoji = false, String? emojiTitle, double? emojiFontSize}) {
+  Widget _buildImageWidget(
+    String? resolvedUrl,
+    String originalUrl,
+    double? width,
+    double? height,
+    bool isEmoji, {
+    bool isOnlyEmoji = false,
+    String? emojiTitle,
+    double? emojiFontSize,
+  }) {
     // 检查是否是 SVG（处理带查询参数的 URL）
     final isSvg = _isSvgUrl(resolvedUrl) || _isSvgUrl(originalUrl);
 
     // SVG emoji 直接渲染，不需要画廊逻辑
     if (isSvg && resolvedUrl != null && isEmoji) {
-      return _buildSvgWidget(resolvedUrl, width, height, true, isOnlyEmoji: isOnlyEmoji, emojiFontSize: emojiFontSize);
+      return _buildSvgWidget(
+        resolvedUrl,
+        width,
+        height,
+        true,
+        isOnlyEmoji: isOnlyEmoji,
+        emojiFontSize: emojiFontSize,
+      );
     }
 
-    // 使用自定义的鉴权 ImageProvider（emoji 使用独立缓存池）
-    final imageProvider = resolvedUrl != null && !isSvg
-        ? (isEmoji ? emojiImageProvider(resolvedUrl) : discourseImageProvider(resolvedUrl))
-        : null;
-
     // 检查是否在画廊列表中（使用 findIndex 支持缩略图→原图的多种 URL 变体匹配）
-    final int galleryIndex = resolvedUrl != null ? (galleryInfo?.findIndex(resolvedUrl) ?? -1) : -1;
+    final int galleryIndex = resolvedUrl != null
+        ? (galleryInfo?.findIndex(resolvedUrl) ?? -1)
+        : -1;
     final bool isGalleryImage = galleryIndex != -1;
 
     // 生成唯一 Tag
@@ -163,102 +230,140 @@ class DiscourseWidgetFactory extends WidgetFactory {
 
     return Builder(
       builder: (context) {
+        // 使用自定义的鉴权 ImageProvider（emoji 使用独立缓存池），
+        // 普通正文图片按展示尺寸下采样，避免长时间滚动后 decoded image cache 积压大图。
+        final imageProvider = !isSvg
+            ? _buildSizedImageProvider(
+                context,
+                resolvedUrl,
+                isEmoji: isEmoji,
+                width: width,
+                height: height,
+              )
+            : null;
         // 基准字号（1em，跟随 h1~h6、inline style 等缩放）
-        final double emojiBaseSize = emojiFontSize
-            ?? DefaultTextStyle.of(context).style.fontSize
-            ?? 16.0;
+        final double emojiBaseSize =
+            emojiFontSize ??
+            DefaultTextStyle.of(context).style.fontSize ??
+            16.0;
         // only-emoji: 独立大表情 32dp（Discourse CSS: img.emoji.only-emoji { width: 32px; height: 32px }）
         // 普通 emoji: 1em
         final double displaySize = isOnlyEmoji ? 32.0 : emojiBaseSize;
 
         // 如果不是画廊图片（通常是 Emoji 或预览中的 upload:// 图片）
         if (!isGalleryImage || isEmoji) {
-           // SVG 非 emoji、非画廊图片：渲染 SVG 并支持长按菜单
-           if (isSvg && resolvedUrl != null) {
-             final svgWidget = _buildSvgWidget(resolvedUrl, width, height, false);
-             return GestureDetector(
-               onLongPress: () {
-                 _showImageContextMenu(context, resolvedUrl, heroTag);
-               },
-               onSecondaryTapUp: (details) {
-                 _showImageContextMenu(context, resolvedUrl, heroTag, position: details.globalPosition);
-               },
-               child: svgWidget,
-             );
-           }
+          // SVG 非 emoji、非画廊图片：渲染 SVG 并支持长按菜单
+          if (isSvg && resolvedUrl != null) {
+            final svgWidget = _buildSvgWidget(
+              resolvedUrl,
+              width,
+              height,
+              false,
+            );
+            return GestureDetector(
+              onLongPress: () {
+                _showImageContextMenu(context, resolvedUrl, heroTag);
+              },
+              onSecondaryTapUp: (details) {
+                _showImageContextMenu(
+                  context,
+                  resolvedUrl,
+                  heroTag,
+                  position: details.globalPosition,
+                );
+              },
+              child: svgWidget,
+            );
+          }
 
-           Widget imageWidget = imageProvider != null
-               ? Image(
-                   image: imageProvider,
-                   fit: BoxFit.contain,
-                   // Emoji 使用固定尺寸，普通图片让其自适应（由外层约束控制）
-                   width: isEmoji ? displaySize : null,
-                   height: isEmoji ? displaySize : null,
-                   frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                     if (wasSynchronouslyLoaded || frame != null) return child;
-                     return SizedBox(
-                       width: isEmoji ? displaySize : width ?? 24,
-                       height: isEmoji ? displaySize : height ?? 24,
-                     );
-                   },
-                   errorBuilder: (context, error, stackTrace) {
-                     return Icon(
-                       Icons.broken_image,
-                       color: Theme.of(context).colorScheme.outline,
-                       size: isEmoji ? displaySize : 24,
-                     );
-                   },
-                 )
-               : SizedBox(
-                   width: isEmoji ? displaySize : width ?? 24,
-                   height: isEmoji ? displaySize : height ?? 24,
-                   child: const Center(
-                     child: SizedBox(
-                       width: 12,
-                       height: 12,
-                       child: CircularProgressIndicator(strokeWidth: 1.5),
-                     ),
-                   ),
-                 );
+          Widget imageWidget = imageProvider != null
+              ? Image(
+                  image: imageProvider,
+                  fit: BoxFit.contain,
+                  // Emoji 使用固定尺寸，普通图片让其自适应（由外层约束控制）
+                  width: isEmoji ? displaySize : null,
+                  height: isEmoji ? displaySize : null,
+                  frameBuilder:
+                      (context, child, frame, wasSynchronouslyLoaded) {
+                        if (wasSynchronouslyLoaded || frame != null) {
+                          return child;
+                        }
+                        return SizedBox(
+                          width: isEmoji ? displaySize : width ?? 24,
+                          height: isEmoji ? displaySize : height ?? 24,
+                        );
+                      },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Icon(
+                      Icons.broken_image,
+                      color: Theme.of(context).colorScheme.outline,
+                      size: isEmoji ? displaySize : 24,
+                    );
+                  },
+                )
+              : SizedBox(
+                  width: isEmoji ? displaySize : width ?? 24,
+                  height: isEmoji ? displaySize : height ?? 24,
+                  child: const Center(
+                    child: SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                    ),
+                  ),
+                );
 
-           if (isEmoji) {
-             Widget emojiWidget = Container(
-               // only-emoji: 独立大表情添加垂直间距（Discourse CSS: margin: .5em 0）
-               margin: isOnlyEmoji
-                   ? EdgeInsets.symmetric(vertical: emojiBaseSize * 0.5, horizontal: 1.0)
-                   : const EdgeInsets.symmetric(horizontal: 2.0),
-               child: imageWidget,
-             );
-             // 用 SelectableAdapter 包裹，使 emoji 参与文本选择
-             if (emojiTitle != null && emojiTitle.isNotEmpty) {
-               emojiWidget = SelectableAdapter(
-                 selectedText: emojiTitle,
-                 child: emojiWidget,
-               );
-             }
-             return emojiWidget;
-           }
+          if (isEmoji) {
+            Widget emojiWidget = Container(
+              // only-emoji: 独立大表情添加垂直间距（Discourse CSS: margin: .5em 0）
+              margin: isOnlyEmoji
+                  ? EdgeInsets.symmetric(
+                      vertical: emojiBaseSize * 0.5,
+                      horizontal: 1.0,
+                    )
+                  : const EdgeInsets.symmetric(horizontal: 2.0),
+              child: imageWidget,
+            );
+            // 用 SelectableAdapter 包裹，使 emoji 参与文本选择
+            if (emojiTitle != null && emojiTitle.isNotEmpty) {
+              emojiWidget = SelectableAdapter(
+                selectedText: emojiTitle,
+                child: emojiWidget,
+              );
+            }
+            return emojiWidget;
+          }
 
-           // 非画廊图片：不添加点击查看功能，但支持长按/右键菜单查看大图
-           if (resolvedUrl != null) {
-             return GestureDetector(
-               onLongPress: () {
-                 _showImageContextMenu(context, resolvedUrl, heroTag);
-               },
-               onSecondaryTapUp: (details) {
-                 _showImageContextMenu(context, resolvedUrl, heroTag, position: details.globalPosition);
-               },
-               child: imageWidget,
-             );
-           }
-           return imageWidget;
+          // 非画廊图片：不添加点击查看功能，但支持长按/右键菜单查看大图
+          if (resolvedUrl != null) {
+            return GestureDetector(
+              onLongPress: () {
+                _showImageContextMenu(context, resolvedUrl, heroTag);
+              },
+              onSecondaryTapUp: (details) {
+                _showImageContextMenu(
+                  context,
+                  resolvedUrl,
+                  heroTag,
+                  position: details.globalPosition,
+                );
+              },
+              child: imageWidget,
+            );
+          }
+          return imageWidget;
         }
 
         // 画廊图片处理
         Widget buildGalleryImage() {
           // SVG 画廊图片：用 _buildSvgWidget 渲染，包裹点击/长按手势
           if (isSvg && resolvedUrl != null) {
-            final svgWidget = _buildSvgWidget(resolvedUrl, width, height, false);
+            final svgWidget = _buildSvgWidget(
+              resolvedUrl,
+              width,
+              height,
+              false,
+            );
             return GestureDetector(
               onTap: () {
                 DiscourseImageUtils.openViewerFiltered(
@@ -275,7 +380,12 @@ class DiscourseWidgetFactory extends WidgetFactory {
                 _showImageContextMenu(context, resolvedUrl, heroTag);
               },
               onSecondaryTapUp: (details) {
-                _showImageContextMenu(context, resolvedUrl, heroTag, position: details.globalPosition);
+                _showImageContextMenu(
+                  context,
+                  resolvedUrl,
+                  heroTag,
+                  position: details.globalPosition,
+                );
               },
               child: svgWidget,
             );
@@ -285,7 +395,8 @@ class DiscourseWidgetFactory extends WidgetFactory {
             // URL 解析中，显示占位符
             final screenWidth = MediaQuery.of(context).size.width;
             final double displayWidth = screenWidth - 32;
-            final double displayHeight = width != null && height != null && height > 0
+            final double displayHeight =
+                width != null && height != null && height > 0
                 ? displayWidth * (height / width)
                 : 200.0;
 
@@ -293,7 +404,9 @@ class DiscourseWidgetFactory extends WidgetFactory {
               width: displayWidth,
               height: displayHeight,
               alignment: Alignment.center,
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha:0.2),
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
               child: const SizedBox(
                 width: 24,
                 height: 24,
@@ -324,13 +437,18 @@ class DiscourseWidgetFactory extends WidgetFactory {
               _showImageContextMenu(context, resolvedUrl!, heroTag);
             },
             onSecondaryTapUp: (details) {
-              _showImageContextMenu(context, resolvedUrl!, heroTag, position: details.globalPosition);
+              _showImageContextMenu(
+                context,
+                resolvedUrl!,
+                heroTag,
+                position: details.globalPosition,
+              );
             },
           );
         }
 
         return buildGalleryImage();
-      }
+      },
     );
   }
 
@@ -343,14 +461,11 @@ class DiscourseWidgetFactory extends WidgetFactory {
     // 对 a.lightbox 不包裹手势，避免与内部图片的 GestureDetector 冲突
     // 图片的点击由 buildImage 中的 LazyImage/HeroImage 处理
     final element = tree.element;
-    if (element.localName == 'a' &&
-        element.classes.contains('lightbox')) {
+    if (element.localName == 'a' && element.classes.contains('lightbox')) {
       return child;
     }
     return super.buildGestureDetector(tree, child, recognizer);
   }
-
-
 
   @override
   Widget? buildVideoPlayer(
@@ -383,7 +498,12 @@ class DiscourseWidgetFactory extends WidgetFactory {
   }
 
   /// 显示图片长按菜单
-  void _showImageContextMenu(BuildContext context, String imageUrl, String heroTag, {Offset? position}) {
+  void _showImageContextMenu(
+    BuildContext context,
+    String imageUrl,
+    String heroTag, {
+    Offset? position,
+  }) {
     ImageContextMenu.show(
       context: context,
       imageUrl: imageUrl,
@@ -406,16 +526,24 @@ class DiscourseWidgetFactory extends WidgetFactory {
   ///
   /// 使用 FutureBuilder + 缓存 Future，确保异步加载完成后自动刷新显示。
   /// Future 缓存和 DiscourseWidgetFactory 实例同生命周期（跟随 DiscourseHtmlContent State）。
-  Widget _buildSvgWidget(String url, double? width, double? height, bool isEmoji, {bool isOnlyEmoji = false, double? emojiFontSize}) {
+  Widget _buildSvgWidget(
+    String url,
+    double? width,
+    double? height,
+    bool isEmoji, {
+    bool isOnlyEmoji = false,
+    double? emojiFontSize,
+  }) {
     final future = _svgFutures.putIfAbsent(url, () => _loadSvg(url));
 
     return FutureBuilder<ScalableImage?>(
       future: future,
       builder: (context, snapshot) {
         // 基准字号（1em）
-        final emojiBaseSize = emojiFontSize
-            ?? DefaultTextStyle.of(context).style.fontSize
-            ?? 16.0;
+        final emojiBaseSize =
+            emojiFontSize ??
+            DefaultTextStyle.of(context).style.fontSize ??
+            16.0;
         // only-emoji: 独立大表情 32dp; 普通 emoji: 1em
         final emojiSize = isOnlyEmoji ? 32.0 : emojiBaseSize;
 
@@ -424,7 +552,10 @@ class DiscourseWidgetFactory extends WidgetFactory {
           if (isEmoji) {
             return Container(
               margin: isOnlyEmoji
-                  ? EdgeInsets.symmetric(vertical: emojiBaseSize * 0.5, horizontal: 1.0)
+                  ? EdgeInsets.symmetric(
+                      vertical: emojiBaseSize * 0.5,
+                      horizontal: 1.0,
+                    )
                   : const EdgeInsets.symmetric(horizontal: 2.0),
               child: SizedBox(
                 width: emojiSize,
@@ -445,7 +576,10 @@ class DiscourseWidgetFactory extends WidgetFactory {
 
         // 加载中或失败：占位
         final size = isEmoji ? emojiSize : (width ?? 24.0);
-        return SizedBox(width: size, height: isEmoji ? emojiSize : (height ?? 24.0));
+        return SizedBox(
+          width: size,
+          height: isEmoji ? emojiSize : (height ?? 24.0),
+        );
       },
     );
   }
