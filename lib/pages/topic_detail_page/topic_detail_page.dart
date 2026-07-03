@@ -1348,6 +1348,12 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           previousPosts: previous?.value?.postStream.posts,
           nextPosts: posts,
         );
+        final isActivelyScrolling =
+            _controller.scrollController.hasClients &&
+            _controller.scrollController.position.isScrollingNotifier.value;
+        if (isActivelyScrolling) {
+          return;
+        }
         final isMobilePrewarm = Responsive.isMobile(context);
         final htmlToPrewarm = isMobilePrewarm
             ? changedHtmlList.take(2).toList(growable: false)
