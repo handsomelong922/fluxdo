@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_riverpod/legacy.dart';
@@ -9,6 +11,22 @@ final browsingHistoryLoadMoreProvider = StateProvider<bool>((ref) => false);
 final bookmarksLoadMoreProvider = StateProvider<bool>((ref) => false);
 final browsingHistoryRefreshingProvider = StateProvider<bool>((ref) => false);
 final bookmarksRefreshingProvider = StateProvider<bool>((ref) => false);
+const Duration _userContentProviderRetention = Duration(seconds: 20);
+
+void _retainAutoDisposeState(Ref ref, Duration duration) {
+  final link = ref.keepAlive();
+  Timer? disposeTimer;
+  ref.onCancel(() {
+    disposeTimer = Timer(duration, link.close);
+  });
+  ref.onResume(() {
+    disposeTimer?.cancel();
+    disposeTimer = null;
+  });
+  ref.onDispose(() {
+    disposeTimer?.cancel();
+  });
+}
 
 /// 分页助手（所有用户内容列表共用）
 final _topicPaginationHelper = PaginationHelpers.forTopics<Topic>(
@@ -25,6 +43,7 @@ class BrowsingHistoryNotifier extends AsyncNotifier<List<Topic>> {
 
   @override
   Future<List<Topic>> build() async {
+    _retainAutoDisposeState(ref, _userContentProviderRetention);
     _page = 0;
     _hasMore = true;
     _isLoadMoreFailed = false;
@@ -136,6 +155,7 @@ class BookmarksNotifier extends AsyncNotifier<List<Topic>> {
 
   @override
   Future<List<Topic>> build() async {
+    _retainAutoDisposeState(ref, _userContentProviderRetention);
     _page = 0;
     _hasMore = true;
     _isLoadMoreFailed = false;
@@ -310,6 +330,7 @@ class MyTopicsNotifier extends AsyncNotifier<List<Topic>> {
 
   @override
   Future<List<Topic>> build() async {
+    _retainAutoDisposeState(ref, _userContentProviderRetention);
     _page = 0;
     _hasMore = true;
     _isLoadMoreFailed = false;
@@ -406,6 +427,7 @@ abstract class PrivateMessagesNotifier extends AsyncNotifier<List<Topic>> {
 
   @override
   Future<List<Topic>> build() async {
+    _retainAutoDisposeState(ref, _userContentProviderRetention);
     _page = 0;
     _hasMore = true;
     _isLoadMoreFailed = false;

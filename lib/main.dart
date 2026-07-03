@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 
 import 'package:catcher_2/catcher_2.dart';
@@ -707,6 +708,9 @@ enum _AuthErrorDialogAction { confirm, clearData }
 
 class _MainPageState extends ConsumerState<MainPage>
     with WidgetsBindingObserver {
+  static const int _maxMountedBottomPagesMobile = 3;
+  static const int _maxMountedBottomPagesDesktop = 5;
+
   int _currentIndex = 0;
   ProviderSubscription<AsyncValue<String>>? _authErrorSub;
   ProviderSubscription<AsyncValue<void>>? _authStateSub;
@@ -720,7 +724,9 @@ class _MainPageState extends ConsumerState<MainPage>
   DateTime? _lastTapTime;
   Timer? _pendingSingleTap;
   List<NavEntry> _lastResolvedEntries = const [];
-  final Set<String> _mountedPageIds = {NavEntryIds.home};
+  final LinkedHashSet<String> _mountedPageIds = LinkedHashSet<String>.of({
+    NavEntryIds.home,
+  });
   Timer? _resumeDebounceTimer;
   DateTime? _lastBackPressTime;
 
@@ -1224,9 +1230,7 @@ class _MainPageState extends ConsumerState<MainPage>
         : _currentIndex.clamp(0, pageEntries.length - 1);
     if (pageEntries.isNotEmpty) {
       final activePageId = pageEntries[safePageIndex].id;
-      _mountedPageIds
-        ..removeWhere((id) => !pageEntries.any((entry) => entry.id == id))
-        ..add(activePageId);
+      _rememberMountedPage(activePageId, pageEntries);
     } else {
       _mountedPageIds.clear();
     }
@@ -1314,6 +1318,22 @@ class _MainPageState extends ConsumerState<MainPage>
     }
 
     return page;
+  }
+
+  void _rememberMountedPage(String activePageId, List<NavEntry> pageEntries) {
+    _mountedPageIds.removeWhere(
+      (id) => !pageEntries.any((entry) => entry.id == id),
+    );
+    _mountedPageIds.remove(activePageId);
+    _mountedPageIds.add(activePageId);
+
+    final maxMountedPages =
+        Platform.isAndroid || Platform.isIOS
+        ? _maxMountedBottomPagesMobile
+        : _maxMountedBottomPagesDesktop;
+    while (_mountedPageIds.length > maxMountedPages) {
+      _mountedPageIds.remove(_mountedPageIds.first);
+    }
   }
 
   /// 按偏好的顺序解析 entry 列表（含所有 kind）
