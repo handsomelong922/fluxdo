@@ -2174,7 +2174,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   void _syncReadPostNumbersForDetail(
     TopicDetail detail,
   ) {
-    final sourceKey = Object.hash(detail.id, detail.postStream.posts);
+    final sourceKey = Object.hashAll(<Object?>[
+      detail.id,
+      for (final post in detail.postStream.posts)
+        Object.hash(post.id, post.postNumber, post.read),
+    ]);
     if (_initialReadPostNumbersSourceKey == sourceKey) {
       _updateInitialReadPostNumbers(_cachedInitialReadPostNumbers);
       return;

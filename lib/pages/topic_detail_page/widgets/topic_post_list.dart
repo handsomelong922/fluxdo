@@ -251,12 +251,13 @@ class _TopicPostListState extends State<TopicPostList> {
   bool get useReplyDialog => widget.useReplyDialog;
 
   void _ensureVisiblePosts() {
-    final sourceKey = Object.hash(
+    final sourceKey = Object.hashAll(<Object?>[
       detail.id,
-      detail.postStream.posts,
       widget.blockedUsernames,
       widget.blockedUsernames.length,
-    );
+      for (final post in detail.postStream.posts)
+        Object.hash(post.id, post.postNumber, post.username),
+    ]);
     if (_visiblePostsSourceKey == sourceKey) {
       return;
     }
@@ -479,15 +480,31 @@ class _TopicPostListState extends State<TopicPostList> {
   int _computeRenderSegmentsSourceKey() {
     return Object.hashAll(<Object?>[
       detail.id,
-      detail.postStream.posts,
-      detail.postStream.stream,
-      detail.postStream.stream.length,
       widget.blockedUsernames,
       widget.blockedUsernames.length,
-      detail.postStream.gaps?.before,
-      detail.postStream.gaps?.after,
+      detail.postStream.stream.length,
+      detail.postStream.stream.isEmpty
+          ? null
+          : detail.postStream.stream.first,
+      detail.postStream.stream.isEmpty
+          ? null
+          : detail.postStream.stream.last,
       detail.postStream.gaps?.before.length ?? 0,
       detail.postStream.gaps?.after.length ?? 0,
+      for (final entry in detail.postStream.gaps?.before.entries ??
+          const <MapEntry<int, List<int>>>[])
+        Object.hash(entry.key, entry.value.length),
+      for (final entry in detail.postStream.gaps?.after.entries ??
+          const <MapEntry<int, List<int>>>[])
+        Object.hash(entry.key, entry.value.length),
+      for (final post in _visiblePosts)
+        Object.hash(
+          post.id,
+          post.postNumber,
+          post.username,
+          post.cooked.length,
+          post.cooked.hashCode,
+        ),
     ]);
   }
 
