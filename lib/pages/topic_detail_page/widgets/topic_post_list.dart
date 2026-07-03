@@ -161,6 +161,8 @@ class _TopicPostListState extends State<TopicPostList> {
   Map<int, int> _postIndexToScrollIndex = const {};
   Map<int, int> _scrollIndexToPostNumber = const {};
   int? _renderSegmentsSourceKey;
+  int? _visiblePostsSourceKey;
+  List<Post> _visiblePostsCache = const [];
 
   /// postNumber → postIndex 反查表（避免 indexWhere 线性查找）
   Map<int, int> _postNumberToIndex = const {};
@@ -186,6 +188,8 @@ class _TopicPostListState extends State<TopicPostList> {
     if (oldWidget.detail.id != widget.detail.id) {
       _inlineRepliesStateByPostNumber.clear();
       _renderSegmentsSourceKey = null;
+      _visiblePostsSourceKey = null;
+      _visiblePostsCache = const [];
     }
   }
 
@@ -197,10 +201,10 @@ class _TopicPostListState extends State<TopicPostList> {
 
   // 便捷 getter，简化 widget.xxx 访问
   TopicDetail get detail => widget.detail;
-  List<Post> get _visiblePosts => BlockedUserFilter.visiblePosts(
-    detail.postStream.posts,
-    widget.blockedUsernames,
-  );
+  List<Post> get _visiblePosts {
+    _ensureVisiblePosts();
+    return _visiblePostsCache;
+  }
   AutoScrollController get scrollController => widget.scrollController;
   GlobalKey get centerKey => widget.centerKey;
   GlobalKey get headerKey => widget.headerKey;
@@ -243,6 +247,24 @@ class _TopicPostListState extends State<TopicPostList> {
   void Function(int postId)? get onExpandHiddenPost =>
       widget.onExpandHiddenPost;
   bool get useReplyDialog => widget.useReplyDialog;
+
+  void _ensureVisiblePosts() {
+    final sourceKey = Object.hash(
+      detail.id,
+      detail.postStream.posts,
+      widget.blockedUsernames,
+      widget.blockedUsernames.length,
+    );
+    if (_visiblePostsSourceKey == sourceKey) {
+      return;
+    }
+
+    _visiblePostsCache = BlockedUserFilter.visiblePosts(
+      detail.postStream.posts,
+      widget.blockedUsernames,
+    );
+    _visiblePostsSourceKey = sourceKey;
+  }
 
   /// 检测当前可见帖子（Eyeline 机制）
   ///
