@@ -50,6 +50,9 @@ Evidence:
 ### 2. Signatures
 - `double collapseNavScrollProgress(double rawProgress)`
 - `WidgetRef.publishNavScrollProgress(String id, double rawProgress)`
+- `AppLogSettingsService.initialize(SharedPreferences prefs)`
+- `AppLogSettingsService.setEnabled(bool value)`
+- `AppLogSettingsService.setMaxEntries(int value)`
 - `RuntimeLogSettings.configure({required bool developerModeEnabled})`
 - `RuntimeLogSettings.shouldPersistRequestLog({required String level, required bool isSilent})`
 - `RuntimeLogSettings.shouldPersistDiagnosticEvent({required String level})`
@@ -63,6 +66,11 @@ Evidence:
 - `StartupRequestRecorder` remains the authoritative in-memory source for launch request ranking; ranking must keep working even when persistent request logs are reduced.
 - Silent/background request logs may still be recorded in memory for ranking, but must not be persisted to JSONL by default in normal mode.
 - High-frequency cookie/session/WebView lifecycle diagnostics must default to warning/error-only persistence. Full verbose persistence requires explicit developer mode.
+- App-log user settings live in shared preferences:
+  - `pref_app_logs_enabled`
+  - `pref_app_logs_max_entries`
+- Turning app-log recording off must stop both persistent app-log writes and startup-request ranking collection. Re-enabling should resume both with the currently selected retention limit.
+- The selectable retention limit must stay within `50..300` and be quantized in 25-entry steps before applying it to file retention and startup ranking memory buffers.
 
 ### 4. Validation & Error Matrix
 - Scroll stays below threshold -> provider state remains `1.0`; selected icon does not switch to the action glyph.
@@ -71,6 +79,8 @@ Evidence:
 - Developer mode off + silent info request -> request may appear in in-memory ranking, but JSONL write is skipped.
 - Developer mode off + warning/error diagnostic -> persistent log is still written.
 - Developer mode on -> verbose request/cookie/WebView diagnostics persist as before.
+- App-log recording off -> `StartupRequestRecorder.records` stays empty, and `LogWriter` skips new JSONL writes.
+- App-log retention limit lowered -> both the in-memory startup ranking buffer and `app_log.jsonl` must trim older entries down to the new limit.
 
 ### 5. Good/Base/Bad Cases
 - Good: list scrolling flips navigation feedback only on top/threshold transitions, while startup ranking still shows silent excerpt requests in-memory.
@@ -80,6 +90,8 @@ Evidence:
 ### 6. Tests Required
 - Unit-test `collapseNavScrollProgress()` for top / below-threshold / above-threshold quantization.
 - Unit-test `RuntimeLogSettings` for silent-request suppression and warning/error retention.
+- Unit-test that disabling app logs suppresses both persistent request/diagnostic logging and startup ranking retention.
+- Unit-test that startup ranking trims to the configured max-entry limit.
 - Keep startup request recorder tests proving in-memory ranking still records request timing independently from persistent logs.
 
 ### 7. Wrong vs Correct
@@ -102,6 +114,12 @@ if (RuntimeLogSettings.shouldPersistRequestLog(
 )) {
   LogWriter.instance.write(entry);
 }
+```
+
+#### Correct
+```dart
+await AppLogSettingsService.instance.setEnabled(false);
+await AppLogSettingsService.instance.setMaxEntries(150);
 ```
 
 ## Scenario: Topic Detail Preview Handoff
