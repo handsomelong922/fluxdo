@@ -1317,9 +1317,6 @@ class _TopicListState extends ConsumerState<_TopicList> {
 
     _resumeExcerptLoadingTimer?.cancel();
     if (paused) {
-      if (!ref.read(homeTopicExcerptPausedProvider)) {
-        ref.read(homeTopicExcerptPausedProvider.notifier).state = true;
-      }
       ref.read(homeTopicExcerptLoaderProvider).setPaused(true);
       return;
     }
@@ -1327,9 +1324,6 @@ class _TopicListState extends ConsumerState<_TopicList> {
     _resumeExcerptLoadingTimer = Timer(const Duration(milliseconds: 180), () {
       if (!mounted) return;
       ref.read(homeTopicExcerptLoaderProvider).setPaused(false);
-      if (ref.read(homeTopicExcerptPausedProvider)) {
-        ref.read(homeTopicExcerptPausedProvider.notifier).state = false;
-      }
     });
   }
 
@@ -1876,11 +1870,6 @@ class _HomeExcerptLoader extends ConsumerWidget {
     final cached = ref.read(homeTopicExcerptLoaderProvider).peekCached(topicId);
     if (cached != null && cached.trim().isNotEmpty) {
       return _HomeExcerptText(html: cached, maxLines: maxLines);
-    }
-
-    final paused = ref.watch(homeTopicExcerptPausedProvider);
-    if (paused) {
-      return _HomeExcerptPlaceholder(maxLines: maxLines);
     }
 
     final asyncExcerpt = ref.watch(homeTopicExcerptProvider(topicId));
