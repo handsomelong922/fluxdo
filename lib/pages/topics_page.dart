@@ -1059,9 +1059,11 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
         .clamp(0.0, 1.0);
 
     // 更新 barVisibility（仅在值变化时才更新，避免快速滚动时的帧级联重建）
-    final visibility = hideBarOnScroll
-        ? (1.0 - clampedOffset / _collapsibleHeight).clamp(0.0, 1.0)
-        : 1.0;
+    final visibility = !hideBarOnScroll
+        ? 1.0
+        : Responsive.isMobile(context)
+        ? (clampedOffset >= _searchBarHeight * 0.6 ? 0.0 : 1.0)
+        : (1.0 - clampedOffset / _collapsibleHeight).clamp(0.0, 1.0);
     final container = ProviderScope.containerOf(context, listen: false);
     final current = container.read(barVisibilityProvider);
     if ((visibility - current).abs() > 0.01) {
