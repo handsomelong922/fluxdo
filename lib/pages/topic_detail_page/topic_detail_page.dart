@@ -50,6 +50,7 @@ import '../../widgets/common/dismissible_popup_menu.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../../widgets/content/discourse_html_content/discourse_html_content_widget.dart';
+import '../../widgets/post/post_item/segmented_long_post.dart';
 import '../../providers/nested_topic_provider.dart';
 import 'controllers/topic_detail_controller.dart';
 import 'widgets/nested_post_list.dart';
@@ -1356,6 +1357,17 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         if (changedHtmlList.isNotEmpty &&
             ref.read(preferencesProvider).displayPanguSpacing) {
           DiscourseHtmlContent.preloadPangu(changedHtmlList);
+        }
+
+        final longHtmlToWarm = changedHtmlList
+            .where((html) => html.length > ChunkedHtmlContent.chunkThreshold)
+            .toList(growable: false);
+        if (longHtmlToWarm.isNotEmpty) {
+          SchedulerBinding.instance.scheduleTask(() {
+            for (final html in longHtmlToWarm) {
+              LongPostRenderData.fromHtml(html);
+            }
+          }, Priority.idle);
         }
 
         final hasFirstPost = posts.first.postNumber == 1;

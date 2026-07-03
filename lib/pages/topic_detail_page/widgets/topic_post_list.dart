@@ -257,12 +257,16 @@ class _TopicPostListState extends State<TopicPostList> {
   bool get useReplyDialog => widget.useReplyDialog;
 
   void _ensureVisiblePosts() {
+    final posts = detail.postStream.posts;
     final sourceKey = Object.hashAll(<Object?>[
       detail.id,
       widget.blockedUsernames,
       widget.blockedUsernames.length,
-      for (final post in detail.postStream.posts)
-        Object.hash(post.id, post.postNumber, post.username),
+      posts.length,
+      posts.isEmpty ? null : posts.first.id,
+      posts.isEmpty ? null : posts.last.id,
+      posts.isEmpty ? null : posts.first.username,
+      posts.isEmpty ? null : posts.last.username,
     ]);
     if (_visiblePostsSourceKey == sourceKey) {
       return;
