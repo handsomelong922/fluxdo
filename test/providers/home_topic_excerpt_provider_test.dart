@@ -243,7 +243,10 @@ void main() {
 
       final firstLoader = HomeTopicExcerptLoader(
         minRequestInterval: Duration.zero,
-        persistentCache: HomeTopicExcerptPersistentCache(prefs),
+        persistentCache: HomeTopicExcerptPersistentCache(
+          prefs,
+          persistDebounce: Duration.zero,
+        ),
         fetchPreview: (topicId) async {
           calls++;
           return _previewDetail(topicId);
@@ -256,7 +259,10 @@ void main() {
 
       final secondLoader = HomeTopicExcerptLoader(
         minRequestInterval: Duration.zero,
-        persistentCache: HomeTopicExcerptPersistentCache(prefs),
+        persistentCache: HomeTopicExcerptPersistentCache(
+          prefs,
+          persistDebounce: Duration.zero,
+        ),
         fetchPreview: (_) async {
           calls++;
           throw StateError('should not fetch when persistent cache is valid');
@@ -279,7 +285,10 @@ void main() {
       }),
     });
     final prefs = await SharedPreferences.getInstance();
-    final cache = HomeTopicExcerptPersistentCache(prefs);
+    final cache = HomeTopicExcerptPersistentCache(
+      prefs,
+      persistDebounce: Duration.zero,
+    );
 
     expect(cache.read(42, const Duration(days: 1)), isNull);
     await Future<void>.delayed(Duration.zero);

@@ -313,6 +313,7 @@ class HomeTopicExcerptPersistentCache {
   HomeTopicExcerptPersistentCache(
     this._prefs, {
     this.maxEntries = 240,
+    this.persistDebounce = const Duration(milliseconds: 400),
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now;
 
@@ -320,9 +321,11 @@ class HomeTopicExcerptPersistentCache {
 
   final SharedPreferences _prefs;
   final int maxEntries;
+  final Duration persistDebounce;
   final DateTime Function() _now;
 
   Map<int, _PersistedExcerpt>? _entries;
+  Timer? _persistTimer;
 
   String? read(int topicId, Duration ttl) {
     final entries = _loadEntries();
@@ -330,7 +333,7 @@ class HomeTopicExcerptPersistentCache {
     if (entry == null) return null;
 
     if (_isExpired(entry.cachedAtMillis, ttl)) {
-      unawaited(_persist(entries));
+      unawaited(_schedulePersist(entries));
       return null;
     }
 
@@ -349,14 +352,14 @@ class HomeTopicExcerptPersistentCache {
     while (entries.length > maxEntries) {
       entries.remove(entries.keys.first);
     }
-    await _persist(entries);
+    await _schedulePersist(entries);
   }
 
   Future<void> pruneExpired(Duration ttl) async {
     final entries = _loadEntries();
     final changed = _pruneExpiredEntries(entries, ttl);
     if (changed) {
-      await _persist(entries);
+      await _schedulePersist(entries);
     }
   }
 
@@ -419,6 +422,28 @@ class HomeTopicExcerptPersistentCache {
         },
     };
     return _prefs.setString(storageKey, jsonEncode(json));
+  }
+
+  Future<void> _schedulePersist(Map<int, _PersistedExcerpt> entries) async {
+    _persistTimer?.cancel();
+
+    if (persistDebounce == Duration.zero) {
+      await _persist(entries);
+      return;
+    }
+
+    _persistTimer = Timer(persistDebounce, () {
+      unawaited(_persist(entries));
+    });
+  }
+
+  @visibleForTesting
+  Future<void> flushPendingWrites() async {
+    final entries = _entries;
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    if (entries == null) return;
+    await _persist(entries);
   }
 }
 
