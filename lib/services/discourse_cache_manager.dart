@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
@@ -38,7 +39,8 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
   ///
   /// 避免每次 isImageCached / preloadImage 都查询磁盘缓存。
   /// 仅用于 "跳过已缓存" 的快速判断，不影响 CachedNetworkImage 自身的加载流程。
-  final Set<String> _knownCachedUrls = {};
+  static const int _maxKnownCachedUrls = 2048;
+  final LinkedHashSet<String> _knownCachedUrls = LinkedHashSet<String>();
 
   /// 正在下载中的 URL，避免并发重复下载
   final Set<String> _pendingUrls = {};
@@ -58,7 +60,7 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
   Future<Uint8List?> getImageBytes(String url) async {
     try {
       final file = await getSingleFile(url);
-      _knownCachedUrls.add(url);
+      _rememberKnownCachedUrl(url);
       return await file.readAsBytes();
     } catch (e) {
       debugPrint('[DiscourseCacheManager] Failed to get image bytes: $e');
@@ -73,7 +75,7 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
     try {
       final fileInfo = await getFileFromCache(url);
       if (fileInfo != null) {
-        _knownCachedUrls.add(url);
+        _rememberKnownCachedUrl(url);
         return fileInfo.file;
       }
       return null;
@@ -91,7 +93,7 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
     try {
       final fileInfo = await getFileFromCache(url);
       if (fileInfo != null) {
-        _knownCachedUrls.add(url);
+        _rememberKnownCachedUrl(url);
         return true;
       }
       return false;
@@ -113,7 +115,7 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
     try {
       // downloadFile 内部会先查缓存再决定是否下载
       await downloadFile(url);
-      _knownCachedUrls.add(url);
+      _rememberKnownCachedUrl(url);
     } catch (e) {
       debugPrint('[DiscourseCacheManager] Failed to preload image: $e');
     } finally {
@@ -126,6 +128,18 @@ class DiscourseCacheManager extends CacheManager with ImageCacheManager {
     for (final url in urls) {
       preloadImage(url);
     }
+  }
+
+  void _rememberKnownCachedUrl(String url) {
+    if (_knownCachedUrls.remove(url)) {
+      _knownCachedUrls.add(url);
+      return;
+    }
+
+    if (_knownCachedUrls.length >= _maxKnownCachedUrls) {
+      _knownCachedUrls.remove(_knownCachedUrls.first);
+    }
+    _knownCachedUrls.add(url);
   }
 }
 
