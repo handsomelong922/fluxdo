@@ -28,7 +28,6 @@ import '../reading_settings_page.dart';
 import '../../providers/selected_topic_provider.dart';
 import '../../providers/discourse_providers.dart';
 import '../../providers/message_bus_providers.dart';
-import '../../providers/pinned_categories_provider.dart';
 import '../../services/discourse/discourse_service.dart';
 import '../../services/settings/content_filter_service.dart';
 import '../../services/notion/notion_bookmark_auto_sync.dart';
@@ -746,8 +745,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
     SchedulerBinding.instance.scheduleTask(() {
       if (!mounted) return;
-      final pinnedIds = ref.read(pinnedCategoriesProvider);
-      final categoryIds = [null, ...pinnedIds];
+      final currentCategoryId = ref.read(currentTabCategoryIdProvider);
+      final categoryIds = <int?>{null, currentCategoryId};
       for (final categoryId in categoryIds) {
         if (!ref.exists(topicListProvider(categoryId))) continue;
         ref
