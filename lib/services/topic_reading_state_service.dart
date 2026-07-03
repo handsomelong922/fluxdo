@@ -94,6 +94,18 @@ class TopicReadingStateService {
     required bool nestedView,
   }) async {
     if (postNumber <= 0) return;
+    final pending = _pendingStates[topicId];
+    if (pending != null &&
+        pending.postNumber == postNumber &&
+        pending.nestedView == nestedView) {
+      return;
+    }
+    final persisted = pending == null ? getState(topicId) : null;
+    if (persisted != null &&
+        persisted.postNumber == postNumber &&
+        persisted.nestedView == nestedView) {
+      return;
+    }
     final state = TopicReadingState(
       topicId: topicId,
       postNumber: postNumber,
