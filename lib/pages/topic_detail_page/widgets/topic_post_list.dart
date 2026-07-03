@@ -602,6 +602,7 @@ class _TopicPostListState extends State<TopicPostList> {
   @override
   Widget build(BuildContext context) {
     final posts = _visiblePosts;
+    final cacheExtent = Responsive.isMobile(context) ? 240.0 : 500.0;
     final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
     _ensureRenderSegments(posts);
     final centerPostNumber =
@@ -658,7 +659,7 @@ class _TopicPostListState extends State<TopicPostList> {
           child: CustomScrollView(
             controller: scrollController,
             center: centerKey,
-            cacheExtent: 500,
+            cacheExtent: cacheExtent,
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
