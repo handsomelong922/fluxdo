@@ -1555,15 +1555,10 @@ class _TopicListState extends ConsumerState<_TopicList> {
           );
         }
 
-        final incomingState = ref.watch(latestChannelProvider);
         final currentFilter = ref.read(topicFilterProvider);
-        final hasNewTopics =
-            currentFilter == TopicListFilter.latest &&
-            incomingState.hasIncomingForCategory(widget.categoryId);
-        final newTopicCount = incomingState.incomingCountForCategory(
-          widget.categoryId,
-        );
-        final newTopicOffset = hasNewTopics ? 1 : 0;
+        final incomingSlotCount = currentFilter == TopicListFilter.latest
+            ? 1
+            : 0;
 
         return DesktopRefreshIndicator(
           refreshIndicatorKey: _refreshIndicatorKey,
@@ -1603,17 +1598,13 @@ class _TopicListState extends ConsumerState<_TopicList> {
                 ),
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.only(top: 8, bottom: 12),
-                itemCount: topics.length + newTopicOffset + 1,
+                itemCount: topics.length + incomingSlotCount + 1,
                 itemBuilder: (context, index) {
-                  if (hasNewTopics && index == 0) {
-                    return _buildNewTopicIndicator(
-                      context,
-                      newTopicCount,
-                      providerKey,
-                    );
+                  if (incomingSlotCount == 1 && index == 0) {
+                    return _buildLatestIncomingSlot(context, providerKey);
                   }
 
-                  final topicIndex = index - newTopicOffset;
+                  final topicIndex = index - incomingSlotCount;
                   if (topicIndex >= topics.length) {
                     return _TopicListFooter(providerKey: providerKey);
                   }
@@ -1692,6 +1683,22 @@ class _TopicListState extends ConsumerState<_TopicList> {
           onRetry: () => ref.refresh(topicListProvider(providerKey)),
         ),
       ),
+    );
+  }
+
+  Widget _buildLatestIncomingSlot(BuildContext context, int? providerKey) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final newTopicCount = ref.watch(
+          latestChannelProvider.select(
+            (state) => state.incomingCountForCategory(providerKey),
+          ),
+        );
+        if (newTopicCount <= 0) {
+          return const SizedBox.shrink();
+        }
+        return _buildNewTopicIndicator(context, newTopicCount, providerKey);
+      },
     );
   }
 
