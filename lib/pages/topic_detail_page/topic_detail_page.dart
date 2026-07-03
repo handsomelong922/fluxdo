@@ -425,6 +425,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   Set<int> _cachedInitialReadPostNumbers = const <int>{};
   ProviderSubscription<TopicChannelState>? _topicChannelSubscription;
   bool _topicChannelNeedsCatchUp = false;
+  Timer? _pendingTopicListSeenUpdateTimer;
+  int? _pendingSeenUpdateTopicId;
+  int _pendingSeenUpdateHighestSeen = 0;
 
   String? get _initialPreviewHtml {
     final firstPostHtml = widget.initialFirstPostHtml?.trim();
@@ -523,17 +526,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         ref
             .read(topicSessionProvider(topicId).notifier)
             .markAsRead(postNumbers);
-        SchedulerBinding.instance.scheduleTask(() {
-          if (!mounted) return;
-          final pinnedIds = ref.read(pinnedCategoriesProvider);
-          final categoryIds = [null, ...pinnedIds];
-          for (final categoryId in categoryIds) {
-            if (!ref.exists(topicListProvider(categoryId))) continue;
-            ref
-                .read(topicListProvider(categoryId).notifier)
-                .updateSeen(topicId, highestSeen);
-          }
-        }, Priority.idle);
+        _scheduleTopicListSeenUpdate(topicId, highestSeen);
       },
     );
 
@@ -696,6 +689,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
   @override
   void dispose() {
+    _flushPendingTopicListSeenUpdate();
+    _pendingTopicListSeenUpdateTimer?.cancel();
     QuoteSelectionHelper.updateSelectionActive(null);
     if (_route != null) {
       appRouteObserver.unsubscribe(this);
@@ -722,6 +717,41 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     // 延迟清理搜索状态，避免在 widget tree finalizing 期间修改 provider
     Future(_topicSearchNotifier.exitSearchMode);
     super.dispose();
+  }
+
+  void _scheduleTopicListSeenUpdate(int topicId, int highestSeen) {
+    _pendingSeenUpdateTopicId = topicId;
+    if (highestSeen > _pendingSeenUpdateHighestSeen) {
+      _pendingSeenUpdateHighestSeen = highestSeen;
+    }
+    _pendingTopicListSeenUpdateTimer?.cancel();
+    final delay = Responsive.isMobile(context)
+        ? const Duration(seconds: 2)
+        : const Duration(milliseconds: 600);
+    _pendingTopicListSeenUpdateTimer = Timer(
+      delay,
+      _flushPendingTopicListSeenUpdate,
+    );
+  }
+
+  void _flushPendingTopicListSeenUpdate() {
+    final topicId = _pendingSeenUpdateTopicId;
+    final highestSeen = _pendingSeenUpdateHighestSeen;
+    _pendingSeenUpdateTopicId = null;
+    _pendingSeenUpdateHighestSeen = 0;
+    if (topicId == null || highestSeen <= 0) return;
+
+    SchedulerBinding.instance.scheduleTask(() {
+      if (!mounted) return;
+      final pinnedIds = ref.read(pinnedCategoriesProvider);
+      final categoryIds = [null, ...pinnedIds];
+      for (final categoryId in categoryIds) {
+        if (!ref.exists(topicListProvider(categoryId))) continue;
+        ref
+            .read(topicListProvider(categoryId).notifier)
+            .updateSeen(topicId, highestSeen);
+      }
+    }, Priority.idle);
   }
 
   @override
