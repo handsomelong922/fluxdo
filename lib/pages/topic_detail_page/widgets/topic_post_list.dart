@@ -157,7 +157,7 @@ class TopicPostList extends StatefulWidget {
 }
 
 class _TopicPostListState extends State<TopicPostList> {
-  static const Duration _visiblePostUpdateDelay = Duration(milliseconds: 180);
+  static const Duration _visiblePostUpdateDelay = Duration(milliseconds: 240);
   static const Duration _autoReplyResumeDelay = Duration(milliseconds: 220);
 
   int? _lastReportedPostNumber;

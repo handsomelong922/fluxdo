@@ -388,7 +388,7 @@ Future<void> main() async {
       : 30000;
   if (isMobilePlatform) {
     VisibilityDetectorController.instance.updateInterval = const Duration(
-      milliseconds: 800,
+      milliseconds: 1000,
     );
   }
 

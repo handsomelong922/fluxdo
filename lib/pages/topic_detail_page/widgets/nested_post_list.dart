@@ -85,7 +85,7 @@ class NestedPostList extends ConsumerStatefulWidget {
 }
 
 class _NestedPostListState extends ConsumerState<NestedPostList> {
-  static const Duration _visiblePostUpdateDelay = Duration(milliseconds: 180);
+  static const Duration _visiblePostUpdateDelay = Duration(milliseconds: 240);
   final Map<int, bool> _expansionState = {};
   final Map<int, NestedRepliesState> _repliesStateByPostNumber = {};
   final Map<int, int> _postNumberToScrollIndex = {};

@@ -52,7 +52,7 @@ class TopicScrollState {
   }
 }
 
-const Duration _topicDetailScreenTrackThrottle = Duration(milliseconds: 160);
+const Duration _topicDetailScreenTrackThrottle = Duration(milliseconds: 240);
 
 @visibleForTesting
 Set<int> resolveReadOnscreenPostNumbers({
