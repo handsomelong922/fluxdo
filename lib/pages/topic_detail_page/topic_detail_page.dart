@@ -988,45 +988,51 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     required TopicDetailNotifier notifier,
     required bool visible,
   }) {
+    final isMobile = Responsive.isMobile(context);
+    final row = Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        if (widget.embeddedMode)
+          const SizedBox(width: _topicFloatingButtonSize)
+        else
+          _FloatingTopicChromeButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+            icon: Icons.arrow_back_ios_new_rounded,
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+        if (detail == null)
+          const SizedBox(width: _topicFloatingButtonSize)
+        else
+          _buildFloatingTopicMenu(
+            theme: theme,
+            detail: detail,
+            notifier: notifier,
+          ),
+      ],
+    );
+
     return Positioned(
       top: MediaQuery.of(context).padding.top + 8,
       left: 12,
       right: 12,
       child: IgnorePointer(
         ignoring: !visible,
-        child: AnimatedSlide(
-          offset: visible ? Offset.zero : const Offset(0, -1.4),
-          duration: topicDetailBarAnimationDuration,
-          curve: topicDetailBarAnimationCurve,
-          child: AnimatedOpacity(
-            opacity: visible ? 1 : 0,
-            duration: topicDetailBarAnimationDuration,
-            curve: topicDetailBarAnimationCurve,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                if (widget.embeddedMode)
-                  const SizedBox(width: _topicFloatingButtonSize)
-                else
-                  _FloatingTopicChromeButton(
-                    tooltip: MaterialLocalizations.of(
-                      context,
-                    ).backButtonTooltip,
-                    icon: Icons.arrow_back_ios_new_rounded,
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  ),
-                if (detail == null)
-                  const SizedBox(width: _topicFloatingButtonSize)
-                else
-                  _buildFloatingTopicMenu(
-                    theme: theme,
-                    detail: detail,
-                    notifier: notifier,
-                  ),
-              ],
-            ),
-          ),
-        ),
+        child: isMobile
+            ? Transform.translate(
+                offset: visible ? Offset.zero : const Offset(0, -48),
+                child: Opacity(opacity: visible ? 1 : 0, child: row),
+              )
+            : AnimatedSlide(
+                offset: visible ? Offset.zero : const Offset(0, -1.4),
+                duration: topicDetailBarAnimationDuration,
+                curve: topicDetailBarAnimationCurve,
+                child: AnimatedOpacity(
+                  opacity: visible ? 1 : 0,
+                  duration: topicDetailBarAnimationDuration,
+                  curve: topicDetailBarAnimationCurve,
+                  child: row,
+                ),
+              ),
       ),
     );
   }
@@ -2376,31 +2382,48 @@ class _FloatingTopicChromeButtonSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isMobile = Responsive.isMobile(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface.withValues(alpha: 0.82),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface.withValues(
+            alpha: isMobile ? 0.96 : 0.82,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(
+              alpha: isMobile ? 0.24 : 0.35,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.10),
-                blurRadius: 14,
-                offset: const Offset(0, 6),
-              ),
-            ],
           ),
-          child: SizedBox(
-            width: _topicFloatingButtonSize,
-            height: _topicFloatingButtonSize,
-            child: Center(child: _FloatingTopicChromeButtonContent(icon: icon)),
-          ),
+          boxShadow: isMobile
+              ? const <BoxShadow>[]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.10),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
         ),
+        child: isMobile
+            ? SizedBox(
+                width: _topicFloatingButtonSize,
+                height: _topicFloatingButtonSize,
+                child: Center(
+                  child: _FloatingTopicChromeButtonContent(icon: icon),
+                ),
+              )
+            : BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: SizedBox(
+                  width: _topicFloatingButtonSize,
+                  height: _topicFloatingButtonSize,
+                  child: Center(
+                    child: _FloatingTopicChromeButtonContent(icon: icon),
+                  ),
+                ),
+              ),
       ),
     );
   }
