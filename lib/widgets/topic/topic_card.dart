@@ -362,21 +362,29 @@ class TopicCard extends ConsumerWidget {
                     ),
                     const SizedBox(width: 5),
                   ],
-                  Tooltip(
-                    message: TimeUtils.formatTooltipTime(
-                      topic.createdAt ?? topic.lastPostedAt,
-                    ),
-                    preferBelow: true,
-                    child: Text(
-                      TimeUtils.formatRelativeTime(
-                        topic.createdAt ?? topic.lastPostedAt,
-                      ),
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant.withValues(
-                          alpha: 0.7,
+                  Builder(
+                    builder: (context) {
+                      final timeText = Text(
+                        TimeUtils.formatRelativeTime(
+                          topic.createdAt ?? topic.lastPostedAt,
                         ),
-                      ),
-                    ),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.7,
+                          ),
+                        ),
+                      );
+                      if (Responsive.isMobile(context)) {
+                        return timeText;
+                      }
+                      return Tooltip(
+                        message: TimeUtils.formatTooltipTime(
+                          topic.createdAt ?? topic.lastPostedAt,
+                        ),
+                        preferBelow: true,
+                        child: timeText,
+                      );
+                    },
                   ),
                 ],
               ),
