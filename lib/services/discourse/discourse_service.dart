@@ -93,8 +93,16 @@ Options? _backgroundReadOptions({Options? options, bool background = false}) {
   extra['priority'] = 'low';
   extra['isSilent'] = true;
   extra['showErrorToast'] = false;
-  return (options ?? Options()).copyWith(extra: extra);
+  return _withSkipWebViewSessionSync(
+    (options ?? Options()).copyWith(extra: extra),
+  );
 }
+
+@visibleForTesting
+Options? backgroundReadOptionsForRequest({
+  Options? options,
+  bool background = false,
+}) => _backgroundReadOptions(options: options, background: background);
 
 Options _foregroundReadOptions({Options? options}) {
   final extra = <String, dynamic>{...?options?.extra};

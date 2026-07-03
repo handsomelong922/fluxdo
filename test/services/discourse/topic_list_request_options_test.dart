@@ -20,4 +20,13 @@ void main() {
     expect(options.extra!.containsKey('priority'), isFalse);
     expect(options.extra!.containsKey(skipWebViewSessionSyncExtraKey), isFalse);
   });
+
+  test('background read options are low priority and skip session sync', () {
+    final options = backgroundReadOptionsForRequest(background: true);
+
+    expect(options, isNotNull);
+    expect(options!.extra!['priority'], 'low');
+    expect(options.extra!['isSilent'], isTrue);
+    expect(options.extra![skipWebViewSessionSyncExtraKey], isTrue);
+  });
 }
