@@ -359,6 +359,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   int? _postLookupCacheSignature;
   Map<int, int> _postNumberToLoadedPostIndex = const {};
   Map<int, int> _postNumberToStreamIndex = const {};
+  Map<int, int> _preloadedHtmlHashByPostId = const {};
 
   String? get _initialPreviewHtml {
     final firstPostHtml = widget.initialFirstPostHtml?.trim();
@@ -1245,12 +1246,25 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       if (!context.mounted) return;
       final posts = next.value?.postStream.posts;
       if (posts != null && posts.isNotEmpty) {
-        final htmlList = posts.map((p) => p.cooked).toList();
-        ChunkedHtmlContent.preloadAll(htmlList);
+        final changedHtmlList = <String>[];
+        final nextHashes = <int, int>{};
+        for (final post in posts) {
+          final htmlHash = Object.hash(post.cooked.length, post.cooked.hashCode);
+          nextHashes[post.id] = htmlHash;
+          if (_preloadedHtmlHashByPostId[post.id] != htmlHash) {
+            changedHtmlList.add(post.cooked);
+          }
+        }
+        _preloadedHtmlHashByPostId = Map.unmodifiable(nextHashes);
+
+        if (changedHtmlList.isNotEmpty) {
+          ChunkedHtmlContent.preloadAll(changedHtmlList);
+        }
 
         // 预热 Pangu 混排处理（在 isolate 中执行）
-        if (ref.read(preferencesProvider).displayPanguSpacing) {
-          DiscourseHtmlContent.preloadPangu(htmlList);
+        if (changedHtmlList.isNotEmpty &&
+            ref.read(preferencesProvider).displayPanguSpacing) {
+          DiscourseHtmlContent.preloadPangu(changedHtmlList);
         }
 
         final hasFirstPost = posts.first.postNumber == 1;
