@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../l10n/s.dart';
 import '../../../widgets/common/dismissible_popup_menu.dart';
@@ -52,56 +53,68 @@ class TopicBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final isMobile =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final decoration = BoxDecoration(
+      color: theme.colorScheme.surface.withValues(
+        alpha: isMobile ? 0.96 : 0.76,
+      ),
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(
+        color: theme.colorScheme.outlineVariant.withValues(
+          alpha: isMobile ? 0.24 : 0.45,
+        ),
+      ),
+      boxShadow: isMobile
+          ? const <BoxShadow>[]
+          : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+    );
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomPadding),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(22),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withValues(alpha: 0.76),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.10),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
+        child: DecoratedBox(
+          decoration: decoration,
+          child: isMobile
+              ? _buildBarContent(context, theme)
+              : BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                  child: _buildBarContent(context, theme),
                 ),
-              ],
-            ),
-            child: SizedBox(
-              height: 56,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(width: 6),
-                  // 添加/编辑书签
-                  _buildBookmarkButton(context, theme),
-                  // 筛选
-                  if (_hasActiveFilter)
-                    _buildActiveFilterChip(context, theme)
-                  else
-                    _buildFilterMenuButton(context, theme),
-                  // 分享菜单
-                  _buildShareMenu(context, theme),
-                  // 回到顶部
-                  IconButton(
-                    onPressed: onScrollToTop,
-                    icon: const Icon(Icons.vertical_align_top),
-                    tooltip: context.l10n.topicDetail_scrollToTop,
-                  ),
-                  const SizedBox(width: 6),
-                ],
-              ),
-            ),
-          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildBarContent(BuildContext context, ThemeData theme) {
+    return SizedBox(
+      height: 56,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(width: 6),
+          _buildBookmarkButton(context, theme),
+          if (_hasActiveFilter)
+            _buildActiveFilterChip(context, theme)
+          else
+            _buildFilterMenuButton(context, theme),
+          _buildShareMenu(context, theme),
+          IconButton(
+            onPressed: onScrollToTop,
+            icon: const Icon(Icons.vertical_align_top),
+            tooltip: context.l10n.topicDetail_scrollToTop,
+          ),
+          const SizedBox(width: 6),
+        ],
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 import '../../../models/topic.dart';
 import '../../../widgets/topic/topic_progress.dart';
 import 'progress_gesture_action_meta.dart';
@@ -65,6 +66,9 @@ class TopicDetailOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     const progressVisibleBottom = 96.0;
     final progressHiddenBottom = 24.0 + bottomPadding;
@@ -79,45 +83,84 @@ class TopicDetailOverlay extends StatelessWidget {
     final fabHiddenBottom = 16.0 + bottomPadding;
     final fabHiddenOffsetY = fabVisibleBottom - fabHiddenBottom;
 
+    final progress = ValueListenableBuilder<int>(
+      valueListenable: currentStreamIndexListenable,
+      builder: (context, currentStreamIndex, _) {
+        final progressPercent = totalCount > 1
+            ? (currentStreamIndex - 1) / (totalCount - 1)
+            : 0.0;
+        return Center(
+          child: TopicProgressGestures(
+            onAction: (action) {
+              if (action == ProgressGestureAction.openTimeline) {
+                onProgressTap();
+              } else {
+                onProgressAction?.call(action);
+              }
+            },
+            child: TopicProgress(
+              currentIndex: currentStreamIndex,
+              totalCount: totalCount,
+              progressPercent: progressPercent,
+              onTap: onProgressTap,
+            ),
+          ),
+        );
+      },
+    );
+
+    final bottomBar = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: TopicBottomBar(
+          onScrollToTop: onScrollToTop,
+          onShare: onShare,
+          onShareAsImage: onShareAsImage,
+          onExport: onExport,
+          onBookmark: onBookmark,
+          onBookmarkLongPress: onBookmarkLongPress,
+          hasSummary: detail.hasSummary,
+          isBookmarked: detail.bookmarked,
+          isSummaryMode: isSummaryMode,
+          isAuthorOnlyMode: isAuthorOnlyMode,
+          isTopLevelMode: isTopLevelMode,
+          isLoading: isLoading,
+          isPrivateMessage: detail.isPrivateMessage,
+          onShowTopReplies: onShowTopReplies,
+          onShowAuthorOnly: onShowAuthorOnly,
+          onShowTopLevelReplies: onShowTopLevelReplies,
+          onCancelFilter: onCancelFilter,
+        ),
+      ),
+    );
+
+    final fab = FloatingActionButton(
+      heroTag: 'replyTopic',
+      onPressed: onReply,
+      child: const Icon(Icons.reply),
+    );
+
     return Stack(
       children: [
-        // 固定的进度栏
         if (showProgress)
           Positioned(
             key: const ValueKey('progress_bar'),
             bottom: progressVisibleBottom,
             left: 0,
             right: 0,
-            child: _PaintOffsetTransition(
-              offsetY: showBottomBar ? 0 : progressHiddenOffsetY,
-              child: ValueListenableBuilder<int>(
-                valueListenable: currentStreamIndexListenable,
-                builder: (context, currentStreamIndex, _) {
-                  final progressPercent = totalCount > 1
-                      ? (currentStreamIndex - 1) / (totalCount - 1)
-                      : 0.0;
-                  return Center(
-                    child: TopicProgressGestures(
-                      onAction: (action) {
-                        if (action == ProgressGestureAction.openTimeline) {
-                          onProgressTap();
-                        } else {
-                          onProgressAction?.call(action);
-                        }
-                      },
-                      child: TopicProgress(
-                        currentIndex: currentStreamIndex,
-                        totalCount: totalCount,
-                        progressPercent: progressPercent,
-                        onTap: onProgressTap,
-                      ),
+            child: isMobile
+                ? Transform.translate(
+                    offset: Offset(
+                      0,
+                      showBottomBar ? 0 : progressHiddenOffsetY,
                     ),
-                  );
-                },
-              ),
-            ),
+                    child: progress,
+                  )
+                : _PaintOffsetTransition(
+                    offsetY: showBottomBar ? 0 : progressHiddenOffsetY,
+                    child: progress,
+                  ),
           ),
-        // 底部操作栏
         Positioned(
           key: const ValueKey('bottom_bar'),
           left: 16,
@@ -125,54 +168,42 @@ class TopicDetailOverlay extends StatelessWidget {
           bottom: bottomBarVisibleBottom,
           child: IgnorePointer(
             ignoring: !showBottomBar,
-            child: _PaintOffsetTransition(
-              offsetY: showBottomBar ? 0 : bottomBarHiddenOffsetY,
-              child: AnimatedOpacity(
-                opacity: showBottomBar ? 1 : 0,
-                duration: topicDetailBarAnimationDuration,
-                curve: topicDetailBarAnimationCurve,
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 360),
-                    child: TopicBottomBar(
-                      onScrollToTop: onScrollToTop,
-                      onShare: onShare,
-                      onShareAsImage: onShareAsImage,
-                      onExport: onExport,
-                      onBookmark: onBookmark,
-                      onBookmarkLongPress: onBookmarkLongPress,
-                      hasSummary: detail.hasSummary,
-                      isBookmarked: detail.bookmarked,
-                      isSummaryMode: isSummaryMode,
-                      isAuthorOnlyMode: isAuthorOnlyMode,
-                      isTopLevelMode: isTopLevelMode,
-                      isLoading: isLoading,
-                      isPrivateMessage: detail.isPrivateMessage,
-                      onShowTopReplies: onShowTopReplies,
-                      onShowAuthorOnly: onShowAuthorOnly,
-                      onShowTopLevelReplies: onShowTopLevelReplies,
-                      onCancelFilter: onCancelFilter,
+            child: isMobile
+                ? Transform.translate(
+                    offset: Offset(
+                      0,
+                      showBottomBar ? 0 : bottomBarHiddenOffsetY,
+                    ),
+                    child: Opacity(
+                      opacity: showBottomBar ? 1 : 0,
+                      child: bottomBar,
+                    ),
+                  )
+                : _PaintOffsetTransition(
+                    offsetY: showBottomBar ? 0 : bottomBarHiddenOffsetY,
+                    child: AnimatedOpacity(
+                      opacity: showBottomBar ? 1 : 0,
+                      duration: topicDetailBarAnimationDuration,
+                      curve: topicDetailBarAnimationCurve,
+                      child: bottomBar,
                     ),
                   ),
-                ),
-              ),
-            ),
           ),
         ),
-        // 悬浮回复按钮
         if (isLoggedIn)
           Positioned(
             key: const ValueKey('fab_reply'),
             right: 16,
             bottom: fabVisibleBottom,
-            child: _PaintOffsetTransition(
-              offsetY: showBottomBar ? 0 : fabHiddenOffsetY,
-              child: FloatingActionButton(
-                heroTag: 'replyTopic',
-                onPressed: onReply,
-                child: const Icon(Icons.reply),
-              ),
-            ),
+            child: isMobile
+                ? Transform.translate(
+                    offset: Offset(0, showBottomBar ? 0 : fabHiddenOffsetY),
+                    child: fab,
+                  )
+                : _PaintOffsetTransition(
+                    offsetY: showBottomBar ? 0 : fabHiddenOffsetY,
+                    child: fab,
+                  ),
           ),
       ],
     );
