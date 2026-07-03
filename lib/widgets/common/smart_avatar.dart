@@ -8,7 +8,8 @@ import '../../utils/svg_utils.dart';
 /// 智能头像组件
 ///
 /// 使用 CachedNetworkImage 加载图片，自动支持 GIF 动画。
-/// 静态头像会先检测缓存内容是否为 SVG，避免伪装成 PNG 的 SVG 进入位图解码器。
+/// 普通静态头像直接走位图加载；仅在解码失败时再回退检测 SVG，
+/// 避免长列表里每个头像都额外触发一次缓存探测。
 class SmartAvatar extends StatefulWidget {
   final String? imageUrl;
   final double radius;
@@ -37,7 +38,6 @@ class _SmartAvatarState extends State<SmartAvatar> {
   String? _svgContent;
   bool _isSvgDetected = false;
   String? _lastResolvedImageUrl;
-  Future<String?>? _svgProbeFuture;
 
   @override
   void didUpdateWidget(SmartAvatar oldWidget) {
@@ -46,32 +46,6 @@ class _SmartAvatarState extends State<SmartAvatar> {
       // URL 变化时重置 SVG 状态
       _svgContent = null;
       _isSvgDetected = false;
-      _svgProbeFuture = null;
-    }
-  }
-
-  Future<String?>? _createSvgProbeFuture(String imageUrl) {
-    if (imageUrl.isEmpty ||
-        AvifImageProvider.isAvifUrl(imageUrl) ||
-        isNativeAnimatedUrl(imageUrl)) {
-      return null;
-    }
-    return _loadSvgContentIfPresent(imageUrl);
-  }
-
-  Future<String?> _loadSvgContentIfPresent(String imageUrl) async {
-    try {
-      // 只查缓存元信息，不主动触发下载；下载仍交给 CachedNetworkImage。
-      final fileInfo = await _cacheManager.getFileFromCache(imageUrl);
-      if (fileInfo == null) return null;
-      // flutter_cache_manager 会按 Content-Type 给 SVG 缓存文件起名。
-      // 这里先信任响应头，伪装成 PNG 的 SVG 交给 errorWidget 兜底嗅探。
-      if (!fileInfo.file.path.toLowerCase().endsWith('.svg')) return null;
-      final bytes = await fileInfo.file.readAsBytes();
-      if (bytes.isEmpty) return null;
-      return SvgUtils.sanitize(SvgUtils.decodeSvgBytes(bytes));
-    } catch (_) {
-      return null;
     }
   }
 
@@ -105,7 +79,6 @@ class _SmartAvatarState extends State<SmartAvatar> {
       _lastResolvedImageUrl = imageUrl;
       _svgContent = null;
       _isSvgDetected = false;
-      _svgProbeFuture = _createSvgProbeFuture(imageUrl);
     }
 
     Widget child;
@@ -113,12 +86,9 @@ class _SmartAvatarState extends State<SmartAvatar> {
       child = _buildFallback(fgColor, innerRadius);
     } else if (_isSvgDetected && _svgContent != null) {
       // 已检测到 SVG，直接渲染
-      final si = ScalableImage.fromSvgString(_svgContent!, warnF: (_) {});
-      child = SizedBox(
-        width: innerSize,
-        height: innerSize,
-        child: ScalableImageWidget(si: si, fit: BoxFit.cover),
-      );
+      child =
+          _buildSvg(_svgContent!, innerSize) ??
+          _buildFallback(fgColor, innerRadius);
     } else if (AvifImageProvider.isAvifUrl(imageUrl) ||
         isNativeAnimatedUrl(imageUrl)) {
       child = RepaintBoundary(
@@ -137,46 +107,30 @@ class _SmartAvatarState extends State<SmartAvatar> {
         ),
       );
     } else {
-      child = FutureBuilder<String?>(
-        future: _svgProbeFuture,
-        builder: (context, snapshot) {
-          final svgContent = snapshot.data;
-          if (svgContent != null) {
-            return _buildSvg(svgContent, innerSize) ??
-                _buildFallback(fgColor, innerRadius);
-          }
-
-          if (snapshot.connectionState != ConnectionState.done) {
-            return _buildLoading(fgColor, innerRadius);
-          }
-
-          // 使用 CachedNetworkImage，解码失败时检测 SVG。
-          return CachedNetworkImage(
-            imageUrl: imageUrl,
-            cacheManager: _cacheManager,
-            width: innerSize,
-            height: innerSize,
-            fit: BoxFit.cover,
-            fadeInDuration: const Duration(milliseconds: 150),
-            fadeOutDuration: const Duration(milliseconds: 150),
-            placeholder: (context, url) => _buildLoading(fgColor, innerRadius),
-            errorWidget: (context, url, error) => _SvgFallbackBuilder(
-              imageUrl: imageUrl,
-              cacheManager: _cacheManager,
-              size: innerSize,
-              onSvgDetected: (detectedSvgContent) {
-                // 缓存 SVG 内容，下次直接渲染。
-                if (mounted) {
-                  setState(() {
-                    _svgContent = detectedSvgContent;
-                    _isSvgDetected = true;
-                  });
-                }
-              },
-              fallback: _buildFallback(fgColor, innerRadius),
-            ),
-          );
-        },
+      child = CachedNetworkImage(
+        imageUrl: imageUrl,
+        cacheManager: _cacheManager,
+        width: innerSize,
+        height: innerSize,
+        fit: BoxFit.cover,
+        fadeInDuration: const Duration(milliseconds: 150),
+        fadeOutDuration: const Duration(milliseconds: 150),
+        placeholder: (context, url) => _buildLoading(fgColor, innerRadius),
+        errorWidget: (context, url, error) => _SvgFallbackBuilder(
+          imageUrl: imageUrl,
+          cacheManager: _cacheManager,
+          size: innerSize,
+          onSvgDetected: (detectedSvgContent) {
+            // 缓存 SVG 内容，下次直接渲染。
+            if (mounted) {
+              setState(() {
+                _svgContent = detectedSvgContent;
+                _isSvgDetected = true;
+              });
+            }
+          },
+          fallback: _buildFallback(fgColor, innerRadius),
+        ),
       );
     }
 
