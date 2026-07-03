@@ -402,28 +402,17 @@ class _MermaidWidget extends StatefulWidget {
   State<_MermaidWidget> createState() => _MermaidWidgetState();
 }
 
-class _MermaidWidgetState extends State<_MermaidWidget>
-    with SingleTickerProviderStateMixin {
+class _MermaidWidgetState extends State<_MermaidWidget> {
   bool _showCode = false;
   bool _shouldLoad = false;
   bool _initialized = false;
   int _retryCount = 0;
   final _vController = ScrollController();
   final _hController = ScrollController();
-  AnimationController? _shimmerController;
 
   String get _cacheKey {
     final text = widget.codeElement.text as String;
     return 'mermaid-${text.hashCode}';
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat();
   }
 
   @override
@@ -434,7 +423,6 @@ class _MermaidWidgetState extends State<_MermaidWidget>
       // 截图模式下直接加载，跳过懒加载
       if (widget.screenshotMode || LazyLoadScope.isLoaded(context, _cacheKey)) {
         _shouldLoad = true;
-        _shimmerController?.stop();
       }
     }
   }
@@ -443,7 +431,6 @@ class _MermaidWidgetState extends State<_MermaidWidget>
   void dispose() {
     _vController.dispose();
     _hController.dispose();
-    _shimmerController?.dispose();
     super.dispose();
   }
 
@@ -468,38 +455,14 @@ class _MermaidWidgetState extends State<_MermaidWidget>
   }
 
   Widget _buildShimmerPlaceholder(ThemeData theme, {bool withMargin = true}) {
-    final controller = _shimmerController;
-    if (controller == null) return const SizedBox(height: 100);
-
-    // RepaintBoundary 隔离 60fps shimmer 重绘，避免连累整个帖子内容重绘。
-    return RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: controller,
-        builder: (context, child) {
-          return Container(
-            height: 100,
-            margin: withMargin ? const EdgeInsets.all(12) : null,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              gradient: LinearGradient(
-                begin: Alignment(-1.0 + 2.0 * controller.value, 0),
-                end: Alignment(-0.5 + 2.0 * controller.value, 0),
-                colors: [
-                  theme.colorScheme.surfaceContainerHighest.withValues(
-                    alpha: 0.3,
-                  ),
-                  theme.colorScheme.surfaceContainerHighest.withValues(
-                    alpha: 0.6,
-                  ),
-                  theme.colorScheme.surfaceContainerHighest.withValues(
-                    alpha: 0.3,
-                  ),
-                ],
-                stops: const [0.0, 0.5, 1.0],
-              ),
-            ),
-          );
-        },
+    return Container(
+      height: 100,
+      margin: withMargin ? const EdgeInsets.all(12) : null,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.32,
+        ),
       ),
     );
   }

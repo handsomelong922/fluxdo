@@ -25,10 +25,32 @@ class _PostLinksState extends State<PostLinks>
     with SingleTickerProviderStateMixin {
   late bool _expanded = widget.defaultExpanded;
   bool _showAll = false; // 链接列表内部的"查看更多"
+  List<LinkCount> _internalLinks = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _rebuildInternalLinks();
+  }
+
+  @override
+  void didUpdateWidget(covariant PostLinks oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (identical(oldWidget.linkCounts, widget.linkCounts)) {
+      return;
+    }
+    _rebuildInternalLinks();
+    if (_showAll && _internalLinks.length <= PostLinks.maxCollapsedLinks) {
+      _showAll = false;
+    }
+  }
 
   /// 获取内部入站链接（reflection links）
-  List<LinkCount> get _internalLinks {
-    if (widget.linkCounts == null) return [];
+  void _rebuildInternalLinks() {
+    if (widget.linkCounts == null) {
+      _internalLinks = const [];
+      return;
+    }
 
     // 过滤：内部链接 + reflection + 有标题
     final filtered = widget.linkCounts!
@@ -51,7 +73,7 @@ class _PostLinksState extends State<PostLinks>
       }
     }
 
-    return unique;
+    _internalLinks = List<LinkCount>.unmodifiable(unique);
   }
 
   List<LinkCount> get _displayedLinks {

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
@@ -167,7 +168,6 @@ class _TopicPostListState extends State<TopicPostList> {
   List<_PostRenderSegment> _renderSegments = const [];
   Map<int, int> _postIndexToScrollIndex = const {};
   Map<int, int> _scrollIndexToPostNumber = const {};
-  int? _renderSegmentsSourceKey;
   List<Post>? _visiblePostsSourcePosts;
   Set<String>? _visiblePostsSourceBlockedUsernames;
   List<Post>? _renderSegmentsSourcePosts;
@@ -175,6 +175,7 @@ class _TopicPostListState extends State<TopicPostList> {
   PostStreamGaps? _renderSegmentsSourceGaps;
   Set<String>? _renderSegmentsSourceBlockedUsernames;
   List<Post> _visiblePostsCache = const [];
+  Set<int> _lastVisiblePostNumbers = const <int>{};
 
   /// postNumber → postIndex 反查表（避免 indexWhere 线性查找）
   Map<int, int> _postNumberToIndex = const {};
@@ -199,6 +200,7 @@ class _TopicPostListState extends State<TopicPostList> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.detail.id != widget.detail.id) {
       _inlineRepliesStateByPostNumber.clear();
+      _lastVisiblePostNumbers = const <int>{};
       _renderSegmentsSourcePosts = null;
       _renderSegmentsSourceStream = null;
       _renderSegmentsSourceGaps = null;
@@ -222,6 +224,7 @@ class _TopicPostListState extends State<TopicPostList> {
     _ensureVisiblePosts();
     return _visiblePostsCache;
   }
+
   AutoScrollController get scrollController => widget.scrollController;
   GlobalKey get centerKey => widget.centerKey;
   GlobalKey get headerKey => widget.headerKey;
@@ -380,8 +383,13 @@ class _TopicPostListState extends State<TopicPostList> {
     eyelinePostIndex ??= closestPostIndex;
 
     // 通知可见帖子变化（用于 screenTrack）
-    if (visiblePostNumbers.isNotEmpty) {
+    if (visiblePostNumbers.isNotEmpty &&
+        !setEquals(_lastVisiblePostNumbers, visiblePostNumbers)) {
+      _lastVisiblePostNumbers = Set<int>.unmodifiable(visiblePostNumbers);
       onVisiblePostsChanged?.call(visiblePostNumbers);
+    } else if (visiblePostNumbers.isEmpty &&
+        _lastVisiblePostNumbers.isNotEmpty) {
+      _lastVisiblePostNumbers = const <int>{};
     }
 
     if (eyelinePostIndex != null) {
@@ -514,60 +522,20 @@ class _TopicPostListState extends State<TopicPostList> {
     );
   }
 
-  int _computeRenderSegmentsSourceKey() {
-    final posts = _visiblePosts;
-    if (identical(_renderSegmentsSourcePosts, posts) &&
+  bool _hasSameRenderSegmentsSource(List<Post> posts) {
+    return identical(_renderSegmentsSourcePosts, posts) &&
         identical(_renderSegmentsSourceStream, detail.postStream.stream) &&
         identical(_renderSegmentsSourceGaps, detail.postStream.gaps) &&
         identical(
           _renderSegmentsSourceBlockedUsernames,
           widget.blockedUsernames,
-        )) {
-      return _renderSegmentsSourceKey ?? 0;
-    }
-
-    final sourceKey = Object.hashAll(<Object?>[
-      detail.id,
-      widget.blockedUsernames,
-      widget.blockedUsernames.length,
-      detail.postStream.stream.length,
-      detail.postStream.stream.isEmpty
-          ? null
-          : detail.postStream.stream.first,
-      detail.postStream.stream.isEmpty
-          ? null
-          : detail.postStream.stream.last,
-      detail.postStream.gaps?.before.length ?? 0,
-      detail.postStream.gaps?.after.length ?? 0,
-      for (final entry in detail.postStream.gaps?.before.entries ??
-          const <MapEntry<int, List<int>>>[])
-        Object.hash(entry.key, entry.value.length),
-      for (final entry in detail.postStream.gaps?.after.entries ??
-          const <MapEntry<int, List<int>>>[])
-        Object.hash(entry.key, entry.value.length),
-      for (final post in posts)
-        Object.hash(
-          post.id,
-          post.postNumber,
-          post.username,
-          post.cooked.length,
-          post.cooked.hashCode,
-        ),
-    ]);
-    _renderSegmentsSourcePosts = posts;
-    _renderSegmentsSourceStream = detail.postStream.stream;
-    _renderSegmentsSourceGaps = detail.postStream.gaps;
-    _renderSegmentsSourceBlockedUsernames = widget.blockedUsernames;
-    _renderSegmentsSourceKey = sourceKey;
-    return sourceKey;
+        );
   }
 
   void _ensureRenderSegments(List<Post> posts) {
-    final sourceKey = _computeRenderSegmentsSourceKey();
-    if (_renderSegmentsSourceKey == sourceKey) {
+    if (_hasSameRenderSegmentsSource(posts)) {
       return;
     }
-
     final segments = <_PostRenderSegment>[];
     final postIndexToScrollIndex = <int, int>{};
     final scrollIndexToPostNumber = <int, int>{};
@@ -663,7 +631,10 @@ class _TopicPostListState extends State<TopicPostList> {
     _postIndexToScrollIndex = postIndexToScrollIndex;
     _scrollIndexToPostNumber = scrollIndexToPostNumber;
     _postNumberToIndex = postNumberToIndex;
-    _renderSegmentsSourceKey = sourceKey;
+    _renderSegmentsSourcePosts = posts;
+    _renderSegmentsSourceStream = detail.postStream.stream;
+    _renderSegmentsSourceGaps = detail.postStream.gaps;
+    _renderSegmentsSourceBlockedUsernames = widget.blockedUsernames;
     widget.onScrollIndexMappingChanged?.call(postIndexToScrollIndex);
   }
 

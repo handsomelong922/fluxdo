@@ -18,7 +18,7 @@ extension _PostFooterReplyActions on _PostFooterSectionState {
         after: after,
       );
       if (mounted) {
-        _replies.addAll(replies);
+        _appendReplies(replies);
         _isLoadingRepliesNotifier.value = false;
         _emitInlineRepliesState();
       }
@@ -75,7 +75,7 @@ extension _PostFooterReplyActions on _PostFooterSectionState {
     try {
       final replies = await _service.getPostReplies(widget.post.id, after: 1);
       if (mounted) {
-        _replies.addAll(replies);
+        _appendReplies(replies);
         _isLoadingRepliesNotifier.value = false;
         _showRepliesNotifier.value = true;
         _emitInlineRepliesState();

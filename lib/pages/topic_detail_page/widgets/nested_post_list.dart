@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -84,6 +85,7 @@ class NestedPostList extends ConsumerStatefulWidget {
 }
 
 class _NestedPostListState extends ConsumerState<NestedPostList> {
+  static const Duration _visiblePostUpdateDelay = Duration(milliseconds: 180);
   final Map<int, bool> _expansionState = {};
   final Map<int, NestedRepliesState> _repliesStateByPostNumber = {};
   final Map<int, int> _postNumberToScrollIndex = {};
@@ -92,6 +94,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
   int _nextScrollIndex = 0;
   Timer? _visibilityUpdateTimer;
   int? _lastReportedPostNumber;
+  Set<int> _lastVisiblePostNumbers = const <int>{};
 
   @override
   void initState() {
@@ -137,6 +140,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
       _expansionState.clear();
       _repliesStateByPostNumber.clear();
       _loadMoreTrigger.reset();
+      _lastVisiblePostNumbers = const <int>{};
     }
     if (widget.expandedPostNumbers.isNotEmpty &&
         oldWidget.expandedPostNumbers != widget.expandedPostNumbers) {
@@ -177,7 +181,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
     }
 
     if (_visibilityUpdateTimer != null) return;
-    _visibilityUpdateTimer = Timer(const Duration(milliseconds: 120), () {
+    _visibilityUpdateTimer = Timer(_visiblePostUpdateDelay, () {
       _visibilityUpdateTimer = null;
       if (!mounted) return;
       _updateVisiblePostsFromViewport();
@@ -235,8 +239,13 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
       }
     }
 
-    if (visiblePostNumbers.isNotEmpty) {
+    if (visiblePostNumbers.isNotEmpty &&
+        !setEquals(_lastVisiblePostNumbers, visiblePostNumbers)) {
+      _lastVisiblePostNumbers = Set<int>.unmodifiable(visiblePostNumbers);
       widget.onVisiblePostsChanged?.call(visiblePostNumbers);
+    } else if (visiblePostNumbers.isEmpty &&
+        _lastVisiblePostNumbers.isNotEmpty) {
+      _lastVisiblePostNumbers = const <int>{};
     }
 
     final currentPostNumber = eyelinePostNumber ?? closestPostNumber;
@@ -295,6 +304,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
         },
         child: CustomScrollView(
           controller: widget.scrollController,
+          cacheExtent: Responsive.isMobile(context) ? 220.0 : 500.0,
           slivers: [
             if (widget.topContentInset > 0)
               SliverToBoxAdapter(

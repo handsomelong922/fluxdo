@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:collection';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:popover/popover.dart';
@@ -7,6 +9,47 @@ import '../../../models/topic.dart';
 import '../../../utils/emoji_shortcodes.dart';
 import 'boost_bubble.dart';
 import 'boost_content.dart';
+
+class _BoostTextWidthCache {
+  static final int _maxEntries = Platform.isAndroid || Platform.isIOS
+      ? 256
+      : 512;
+  static final LinkedHashMap<int, double> _cache = LinkedHashMap<int, double>();
+
+  static double measure(BuildContext context, String text, TextStyle? style) {
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final key = Object.hash(
+      text,
+      Directionality.of(context),
+      textScale,
+      style?.fontFamily,
+      style?.fontSize,
+      style?.fontWeight,
+      style?.fontStyle,
+      style?.letterSpacing,
+      style?.wordSpacing,
+      style?.height,
+    );
+    final cached = _cache.remove(key);
+    if (cached != null) {
+      _cache[key] = cached;
+      return cached;
+    }
+
+    final painter = TextPainter(
+      text: TextSpan(text: text.isEmpty ? 'Boost' : text, style: style),
+      textDirection: Directionality.of(context),
+      maxLines: 1,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+
+    if (_cache.length >= _maxEntries) {
+      _cache.remove(_cache.keys.first);
+    }
+    _cache[key] = painter.width;
+    return painter.width;
+  }
+}
 
 /// Boost 气泡列表
 class BoostList extends StatefulWidget {
@@ -47,10 +90,12 @@ class _BoostListState extends State<BoostList>
   late final AnimationController _highlightController;
   late final Animation<double> _highlightOpacity;
   final GlobalKey _highlightKey = GlobalKey();
+  late List<BoostGroup> _groups;
 
   @override
   void initState() {
     super.initState();
+    _groups = groupBoostsByContent(widget.boosts);
     if (widget.highlightUsername != null) {
       _showAllRows = true;
     }
@@ -86,19 +131,17 @@ class _BoostListState extends State<BoostList>
   @override
   void didUpdateWidget(covariant BoostList oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final previousGroups = _groups;
+    if (!identical(oldWidget.boosts, widget.boosts)) {
+      _groups = groupBoostsByContent(widget.boosts);
+    }
     final activeGroupKey = _activeGroupKey;
     if (activeGroupKey == null) {
       return;
     }
 
-    final oldGroup = _findGroupByKey(
-      groupBoostsByContent(oldWidget.boosts),
-      activeGroupKey,
-    );
-    final newGroup = _findGroupByKey(
-      groupBoostsByContent(widget.boosts),
-      activeGroupKey,
-    );
+    final oldGroup = _findGroupByKey(previousGroups, activeGroupKey);
+    final newGroup = _findGroupByKey(_groups, activeGroupKey);
     final shouldClosePopover =
         newGroup == null ||
         (oldGroup != null &&
@@ -458,18 +501,12 @@ class _BoostListState extends State<BoostList>
     String text,
     TextStyle? style,
   ) {
-    final painter = TextPainter(
-      text: TextSpan(text: text.isEmpty ? 'Boost' : text, style: style),
-      textDirection: Directionality.of(context),
-      maxLines: 1,
-    )..layout();
-
-    return painter.width;
+    return _BoostTextWidthCache.measure(context, text, style);
   }
 
   @override
   Widget build(BuildContext context) {
-    final groups = groupBoostsByContent(widget.boosts);
+    final groups = _groups;
     final groupEntries = groups
         .map((group) => _buildGroupEntry(context, group))
         .toList();

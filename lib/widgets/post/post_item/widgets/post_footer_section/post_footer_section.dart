@@ -140,8 +140,10 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   late List<PostReaction> _reactions;
   PostReaction? _currentUserReaction;
   late List<Boost> _boosts;
+  List<Boost> _visibleBoosts = const [];
   late bool _canBoost;
   final List<Post> _replies = [];
+  List<Post> _visibleReplies = const [];
   final ValueNotifier<bool> _isLoadingRepliesNotifier = ValueNotifier<bool>(
     false,
   );
@@ -195,8 +197,12 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
           _restorableInlineRepliesState?.showReplies ??
           _shouldAutoExpandReplies;
       _syncReplyExpansionState();
-    } else if (oldWidget.autoLoadRepliesPaused != widget.autoLoadRepliesPaused) {
+    } else if (oldWidget.autoLoadRepliesPaused !=
+        widget.autoLoadRepliesPaused) {
       _syncReplyExpansionState();
+    }
+    if (!identical(oldWidget.blockedUsernames, widget.blockedUsernames)) {
+      _refreshVisibleFooterContent();
     }
   }
 
@@ -218,6 +224,28 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
     _isAcceptedAnswer = widget.post.acceptedAnswer;
     _boosts = _dedupeBoostsById(widget.post.boosts ?? const []);
     _canBoost = widget.post.canBoost;
+    _refreshVisibleFooterContent();
+  }
+
+  void _refreshVisibleFooterContent() {
+    _visibleBoosts = BlockedUserFilter.visibleBoosts(
+      _boosts,
+      widget.blockedUsernames,
+    );
+    _visibleReplies = BlockedUserFilter.visiblePosts(
+      _replies,
+      widget.blockedUsernames,
+    );
+  }
+
+  void _appendReplies(List<Post> replies) {
+    if (replies.isEmpty) {
+      return;
+    }
+    setState(() {
+      _replies.addAll(replies);
+      _refreshVisibleFooterContent();
+    });
   }
 
   void _syncReplyExpansionState() {
@@ -274,6 +302,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
     setState(() {
       _boosts = _dedupeBoostsById([..._boosts, boost]);
       _canBoost = false;
+      _refreshVisibleFooterContent();
     });
     widget.onBoostUpdated?.call(
       widget.post.copyWith(boosts: List.from(_boosts), canBoost: _canBoost),
@@ -288,6 +317,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
       if (currentUser != null && boost.user.username == currentUser.username) {
         _canBoost = true;
       }
+      _refreshVisibleFooterContent();
     });
     widget.onBoostUpdated?.call(
       widget.post.copyWith(boosts: List.from(_boosts), canBoost: _canBoost),
@@ -302,6 +332,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
       final updated = [..._boosts];
       updated[index] = boost;
       _boosts = updated;
+      _refreshVisibleFooterContent();
     });
     widget.onBoostUpdated?.call(
       widget.post.copyWith(boosts: List.from(_boosts), canBoost: _canBoost),
@@ -562,14 +593,6 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
             onChanged: widget.onSharedIssueChanged,
           )
         : null;
-    final visibleBoosts = BlockedUserFilter.visibleBoosts(
-      _boosts,
-      widget.blockedUsernames,
-    );
-    final visibleReplies = BlockedUserFilter.visiblePosts(
-      _replies,
-      widget.blockedUsernames,
-    );
 
     // 预热打赏凭证，避免首次打开更多菜单时因 AsyncLoading 导致打赏选项不显示
     ref.read(ldcRewardCredentialsProvider);
@@ -614,13 +637,13 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
             onToggleReplies: _toggleReplies,
             onAddBoost: _openBoostInput,
             canBoost: _canBoost,
-            hasBoosts: visibleBoosts.isNotEmpty,
+            hasBoosts: _visibleBoosts.isNotEmpty,
             leadingAction: sharedIssueAction,
           ),
           // Boost 气泡列表
-          if (visibleBoosts.isNotEmpty)
+          if (_visibleBoosts.isNotEmpty)
             BoostList(
-              boosts: visibleBoosts,
+              boosts: _visibleBoosts,
               canBoost: _canBoost,
               onAddBoost: _openBoostInput,
               onBoostTap: (boost) => _showBoostActions(boost),
@@ -633,7 +656,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
             builder: (context, showReplies, _) {
               if (!showReplies) return const SizedBox.shrink();
               return PostRepliesList(
-                replies: visibleReplies,
+                replies: _visibleReplies,
                 replyCount: widget.post.replyCount,
                 canLoadMore: _canLoadMoreReplies,
                 isLoadingRepliesNotifier: _isLoadingRepliesNotifier,
