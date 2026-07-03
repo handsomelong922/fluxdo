@@ -365,13 +365,6 @@ class _GridImageTileState extends State<_GridImageTile> {
         borderRadius: BorderRadius.circular(4),
         child: Container(
           color: widget.theme.colorScheme.surfaceContainerHighest,
-          child: const Center(
-            child: SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
         ),
       ),
     );

@@ -304,11 +304,15 @@ class DiscourseWidgetFactory extends WidgetFactory {
               : SizedBox(
                   width: isEmoji ? displaySize : width ?? 24,
                   height: isEmoji ? displaySize : height ?? 24,
-                  child: const Center(
-                    child: SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(
+                        isEmoji ? displaySize / 2 : 4,
+                      ),
                     ),
                   ),
                 );
@@ -403,15 +407,9 @@ class DiscourseWidgetFactory extends WidgetFactory {
             return Container(
               width: displayWidth,
               height: displayHeight,
-              alignment: Alignment.center,
               color: Theme.of(
                 context,
               ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-              child: const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
             );
           }
 

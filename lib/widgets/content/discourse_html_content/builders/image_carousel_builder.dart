@@ -100,8 +100,9 @@ class _ImageCarouselState extends State<_ImageCarousel> {
     }
 
     // 按距当前页的距离排序，优先解析近的
-    pending.sort((a, b) =>
-        (a - _currentIndex).abs().compareTo((b - _currentIndex).abs()));
+    pending.sort(
+      (a, b) => (a - _currentIndex).abs().compareTo((b - _currentIndex).abs()),
+    );
 
     for (final i in pending) {
       if (!mounted) return;
@@ -147,13 +148,18 @@ class _ImageCarouselState extends State<_ImageCarousel> {
     _preloadAdjacent(index);
   }
 
-  void _openViewer(BuildContext context, int imageIndex, String resolvedFullUrl) {
+  void _openViewer(
+    BuildContext context,
+    int imageIndex,
+    String resolvedFullUrl,
+  ) {
     final imageData = widget.images[imageIndex];
     final galleryImages = widget.galleryInfo.images;
     final heroTags = widget.galleryInfo.heroTags;
-    final globalIndex = widget.galleryInfo.findIndex(imageData.src)
-        ?? widget.galleryInfo.findIndex(imageData.fullSrc)
-        ?? -1;
+    final globalIndex =
+        widget.galleryInfo.findIndex(imageData.src) ??
+        widget.galleryInfo.findIndex(imageData.fullSrc) ??
+        -1;
 
     final heroTag = globalIndex >= 0 && globalIndex < heroTags.length
         ? heroTags[globalIndex]
@@ -163,8 +169,9 @@ class _ImageCarouselState extends State<_ImageCarousel> {
         .map((url) => DiscourseImageUtils.getOriginalUrl(url))
         .toList();
     if (globalIndex >= 0 && globalIndex < resolvedGalleryImages.length) {
-      resolvedGalleryImages[globalIndex] =
-          DiscourseImageUtils.getOriginalUrl(resolvedFullUrl);
+      resolvedGalleryImages[globalIndex] = DiscourseImageUtils.getOriginalUrl(
+        resolvedFullUrl,
+      );
     }
 
     DiscourseImageUtils.openViewer(
@@ -280,7 +287,12 @@ class _CarouselSlide extends StatefulWidget {
   final GalleryInfo galleryInfo;
   final double carouselHeight;
   final ThemeData theme;
-  final void Function(BuildContext context, int imageIndex, String resolvedFullUrl) onTap;
+  final void Function(
+    BuildContext context,
+    int imageIndex,
+    String resolvedFullUrl,
+  )
+  onTap;
 
   const _CarouselSlide({
     required this.index,
@@ -308,18 +320,19 @@ class _CarouselSlideState extends State<_CarouselSlide>
     final url = widget.resolvedUrl;
     if (url == null) {
       // URL 还在解析中
-      return const Center(
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(strokeWidth: 2),
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: widget.theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.3,
+          ),
         ),
       );
     }
 
-    final globalIndex = widget.galleryInfo.findIndex(widget.imageData.src)
-        ?? widget.galleryInfo.findIndex(widget.imageData.fullSrc)
-        ?? -1;
+    final globalIndex =
+        widget.galleryInfo.findIndex(widget.imageData.src) ??
+        widget.galleryInfo.findIndex(widget.imageData.fullSrc) ??
+        -1;
     final heroTags = widget.galleryInfo.heroTags;
     final heroTag = globalIndex >= 0 && globalIndex < heroTags.length
         ? heroTags[globalIndex]
@@ -340,17 +353,10 @@ class _CarouselSlideState extends State<_CarouselSlide>
           height: widget.carouselHeight,
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) return child;
-            return Center(
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  value: loadingProgress.expectedTotalBytes != null
-                      ? loadingProgress.cumulativeBytesLoaded /
-                          loadingProgress.expectedTotalBytes!
-                      : null,
-                ),
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                color: widget.theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.3),
               ),
             );
           },
@@ -373,10 +379,7 @@ class _NavButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
 
-  const _NavButton({
-    required this.icon,
-    required this.onTap,
-  });
+  const _NavButton({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -399,11 +402,7 @@ class _NavButton extends StatelessWidget {
               ),
             ],
           ),
-          child: Icon(
-            icon,
-            size: 20,
-            color: theme.colorScheme.onSurface,
-          ),
+          child: Icon(icon, size: 20, color: theme.colorScheme.onSurface),
         ),
       ),
     );
