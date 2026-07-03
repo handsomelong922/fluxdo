@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
+import 'package:visibility_detector/visibility_detector.dart';
 import 'pages/topics_page.dart';
 import 'pages/data_management_page.dart';
 import 'providers/discourse_providers.dart';
@@ -382,6 +383,10 @@ Future<void> main() async {
       (isMobilePlatform ? 160 : 256) * 1024 * 1024;
   PaintingBinding.instance.imageCache.maximumSize =
       isMobilePlatform ? 12000 : 30000;
+  if (isMobilePlatform) {
+    VisibilityDetectorController.instance.updateInterval =
+        const Duration(milliseconds: 800);
+  }
 
   // 启用 Edge-to-Edge 模式（小白条沉浸式）
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
