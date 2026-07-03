@@ -78,6 +78,14 @@ const _searchBarHeight = 56.0;
 const _tabRowHeight = 36.0;
 const _sortBarHeight = 44.0;
 const _collapsibleHeight = _searchBarHeight + _sortBarHeight; // 100
+const _homeExcerptFontSize = 12.0;
+const _homeExcerptLineHeight = 1.35;
+
+double _homeExcerptSlotHeight(int maxLines) {
+  return maxLines.clamp(1, 10).toInt() *
+      _homeExcerptFontSize *
+      _homeExcerptLineHeight;
+}
 
 /// 阻止外层滚动的 ScrollPhysics，所有滑动增量转给内层列表。
 class _NoOuterScrollPhysics extends ScrollPhysics {
@@ -1777,11 +1785,31 @@ class _HomeExcerptLoader extends ConsumerWidget {
     final asyncExcerpt = ref.watch(homeTopicExcerptProvider(topicId));
     return asyncExcerpt.when(
       data: (html) {
-        if (html == null || html.isEmpty) return const SizedBox.shrink();
+        if (html == null || html.isEmpty) {
+          return _HomeExcerptSlot(maxLines: maxLines);
+        }
         return _HomeExcerptText(html: html, maxLines: maxLines);
       },
-      error: (_, _) => const SizedBox.shrink(),
+      error: (_, _) => _HomeExcerptSlot(maxLines: maxLines),
       loading: () => _HomeExcerptPlaceholder(maxLines: maxLines),
+    );
+  }
+}
+
+class _HomeExcerptSlot extends StatelessWidget {
+  final int maxLines;
+  final Widget? child;
+
+  const _HomeExcerptSlot({required this.maxLines, this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: _homeExcerptSlotHeight(maxLines),
+      width: double.infinity,
+      child: child == null
+          ? null
+          : Align(alignment: Alignment.topLeft, child: child),
     );
   }
 }
@@ -1795,18 +1823,21 @@ class _HomeExcerptText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cleaned = cleanHtmlExcerpt(html);
-    if (cleaned.isEmpty) return const SizedBox.shrink();
+    if (cleaned.isEmpty) return _HomeExcerptSlot(maxLines: maxLines);
 
     final colorScheme = Theme.of(context).colorScheme;
-    return Text(
-      cleaned,
-      style: TextStyle(
-        fontSize: 12,
-        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.72),
-        height: 1.35,
+    return _HomeExcerptSlot(
+      maxLines: maxLines,
+      child: Text(
+        cleaned,
+        style: TextStyle(
+          fontSize: _homeExcerptFontSize,
+          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.72),
+          height: _homeExcerptLineHeight,
+        ),
+        maxLines: maxLines.clamp(1, 10).toInt(),
+        overflow: TextOverflow.ellipsis,
       ),
-      maxLines: maxLines.clamp(1, 10).toInt(),
-      overflow: TextOverflow.ellipsis,
     );
   }
 }
@@ -1821,22 +1852,25 @@ class _HomeExcerptPlaceholder extends StatelessWidget {
     final color = Theme.of(
       context,
     ).colorScheme.onSurfaceVariant.withValues(alpha: 0.12);
-    final visibleLines = maxLines.clamp(1, 3).toInt();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < visibleLines; i++) ...[
-          Container(
-            height: 10,
-            width: i == visibleLines - 1 ? 180 : double.infinity,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(5),
+    final visibleLines = maxLines.clamp(1, 10).toInt();
+    return _HomeExcerptSlot(
+      maxLines: maxLines,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < visibleLines; i++) ...[
+            Container(
+              height: 10,
+              width: i == visibleLines - 1 ? 180 : double.infinity,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(5),
+              ),
             ),
-          ),
-          if (i != visibleLines - 1) const SizedBox(height: 6),
+            if (i != visibleLines - 1) const SizedBox(height: 6),
+          ],
         ],
-      ],
+      ),
     );
   }
 }

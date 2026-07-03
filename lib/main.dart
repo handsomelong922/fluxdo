@@ -707,6 +707,7 @@ class _MainPageState extends ConsumerState<MainPage>
   DateTime? _lastTapTime;
   Timer? _pendingSingleTap;
   List<NavEntry> _lastResolvedEntries = const [];
+  final Set<String> _mountedPageIds = {NavEntryIds.home};
   Timer? _resumeDebounceTimer;
   DateTime? _lastBackPressTime;
 
@@ -1183,6 +1184,14 @@ class _MainPageState extends ConsumerState<MainPage>
     final safePageIndex = pageEntries.isEmpty
         ? 0
         : _currentIndex.clamp(0, pageEntries.length - 1);
+    if (pageEntries.isNotEmpty) {
+      final activePageId = pageEntries[safePageIndex].id;
+      _mountedPageIds
+        ..removeWhere((id) => !pageEntries.any((entry) => entry.id == id))
+        ..add(activePageId);
+    } else {
+      _mountedPageIds.clear();
+    }
 
     // 底栏 selectedIndex 是当前激活 page 在 entries（含 panel/action）中的位置
     final selectedBottomIndex = pageEntries.isEmpty
@@ -1246,7 +1255,9 @@ class _MainPageState extends ConsumerState<MainPage>
             for (int i = 0; i < pageEntries.length; i++)
               KeyedSubtree(
                 key: ValueKey('nav-entry-${pageEntries[i].id}'),
-                child: pageEntries[i].pageBuilder!(context, safePageIndex == i),
+                child: _mountedPageIds.contains(pageEntries[i].id)
+                    ? pageEntries[i].pageBuilder!(context, safePageIndex == i)
+                    : const SizedBox.shrink(),
               ),
           ],
         ),

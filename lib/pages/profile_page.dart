@@ -646,6 +646,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   /// 统计卡片 + 引导触发
   Widget _buildStatsCardWithGuide() {
+    if (!widget.isActive) return const SizedBox.shrink();
+
     return Column(
       children: [
         ProfileStatsCard(

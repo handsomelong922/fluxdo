@@ -10,6 +10,7 @@ import '../utils/share_utils.dart';
 import '../services/discourse/discourse_service.dart';
 import '../services/log/logger_utils.dart';
 import '../services/network/adapters/platform_adapter.dart';
+import '../services/network/startup_request_recorder.dart';
 import '../services/toast_service.dart';
 import '../widgets/common/dismissible_popup_menu.dart';
 import '../widgets/post/reply_sheet.dart';
@@ -109,6 +110,132 @@ class _AppLogsPageState extends State<AppLogsPage> {
       await _loadLogs();
       ToastService.showSuccess(S.current.appLogs_logsCleared);
     }
+  }
+
+  void _showStartupRequestRanking() {
+    final recorder = StartupRequestRecorder.instance;
+    showAppBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.75,
+          minChildSize: 0.35,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (context, scrollController) {
+            return AnimatedBuilder(
+              animation: recorder,
+              builder: (context, _) {
+                final records = recorder.recordsByDuration;
+                final theme = Theme.of(context);
+                return Column(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 12),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.4,
+                        ),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '启动请求耗时榜',
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '当前进程 ${records.length} 条 · 已运行 ${recorder.sessionAgeMs}ms',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.copy),
+                            tooltip: context.l10n.common_copy,
+                            onPressed: records.isEmpty
+                                ? null
+                                : () {
+                                    Clipboard.setData(
+                                      ClipboardData(
+                                        text: _formatRequestRanking(records),
+                                      ),
+                                    );
+                                    ToastService.showSuccess(
+                                      S.current.common_copiedToClipboard,
+                                    );
+                                  },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            tooltip: context.l10n.common_clear,
+                            onPressed: records.isEmpty
+                                ? null
+                                : StartupRequestRecorder.instance.clear,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(),
+                    Expanded(
+                      child: records.isEmpty
+                          ? Center(
+                              child: Text(
+                                '暂无本次启动请求记录',
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: theme.colorScheme.outline,
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              controller: scrollController,
+                              itemCount: records.length,
+                              padding: const EdgeInsets.only(bottom: 12),
+                              itemBuilder: (context, index) {
+                                final record = records[index];
+                                return _StartupRequestTile(
+                                  rank: index + 1,
+                                  record: record,
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _formatRequestRanking(List<StartupRequestRecord> records) {
+    final buffer = StringBuffer('启动请求耗时榜\n');
+    for (var index = 0; index < records.length; index++) {
+      buffer.writeln('${index + 1}. ${records[index].toSummaryLine()}');
+    }
+    return buffer.toString();
   }
 
   /// 打开私信界面，预填设备信息、日志摘要和完整日志附件
@@ -317,10 +444,16 @@ class _AppLogsPageState extends State<AppLogsPage> {
                 final detail = StringBuffer()
                   ..writeln('${S.current.appLogs_time}: $timestamp')
                   ..writeln('${S.current.appLogs_event}: $eventLabel');
-                if (appVersion != null) detail.writeln('${S.current.appLogs_version}: $appVersion');
+                if (appVersion != null) {
+                  detail.writeln('${S.current.appLogs_version}: $appVersion');
+                }
                 detail.writeln('${S.current.appLogs_message}: $message');
-                if (username != null) detail.writeln('${S.current.appLogs_user}: $username');
-                if (reason != null) detail.writeln('${S.current.appLogs_reason}: $reason');
+                if (username != null) {
+                  detail.writeln('${S.current.appLogs_user}: $username');
+                }
+                if (reason != null) {
+                  detail.writeln('${S.current.appLogs_reason}: $reason');
+                }
                 Clipboard.setData(ClipboardData(text: detail.toString()));
                 ToastService.showSuccess(S.current.common_copiedToClipboard);
               },
@@ -333,11 +466,14 @@ class _AppLogsPageState extends State<AppLogsPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildDetailField(context.l10n.appLogs_time, timestamp),
-              if (appVersion != null) _buildDetailField(context.l10n.appLogs_version, appVersion),
+              if (appVersion != null)
+                _buildDetailField(context.l10n.appLogs_version, appVersion),
               _buildDetailField(context.l10n.appLogs_event, eventLabel),
               _buildDetailField(context.l10n.appLogs_message, message),
-              if (username != null) _buildDetailField(context.l10n.appLogs_user, username),
-              if (reason != null) _buildDetailField(context.l10n.appLogs_reason, reason),
+              if (username != null)
+                _buildDetailField(context.l10n.appLogs_user, username),
+              if (reason != null)
+                _buildDetailField(context.l10n.appLogs_reason, reason),
             ],
           ),
         ),
@@ -381,13 +517,19 @@ class _AppLogsPageState extends State<AppLogsPage> {
                 final detail = StringBuffer()
                   ..writeln('${S.current.appLogs_time}: $timestamp')
                   ..writeln('${S.current.appLogs_level}: $level');
-                if (appVersion != null) detail.writeln('${S.current.appLogs_version}: $appVersion');
-                if (tag != null) detail.writeln('${S.current.appLogs_tag}: $tag');
+                if (appVersion != null) {
+                  detail.writeln('${S.current.appLogs_version}: $appVersion');
+                }
+                if (tag != null) {
+                  detail.writeln('${S.current.appLogs_tag}: $tag');
+                }
                 detail.writeln('${S.current.appLogs_message}: $message');
                 if (error != null && error != message) {
                   detail.writeln('${S.current.appLogs_error}: $error');
                 }
-                if (errorType != null) detail.writeln('${S.current.appLogs_type}: $errorType');
+                if (errorType != null) {
+                  detail.writeln('${S.current.appLogs_type}: $errorType');
+                }
                 if (stackTrace != null) {
                   detail
                     ..writeln()
@@ -406,11 +548,13 @@ class _AppLogsPageState extends State<AppLogsPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildDetailField(context.l10n.appLogs_time, timestamp),
-              if (appVersion != null) _buildDetailField(context.l10n.appLogs_version, appVersion),
+              if (appVersion != null)
+                _buildDetailField(context.l10n.appLogs_version, appVersion),
               _buildDetailField(context.l10n.appLogs_message, message),
               if (error != null && error != message)
                 _buildDetailField(context.l10n.appLogs_error, error),
-              if (errorType != null) _buildDetailField(context.l10n.appLogs_errorType, errorType),
+              if (errorType != null)
+                _buildDetailField(context.l10n.appLogs_errorType, errorType),
               if (stackTrace != null) ...[
                 const SizedBox(height: 12),
                 Text(
@@ -424,9 +568,9 @@ class _AppLogsPageState extends State<AppLogsPage> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: SelectableText(
@@ -479,9 +623,15 @@ class _AppLogsPageState extends State<AppLogsPage> {
                   ..writeln('${S.current.appLogs_method}: $method')
                   ..writeln('URL: $url')
                   ..writeln('${S.current.appLogs_statusCode}: $statusCode');
-                if (duration != null) detail.writeln('${S.current.appLogs_duration}: ${duration}ms');
+                if (duration != null) {
+                  detail.writeln(
+                    '${S.current.appLogs_duration}: ${duration}ms',
+                  );
+                }
                 if (adapter != null) {
-                  detail.writeln('${S.current.networkAdapter_adapterType}: $adapter');
+                  detail.writeln(
+                    '${S.current.networkAdapter_adapterType}: $adapter',
+                  );
                 }
                 detail.writeln('${S.current.appLogs_level}: $level');
                 Clipboard.setData(ClipboardData(text: detail.toString()));
@@ -500,13 +650,21 @@ class _AppLogsPageState extends State<AppLogsPage> {
               _buildDetailField('URL', url),
               _buildDetailField(context.l10n.appLogs_statusCode, statusCode),
               if (duration != null)
-                _buildDetailField(context.l10n.appLogs_duration, '${duration}ms'),
+                _buildDetailField(
+                  context.l10n.appLogs_duration,
+                  '${duration}ms',
+                ),
               if (adapter != null)
                 _buildDetailField(
                   context.l10n.networkAdapter_adapterType,
                   adapter,
                 ),
-              _buildDetailField(context.l10n.appLogs_level, level == 'warning' ? context.l10n.common_loadFailed : context.l10n.common_done),
+              _buildDetailField(
+                context.l10n.appLogs_level,
+                level == 'warning'
+                    ? context.l10n.common_loadFailed
+                    : context.l10n.common_done,
+              ),
             ],
           ),
         ),
@@ -533,10 +691,7 @@ class _AppLogsPageState extends State<AppLogsPage> {
             ),
           ),
           const SizedBox(height: 2),
-          SelectableText(
-            value,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          SelectableText(value, style: Theme.of(context).textTheme.bodyMedium),
         ],
       ),
     );
@@ -578,6 +733,8 @@ class _AppLogsPageState extends State<AppLogsPage> {
                   _copyAll();
                 case 'share':
                   _shareLog();
+                case 'startupRequests':
+                  _showStartupRequestRanking();
                 case 'feedback':
                   _sendFeedback();
                 case 'clear':
@@ -608,6 +765,15 @@ class _AppLogsPageState extends State<AppLogsPage> {
                 child: ListTile(
                   leading: const Icon(Icons.share),
                   title: Text(context.l10n.appLogs_shareLogs),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'startupRequests',
+                child: ListTile(
+                  leading: const Icon(Icons.speed_outlined),
+                  title: const Text('启动请求耗时榜'),
                   dense: true,
                   contentPadding: EdgeInsets.zero,
                 ),
@@ -678,9 +844,15 @@ class _AppLogsPageState extends State<AppLogsPage> {
               const SizedBox(width: 8),
               _buildFilterChip(context.l10n.appLogs_error, _LogFilter.error),
               const SizedBox(width: 8),
-              _buildFilterChip(context.l10n.appLogs_request, _LogFilter.request),
+              _buildFilterChip(
+                context.l10n.appLogs_request,
+                _LogFilter.request,
+              ),
               const SizedBox(width: 8),
-              _buildFilterChip(context.l10n.appLogs_lifecycle, _LogFilter.lifecycle),
+              _buildFilterChip(
+                context.l10n.appLogs_lifecycle,
+                _LogFilter.lifecycle,
+              ),
             ],
           ),
         ),
@@ -705,8 +877,9 @@ class _AppLogsPageState extends State<AppLogsPage> {
                       final (icon, color) = _getIconAndColor(entry);
                       final title = _getTitle(entry);
                       final subtitle = _getSubtitle(entry);
-                      final timestamp =
-                          _formatTimestamp(entry['timestamp']?.toString());
+                      final timestamp = _formatTimestamp(
+                        entry['timestamp']?.toString(),
+                      );
 
                       return Card(
                         margin: const EdgeInsets.symmetric(
@@ -729,19 +902,16 @@ class _AppLogsPageState extends State<AppLogsPage> {
                                   subtitle,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style:
-                                      Theme.of(context).textTheme.bodySmall,
+                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               const SizedBox(height: 4),
                               Text(
                                 timestamp,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelSmall
+                                style: Theme.of(context).textTheme.labelSmall
                                     ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .outline,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.outline,
                                     ),
                               ),
                             ],
@@ -766,6 +936,56 @@ class _AppLogsPageState extends State<AppLogsPage> {
       onSelected: (value) {
         setState(() => _filter = filter);
       },
+    );
+  }
+}
+
+class _StartupRequestTile extends StatelessWidget {
+  const _StartupRequestTile({required this.rank, required this.record});
+
+  final int rank;
+  final StartupRequestRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final status = record.statusCode?.toString() ?? record.level.toUpperCase();
+    final metaParts = <String>[
+      '+${record.relativeStartMs}ms',
+      status,
+      if (record.priority != null) 'priority=${record.priority}',
+      if (record.isSilent) 'silent',
+      if (record.networkAdapter != null) record.networkAdapter!,
+      if (record.errorType != null) record.errorType!,
+    ];
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        leading: CircleAvatar(
+          radius: 18,
+          child: Text('$rank', style: theme.textTheme.labelMedium),
+        ),
+        title: Text(
+          '${record.durationMs}ms · ${record.method} ${record.path}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          metaParts.join(' · '),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.copy, size: 20),
+          tooltip: context.l10n.common_copy,
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: record.toSummaryLine()));
+            ToastService.showSuccess(S.current.common_copiedToClipboard);
+          },
+        ),
+      ),
     );
   }
 }

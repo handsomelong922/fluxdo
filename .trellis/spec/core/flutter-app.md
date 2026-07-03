@@ -37,6 +37,8 @@ Evidence:
 - Startup preloading that provides first-screen data must remain part of the gate that reveals the home page when the UI expects to synchronously consume that cache. Do not convert `PreloadedDataService().ensureLoaded()` into an unawaited warm-up without also changing the home topic provider contract; otherwise the app can show the home shell before `topicList` is available, trigger duplicate `/latest.json` requests, and leave the user on skeleton loading.
 - Initial topic-list backfill for filtered results must not block the first visible page. Return page 0 as soon as it is processed, then append any "fill to minimum visible count" pages in the background or through normal load-more flow.
 - Keep startup gates focused on first-screen hard dependencies. Non-critical work such as home excerpt warmup or decorative minimum splash delays must not block the user after the initial topic list is ready.
+- Bottom navigation pages that are not currently active must not be eagerly mounted if their build path can watch providers that issue network requests. Use lazy mounting or an explicit `isActive` gate so default home startup does not trigger profile, bookmarks, messages, or other non-first-screen requests. Account-authenticated home preload, Cookie/CSRF/CF trust, and `data-preloaded.topicList` remain first-screen dependencies and must not be delayed by this rule.
+- Home topic excerpts load asynchronously inside a `NestedScrollView`; loading, success, empty, and error states must reserve the same per-card excerpt height so multiple first-post preview completions do not shift visible list geometry while the user is dragging.
 
 ## Scenario: Topic Detail Preview Handoff
 
