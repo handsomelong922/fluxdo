@@ -3,6 +3,33 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/widgets/common/emoji_text.dart';
 
 void main() {
+  testWidgets('plain text without emoji shortcodes stays a single text span', (
+    tester,
+  ) async {
+    late BuildContext capturedContext;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            capturedContext = context;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    const text = 'plain title text';
+    final spans = EmojiText.buildEmojiSpans(
+      capturedContext,
+      text,
+      const TextStyle(fontSize: 14),
+    );
+
+    expect(spans, hasLength(1));
+    expect((spans.single as TextSpan).text, text);
+  });
+
   testWidgets('editable emoji spans preserve source text length', (tester) async {
     late BuildContext capturedContext;
 

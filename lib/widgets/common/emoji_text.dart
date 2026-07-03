@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:collection';
 import '../../services/emoji_handler.dart';
 import '../../services/discourse_cache_manager.dart';
 import '../../utils/emoji_shortcodes.dart';
@@ -8,6 +9,10 @@ import '../../utils/emoji_shortcodes.dart';
 /// 将文本中的 :emoji_name: 替换为图片显示，
 /// 使用 Text.rich + WidgetSpan 实现，无需完整 HTML 渲染库。
 class EmojiText extends StatelessWidget {
+  static const int _maxTokenCacheEntries = 512;
+  static final LinkedHashMap<String, List<_EmojiSpanToken>> _tokenCache =
+      LinkedHashMap<String, List<_EmojiSpanToken>>();
+
   final String text;
   final TextStyle? style;
   final int? maxLines;
@@ -66,42 +71,71 @@ class EmojiText extends StatelessWidget {
     TextStyle? style, {
     bool preserveSourceLength = false,
   }) {
-    final matches = emojiRegex.allMatches(text);
-    
-    if (matches.isEmpty) {
+    if (!text.contains(':')) {
+      return [TextSpan(text: text)];
+    }
+
+    final tokens = _tokenCache.remove(text) ?? _parseTokens(text);
+    _tokenCache[text] = tokens;
+    while (_tokenCache.length > _maxTokenCacheEntries) {
+      _tokenCache.remove(_tokenCache.keys.first);
+    }
+
+    if (tokens.length == 1 && tokens.first.text != null) {
       return [TextSpan(text: text)];
     }
 
     final spans = <InlineSpan>[];
-    int lastEnd = 0;
-
-    for (final match in matches) {
-      // 添加 emoji 前的文本
-      if (match.start > lastEnd) {
-        spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
+    for (final token in tokens) {
+      if (token.text case final value?) {
+        if (value.isNotEmpty) {
+          spans.add(TextSpan(text: value));
+        }
+        continue;
       }
 
-      // 添加 emoji 图片
-      final emojiName = match.group(1)!;
-      spans.add(_buildEmojiWidgetSpan(context, emojiName, style));
-      if (preserveSourceLength && match.end - match.start > 1) {
+      spans.add(_buildEmojiWidgetSpan(context, token.emojiName!, style));
+      if (preserveSourceLength && token.sourceLength > 1) {
         spans.add(
           TextSpan(
-            text: '\u2060' * (match.end - match.start - 1),
+            text: '\u2060' * (token.sourceLength - 1),
             style: style?.copyWith(color: Colors.transparent),
           ),
         );
       }
-
-      lastEnd = match.end;
-    }
-
-    // 添加剩余文本
-    if (lastEnd < text.length) {
-      spans.add(TextSpan(text: text.substring(lastEnd)));
     }
 
     return spans;
+  }
+
+  static List<_EmojiSpanToken> _parseTokens(String text) {
+    final matches = emojiRegex.allMatches(text);
+    if (matches.isEmpty) {
+      return [const _EmojiSpanToken.text('')];
+    }
+
+    final tokens = <_EmojiSpanToken>[];
+    int lastEnd = 0;
+    for (final match in matches) {
+      if (match.start > lastEnd) {
+        tokens.add(_EmojiSpanToken.text(text.substring(lastEnd, match.start)));
+      }
+      final emojiName = match.group(1);
+      if (emojiName != null && emojiName.isNotEmpty) {
+        tokens.add(
+          _EmojiSpanToken.emoji(
+            emojiName,
+            sourceLength: match.end - match.start,
+          ),
+        );
+      }
+      lastEnd = match.end;
+    }
+
+    if (lastEnd < text.length) {
+      tokens.add(_EmojiSpanToken.text(text.substring(lastEnd)));
+    }
+    return tokens;
   }
 
   static WidgetSpan _buildEmojiWidgetSpan(BuildContext context, String emojiName, TextStyle? style) {
@@ -135,6 +169,19 @@ class EmojiText extends StatelessWidget {
       ),
     );
   }
+}
+
+class _EmojiSpanToken {
+  const _EmojiSpanToken.text(this.text)
+    : emojiName = null,
+      sourceLength = 0;
+
+  const _EmojiSpanToken.emoji(this.emojiName, {required this.sourceLength})
+    : text = null;
+
+  final String? text;
+  final String? emojiName;
+  final int sourceLength;
 }
 
 /// 可选择的 Emoji 文本组件
@@ -172,4 +219,3 @@ class SelectableEmojiText extends StatelessWidget {
     );
   }
 }
-
