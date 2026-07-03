@@ -327,7 +327,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
         'event': 'auth_probe_success',
         'message': 'WebView 候选 session 已确认有效，跳过重复 probe',
         'source': source,
-        if (triggerInfo != null) 'trigger': triggerInfo,
+        'trigger': ?triggerInfo,
         'username': recoveredUser.username,
         if (signalRequestOptions != null)
           ..._sentTDiagnostics(signalRequestOptions),
@@ -367,7 +367,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
           'event': 'auth_probe_inconclusive',
           'message': 'probe 返回非预期数据结构，暂不登出',
           'source': source,
-          if (triggerInfo != null) 'trigger': triggerInfo,
+          'trigger': ?triggerInfo,
           'statusCode': response.statusCode,
         });
         _lastInconclusiveAt = DateTime.now();
@@ -397,7 +397,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
           'event': 'auth_probe_success',
           'message': 'session probe 确认会话有效，保持登录',
           'source': source,
-          if (triggerInfo != null) 'trigger': triggerInfo,
+          'trigger': ?triggerInfo,
           'username': user.username,
         });
         _clearPreviousTTokenFallback();
@@ -427,7 +427,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
           'event': 'auth_probe_success',
           'message': '上一枚 session 候选已确认有效，取消本次登出',
           'source': source,
-          if (triggerInfo != null) 'trigger': triggerInfo,
+          'trigger': ?triggerInfo,
           'username': recoveredByPrevious.username,
           ..._sentTDiagnostics(response.requestOptions),
         });
@@ -443,7 +443,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
         'event': 'auth_probe_failed',
         'message': 'session probe 确认 current_user 不存在，执行登出',
         'source': source,
-        if (triggerInfo != null) 'trigger': triggerInfo,
+        'trigger': ?triggerInfo,
       });
       await _handleAuthInvalid(
         S.current.auth_loginExpiredRelogin,
@@ -477,7 +477,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
             'event': 'auth_probe_success',
             'message': '上一枚 session 候选已确认有效，取消本次登出',
             'source': source,
-            if (triggerInfo != null) 'trigger': triggerInfo,
+            'trigger': ?triggerInfo,
             'username': recoveredByPrevious.username,
             ..._sentTDiagnostics(
               e.response?.requestOptions ?? e.requestOptions,
@@ -494,7 +494,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
           'event': 'auth_probe_failed',
           'message': 'session probe 返回 404，确认会话失效',
           'source': source,
-          if (triggerInfo != null) 'trigger': triggerInfo,
+          'trigger': ?triggerInfo,
         });
         await _handleAuthInvalid(
           S.current.auth_loginExpiredRelogin,
@@ -511,7 +511,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
         'event': 'auth_probe_inconclusive',
         'message': 'session probe 请求失败，暂不登出',
         'source': source,
-        if (triggerInfo != null) 'trigger': triggerInfo,
+        'trigger': ?triggerInfo,
         'statusCode': status,
         'errorType': e.type.toString(),
       });
@@ -524,7 +524,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
           'event': 'auth_inconclusive_escalated',
           'message': 'probe 不确定但 strike 已累积 $strikeSnapshot 次，升级为登出',
           'source': source,
-          if (triggerInfo != null) 'trigger': triggerInfo,
+          'trigger': ?triggerInfo,
         });
         await _handleAuthInvalid(
           S.current.auth_loginExpiredRelogin,
@@ -640,7 +640,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
       'event': 'auth_probe_session_cookie_recovered',
       'message': 'probe 前从 WebView 恢复了不同的 session cookie',
       'source': source,
-      if (triggerInfo != null) 'trigger': triggerInfo,
+      'trigger': ?triggerInfo,
       'sentTLen': _tokenLength(sentTToken),
       'sentTHash': _safeTokenHash(sentTToken),
       'beforeJarTLen': _tokenLength(beforeJarTToken),
@@ -648,7 +648,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
       'afterJarTLen': _tokenLength(afterJarTToken),
       'afterJarTHash': _safeTokenHash(afterJarTToken),
       'afterMatchesSentT': _sameNonEmptyToken(afterJarTToken, sentTToken),
-      if (requestGeneration != null) 'requestGeneration': requestGeneration,
+      'requestGeneration': ?requestGeneration,
     });
     return candidateUser;
   }
@@ -714,7 +714,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
       'event': 'auth_probe_previous_session_cookie_recovered',
       'message': '登录失效前用上一枚 _t 候选恢复了 session cookie',
       'source': source,
-      if (triggerInfo != null) 'trigger': triggerInfo,
+      'trigger': ?triggerInfo,
       'sentTLen': _tokenLength(sentTToken),
       'sentTHash': _safeTokenHash(sentTToken),
       'failedJarTLen': _tokenLength(failedJarTToken),
@@ -722,7 +722,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
       'afterJarTLen': _tokenLength(afterJarTToken),
       'afterJarTHash': _safeTokenHash(afterJarTToken),
       'afterMatchesSentT': _sameNonEmptyToken(afterJarTToken, sentTToken),
-      if (requestGeneration != null) 'requestGeneration': requestGeneration,
+      'requestGeneration': ?requestGeneration,
     });
     return candidateUser;
   }
@@ -844,9 +844,17 @@ mixin _AuthMixin on _DiscourseServiceBase {
 
           if (_tToken != null && _tToken!.isNotEmpty) {
             if (!_isLoggingOut) {
-              await WebViewSessionCookieRefreshService.instance.ensureSynced(
-                reason: 'dio_request:${options.method}',
-              );
+              final skipWebViewSessionSync =
+                  options.extra[skipWebViewSessionSyncExtraKey] == true;
+              if (skipWebViewSessionSync) {
+                WebViewSessionCookieRefreshService.instance.ensureInBackground(
+                  reason: 'dio_request:${options.method}:fast_read',
+                );
+              } else {
+                await WebViewSessionCookieRefreshService.instance.ensureSynced(
+                  reason: 'dio_request:${options.method}',
+                );
+              }
             }
             options.headers['Discourse-Logged-In'] = 'true';
             options.headers['Discourse-Present'] = 'true';
@@ -1178,7 +1186,6 @@ mixin _AuthMixin on _DiscourseServiceBase {
     required String triggerInfo,
     required RequestOptions requestOptions,
     int? statusCode,
-    Map<String, List<String>>? responseHeaders,
   }) async {
     if (_isLoggingOut) return;
 

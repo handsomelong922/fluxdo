@@ -8,6 +8,7 @@ void main() {
 
     expect(options, isNotNull);
     expect(options!.extra!['priority'], 'high');
+    expect(options.extra![skipWebViewSessionSyncExtraKey], isTrue);
   });
 
   test('visible topic list later pages preserve existing options', () {
@@ -17,5 +18,6 @@ void main() {
     expect(identical(options, original), isTrue);
     expect(options!.extra!['traceId'], 'page-2');
     expect(options.extra!.containsKey('priority'), isFalse);
+    expect(options.extra!.containsKey(skipWebViewSessionSyncExtraKey), isFalse);
   });
 }

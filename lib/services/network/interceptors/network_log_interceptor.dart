@@ -62,7 +62,8 @@ class NetworkLogInterceptor extends Interceptor {
 
     // URL 脱敏：不记录查询参数
     final uri = options.uri;
-    final sanitizedUrl = '${uri.scheme}://${uri.host}${uri.path}';
+    final path = uri.path.isEmpty ? '/' : uri.path;
+    final sanitizedUrl = '${uri.scheme}://${uri.host}$path';
     final priority = options.extra['priority']?.toString();
     final isSilent = options.extra['isSilent'] == true;
     final adapterName = getRequestAdapterLogName(options);
@@ -71,7 +72,7 @@ class NetworkLogInterceptor extends Interceptor {
       durationMs: duration,
       method: options.method,
       url: sanitizedUrl,
-      path: uri.path,
+      path: path,
       statusCode: statusCode,
       level: level,
       priority: priority,
@@ -84,7 +85,7 @@ class NetworkLogInterceptor extends Interceptor {
       'timestamp': DateTime.now().toIso8601String(),
       'level': level,
       'type': 'request',
-      'message': '${options.method} ${uri.path}',
+      'message': '${options.method} $path',
       'method': options.method,
       'url': sanitizedUrl,
       'statusCode': statusCode,

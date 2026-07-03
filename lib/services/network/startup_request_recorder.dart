@@ -4,12 +4,14 @@ import 'package:flutter/foundation.dart';
 
 /// 记录当前进程启动后的网络请求，用于在日志页查看首屏请求耗时排序。
 class StartupRequestRecorder extends ChangeNotifier {
-  StartupRequestRecorder._();
+  StartupRequestRecorder._() : processStartedAt = DateTime.now();
 
   static final StartupRequestRecorder instance = StartupRequestRecorder._();
-  static final DateTime processStartedAt = DateTime.now();
   static const int _maxRecords = 300;
 
+  static StartupRequestRecorder ensureInitialized() => instance;
+
+  final DateTime processStartedAt;
   final ListQueue<StartupRequestRecord> _records =
       ListQueue<StartupRequestRecord>();
   int _nextSequence = 0;

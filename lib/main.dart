@@ -37,6 +37,7 @@ import 'services/preloaded_data_service.dart';
 import 'services/network/doh/network_settings_service.dart';
 import 'services/network/proxy/proxy_settings_service.dart';
 import 'services/network/rhttp/rhttp_settings_service.dart';
+import 'services/network/startup_request_recorder.dart';
 import 'services/network/webview/webview_adapter_settings_service.dart';
 import 'services/eruda_settings_service.dart';
 import 'package:rhttp/rhttp.dart' as rhttp;
@@ -361,6 +362,7 @@ void _launchApp(SharedPreferences prefs) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  StartupRequestRecorder.ensureInitialized();
 
   // Flutter ImageCache 默认 100 MB / 1000 项。两个上限任一超过就 LRU evict。
   //

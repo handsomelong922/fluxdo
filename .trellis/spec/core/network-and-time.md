@@ -19,6 +19,7 @@ Evidence:
 - Network behavior should stay inside `lib/services/network/` or focused providers that call those services.
 - Cookie synchronization is a cross-layer contract between Dio/CookieJar/WebView. Review `docs/cookie-sync-status.md` before changing login, CF verification, cookie persistence, or WebView priming.
 - Preserve platform-specific adapter boundaries under `lib/services/network/adapters/` and `lib/services/network/cookie/strategy/`.
+- Startup first-screen read requests may set `skipWebViewSessionSyncExtraKey` only when they are safe idempotent reads such as the visible topic-list first page or silent home first-post previews. This skips waiting for `WebViewSessionCookieRefreshService.ensureSynced()` but still lets the session sync continue in the background. Do not apply it to login/session recovery, CSRF, CF challenge, mutations, or requests that require a freshly bootstrapped WebView runtime session cookie.
 
 ## Scenario: Discourse Plugin Mutation Endpoints
 

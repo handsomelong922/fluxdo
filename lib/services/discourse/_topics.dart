@@ -456,9 +456,12 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     int topicId, {
     bool background = false,
   }) async {
+    final readOptions = _backgroundReadOptions(background: background);
     final response = await _dio.get(
       '/t/$topicId/1.json',
-      options: _backgroundReadOptions(background: background),
+      options: background
+          ? _withSkipWebViewSessionSync(readOptions)
+          : readOptions,
     );
     final data = response.data as Map<String, dynamic>;
     final detail = TopicDetail.fromJson(data);

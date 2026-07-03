@@ -65,6 +65,15 @@ part '_nested.dart';
 part '_policy.dart';
 part '_revisions.dart';
 
+@visibleForTesting
+const String skipWebViewSessionSyncExtraKey = 'skipWebViewSessionSync';
+
+Options _withSkipWebViewSessionSync(Options? options) {
+  final extra = <String, dynamic>{...?options?.extra};
+  extra[skipWebViewSessionSyncExtraKey] = true;
+  return (options ?? Options()).copyWith(extra: extra);
+}
+
 Options? _backgroundReadOptions({Options? options, bool background = false}) {
   if (!background) return options;
   final extra = <String, dynamic>{...?options?.extra};
@@ -83,7 +92,7 @@ Options _foregroundReadOptions({Options? options}) {
 @visibleForTesting
 Options? visibleTopicListReadOptions({required int page, Options? options}) {
   if (page > 0) return options;
-  return _foregroundReadOptions(options: options);
+  return _withSkipWebViewSessionSync(_foregroundReadOptions(options: options));
 }
 
 /// 基类，包含所有共享字段
