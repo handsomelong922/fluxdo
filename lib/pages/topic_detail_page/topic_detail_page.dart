@@ -1375,6 +1375,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     // 预解析帖子 HTML
     ref.listen(topicDetailProvider(params), (previous, next) {
       if (!context.mounted) return;
+      if (!_isRouteVisible || !_isParentActive) return;
       final posts = next.value?.postStream.posts;
       if (posts != null && posts.isNotEmpty) {
         final changedHtmlList = collectChangedPostHtmlForPreload(
