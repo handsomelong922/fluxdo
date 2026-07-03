@@ -4,6 +4,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// ignore: depend_on_referenced_packages
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/topic.dart';
@@ -12,6 +14,8 @@ import 'preferences_provider.dart';
 import 'theme_provider.dart';
 
 typedef TopicPreviewFetcher = Future<TopicDetail?> Function(int topicId);
+
+final homeTopicExcerptPausedProvider = StateProvider<bool>((ref) => false);
 
 final homeTopicExcerptLoaderProvider = Provider<HomeTopicExcerptLoader>((ref) {
   final batchSize = ref.watch(
@@ -95,6 +99,7 @@ class HomeTopicExcerptLoader {
   Future<void> _startSlotTail = Future<void>.value();
   DateTime? _lastRequestStartedAt;
   int _activeRequests = 0;
+  bool _paused = false;
   bool _disposed = false;
 
   String? peekCached(int topicId) {
@@ -170,6 +175,14 @@ class HomeTopicExcerptLoader {
     _failureUntil.clear();
   }
 
+  void setPaused(bool paused) {
+    if (_disposed || _paused == paused) return;
+    _paused = paused;
+    if (!paused) {
+      _pumpQueue();
+    }
+  }
+
   void _cancelPendingRequests() {
     for (final queued in _pendingQueue) {
       _inFlight.remove(queued.topicId);
@@ -180,6 +193,7 @@ class HomeTopicExcerptLoader {
 
   void _pumpQueue() {
     if (_disposed) return;
+    if (_paused) return;
 
     while (_activeRequests < _maxConcurrentRequests &&
         _pendingQueue.isNotEmpty) {

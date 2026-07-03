@@ -78,14 +78,6 @@ const _searchBarHeight = 56.0;
 const _tabRowHeight = 36.0;
 const _sortBarHeight = 44.0;
 const _collapsibleHeight = _searchBarHeight + _sortBarHeight; // 100
-const _homeExcerptFontSize = 12.0;
-const _homeExcerptLineHeight = 1.35;
-
-double _homeExcerptSlotHeight(int maxLines) {
-  return maxLines.clamp(1, 10).toInt() *
-      _homeExcerptFontSize *
-      _homeExcerptLineHeight;
-}
 
 /// 阻止外层滚动的 ScrollPhysics，所有滑动增量转给内层列表。
 class _NoOuterScrollPhysics extends ScrollPhysics {
@@ -1245,6 +1237,7 @@ class _TopicListState extends ConsumerState<_TopicList>
     with AutomaticKeepAliveClientMixin {
   final _refreshIndicatorKey = GlobalKey<RefreshIndicatorState>();
   bool _isLoadingNewTopics = false;
+  Timer? _resumeExcerptLoadingTimer;
 
   /// 需要高亮的话题 IDs（loadBefore 插入后设置，渐变消失后清除）
   final Set<int> _highlightedTopicIds = {};
@@ -1261,11 +1254,38 @@ class _TopicListState extends ConsumerState<_TopicList>
   @override
   bool get wantKeepAlive => true;
 
+  @override
+  void dispose() {
+    _resumeExcerptLoadingTimer?.cancel();
+    super.dispose();
+  }
+
   /// 列表区域顶部圆角
   static const _topBorderRadius = BorderRadius.only(
     topLeft: Radius.circular(12),
     topRight: Radius.circular(12),
   );
+
+  void _setHomeExcerptLoadingPaused(bool paused) {
+    if (widget.categoryId != null) return;
+
+    _resumeExcerptLoadingTimer?.cancel();
+    if (paused) {
+      if (!ref.read(homeTopicExcerptPausedProvider)) {
+        ref.read(homeTopicExcerptPausedProvider.notifier).state = true;
+      }
+      ref.read(homeTopicExcerptLoaderProvider).setPaused(true);
+      return;
+    }
+
+    _resumeExcerptLoadingTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!mounted) return;
+      ref.read(homeTopicExcerptLoaderProvider).setPaused(false);
+      if (ref.read(homeTopicExcerptPausedProvider)) {
+        ref.read(homeTopicExcerptPausedProvider.notifier).state = false;
+      }
+    });
+  }
 
   void scrollToTop() {
     final controller = PrimaryScrollController.maybeOf(context);
@@ -1514,6 +1534,13 @@ class _TopicListState extends ConsumerState<_TopicList>
             borderRadius: _topBorderRadius,
             child: NotificationListener<ScrollNotification>(
               onNotification: (notification) {
+                if (notification.metrics.axis == Axis.vertical) {
+                  if (notification is ScrollStartNotification) {
+                    _setHomeExcerptLoadingPaused(true);
+                  } else if (notification is ScrollEndNotification) {
+                    _setHomeExcerptLoadingPaused(false);
+                  }
+                }
                 if (notification.depth == 0 &&
                     notification is ScrollUpdateNotification &&
                     notification.metrics.pixels >=
@@ -1782,34 +1809,19 @@ class _HomeExcerptLoader extends ConsumerWidget {
       return _HomeExcerptText(html: cached, maxLines: maxLines);
     }
 
+    final paused = ref.watch(homeTopicExcerptPausedProvider);
+    if (paused) {
+      return _HomeExcerptPlaceholder(maxLines: maxLines);
+    }
+
     final asyncExcerpt = ref.watch(homeTopicExcerptProvider(topicId));
     return asyncExcerpt.when(
       data: (html) {
-        if (html == null || html.isEmpty) {
-          return _HomeExcerptSlot(maxLines: maxLines);
-        }
+        if (html == null || html.isEmpty) return const SizedBox.shrink();
         return _HomeExcerptText(html: html, maxLines: maxLines);
       },
-      error: (_, _) => _HomeExcerptSlot(maxLines: maxLines),
+      error: (_, _) => const SizedBox.shrink(),
       loading: () => _HomeExcerptPlaceholder(maxLines: maxLines),
-    );
-  }
-}
-
-class _HomeExcerptSlot extends StatelessWidget {
-  final int maxLines;
-  final Widget? child;
-
-  const _HomeExcerptSlot({required this.maxLines, this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: _homeExcerptSlotHeight(maxLines),
-      width: double.infinity,
-      child: child == null
-          ? null
-          : Align(alignment: Alignment.topLeft, child: child),
     );
   }
 }
@@ -1823,21 +1835,18 @@ class _HomeExcerptText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cleaned = cleanHtmlExcerpt(html);
-    if (cleaned.isEmpty) return _HomeExcerptSlot(maxLines: maxLines);
+    if (cleaned.isEmpty) return const SizedBox.shrink();
 
     final colorScheme = Theme.of(context).colorScheme;
-    return _HomeExcerptSlot(
-      maxLines: maxLines,
-      child: Text(
-        cleaned,
-        style: TextStyle(
-          fontSize: _homeExcerptFontSize,
-          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.72),
-          height: _homeExcerptLineHeight,
-        ),
-        maxLines: maxLines.clamp(1, 10).toInt(),
-        overflow: TextOverflow.ellipsis,
+    return Text(
+      cleaned,
+      style: TextStyle(
+        fontSize: 12,
+        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.72),
+        height: 1.35,
       ),
+      maxLines: maxLines.clamp(1, 10).toInt(),
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
@@ -1852,25 +1861,22 @@ class _HomeExcerptPlaceholder extends StatelessWidget {
     final color = Theme.of(
       context,
     ).colorScheme.onSurfaceVariant.withValues(alpha: 0.12);
-    final visibleLines = maxLines.clamp(1, 10).toInt();
-    return _HomeExcerptSlot(
-      maxLines: maxLines,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (var i = 0; i < visibleLines; i++) ...[
-            Container(
-              height: 10,
-              width: i == visibleLines - 1 ? 180 : double.infinity,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(5),
-              ),
+    final visibleLines = maxLines.clamp(1, 3).toInt();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < visibleLines; i++) ...[
+          Container(
+            height: 10,
+            width: i == visibleLines - 1 ? 180 : double.infinity,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(5),
             ),
-            if (i != visibleLines - 1) const SizedBox(height: 6),
-          ],
+          ),
+          if (i != visibleLines - 1) const SizedBox(height: 6),
         ],
-      ),
+      ],
     );
   }
 }
