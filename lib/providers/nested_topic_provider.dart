@@ -6,6 +6,8 @@ import '../models/nested_topic.dart';
 import '../models/topic.dart';
 import 'core_providers.dart';
 
+const Duration _nestedTopicProviderRetention = Duration(seconds: 10);
+
 /// 嵌套视图参数
 class NestedTopicParams {
   final int topicId;
@@ -93,7 +95,7 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
     final link = ref.keepAlive();
     Timer? disposeTimer;
     ref.onCancel(() {
-      disposeTimer = Timer(const Duration(seconds: 30), link.close);
+      disposeTimer = Timer(_nestedTopicProviderRetention, link.close);
     });
     ref.onResume(() {
       disposeTimer?.cancel();

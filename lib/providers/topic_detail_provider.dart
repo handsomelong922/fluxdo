@@ -22,6 +22,7 @@ const List<Duration> _topicInitialLoadRetryDelays = [
   Duration(milliseconds: 350),
   Duration(milliseconds: 900),
 ];
+const Duration _topicDetailProviderRetention = Duration(seconds: 10);
 
 @visibleForTesting
 bool isRetryableTopicInitialLoadError(Object error) {
@@ -215,8 +216,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     final link = ref.keepAlive();
     Timer? disposeTimer;
     ref.onCancel(() {
-      // 最后一个 watcher 移除后，延迟 30 秒再允许 dispose
-      disposeTimer = Timer(const Duration(seconds: 30), link.close);
+      disposeTimer = Timer(_topicDetailProviderRetention, link.close);
     });
     ref.onResume(() {
       // 新的 watcher 出现，取消清理定时器
