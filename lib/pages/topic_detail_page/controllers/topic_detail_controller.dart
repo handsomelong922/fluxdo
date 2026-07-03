@@ -431,7 +431,7 @@ class TopicDetailController extends ChangeNotifier {
 
   void _throttledUpdateScreenTrack() {
     if (_screenTrackThrottleTimer?.isActive ?? false) return;
-    _screenTrackThrottleTimer = Timer(const Duration(milliseconds: 16), () {
+    _screenTrackThrottleTimer = Timer(const Duration(milliseconds: 80), () {
       if (_trackEnabled) {
         final readOnscreen = _visiblePostNumbers.intersection(_readPostNumbers);
         screenTrack.setOnscreen(
