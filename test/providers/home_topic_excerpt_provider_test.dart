@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/models/topic.dart';
 import 'package:fluxdo/providers/home_topic_excerpt_provider.dart';
@@ -327,4 +328,44 @@ void main() {
 
     expect(await loader.load(9), isNull);
   });
+
+  test('homeTopicExcerptProvider auto-disposes after listeners leave', () async {
+    final loader = HomeTopicExcerptLoader(
+      minRequestInterval: Duration.zero,
+      fetchPreview: (topicId) async => _previewDetail(topicId),
+    );
+    final container = ProviderContainer(
+      overrides: [homeTopicExcerptLoaderProvider.overrideWithValue(loader)],
+    );
+    addTearDown(loader.dispose);
+    addTearDown(container.dispose);
+
+    final sub = container.listen<AsyncValue<String?>>(
+      homeTopicExcerptProvider(99),
+      (_, _) {},
+      fireImmediately: true,
+    );
+
+    await _waitUntil(
+      () => container.read(homeTopicExcerptProvider(99)).value == '<p>topic 99</p>',
+    );
+    expect(container.exists(homeTopicExcerptProvider(99)), isTrue);
+
+    sub.close();
+    await container.pump();
+
+    expect(container.exists(homeTopicExcerptProvider(99)), isFalse);
+  });
+}
+
+Future<void> _waitUntil(
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 2),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    if (condition()) return;
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
+  fail('condition was not met within $timeout');
 }

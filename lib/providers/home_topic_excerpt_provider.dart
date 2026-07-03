@@ -40,14 +40,9 @@ final homeTopicExcerptLoaderProvider = Provider<HomeTopicExcerptLoader>((ref) {
 
 final homeTopicExcerptProvider = FutureProvider.autoDispose
     .family<String?, int>((ref, topicId) async {
-      final keepAlive = ref.keepAlive();
-      final excerpt = await ref
+      return ref
           .watch(homeTopicExcerptLoaderProvider)
           .load(topicId);
-      if (excerpt == null || excerpt.trim().isEmpty) {
-        keepAlive.close();
-      }
-      return excerpt;
     });
 
 @visibleForTesting
