@@ -153,6 +153,7 @@ class PostReplyHistory extends StatelessWidget {
                                           height: 1.4,
                                         ),
                                     compact: true,
+                                    enableSelectionArea: false,
                                   ),
                                 ),
                               ),

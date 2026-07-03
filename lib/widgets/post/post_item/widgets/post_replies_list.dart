@@ -134,6 +134,7 @@ class PostRepliesList extends StatelessWidget {
                                         height: 1.4,
                                       ),
                                   compact: true,
+                                  enableSelectionArea: false,
                                 ),
                               ),
                             ],

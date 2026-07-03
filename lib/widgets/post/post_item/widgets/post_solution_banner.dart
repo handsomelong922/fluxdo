@@ -266,6 +266,7 @@ class _ExpandedExcerpt extends StatelessWidget {
               color: theme.colorScheme.onSurface,
             ),
             compact: true,
+            enableSelectionArea: false,
           ),
           const SizedBox(height: 6),
           InkWell(
