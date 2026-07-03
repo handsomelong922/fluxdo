@@ -1551,28 +1551,26 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         },
         children: [
           _KeepAlivePage(child: topicScaffold),
-          _KeepAlivePage(
-            child: buildAiPage
-                ? AiChatPage(
-                    topicId: widget.topicId,
-                    detail: detail,
-                    embedded: true,
-                    onReplyToTopic: detail == null
-                        ? null
-                        : (imageMarkdown) {
-                            _animateToTopicPage();
-                            showReplySheet(
-                              context: context,
-                              topicId: widget.topicId,
-                              categoryId: detail.categoryId,
-                              initialContent: '$imageMarkdown\n',
-                              isPrivateMessageTopic: detail.isPrivateMessage,
-                              isPmWithNonHumanUser: detail.pmWithNonHumanUser,
-                            );
-                          },
-                  )
-                : const SizedBox.expand(),
-          ),
+          buildAiPage
+              ? AiChatPage(
+                  topicId: widget.topicId,
+                  detail: detail,
+                  embedded: true,
+                  onReplyToTopic: detail == null
+                      ? null
+                      : (imageMarkdown) {
+                          _animateToTopicPage();
+                          showReplySheet(
+                            context: context,
+                            topicId: widget.topicId,
+                            categoryId: detail.categoryId,
+                            initialContent: '$imageMarkdown\n',
+                            isPrivateMessageTopic: detail.isPrivateMessage,
+                            isPmWithNonHumanUser: detail.pmWithNonHumanUser,
+                          );
+                        },
+                )
+              : const SizedBox.expand(),
         ],
       );
     }
