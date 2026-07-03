@@ -157,10 +157,13 @@ class TopicPostList extends StatefulWidget {
 
 class _TopicPostListState extends State<TopicPostList> {
   static const Duration _visiblePostUpdateDelay = Duration(milliseconds: 180);
+  static const Duration _autoReplyResumeDelay = Duration(milliseconds: 220);
 
   int? _lastReportedPostNumber;
   Timer? _visiblePostUpdateTimer;
+  Timer? _autoReplyResumeTimer;
   bool _visiblePostUpdateFrameScheduled = false;
+  bool _autoLoadRepliesPaused = false;
   List<_PostRenderSegment> _renderSegments = const [];
   Map<int, int> _postIndexToScrollIndex = const {};
   Map<int, int> _scrollIndexToPostNumber = const {};
@@ -200,6 +203,7 @@ class _TopicPostListState extends State<TopicPostList> {
   @override
   void dispose() {
     _visiblePostUpdateTimer?.cancel();
+    _autoReplyResumeTimer?.cancel();
     super.dispose();
   }
 
@@ -388,13 +392,36 @@ class _TopicPostListState extends State<TopicPostList> {
     // 先调用原有的滚动通知处理
     final result = onScrollNotification(notification);
 
+    if (notification is ScrollStartNotification ||
+        notification is ScrollUpdateNotification) {
+      _setAutoLoadRepliesPaused(true);
+    }
     if (notification is ScrollUpdateNotification) {
       _scheduleVisiblePostUpdate();
     } else if (notification is ScrollEndNotification) {
+      _resumeAutoLoadReplies();
       _scheduleVisiblePostUpdate(immediate: true);
     }
 
     return result;
+  }
+
+  void _setAutoLoadRepliesPaused(bool paused) {
+    _autoReplyResumeTimer?.cancel();
+    if (_autoLoadRepliesPaused == paused) return;
+    setState(() {
+      _autoLoadRepliesPaused = paused;
+    });
+  }
+
+  void _resumeAutoLoadReplies() {
+    _autoReplyResumeTimer?.cancel();
+    _autoReplyResumeTimer = Timer(_autoReplyResumeDelay, () {
+      if (!mounted || !_autoLoadRepliesPaused) return;
+      setState(() {
+        _autoLoadRepliesPaused = false;
+      });
+    });
   }
 
   void _scheduleVisiblePostUpdate({bool immediate = false}) {
@@ -926,6 +953,7 @@ class _TopicPostListState extends State<TopicPostList> {
           userCreatedSharedIssue: detail.userCreatedSharedIssue,
           onSharedIssueChanged: onSharedIssueChanged,
           searchHighlightQuery: widget.searchHighlightQuery,
+          autoLoadRepliesPaused: _autoLoadRepliesPaused,
         );
         break;
       case _PostRenderSegmentType.longHeader:
@@ -990,6 +1018,7 @@ class _TopicPostListState extends State<TopicPostList> {
           sharedIssueCount: detail.sharedIssueCount,
           userCreatedSharedIssue: detail.userCreatedSharedIssue,
           onSharedIssueChanged: onSharedIssueChanged,
+          autoLoadRepliesPaused: _autoLoadRepliesPaused,
         );
         break;
       case _PostRenderSegmentType.gapBefore:

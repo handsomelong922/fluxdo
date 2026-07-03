@@ -1,6 +1,11 @@
 part of '../post_footer_section.dart';
 
 extension _PostFooterReplyActions on _PostFooterSectionState {
+  Future<void> _loadInitialReplies() async {
+    if (_replies.isNotEmpty) return;
+    await _loadReplies();
+  }
+
   Future<void> _loadReplies() async {
     if (_isLoadingRepliesNotifier.value) return;
     if (_repliesUnavailable) return;

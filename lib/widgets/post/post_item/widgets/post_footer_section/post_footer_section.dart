@@ -90,6 +90,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
   final int sharedIssueCount;
   final bool userCreatedSharedIssue;
   final void Function(int count, bool userCreated)? onSharedIssueChanged;
+  final bool autoLoadRepliesPaused;
 
   const PostFooterSection({
     super.key,
@@ -119,6 +120,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
     this.sharedIssueCount = 0,
     this.userCreatedSharedIssue = false,
     this.onSharedIssueChanged,
+    this.autoLoadRepliesPaused = false,
   });
 
   @override
@@ -151,6 +153,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
 
   bool get _canLoadMoreReplies => _replies.length < widget.post.replyCount;
   bool get _shouldAutoExpandReplies =>
+      !widget.autoLoadRepliesPaused &&
       !widget.hideRepliesButton &&
       !widget.useReplyDialog &&
       shouldAutoExpandReplyCount(widget.post.replyCount);
@@ -190,6 +193,8 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
       _showRepliesNotifier.value =
           _restorableInlineRepliesState?.showReplies ??
           _shouldAutoExpandReplies;
+      _syncReplyExpansionState();
+    } else if (oldWidget.autoLoadRepliesPaused != widget.autoLoadRepliesPaused) {
       _syncReplyExpansionState();
     }
   }
@@ -256,7 +261,10 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
       }
       _showRepliesNotifier.value = true;
       _emitInlineRepliesState();
-      _loadReplies();
+      AutoReplyPrefetchQueue.instance.enqueue(
+        '${widget.topicId}:${widget.post.id}',
+        _loadInitialReplies,
+      );
     });
   }
 
