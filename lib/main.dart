@@ -1332,17 +1332,9 @@ class _MainPageState extends ConsumerState<MainPage>
 
   void _rememberMountedPage(String activePageId, List<NavEntry> pageEntries) {
     if (Platform.isAndroid || Platform.isIOS) {
-      final retainHome = pageEntries.any(
-        (entry) => entry.id == NavEntryIds.home,
-      );
-      final nextMounted = <String>{};
-      if (retainHome) {
-        nextMounted.add(NavEntryIds.home);
-      }
-      nextMounted.add(activePageId);
       _mountedPageIds
         ..clear()
-        ..addAll(nextMounted);
+        ..add(activePageId);
       return;
     }
 
