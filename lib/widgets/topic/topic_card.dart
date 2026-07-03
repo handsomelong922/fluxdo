@@ -8,13 +8,14 @@ import '../../providers/discourse_providers.dart';
 import '../../providers/preferences_provider.dart';
 import '../../utils/font_awesome_helper.dart';
 import '../../utils/platform_utils.dart';
+import '../../utils/responsive.dart';
 import '../../utils/tag_icon_list.dart';
 import '../../utils/url_helper.dart';
 import '../common/topic_badges.dart';
 import '../common/smart_avatar.dart';
 import '../../services/discourse_cache_manager.dart';
-import '../common/relative_time_text.dart';
 import '../../utils/number_utils.dart';
+import '../../utils/time_utils.dart';
 import '../common/emoji_text.dart';
 
 class _TextWidthCache {
@@ -111,6 +112,9 @@ class TopicCard extends ConsumerWidget {
     // 全部读完：进入过话题且没有未读帖子
     final isFullyRead =
         !topic.unseen && topic.unread == 0 && topic.lastReadPostNumber != null;
+    final readOpacity = Responsive.isMobile(context)
+        ? 1.0
+        : (isFullyRead ? 0.5 : 1.0);
 
     // 获取分类信息
     final categoryMap = ref.watch(categoryMapProvider).value;
@@ -159,57 +163,57 @@ class TopicCard extends ConsumerWidget {
                 final topWidget? => [topWidget],
                 null => const <Widget>[],
               },
-              Opacity(
-                opacity: isFullyRead ? 0.5 : 1.0,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (!hideTopicListAvatars) ...[
-                        // 左侧：楼主头像
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: _buildOriginalPosterAvatar(context),
+              Builder(
+                builder: (context) {
+                  final content = Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (!hideTopicListAvatars) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: _buildOriginalPosterAvatar(context),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildTitleRow(
+                                context,
+                                theme,
+                                titleStyle,
+                                effectiveTitleColor,
+                              ),
+                              const SizedBox(height: 6),
+                              _buildBadgeLine(
+                                context,
+                                category,
+                                faIcon,
+                                logoUrl,
+                                badgeSize,
+                                badgeLineHeight,
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(width: 10),
-                      ],
-                      // 右侧：标题、标签和可选摘要
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // 第1行：标题
-                            _buildTitleRow(
-                              context,
-                              theme,
-                              titleStyle,
-                              effectiveTitleColor,
-                            ),
-
-                            const SizedBox(height: 6),
-
-                            // 第2行：分类和标签
-                            _buildBadgeLine(
-                              context,
-                              category,
-                              faIcon,
-                              logoUrl,
-                              badgeSize,
-                              badgeLineHeight,
-                            ),
-                          ],
+                        _buildTrailingMeta(
+                          context,
+                          showReplyOrUnread: showReplyOrUnread,
+                          showLike: showLike,
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      _buildTrailingMeta(
-                        context,
-                        showReplyOrUnread: showReplyOrUnread,
-                        showLike: showLike,
-                      ),
-                    ],
-                  ),
-                ),
+                      ],
+                    ),
+                  );
+
+                  if (readOpacity >= 0.999) {
+                    return content;
+                  }
+                  return Opacity(opacity: readOpacity, child: content);
+                },
               ),
               // 底部附属区域
               if (bottomWidget case final bottomWidget?)
@@ -358,11 +362,19 @@ class TopicCard extends ConsumerWidget {
                     ),
                     const SizedBox(width: 5),
                   ],
-                  RelativeTimeText(
-                    dateTime: topic.createdAt ?? topic.lastPostedAt,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant.withValues(
-                        alpha: 0.7,
+                  Tooltip(
+                    message: TimeUtils.formatTooltipTime(
+                      topic.createdAt ?? topic.lastPostedAt,
+                    ),
+                    preferBelow: true,
+                    child: Text(
+                      TimeUtils.formatRelativeTime(
+                        topic.createdAt ?? topic.lastPostedAt,
+                      ),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.7,
+                        ),
                       ),
                     ),
                   ),
