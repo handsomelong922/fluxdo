@@ -11,7 +11,7 @@ typedef OnTimingsSent =
 /// 帖子浏览时间追踪服务
 class ScreenTrack {
   static const _flushInterval = Duration(seconds: 60);
-  static const _minRushFlushInterval = Duration(seconds: 3);
+  static const _defaultMinRushFlushInterval = Duration(seconds: 3);
   static const _tickInterval = Duration(seconds: 1);
   static const _pauseUnlessScrolled = Duration(minutes: 3);
   static const _maxTrackingTime = Duration(minutes: 6);
@@ -26,6 +26,7 @@ class ScreenTrack {
   final DiscourseService _service;
   final OnTimingsSent? onTimingsSent;
   final String? debugSourceId;
+  final Duration _minRushFlushInterval;
 
   int? _topicId;
   Timer? _tickTimer;
@@ -45,7 +46,12 @@ class ScreenTrack {
   bool _inProgress = false;
   bool _hasFocus = true;
 
-  ScreenTrack(this._service, {this.onTimingsSent, this.debugSourceId});
+  ScreenTrack(
+    this._service, {
+    this.onTimingsSent,
+    this.debugSourceId,
+    Duration minRushFlushInterval = _defaultMinRushFlushInterval,
+  }) : _minRushFlushInterval = minRushFlushInterval;
 
   void start(int topicId) {
     if (_topicId != null && _topicId != topicId) {

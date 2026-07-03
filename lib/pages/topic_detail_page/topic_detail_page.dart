@@ -521,6 +521,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _screenTrack = ScreenTrack(
       DiscourseService(),
       debugSourceId: _instanceId,
+      minRushFlushInterval: Responsive.isMobile(context)
+          ? const Duration(seconds: 6)
+          : const Duration(seconds: 3),
       onTimingsSent: (topicId, postNumbers, highestSeen) {
         // 更新会话已读状态，触发 PostItem 消除未读圆点
         ref
