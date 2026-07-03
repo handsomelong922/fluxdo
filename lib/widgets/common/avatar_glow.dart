@@ -24,8 +24,8 @@ class _AvatarGlowState extends State<AvatarGlow>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 5),
-    )..repeat(reverse: true);
+      duration: const Duration(milliseconds: 900),
+    )..forward();
   }
 
   @override
@@ -42,12 +42,11 @@ class _AvatarGlowState extends State<AvatarGlow>
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, child) {
-          // ease-in-out 曲线
-          final t = Curves.easeInOut.transform(_controller.value);
-          // 光晕半径在 8~20 之间脉冲
-          final blurRadius = 8.0 + t * 12.0;
-          // 透明度在 0.3~0.8 之间脉冲
-          final opacity = 0.3 + t * 0.5;
+          // 入场时做一次增强脉冲，动画结束后停在稳定光晕，
+          // 避免列表里长期维持多个 60fps 阴影动画。
+          final t = Curves.easeOutCubic.transform(_controller.value);
+          final blurRadius = 10.0 + t * 10.0;
+          final opacity = 0.38 + t * 0.22;
 
           return Container(
             decoration: BoxDecoration(
