@@ -1859,28 +1859,71 @@ class _TopicListFooter extends ConsumerWidget {
   }
 }
 
-class _HomeExcerptLoader extends ConsumerWidget {
+class _HomeExcerptLoader extends ConsumerStatefulWidget {
   final int topicId;
   final int maxLines;
 
   const _HomeExcerptLoader({required this.topicId, required this.maxLines});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cached = ref.read(homeTopicExcerptLoaderProvider).peekCached(topicId);
-    if (cached != null && cached.trim().isNotEmpty) {
-      return _HomeExcerptText(html: cached, maxLines: maxLines);
-    }
+  ConsumerState<_HomeExcerptLoader> createState() => _HomeExcerptLoaderState();
+}
 
-    final asyncExcerpt = ref.watch(homeTopicExcerptProvider(topicId));
-    return asyncExcerpt.when(
-      data: (html) {
-        if (html == null || html.isEmpty) return const SizedBox.shrink();
-        return _HomeExcerptText(html: html, maxLines: maxLines);
-      },
-      error: (_, _) => const SizedBox.shrink(),
-      loading: () => _HomeExcerptPlaceholder(maxLines: maxLines),
-    );
+class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
+  String? _resolvedHtml;
+  Future<void>? _pendingLoad;
+
+  @override
+  void initState() {
+    super.initState();
+    _prime();
+  }
+
+  @override
+  void didUpdateWidget(covariant _HomeExcerptLoader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.topicId != widget.topicId) {
+      _resolvedHtml = null;
+      _pendingLoad = null;
+      _prime();
+    }
+  }
+
+  void _prime() {
+    final loader = ref.read(homeTopicExcerptLoaderProvider);
+    final cached = loader.peekCached(widget.topicId);
+    if (cached != null && cached.trim().isNotEmpty) {
+      _resolvedHtml = cached;
+      return;
+    }
+    if (_pendingLoad != null) return;
+
+    final topicId = widget.topicId;
+    _pendingLoad = loader
+        .load(topicId)
+        .then((html) {
+          if (!mounted || widget.topicId != topicId) return;
+          final normalized = html?.trim();
+          if (normalized == null || normalized.isEmpty) return;
+          setState(() {
+            _resolvedHtml = normalized;
+          });
+        })
+        .whenComplete(() {
+          if (mounted && widget.topicId == topicId) {
+            _pendingLoad = null;
+          }
+        });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final html = _resolvedHtml;
+    if (html != null && html.isNotEmpty) {
+      return _HomeExcerptText(html: html, maxLines: widget.maxLines);
+    }
+    _prime();
+    return _HomeExcerptPlaceholder(maxLines: widget.maxLines);
   }
 }
 
