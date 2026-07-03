@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import '../../../l10n/s.dart';
 import '../../../models/topic.dart';
@@ -51,6 +50,7 @@ class TopicPostList extends StatefulWidget {
   final double topContentInset;
   final double topBoundaryHeight;
   final int? highlightPostNumber;
+  final List<TypingUser> typingUsers;
   final bool isLoggedIn;
   final bool hasMoreBefore;
   final bool hasMoreAfter;
@@ -113,6 +113,7 @@ class TopicPostList extends StatefulWidget {
     required this.highlightPostNumber,
     this.highlightBoostUsername,
     this.searchHighlightQuery,
+    required this.typingUsers,
     required this.isLoggedIn,
     required this.hasMoreBefore,
     required this.hasMoreAfter,
@@ -205,6 +206,7 @@ class _TopicPostListState extends State<TopicPostList> {
   GlobalKey get centerKey => widget.centerKey;
   GlobalKey get headerKey => widget.headerKey;
   int? get highlightPostNumber => widget.highlightPostNumber;
+  List<TypingUser> get typingUsers => widget.typingUsers;
   bool get isLoggedIn => widget.isLoggedIn;
   bool get hasMoreBefore => widget.hasMoreBefore;
   bool get hasMoreAfter => widget.hasMoreAfter;
@@ -763,16 +765,7 @@ class _TopicPostListState extends State<TopicPostList> {
                       child: AnimatedSize(
                         duration: const Duration(milliseconds: 200),
                         alignment: Alignment.topCenter,
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            final typingUsers = ref.watch(
-                              topicChannelProvider(
-                                detail.id,
-                              ).select((s) => s.typingUsers),
-                            );
-                            return TypingAvatars(users: typingUsers);
-                          },
-                        ),
+                        child: TypingAvatars(users: typingUsers),
                       ),
                     ),
                   ),
