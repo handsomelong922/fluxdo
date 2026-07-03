@@ -66,16 +66,10 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
 
   void _publishScrollProgress() {
     if (!_scrollController.hasClients) return;
-    final raw = _scrollController.offset;
-    final progress = raw < 0 ? 0.0 : raw;
-    final current = ref.read(navScrollProgressProvider(NavEntryIds.bookmarks));
-    final atZero = progress == 0 && current != 0;
-    final crossed =
-        (progress >= navScrollIconThreshold) !=
-        (current >= navScrollIconThreshold);
-    if (!atZero && !crossed && (progress - current).abs() < 4.0) return;
-    ref.read(navScrollProgressProvider(NavEntryIds.bookmarks).notifier).state =
-        progress;
+    ref.publishNavScrollProgress(
+      NavEntryIds.bookmarks,
+      _scrollController.offset,
+    );
   }
 
   Future<void> _onRefresh() async {

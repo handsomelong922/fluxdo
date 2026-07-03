@@ -126,9 +126,12 @@ extension NavActionDispatch on WidgetRef {
   }
 }
 
-/// 每个 tab 的"距顶距离"（单位：像素）。页面按 id 更新，底栏 watch 用来切换图标。
+/// 每个 tab 的滚动状态。
 ///
-/// 原始像素数而非归一化 0-1，便于统一阈值在 [navScrollIconThreshold]。
+/// 仅保留底栏交互真正需要的 3 个状态：
+/// - `0.0`：回到顶部
+/// - `1.0`：已离开顶部但尚未达到动作阈值
+/// - `navScrollIconThreshold`：已达到动作阈值
 final navScrollProgressProvider = StateProvider.family<double, String>(
   (ref, id) => 0.0,
 );
@@ -138,6 +141,24 @@ final navScrollProgressProvider = StateProvider.family<double, String>(
 /// 滚动距顶 ≥ 此值时显示单击动作图标（↑ / ⟳），否则保持原 selectedIcon。
 /// 选 1000 让用户必须滚得比较深才会看到反馈，避免短滚动就抖动切换。
 const double navScrollIconThreshold = 1000.0;
+
+double collapseNavScrollProgress(double rawProgress) {
+  final progress = rawProgress < 0 ? 0.0 : rawProgress;
+  if (progress == 0) return 0.0;
+  if (progress >= navScrollIconThreshold) {
+    return navScrollIconThreshold;
+  }
+  return 1.0;
+}
+
+extension NavScrollProgressPublish on WidgetRef {
+  void publishNavScrollProgress(String id, double rawProgress) {
+    final next = collapseNavScrollProgress(rawProgress);
+    final current = read(navScrollProgressProvider(id));
+    if (current == next) return;
+    read(navScrollProgressProvider(id).notifier).state = next;
+  }
+}
 
 /// 显式重置某个 entry 的滚动进度为 0
 ///

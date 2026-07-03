@@ -27,8 +27,8 @@ final _pmTabEventNonceProvider = StateProvider<int>((ref) => 0);
 
 final _pmTabEventProvider =
     StateProvider.family<_PmTabEvent?, PrivateMessageFilter>(
-  (ref, filter) => null,
-);
+      (ref, filter) => null,
+    );
 
 /// 私信列表页面
 class PrivateMessagesPage extends ConsumerStatefulWidget {
@@ -66,16 +66,7 @@ class _PrivateMessagesPageState extends ConsumerState<PrivateMessagesPage>
 
   bool _onScrollNotification(ScrollNotification n) {
     if (n.metrics.axis != Axis.vertical) return false;
-    final raw = n.metrics.pixels;
-    final progress = raw < 0 ? 0.0 : raw;
-    final current = ref.read(navScrollProgressProvider(NavEntryIds.messages));
-    final atZero = progress == 0 && current != 0;
-    final crossed = (progress >= navScrollIconThreshold) !=
-        (current >= navScrollIconThreshold);
-    if (!atZero && !crossed && (progress - current).abs() < 4.0) return false;
-    ref
-        .read(navScrollProgressProvider(NavEntryIds.messages).notifier)
-        .state = progress;
+    ref.publishNavScrollProgress(NavEntryIds.messages, n.metrics.pixels);
     return false;
   }
 
@@ -92,8 +83,10 @@ class _PrivateMessagesPageState extends ConsumerState<PrivateMessagesPage>
       final tabAction = event.action == NavAction.scrollToTop
           ? _PmTabAction.scrollToTop
           : _PmTabAction.refresh;
-      ref.read(_pmTabEventProvider(filter).notifier).state =
-          _PmTabEvent(tabAction, nextNonce);
+      ref.read(_pmTabEventProvider(filter).notifier).state = _PmTabEvent(
+        tabAction,
+        nextNonce,
+      );
     });
 
     return NotificationListener<ScrollNotification>(
@@ -133,8 +126,7 @@ class _PrivateMessageTabView extends ConsumerStatefulWidget {
       _PrivateMessageTabViewState();
 }
 
-class _PrivateMessageTabViewState
-    extends ConsumerState<_PrivateMessageTabView>
+class _PrivateMessageTabViewState extends ConsumerState<_PrivateMessageTabView>
     with AutomaticKeepAliveClientMixin {
   final ScrollController _scrollController = ScrollController();
 
@@ -157,17 +149,17 @@ class _PrivateMessageTabViewState
   (AsyncValue<List<Topic>>, PrivateMessagesNotifier) _watchMessages() {
     return switch (widget.filter) {
       PrivateMessageFilter.inbox => (
-          ref.watch(pmInboxProvider),
-          ref.watch(pmInboxProvider.notifier),
-        ),
+        ref.watch(pmInboxProvider),
+        ref.watch(pmInboxProvider.notifier),
+      ),
       PrivateMessageFilter.sent => (
-          ref.watch(pmSentProvider),
-          ref.watch(pmSentProvider.notifier),
-        ),
+        ref.watch(pmSentProvider),
+        ref.watch(pmSentProvider.notifier),
+      ),
       PrivateMessageFilter.archive => (
-          ref.watch(pmArchiveProvider),
-          ref.watch(pmArchiveProvider.notifier),
-        ),
+        ref.watch(pmArchiveProvider),
+        ref.watch(pmArchiveProvider.notifier),
+      ),
     };
   }
 
@@ -265,8 +257,9 @@ class _PrivateMessageTabViewState
               }
 
               final topic = topics[index];
-              final enableLongPress =
-                  ref.watch(preferencesProvider).longPressPreview;
+              final enableLongPress = ref
+                  .watch(preferencesProvider)
+                  .longPressPreview;
               return buildTopicItem(
                 context: context,
                 topic: topic,
@@ -278,11 +271,8 @@ class _PrivateMessageTabViewState
           );
         },
         loading: () => const TopicListSkeleton(),
-        error: (error, stack) => ErrorView(
-          error: error,
-          stackTrace: stack,
-          onRetry: _onRefresh,
-        ),
+        error: (error, stack) =>
+            ErrorView(error: error, stackTrace: stack, onRetry: _onRefresh),
       ),
     );
   }
@@ -311,14 +301,18 @@ class _PrivateMessageTabViewState
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.refresh,
-                    size: 16, color: Theme.of(context).colorScheme.primary),
+                Icon(
+                  Icons.refresh,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   context.l10n.common_loadFailedTapRetry,
                   style: TextStyle(
-                      fontSize: 14,
-                      color: Theme.of(context).colorScheme.primary),
+                    fontSize: 14,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ],
             ),

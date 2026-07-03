@@ -163,16 +163,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   void _publishProfileScrollProgress() {
-    final raw = _scrollController.offset;
-    final progress = raw < 0 ? 0.0 : raw;
-    final current = ref.read(navScrollProgressProvider(NavEntryIds.profile));
-    final atZero = progress == 0 && current != 0;
-    final crossed =
-        (progress >= navScrollIconThreshold) !=
-        (current >= navScrollIconThreshold);
-    if (!atZero && !crossed && (progress - current).abs() < 4.0) return;
-    ref.read(navScrollProgressProvider(NavEntryIds.profile).notifier).state =
-        progress;
+    ref.publishNavScrollProgress(NavEntryIds.profile, _scrollController.offset);
   }
 
   Future<void> _goToLogin() async {

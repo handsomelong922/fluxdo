@@ -426,16 +426,18 @@ class _ActiveDestinationIcon extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(navScrollProgressProvider(dest.id));
+    final showActionState = ref.watch(
+      navScrollProgressProvider(
+        dest.id,
+      ).select((progress) => progress >= navScrollIconThreshold),
+    );
     final action = ref.watch(
       preferencesProvider.select((p) => p.bottomSingleTapAction),
     );
 
     final actionIcon = action.icon;
     final showActionIcon =
-        progress >= navScrollIconThreshold &&
-        action != NavTapAction.none &&
-        actionIcon != null;
+        showActionState && action != NavTapAction.none && actionIcon != null;
 
     final child = showActionIcon
         ? Icon(actionIcon, key: ValueKey('nav-action-${action.name}'))

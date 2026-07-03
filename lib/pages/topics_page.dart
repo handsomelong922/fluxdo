@@ -865,16 +865,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   /// 使用 forcePixels 直接更新像素值，不通过 animateTo，
   /// 避免触发 coordinator 的 beginActivity/goIdle 导致内部列表位置重置。
   void _publishHomeScrollProgress(double pixels) {
-    final progress = pixels < 0 ? 0.0 : pixels;
-    final current = ref.read(navScrollProgressProvider(NavEntryIds.home));
-    // 节流：变化 >= 4 像素 才更新；或跨越"回顶"阈值 / 过 0 时立即同步
-    final atZero = progress == 0 && current != 0;
-    final crossed =
-        (progress >= navScrollIconThreshold) !=
-        (current >= navScrollIconThreshold);
-    if (!atZero && !crossed && (progress - current).abs() < 4.0) return;
-    ref.read(navScrollProgressProvider(NavEntryIds.home).notifier).state =
-        progress;
+    ref.publishNavScrollProgress(NavEntryIds.home, pixels);
   }
 
   void _snapOuterScroll() {
