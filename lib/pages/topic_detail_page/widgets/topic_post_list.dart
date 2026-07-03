@@ -160,7 +160,7 @@ class _TopicPostListState extends State<TopicPostList> {
   List<_PostRenderSegment> _renderSegments = const [];
   Map<int, int> _postIndexToScrollIndex = const {};
   Map<int, int> _scrollIndexToPostNumber = const {};
-  int? _renderSegmentsSignature;
+  int? _renderSegmentsSourceKey;
 
   /// postNumber → postIndex 反查表（避免 indexWhere 线性查找）
   Map<int, int> _postNumberToIndex = const {};
@@ -185,7 +185,7 @@ class _TopicPostListState extends State<TopicPostList> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.detail.id != widget.detail.id) {
       _inlineRepliesStateByPostNumber.clear();
-      _renderSegmentsSignature = null;
+      _renderSegmentsSourceKey = null;
     }
   }
 
@@ -452,40 +452,24 @@ class _TopicPostListState extends State<TopicPostList> {
     );
   }
 
-  int _computeRenderSegmentsSignature(List<Post> posts) {
-    final values = <Object?>[
+  int _computeRenderSegmentsSourceKey() {
+    return Object.hashAll(<Object?>[
       detail.id,
+      detail.postStream.posts,
+      detail.postStream.stream,
       detail.postStream.stream.length,
+      widget.blockedUsernames,
+      widget.blockedUsernames.length,
+      detail.postStream.gaps?.before,
+      detail.postStream.gaps?.after,
       detail.postStream.gaps?.before.length ?? 0,
       detail.postStream.gaps?.after.length ?? 0,
-    ];
-    for (final post in posts) {
-      values
-        ..add(post.postNumber)
-        ..add(post.cooked.length)
-        ..add(post.cooked.hashCode)
-        ..add(post.replyCount)
-        ..add(post.deletedAt?.millisecondsSinceEpoch);
-    }
-    final gaps = detail.postStream.gaps;
-    if (gaps != null) {
-      for (final entry in gaps.before.entries) {
-        values
-          ..add(entry.key)
-          ..add(Object.hashAll(entry.value));
-      }
-      for (final entry in gaps.after.entries) {
-        values
-          ..add(entry.key)
-          ..add(Object.hashAll(entry.value));
-      }
-    }
-    return Object.hashAll(values);
+    ]);
   }
 
   void _ensureRenderSegments(List<Post> posts) {
-    final signature = _computeRenderSegmentsSignature(posts);
-    if (_renderSegmentsSignature == signature) {
+    final sourceKey = _computeRenderSegmentsSourceKey();
+    if (_renderSegmentsSourceKey == sourceKey) {
       return;
     }
 
@@ -584,7 +568,7 @@ class _TopicPostListState extends State<TopicPostList> {
     _postIndexToScrollIndex = postIndexToScrollIndex;
     _scrollIndexToPostNumber = scrollIndexToPostNumber;
     _postNumberToIndex = postNumberToIndex;
-    _renderSegmentsSignature = signature;
+    _renderSegmentsSourceKey = sourceKey;
     widget.onScrollIndexMappingChanged?.call(postIndexToScrollIndex);
   }
 
