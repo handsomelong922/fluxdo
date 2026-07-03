@@ -846,8 +846,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       return;
     }
 
-    if (next.statsUpdate != null &&
-        previous?.statsUpdate != next.statsUpdate) {
+    if (next.statsUpdate != null && previous?.statsUpdate != next.statsUpdate) {
       notifier.applyStatsUpdate(next.statsUpdate!);
       ref
           .read(topicChannelProvider(widget.topicId).notifier)
@@ -1349,19 +1348,24 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           previousPosts: previous?.value?.postStream.posts,
           nextPosts: posts,
         );
+        final isMobilePrewarm = Responsive.isMobile(context);
+        final htmlToPrewarm = isMobilePrewarm
+            ? changedHtmlList.take(2).toList(growable: false)
+            : changedHtmlList;
 
-        if (changedHtmlList.isNotEmpty) {
-          ChunkedHtmlContent.preloadAll(changedHtmlList);
+        if (htmlToPrewarm.isNotEmpty) {
+          ChunkedHtmlContent.preloadAll(htmlToPrewarm);
         }
 
         // 预热 Pangu 混排处理（在 isolate 中执行）
-        if (changedHtmlList.isNotEmpty &&
+        if (htmlToPrewarm.isNotEmpty &&
             ref.read(preferencesProvider).displayPanguSpacing) {
-          DiscourseHtmlContent.preloadPangu(changedHtmlList);
+          DiscourseHtmlContent.preloadPangu(htmlToPrewarm);
         }
 
-        final longHtmlToWarm = changedHtmlList
+        final longHtmlToWarm = htmlToPrewarm
             .where((html) => html.length > ChunkedHtmlContent.chunkThreshold)
+            .take(isMobilePrewarm ? 1 : htmlToPrewarm.length)
             .toList(growable: false);
         if (longHtmlToWarm.isNotEmpty) {
           SchedulerBinding.instance.scheduleTask(() {
@@ -1544,7 +1548,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         );
 
     Widget buildPageView(bool lockAiSwipe, bool lockTextSelection) {
-      final buildAiPage = _aiPageInitialized || _currentPageNotifier.value == _aiPage;
+      final buildAiPage =
+          _aiPageInitialized || _currentPageNotifier.value == _aiPage;
       return PageView(
         controller: _pageController,
         physics: isSearchMode || lockAiSwipe || lockTextSelection
@@ -1552,7 +1557,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             : const ClampingScrollPhysics(),
         onPageChanged: (page) {
           _currentPageNotifier.value = page;
-          if (page == _aiPage && (!_aiPageInitialized || !_retainTopicAiProvider)) {
+          if (page == _aiPage &&
+              (!_aiPageInitialized || !_retainTopicAiProvider)) {
             setState(() {
               _aiPageInitialized = true;
               _retainTopicAiProvider = true;
@@ -2184,9 +2190,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     );
   }
 
-  void _syncReadPostNumbersForDetail(
-    TopicDetail detail,
-  ) {
+  void _syncReadPostNumbersForDetail(TopicDetail detail) {
     final posts = detail.postStream.posts;
     if (identical(_initialReadSourcePosts, posts) &&
         _initialReadPostNumbersSourceKey != null) {
@@ -2198,7 +2202,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       posts.length,
       posts.isEmpty ? null : posts.first.id,
       posts.isEmpty ? null : posts.last.id,
-      for (final post in posts) Object.hash(post.id, post.postNumber, post.read),
+      for (final post in posts)
+        Object.hash(post.id, post.postNumber, post.read),
     ]);
     if (_initialReadPostNumbersSourceKey == sourceKey) {
       _initialReadSourcePosts = posts;
