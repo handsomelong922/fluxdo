@@ -1592,6 +1592,7 @@ class _TopicListState extends ConsumerState<_TopicList> {
                 key: PageStorageKey<String>(
                   'topics-tab-${providerKey?.toString() ?? 'all'}',
                 ),
+                addAutomaticKeepAlives: false,
                 cacheExtent: Responsive.isMobile(context) ? 180.0 : null,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.only(top: 8, bottom: 12),

@@ -463,6 +463,7 @@ class _CategoryTopicsPageState extends ConsumerState<CategoryTopicsPage> {
       onRefresh: _loadTopics,
       child: ListView.builder(
         controller: _scrollController,
+        addAutomaticKeepAlives: false,
         cacheExtent: Responsive.isMobile(context) ? 180.0 : null,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
