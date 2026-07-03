@@ -1,26 +1,30 @@
+import 'dart:collection';
+
 import 'package:flutter/material.dart';
 
 /// 懒加载作用域
 ///
 /// 在页面级别提供缓存，页面销毁时缓存自动清理
 class LazyLoadScope extends StatefulWidget {
+  static const int maxCacheEntries = 512;
+
   final Widget child;
 
   const LazyLoadScope({super.key, required this.child});
 
   /// 获取当前作用域的缓存
-  static Set<String>? of(BuildContext context) {
+  static _LazyLoadCache? _of(BuildContext context) {
     return context.dependOnInheritedWidgetOfExactType<_LazyLoadScopeData>()?.cache;
   }
 
   /// 检查 key 是否已加载（如果没有作用域则返回 false）
   static bool isLoaded(BuildContext context, String key) {
-    return of(context)?.contains(key) ?? false;
+    return _of(context)?.contains(key) ?? false;
   }
 
   /// 标记 key 已加载
   static void markLoaded(BuildContext context, String key) {
-    of(context)?.add(key);
+    _of(context)?.add(key);
   }
 
   @override
@@ -28,7 +32,9 @@ class LazyLoadScope extends StatefulWidget {
 }
 
 class _LazyLoadScopeState extends State<LazyLoadScope> {
-  final Set<String> _cache = {};
+  final _LazyLoadCache _cache = _LazyLoadCache(
+    maxEntries: LazyLoadScope.maxCacheEntries,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +46,7 @@ class _LazyLoadScopeState extends State<LazyLoadScope> {
 }
 
 class _LazyLoadScopeData extends InheritedWidget {
-  final Set<String> cache;
+  final _LazyLoadCache cache;
 
   const _LazyLoadScopeData({
     required this.cache,
@@ -49,4 +55,25 @@ class _LazyLoadScopeData extends InheritedWidget {
 
   @override
   bool updateShouldNotify(_LazyLoadScopeData oldWidget) => false;
+}
+
+class _LazyLoadCache {
+  _LazyLoadCache({required this.maxEntries});
+
+  final int maxEntries;
+  final LinkedHashSet<String> _entries = LinkedHashSet<String>();
+
+  bool contains(String key) => _entries.contains(key);
+
+  void add(String key) {
+    if (_entries.remove(key)) {
+      _entries.add(key);
+      return;
+    }
+
+    if (_entries.length >= maxEntries) {
+      _entries.remove(_entries.first);
+    }
+    _entries.add(key);
+  }
 }
