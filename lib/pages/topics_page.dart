@@ -1422,7 +1422,7 @@ class _TopicListState extends ConsumerState<_TopicList>
 
       // 以下 listener 仅当前 tab 需要
       ref.listen(fabRefreshSignalProvider, (_, _) {
-        _refreshIndicatorKey.currentState?.show();
+        unawaited(_onRefresh());
       });
       ref.listen(tabTagsProvider(widget.categoryId), (prev, next) {
         if (prev != next) {
