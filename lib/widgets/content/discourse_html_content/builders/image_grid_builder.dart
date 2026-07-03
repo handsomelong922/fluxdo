@@ -270,23 +270,10 @@ class _GridImageTileState extends State<_GridImageTile> {
               fit: BoxFit.cover,
               width: widget.columnWidth,
               height: displayHeight,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
+              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                if (wasSynchronouslyLoaded || frame != null) return child;
                 return Container(
                   color: widget.theme.colorScheme.surfaceContainerHighest,
-                  child: Center(
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
-                    ),
-                  ),
                 );
               },
               errorBuilder: (context, error, stackTrace) {
@@ -380,5 +367,4 @@ class GridImageData {
     this.height,
   });
 }
-
 

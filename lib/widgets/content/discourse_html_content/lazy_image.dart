@@ -116,34 +116,26 @@ class _LazyImageState extends State<LazyImage> {
   }
 
   Widget _buildImageWidget(ThemeData theme) {
+    Widget buildLoadingShell() {
+      return Container(
+        width: widget.width,
+        height: widget.height ?? 200,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+      );
+    }
+
     final imageChild = Image(
       image: widget.imageProvider,
       fit: widget.fit,
       width: widget.width,
       height: widget.height,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-
-        // 加载中显示进度指示器
-        return Container(
-          width: widget.width,
-          height: widget.height ?? 200,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha:0.2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              value: loadingProgress.expectedTotalBytes != null
-                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                  : null,
-            ),
-          ),
-        );
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded || frame != null) return child;
+        return buildLoadingShell();
       },
       errorBuilder: (context, error, stackTrace) {
         return Container(

@@ -194,23 +194,11 @@ class DiscourseWidgetFactory extends WidgetFactory {
                    // Emoji 使用固定尺寸，普通图片让其自适应（由外层约束控制）
                    width: isEmoji ? displaySize : null,
                    height: isEmoji ? displaySize : null,
-                   loadingBuilder: (context, child, loadingProgress) {
-                     if (loadingProgress == null) return child;
+                   frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                     if (wasSynchronouslyLoaded || frame != null) return child;
                      return SizedBox(
                        width: isEmoji ? displaySize : width ?? 24,
                        height: isEmoji ? displaySize : height ?? 24,
-                       child: Center(
-                         child: SizedBox(
-                           width: 12,
-                           height: 12,
-                           child: CircularProgressIndicator(
-                             strokeWidth: 1.5,
-                             value: loadingProgress.expectedTotalBytes != null
-                                 ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                 : null,
-                           ),
-                         ),
-                       ),
                      );
                    },
                    errorBuilder: (context, error, stackTrace) {
