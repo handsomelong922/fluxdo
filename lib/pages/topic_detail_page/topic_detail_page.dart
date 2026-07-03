@@ -1286,12 +1286,12 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                 ),
               ),
               if (searchState.isLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Icon(
+                    Icons.more_horiz,
+                    size: 18,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 )
               else

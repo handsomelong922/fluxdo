@@ -9,6 +9,7 @@ import '../../../../services/discourse_cache_manager.dart';
 import '../../../../services/discourse/discourse_service.dart';
 import '../../../../services/emoji_handler.dart';
 import '../../../../utils/platform_utils.dart';
+import '../../../../utils/responsive.dart';
 import 'post_reaction_picker.dart';
 
 /// 获取 emoji 图片 URL（未加载完成时返回空字符串，由 errorBuilder 处理）
@@ -289,10 +290,12 @@ class _PostActionBarState extends State<PostActionBar>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (isLoadingReplies && widget.replies.isEmpty)
-                            const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                            Icon(
+                              Icons.more_horiz,
+                              size: 15,
+                              color: showReplies
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.onSurfaceVariant,
                             )
                           else ...[
                             Icon(
@@ -304,7 +307,9 @@ class _PostActionBarState extends State<PostActionBar>
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '${widget.post.replyCount}',
+                              isLoadingReplies && Responsive.isMobile(context)
+                                  ? context.l10n.topicDetail_loading
+                                  : '${widget.post.replyCount}',
                               style: theme.textTheme.labelMedium?.copyWith(
                                 color: showReplies
                                     ? theme.colorScheme.primary

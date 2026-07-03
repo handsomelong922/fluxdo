@@ -311,11 +311,7 @@ class PostHeader extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (isLoading)
-            const SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
+            Icon(Icons.more_horiz, size: 14, color: theme.colorScheme.primary)
           else
             Icon(Icons.reply, size: 14, color: theme.colorScheme.primary),
           const SizedBox(width: 6),

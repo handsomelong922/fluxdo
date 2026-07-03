@@ -9,6 +9,7 @@ import '../../providers/topic_session_provider.dart';
 import '../../pages/user_profile_page.dart';
 import '../../services/settings/content_filter_service.dart';
 import '../../utils/blocked_user_filter.dart';
+import '../../utils/responsive.dart';
 import '../../utils/topic_link_navigation.dart';
 import '../../utils/time_utils.dart';
 import '../content/discourse_html_content/chunked/chunked_html_content.dart';
@@ -838,10 +839,13 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     Widget btn = Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: _isLoadingMore
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
+          ? Text(
+              Responsive.isMobile(context)
+                  ? context.l10n.topicDetail_loading
+                  : context.l10n.nested_loadMoreReplies,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
             )
           : GestureDetector(
               onTap: _loadChildren,
