@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../services/app_error_handler.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Priority, SchedulerBinding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:share_plus/share_plus.dart';
@@ -460,18 +461,20 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         debugPrint(
           '[TopicDetail] onTimingsSent callback triggered: topicId=$topicId, highestSeen=$highestSeen',
         );
-        // 遍历所有分类 tab，更新所有活跃的 provider 实例
-        final pinnedIds = ref.read(pinnedCategoriesProvider);
-        final categoryIds = [null, ...pinnedIds];
-        for (final categoryId in categoryIds) {
-          ref
-              .read(topicListProvider(categoryId).notifier)
-              .updateSeen(topicId, highestSeen);
-        }
         // 更新会话已读状态，触发 PostItem 消除未读圆点
         ref
             .read(topicSessionProvider(topicId).notifier)
             .markAsRead(postNumbers);
+        SchedulerBinding.instance.scheduleTask(() {
+          if (!mounted) return;
+          final pinnedIds = ref.read(pinnedCategoriesProvider);
+          final categoryIds = [null, ...pinnedIds];
+          for (final categoryId in categoryIds) {
+            ref
+                .read(topicListProvider(categoryId).notifier)
+                .updateSeen(topicId, highestSeen);
+          }
+        }, Priority.idle);
       },
     );
 
@@ -1208,6 +1211,19 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         ? ref.watch(nestedTopicProvider(nestedParams))
         : null;
 
+    ref.listen<TopicSessionState>(topicSessionProvider(widget.topicId), (
+      _,
+      next,
+    ) {
+      final raw = ref.read(topicDetailProvider(params)).value;
+      if (raw == null) return;
+      final currentDetail = mergeTopicDetailWithInitialPreview(
+        detail: raw,
+        previewDetail: _initialPreviewDetail,
+      );
+      _syncReadPostNumbersForDetail(currentDetail, next.readPostNumbers);
+    });
+
     _maybeSwitchToMasterDetail(canShowDetailPane, detail);
 
     // 监听 MessageBus 事件
@@ -1822,18 +1838,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   }) {
     final posts = detail.postStream.posts;
     final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
-    final sessionState = ref.watch(topicSessionProvider(widget.topicId));
-
-    if (posts.isNotEmpty) {
-      final readPostNumbers = <int>{};
-      for (final post in posts) {
-        if (post.read) {
-          readPostNumbers.add(post.postNumber);
-        }
-      }
-      readPostNumbers.addAll(sessionState.readPostNumbers);
-      _updateReadPostNumbers(readPostNumbers);
-    }
+    final sessionState = ref.read(topicSessionProvider(widget.topicId));
+    _syncReadPostNumbersForDetail(detail, sessionState.readPostNumbers);
 
     // 计算分割线位置（热门回复模式下不显示）
     int? dividerPostIndex;
@@ -1989,70 +1995,61 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       return _wrapWithConstraint(nestedView);
     }
 
-    // 使用 Consumer + select 隔离 typingUsers 状态变化，避免整页重建
-    Widget scrollView = Consumer(
-      builder: (context, ref, _) {
-        final typingUsers = ref.watch(
-          topicChannelProvider(widget.topicId).select((s) => s.typingUsers),
-        );
-        return ValueListenableBuilder<int?>(
-          valueListenable: _controller.highlightNotifier,
-          builder: (context, highlightPostNumber, _) {
-            return TopicPostList(
-              detail: detail,
-              blockedUsernames: blockedUsernames,
-              scrollController: _controller.scrollController,
-              centerKey: _centerKey,
-              headerKey: _headerKey,
-              topContentInset: topContentInset,
-              topBoundaryHeight: _topicDetailToolbarHeight,
-              highlightPostNumber: highlightPostNumber,
-              highlightBoostUsername: widget.highlightBoostUsername,
-              typingUsers: typingUsers,
-              searchHighlightQuery: searchHighlightQuery,
-              isLoggedIn: isLoggedIn,
-              hasMoreBefore: notifier.hasMoreBefore,
-              hasMoreAfter: notifier.hasMoreAfter || forceLoadMoreIndicator,
-              isLoadingPrevious: notifier.isLoadingPrevious,
-              isLoadingMore: notifier.isLoadingMore || forceLoadMoreIndicator,
-              isLoadMoreFailed: notifier.isLoadMoreFailed,
-              isLoadPreviousFailed: notifier.isLoadPreviousFailed,
-              onRetryLoadMore: () => notifier.retryLoadMore(),
-              onRetryLoadPrevious: () => notifier.retryLoadPrevious(),
-              centerPostIndex: centerPostIndex,
-              dividerPostIndex: dividerPostIndex,
-              onFirstVisiblePostChanged: _updateStreamIndexForPostNumber,
-              onVisiblePostsChanged: _updateVisiblePosts,
-              onScrollIndexMappingChanged: _controller.updateScrollIndexMapping,
-              onJumpToPost: _scrollToPost,
-              onReply: _handleReply,
-              onReplyWithInitialContent: (replyToPost, initialContent) =>
-                  _handleReply(replyToPost, initialContent: initialContent),
-              onEdit: _handleEdit,
-              onShareAsImage: _sharePostAsImage,
-              onRefreshPost: _handleRefreshPost,
-              onVoteChanged: _handleVoteChanged,
-              onSharedIssueChanged: _handleSharedIssueChanged,
-              onNotificationLevelChanged: (level) =>
-                  _handleNotificationLevelChanged(notifier, level),
-              onSolutionChanged: _handleSolutionChanged,
-              onContinueAiSummary: _continueAiSummary,
-              onQuoteSelection: isLoggedIn ? _handleQuoteSelection : null,
-              onQuoteImage: isLoggedIn ? _handleImageQuote : null,
-              onScrollNotification: _controller.handleScrollNotification,
-              onPointerScroll: _controller.handlePointerScroll,
-              onFillGapBefore: (postId) => notifier.fillGapBefore(postId),
-              onFillGapAfter: (postId) => notifier.fillGapAfter(postId),
-              onExpandHiddenPost: (postId) => notifier.expandHiddenPost(postId),
-              useReplyDialog: notifier.isTopLevelMode,
-              onShowPostDetail: (post) => showPostRepliesSheet(
-                context: context,
-                post: post,
-                topicId: widget.topicId,
-                onJumpToPost: _scrollToPost,
-              ),
-            );
-          },
+    Widget scrollView = ValueListenableBuilder<int?>(
+      valueListenable: _controller.highlightNotifier,
+      builder: (context, highlightPostNumber, _) {
+        return TopicPostList(
+          detail: detail,
+          blockedUsernames: blockedUsernames,
+          scrollController: _controller.scrollController,
+          centerKey: _centerKey,
+          headerKey: _headerKey,
+          topContentInset: topContentInset,
+          topBoundaryHeight: _topicDetailToolbarHeight,
+          highlightPostNumber: highlightPostNumber,
+          highlightBoostUsername: widget.highlightBoostUsername,
+          searchHighlightQuery: searchHighlightQuery,
+          isLoggedIn: isLoggedIn,
+          hasMoreBefore: notifier.hasMoreBefore,
+          hasMoreAfter: notifier.hasMoreAfter || forceLoadMoreIndicator,
+          isLoadingPrevious: notifier.isLoadingPrevious,
+          isLoadingMore: notifier.isLoadingMore || forceLoadMoreIndicator,
+          isLoadMoreFailed: notifier.isLoadMoreFailed,
+          isLoadPreviousFailed: notifier.isLoadPreviousFailed,
+          onRetryLoadMore: () => notifier.retryLoadMore(),
+          onRetryLoadPrevious: () => notifier.retryLoadPrevious(),
+          centerPostIndex: centerPostIndex,
+          dividerPostIndex: dividerPostIndex,
+          onFirstVisiblePostChanged: _updateStreamIndexForPostNumber,
+          onVisiblePostsChanged: _updateVisiblePosts,
+          onScrollIndexMappingChanged: _controller.updateScrollIndexMapping,
+          onJumpToPost: _scrollToPost,
+          onReply: _handleReply,
+          onReplyWithInitialContent: (replyToPost, initialContent) =>
+              _handleReply(replyToPost, initialContent: initialContent),
+          onEdit: _handleEdit,
+          onShareAsImage: _sharePostAsImage,
+          onRefreshPost: _handleRefreshPost,
+          onVoteChanged: _handleVoteChanged,
+          onSharedIssueChanged: _handleSharedIssueChanged,
+          onNotificationLevelChanged: (level) =>
+              _handleNotificationLevelChanged(notifier, level),
+          onSolutionChanged: _handleSolutionChanged,
+          onContinueAiSummary: _continueAiSummary,
+          onQuoteSelection: isLoggedIn ? _handleQuoteSelection : null,
+          onQuoteImage: isLoggedIn ? _handleImageQuote : null,
+          onScrollNotification: _controller.handleScrollNotification,
+          onPointerScroll: _controller.handlePointerScroll,
+          onFillGapBefore: (postId) => notifier.fillGapBefore(postId),
+          onFillGapAfter: (postId) => notifier.fillGapAfter(postId),
+          onExpandHiddenPost: (postId) => notifier.expandHiddenPost(postId),
+          useReplyDialog: notifier.isTopLevelMode,
+          onShowPostDetail: (post) => showPostRepliesSheet(
+            context: context,
+            post: post,
+            topicId: widget.topicId,
+            onJumpToPost: _scrollToPost,
+          ),
         );
       },
     );
@@ -2100,6 +2097,22 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       },
       child: scrollView,
     );
+  }
+
+  void _syncReadPostNumbersForDetail(
+    TopicDetail detail,
+    Set<int> sessionReadPostNumbers,
+  ) {
+    final posts = detail.postStream.posts;
+    if (posts.isEmpty) return;
+    final readPostNumbers = <int>{};
+    for (final post in posts) {
+      if (post.read) {
+        readPostNumbers.add(post.postNumber);
+      }
+    }
+    readPostNumbers.addAll(sessionReadPostNumbers);
+    _updateReadPostNumbers(readPostNumbers);
   }
 
   void _scheduleUnreachableJumpFallback(int postNumber) {
