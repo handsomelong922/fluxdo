@@ -15,11 +15,13 @@ class CombinedDecoratorOverlay extends StatefulWidget {
   final Widget child;
   final Set<String> revealedSpoilers;
   final void Function(String id)? onReveal;
+  final Object contentSignature;
 
   const CombinedDecoratorOverlay({
     super.key,
     required this.child,
     required this.revealedSpoilers,
+    required this.contentSignature,
     this.onReveal,
   });
 
@@ -120,7 +122,7 @@ class _CombinedDecoratorOverlayState extends State<CombinedDecoratorOverlay>
   @override
   void didUpdateWidget(CombinedDecoratorOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.child != widget.child) {
+    if (oldWidget.contentSignature != widget.contentSignature) {
       _needsRescan = true;
       _scanDelayCounter = 0;
       _scheduleScan();

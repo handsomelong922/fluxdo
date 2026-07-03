@@ -612,6 +612,10 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     if (needsOverlay) {
       // 用 CombinedDecoratorOverlay 包裹（合并处理内联代码背景和 spoiler 粒子效果）
       result = CombinedDecoratorOverlay(
+        contentSignature: Object.hash(
+          processedHtml.hashCode,
+          processedHtml.length,
+        ),
         revealedSpoilers: _revealedSpoilers,
         onReveal: (id) {
           // 仅更新 Set，不触发父组件 rebuild
