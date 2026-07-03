@@ -232,7 +232,8 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
                     ),
                   );
                 }
-                if (historyAsync.isLoading && !historyAsync.hasError) {
+                final isLoadingMore = ref.watch(browsingHistoryLoadMoreProvider);
+                if (isLoadingMore) {
                   return const Padding(
                     padding: EdgeInsets.all(16.0),
                     child: TopicLinearLoadingIndicator(),

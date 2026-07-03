@@ -412,7 +412,8 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
                     ),
                   );
                 }
-                if (bookmarksAsync.isLoading && !bookmarksAsync.hasError) {
+                final isLoadingMore = ref.watch(bookmarksLoadMoreProvider);
+                if (isLoadingMore) {
                   return const Padding(
                     padding: EdgeInsets.all(16.0),
                     child: TopicLinearLoadingIndicator(),

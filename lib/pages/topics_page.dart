@@ -1559,6 +1559,9 @@ class _TopicListState extends ConsumerState<_TopicList>
                     final notifier = ref.watch(
                       topicListProvider(providerKey).notifier,
                     );
+                    final isLoadingMore = ref.watch(
+                      topicListLoadMoreProvider(providerKey),
+                    );
                     return Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Center(
@@ -1588,13 +1591,15 @@ class _TopicListState extends ConsumerState<_TopicList>
                                   ],
                                 ),
                               )
-                            : notifier.hasMore
+                            : (notifier.hasMore && isLoadingMore)
                             ? const SizedBox(
                                 width: 140,
                                 child: TopicLinearLoadingIndicator(
                                   padding: EdgeInsets.zero,
                                 ),
                               )
+                            : notifier.hasMore
+                            ? const SizedBox.shrink()
                             : Text(
                                 context.l10n.common_noMore,
                                 style: const TextStyle(color: Colors.grey),
