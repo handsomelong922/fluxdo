@@ -249,6 +249,63 @@ TopicDetail mergeTopicDetailWithInitialPreview({
   );
 }
 
+@visibleForTesting
+List<String> collectChangedPostHtmlForPreload({
+  required List<Post>? previousPosts,
+  required List<Post> nextPosts,
+}) {
+  if (nextPosts.isEmpty) return const <String>[];
+  if (previousPosts == null || previousPosts.isEmpty) {
+    return nextPosts.map((post) => post.cooked).toList(growable: false);
+  }
+
+  if (previousPosts.length < nextPosts.length &&
+      _isPostSequencePrefix(previousPosts, nextPosts)) {
+    return nextPosts
+        .skip(previousPosts.length)
+        .map((post) => post.cooked)
+        .toList(growable: false);
+  }
+
+  if (previousPosts.length < nextPosts.length &&
+      _isPostSequenceSuffix(previousPosts, nextPosts)) {
+    return nextPosts
+        .take(nextPosts.length - previousPosts.length)
+        .map((post) => post.cooked)
+        .toList(growable: false);
+  }
+
+  final previousHashes = <int, int>{
+    for (final post in previousPosts)
+      post.id: Object.hash(post.cooked.length, post.cooked.hashCode),
+  };
+  final changedHtml = <String>[];
+  for (final post in nextPosts) {
+    final htmlHash = Object.hash(post.cooked.length, post.cooked.hashCode);
+    if (previousHashes[post.id] != htmlHash) {
+      changedHtml.add(post.cooked);
+    }
+  }
+  return changedHtml;
+}
+
+bool _isPostSequencePrefix(List<Post> prefix, List<Post> full) {
+  if (prefix.length > full.length) return false;
+  for (var i = 0; i < prefix.length; i++) {
+    if (prefix[i].id != full[i].id) return false;
+  }
+  return true;
+}
+
+bool _isPostSequenceSuffix(List<Post> suffix, List<Post> full) {
+  if (suffix.length > full.length) return false;
+  final offset = full.length - suffix.length;
+  for (var i = 0; i < suffix.length; i++) {
+    if (suffix[i].id != full[offset + i].id) return false;
+  }
+  return true;
+}
+
 /// 话题详情页面
 class TopicDetailPage extends ConsumerStatefulWidget {
   final int topicId;
@@ -334,7 +391,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   int _topicSearchResultIndex = 0;
   late final AnimationController _expandController;
   late final Animation<Offset> _animation;
-  Set<int> _lastReadPostNumbers = {};
+  Set<int> _lastInitialReadPostNumbers = const <int>{};
+  Set<int> _lastSessionReadPostNumbers = const <int>{};
   bool? _lastCanShowDetailPane;
   bool _isAutoSwitching = false;
   bool _autoOpenReplyHandled = false; // 是否已处理自动打开回复框
@@ -360,9 +418,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   int? _postLookupCacheSignature;
   Map<int, int> _postNumberToLoadedPostIndex = const {};
   Map<int, int> _postNumberToStreamIndex = const {};
-  Map<int, int> _preloadedHtmlHashByPostId = const {};
-  int? _readPostNumbersSourceKey;
-  Set<int> _cachedReadPostNumbers = const <int>{};
+  int? _initialReadPostNumbersSourceKey;
+  Set<int> _cachedInitialReadPostNumbers = const <int>{};
   ProviderSubscription<TopicChannelState>? _topicChannelSubscription;
   bool _topicChannelNeedsCatchUp = false;
 
@@ -1267,13 +1324,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       _,
       next,
     ) {
-      final raw = ref.read(topicDetailProvider(params)).value;
-      if (raw == null) return;
-      final currentDetail = mergeTopicDetailWithInitialPreview(
-        detail: raw,
-        previewDetail: _initialPreviewDetail,
-      );
-      _syncReadPostNumbersForDetail(currentDetail, next.readPostNumbers);
+      _updateSessionReadPostNumbers(next.readPostNumbers);
     });
 
     _maybeSwitchToMasterDetail(canShowDetailPane, detail);
@@ -1283,16 +1334,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       if (!context.mounted) return;
       final posts = next.value?.postStream.posts;
       if (posts != null && posts.isNotEmpty) {
-        final changedHtmlList = <String>[];
-        final nextHashes = <int, int>{};
-        for (final post in posts) {
-          final htmlHash = Object.hash(post.cooked.length, post.cooked.hashCode);
-          nextHashes[post.id] = htmlHash;
-          if (_preloadedHtmlHashByPostId[post.id] != htmlHash) {
-            changedHtmlList.add(post.cooked);
-          }
-        }
-        _preloadedHtmlHashByPostId = Map.unmodifiable(nextHashes);
+        final changedHtmlList = collectChangedPostHtmlForPreload(
+          previousPosts: previous?.value?.postStream.posts,
+          nextPosts: posts,
+        );
 
         if (changedHtmlList.isNotEmpty) {
           ChunkedHtmlContent.preloadAll(changedHtmlList);
@@ -1852,7 +1897,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     final posts = detail.postStream.posts;
     final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
     final sessionState = ref.read(topicSessionProvider(widget.topicId));
-    _syncReadPostNumbersForDetail(detail, sessionState.readPostNumbers);
+    _syncReadPostNumbersForDetail(detail);
+    _updateSessionReadPostNumbers(sessionState.readPostNumbers);
 
     // 计算分割线位置（热门回复模式下不显示）
     int? dividerPostIndex;
@@ -2114,19 +2160,12 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
   void _syncReadPostNumbersForDetail(
     TopicDetail detail,
-    Set<int> sessionReadPostNumbers,
   ) {
-    final sourceKey = Object.hash(
-      detail.id,
-      detail.postStream.posts,
-      sessionReadPostNumbers,
-      sessionReadPostNumbers.length,
-    );
-    if (_readPostNumbersSourceKey == sourceKey) {
-      _updateReadPostNumbers(_cachedReadPostNumbers);
+    final sourceKey = Object.hash(detail.id, detail.postStream.posts);
+    if (_initialReadPostNumbersSourceKey == sourceKey) {
+      _updateInitialReadPostNumbers(_cachedInitialReadPostNumbers);
       return;
     }
-
     final posts = detail.postStream.posts;
     if (posts.isEmpty) return;
     final readPostNumbers = <int>{};
@@ -2135,10 +2174,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         readPostNumbers.add(post.postNumber);
       }
     }
-    readPostNumbers.addAll(sessionReadPostNumbers);
-    _cachedReadPostNumbers = Set.unmodifiable(readPostNumbers);
-    _readPostNumbersSourceKey = sourceKey;
-    _updateReadPostNumbers(readPostNumbers);
+    _cachedInitialReadPostNumbers = Set.unmodifiable(readPostNumbers);
+    _initialReadPostNumbersSourceKey = sourceKey;
+    _updateInitialReadPostNumbers(readPostNumbers);
   }
 
   void _scheduleUnreachableJumpFallback(int postNumber) {

@@ -52,6 +52,24 @@ class TopicScrollState {
   }
 }
 
+@visibleForTesting
+Set<int> resolveReadOnscreenPostNumbers({
+  required Set<int> visiblePostNumbers,
+  required Set<int> initialReadPostNumbers,
+  required Set<int> sessionReadPostNumbers,
+}) {
+  if (visiblePostNumbers.isEmpty) return const <int>{};
+
+  final readOnscreen = <int>{};
+  for (final postNumber in visiblePostNumbers) {
+    if (initialReadPostNumbers.contains(postNumber) ||
+        sessionReadPostNumbers.contains(postNumber)) {
+      readOnscreen.add(postNumber);
+    }
+  }
+  return readOnscreen;
+}
+
 /// 话题详情页控制器
 /// 统一管理滚动状态、帖子高亮、可见性追踪
 class TopicDetailController extends ChangeNotifier {
@@ -85,7 +103,8 @@ class TopicDetailController extends ChangeNotifier {
   final ScreenTrack screenTrack;
 
   final Set<int> _visiblePostNumbers = {};
-  final Set<int> _readPostNumbers = {};
+  final Set<int> _initialReadPostNumbers = {};
+  final Set<int> _sessionReadPostNumbers = {};
   int _currentVisibleStreamIndex = 1;
   Map<int, int> _postIndexToScrollIndex = const {};
 
@@ -421,9 +440,17 @@ class TopicDetailController extends ChangeNotifier {
     _throttledUpdateScreenTrack();
   }
 
-  void setReadPostNumbers(Set<int> readPostNumbers) {
-    if (setEquals(_readPostNumbers, readPostNumbers)) return;
-    _readPostNumbers
+  void setInitialReadPostNumbers(Set<int> readPostNumbers) {
+    if (setEquals(_initialReadPostNumbers, readPostNumbers)) return;
+    _initialReadPostNumbers
+      ..clear()
+      ..addAll(readPostNumbers);
+    _throttledUpdateScreenTrack();
+  }
+
+  void setSessionReadPostNumbers(Set<int> readPostNumbers) {
+    if (setEquals(_sessionReadPostNumbers, readPostNumbers)) return;
+    _sessionReadPostNumbers
       ..clear()
       ..addAll(readPostNumbers);
     _throttledUpdateScreenTrack();
@@ -433,7 +460,11 @@ class TopicDetailController extends ChangeNotifier {
     if (_screenTrackThrottleTimer?.isActive ?? false) return;
     _screenTrackThrottleTimer = Timer(const Duration(milliseconds: 80), () {
       if (_trackEnabled) {
-        final readOnscreen = _visiblePostNumbers.intersection(_readPostNumbers);
+        final readOnscreen = resolveReadOnscreenPostNumbers(
+          visiblePostNumbers: _visiblePostNumbers,
+          initialReadPostNumbers: _initialReadPostNumbers,
+          sessionReadPostNumbers: _sessionReadPostNumbers,
+        );
         screenTrack.setOnscreen(
           _visiblePostNumbers,
           readOnscreen: readOnscreen,

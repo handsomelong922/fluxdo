@@ -112,10 +112,16 @@ extension _ScrollActions on _TopicDetailPageState {
     }
   }
 
-  void _updateReadPostNumbers(Set<int> readPostNumbers) {
-    if (setEquals(_lastReadPostNumbers, readPostNumbers)) return;
-    _lastReadPostNumbers = readPostNumbers;
-    _controller.setReadPostNumbers(readPostNumbers);
+  void _updateInitialReadPostNumbers(Set<int> readPostNumbers) {
+    if (setEquals(_lastInitialReadPostNumbers, readPostNumbers)) return;
+    _lastInitialReadPostNumbers = readPostNumbers;
+    _controller.setInitialReadPostNumbers(readPostNumbers);
+  }
+
+  void _updateSessionReadPostNumbers(Set<int> readPostNumbers) {
+    if (setEquals(_lastSessionReadPostNumbers, readPostNumbers)) return;
+    _lastSessionReadPostNumbers = readPostNumbers;
+    _controller.setSessionReadPostNumbers(readPostNumbers);
   }
 
   void _updateVisiblePosts(Set<int> visiblePostNumbers) {
