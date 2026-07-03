@@ -128,6 +128,21 @@ class DiscourseHtmlContent extends ConsumerStatefulWidget {
     _DiscourseHtmlContentState.clearRuntimeCaches();
   }
 
+  @visibleForTesting
+  static bool containsInlineCodeMarkup(String html) {
+    var searchFrom = 0;
+    while (true) {
+      final codeIndex = html.indexOf('<code', searchFrom);
+      if (codeIndex == -1) return false;
+      final lastPreOpen = html.lastIndexOf('<pre', codeIndex);
+      final lastPreClose = html.lastIndexOf('</pre', codeIndex);
+      if (lastPreOpen == -1 || lastPreClose > lastPreOpen) {
+        return true;
+      }
+      searchFrom = codeIndex + 5;
+    }
+  }
+
   @override
   ConsumerState<DiscourseHtmlContent> createState() =>
       _DiscourseHtmlContentState();
@@ -616,7 +631,7 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     // 检测是否需要内联装饰（code 背景 / spoiler 粒子）
     // 快速字符串检测，避免对无 code/spoiler 的帖子创建 Ticker + 扫描 RenderTree
     final needsOverlay =
-        processedHtml.contains('<code>') ||
+        DiscourseHtmlContent.containsInlineCodeMarkup(processedHtml) ||
         processedHtml.contains('"spoiler"') ||
         processedHtml.contains('"spoiled"');
 
