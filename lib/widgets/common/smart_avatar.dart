@@ -113,8 +113,8 @@ class _SmartAvatarState extends State<SmartAvatar> {
         width: innerSize,
         height: innerSize,
         fit: BoxFit.cover,
-        fadeInDuration: const Duration(milliseconds: 150),
-        fadeOutDuration: const Duration(milliseconds: 150),
+        fadeInDuration: Duration.zero,
+        fadeOutDuration: Duration.zero,
         placeholder: (context, url) => _buildLoading(fgColor, innerRadius),
         errorWidget: (context, url, error) => _SvgFallbackBuilder(
           imageUrl: imageUrl,
