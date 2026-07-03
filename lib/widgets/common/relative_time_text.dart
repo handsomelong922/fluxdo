@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../utils/time_utils.dart';
@@ -83,12 +84,17 @@ class RelativeTimeText extends StatefulWidget {
 
 class _RelativeTimeTextState extends State<RelativeTimeText> {
   bool _tickerModeEnabled = true;
+  late final bool _enableLiveRefresh =
+      defaultTargetPlatform != TargetPlatform.android &&
+      defaultTargetPlatform != TargetPlatform.iOS;
 
   @override
   void initState() {
     super.initState();
-    _RelativeTimeRefreshTicker.instance.attach();
-    _RelativeTimeRefreshTicker.instance.tick.addListener(_handleGlobalTick);
+    if (_enableLiveRefresh) {
+      _RelativeTimeRefreshTicker.instance.attach();
+      _RelativeTimeRefreshTicker.instance.tick.addListener(_handleGlobalTick);
+    }
   }
 
   @override
@@ -113,8 +119,12 @@ class _RelativeTimeTextState extends State<RelativeTimeText> {
 
   @override
   void dispose() {
-    _RelativeTimeRefreshTicker.instance.tick.removeListener(_handleGlobalTick);
-    _RelativeTimeRefreshTicker.instance.detach();
+    if (_enableLiveRefresh) {
+      _RelativeTimeRefreshTicker.instance.tick.removeListener(
+        _handleGlobalTick,
+      );
+      _RelativeTimeRefreshTicker.instance.detach();
+    }
     super.dispose();
   }
 
@@ -139,6 +149,10 @@ class _RelativeTimeTextState extends State<RelativeTimeText> {
     final tooltipText = TimeUtils.formatTooltipTime(widget.dateTime);
 
     if (tooltipText.isEmpty) {
+      return Text(displayText, style: widget.style);
+    }
+
+    if (!_enableLiveRefresh) {
       return Text(displayText, style: widget.style);
     }
 
