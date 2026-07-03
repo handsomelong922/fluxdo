@@ -420,6 +420,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   int? _postLookupCacheSignature;
   Map<int, int> _postNumberToLoadedPostIndex = const {};
   Map<int, int> _postNumberToStreamIndex = const {};
+  List<Post>? _initialReadSourcePosts;
   int? _initialReadPostNumbersSourceKey;
   Set<int> _cachedInitialReadPostNumbers = const <int>{};
   ProviderSubscription<TopicChannelState>? _topicChannelSubscription;
@@ -2186,16 +2187,24 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   void _syncReadPostNumbersForDetail(
     TopicDetail detail,
   ) {
-    final sourceKey = Object.hashAll(<Object?>[
-      detail.id,
-      for (final post in detail.postStream.posts)
-        Object.hash(post.id, post.postNumber, post.read),
-    ]);
-    if (_initialReadPostNumbersSourceKey == sourceKey) {
+    final posts = detail.postStream.posts;
+    if (identical(_initialReadSourcePosts, posts) &&
+        _initialReadPostNumbersSourceKey != null) {
       _updateInitialReadPostNumbers(_cachedInitialReadPostNumbers);
       return;
     }
-    final posts = detail.postStream.posts;
+    final sourceKey = Object.hashAll(<Object?>[
+      detail.id,
+      posts.length,
+      posts.isEmpty ? null : posts.first.id,
+      posts.isEmpty ? null : posts.last.id,
+      for (final post in posts) Object.hash(post.id, post.postNumber, post.read),
+    ]);
+    if (_initialReadPostNumbersSourceKey == sourceKey) {
+      _initialReadSourcePosts = posts;
+      _updateInitialReadPostNumbers(_cachedInitialReadPostNumbers);
+      return;
+    }
     if (posts.isEmpty) return;
     final readPostNumbers = <int>{};
     for (final post in posts) {
@@ -2204,6 +2213,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       }
     }
     _cachedInitialReadPostNumbers = Set.unmodifiable(readPostNumbers);
+    _initialReadSourcePosts = posts;
     _initialReadPostNumbersSourceKey = sourceKey;
     _updateInitialReadPostNumbers(readPostNumbers);
   }
