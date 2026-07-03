@@ -179,8 +179,8 @@ class _DiscourseImageState extends State<DiscourseImage> {
       width: widget.width,
       height: widget.height,
       fit: widget.fit,
-      fadeInDuration: const Duration(milliseconds: 200),
-      fadeOutDuration: const Duration(milliseconds: 200),
+      fadeInDuration: Duration.zero,
+      fadeOutDuration: Duration.zero,
       placeholder: (context, url) => _buildPlaceholder(theme),
       errorWidget: (context, url, error) => _buildErrorWidget(theme),
       memCacheWidth: memCacheWidth,
@@ -233,16 +233,6 @@ class _DiscourseImageState extends State<DiscourseImage> {
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(4),
-      ),
-      child: Center(
-        child: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: theme.colorScheme.outline.withValues(alpha: 0.5),
-          ),
-        ),
       ),
     );
   }
