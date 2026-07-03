@@ -301,7 +301,7 @@ class TopicCard extends ConsumerWidget {
     if (topic.posters.isNotEmpty) {
       final op = topic.posters.first;
       if (op.user != null) {
-        final avatarUrl = op.user!.getAvatarUrl(size: 68);
+        final avatarUrl = op.user!.getAvatarUrl(size: 48);
         return SmartAvatar(
           imageUrl: avatarUrl,
           radius: 17,
