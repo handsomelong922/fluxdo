@@ -634,10 +634,8 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
       _cancelSnap(cancelPointerScrollSession: true);
       if (_outerScrollController.hasClients &&
           _outerScrollController.positions.length == 1) {
-        _outerScrollController.animateTo(
+        _outerScrollController.position.snapToPixels(
           _outerScrollController.offset,
-          duration: const Duration(milliseconds: 80),
-          curve: Curves.easeOut,
         );
       }
     });
@@ -1450,13 +1448,12 @@ class _TopicListState extends ConsumerState<_TopicList>
       // 以下 listener 仅当前 tab 需要
       ref.listen(fabRefreshSignalProvider, (_, _) {
         _pendingFabRefreshTimer?.cancel();
-        _pendingFabRefreshTimer = Timer(
-          const Duration(milliseconds: 90),
-          () {
+        _pendingFabRefreshTimer = Timer(Duration.zero, () {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             unawaited(_refreshCurrentTopicList());
-          },
-        );
+          });
+        });
       });
       ref.listen(tabTagsProvider(widget.categoryId), (prev, next) {
         if (prev != next) {
