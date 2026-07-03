@@ -178,7 +178,6 @@ class TopicDetailController extends ChangeNotifier {
         isPositionedNotifier.value = newState.isPositioned;
       }
       _scrollState = newState;
-      notifyListeners();
     }
   }
 
