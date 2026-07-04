@@ -300,6 +300,38 @@ class _TopicPostListState extends State<TopicPostList> {
     _visiblePostsSourceBlockedUsernames = widget.blockedUsernames;
   }
 
+  ({double top, double bottom})? _resolveTagBounds(
+    int scrollIndex,
+    List<int> staleTagKeys,
+  ) {
+    final tag = scrollController.tagMap[scrollIndex];
+    if (tag == null) {
+      staleTagKeys.add(scrollIndex);
+      return null;
+    }
+
+    final ctx = tag.context;
+    if (!ctx.mounted) {
+      staleTagKeys.add(scrollIndex);
+      return null;
+    }
+
+    final RenderBox? renderBox;
+    try {
+      renderBox = ctx.findRenderObject() as RenderBox?;
+    } catch (_) {
+      staleTagKeys.add(scrollIndex);
+      return null;
+    }
+    if (renderBox == null || !renderBox.hasSize || !renderBox.attached) {
+      staleTagKeys.add(scrollIndex);
+      return null;
+    }
+
+    final topY = renderBox.localToGlobal(Offset.zero).dy;
+    return (top: topY, bottom: topY + renderBox.size.height);
+  }
+
   /// 检测当前可见帖子（Eyeline 机制）
   ///
   /// 参考 Discourse 官方实现（post-stream-viewport-tracker.js）的 eyeline 算法：
@@ -349,38 +381,56 @@ class _TopicPostListState extends State<TopicPostList> {
     int? closestPostIndex;
     final staleTagKeys = <int>[];
 
-    for (final entry in tagMap.entries) {
-      final postNumber = _scrollIndexToPostNumber[entry.key];
+    final sortedKeys = tagMap.keys.toList(growable: false)..sort();
+
+    for (int index = 0; index < sortedKeys.length;) {
+      final key = sortedKeys[index];
+      final postNumber = _scrollIndexToPostNumber[key];
       if (postNumber == null) {
-        staleTagKeys.add(entry.key);
+        staleTagKeys.add(key);
+        index += 1;
         continue;
       }
 
-      final ctx = entry.value.context;
-      if (!ctx.mounted) {
-        staleTagKeys.add(entry.key);
+      var groupEnd = index;
+      while (groupEnd + 1 < sortedKeys.length &&
+          _scrollIndexToPostNumber[sortedKeys[groupEnd + 1]] == postNumber) {
+        groupEnd += 1;
+      }
+
+      ({double top, double bottom})? firstBounds;
+      int? firstValidIndex;
+      for (int cursor = index; cursor <= groupEnd; cursor++) {
+        final bounds = _resolveTagBounds(sortedKeys[cursor], staleTagKeys);
+        if (bounds != null) {
+          firstBounds = bounds;
+          firstValidIndex = cursor;
+          break;
+        }
+      }
+
+      if (firstBounds == null) {
+        index = groupEnd + 1;
         continue;
       }
 
-      // ctx.mounted 仅意味着 element 不为 null,但 inactive 状态下
-      // (element 已从树中拆除,等待 unmount) findRenderObject 仍会抛
-      // "Cannot get renderObject of inactive element"。
-      // 唯一可靠的做法是 try-catch + 跳过,避免一条死 tag 中断整个循环
-      // 让进度卡在最后一次成功的 post。
-      final RenderBox? renderBox;
-      try {
-        renderBox = ctx.findRenderObject() as RenderBox?;
-      } catch (_) {
-        staleTagKeys.add(entry.key);
-        continue;
-      }
-      if (renderBox == null || !renderBox.hasSize || !renderBox.attached) {
-        staleTagKeys.add(entry.key);
-        continue;
+      ({double top, double bottom}) lastBounds;
+      if (firstValidIndex == groupEnd) {
+        lastBounds = firstBounds;
+      } else {
+        ({double top, double bottom})? resolvedLastBounds;
+        for (int cursor = groupEnd; cursor >= firstValidIndex!; cursor--) {
+          final bounds = _resolveTagBounds(sortedKeys[cursor], staleTagKeys);
+          if (bounds != null) {
+            resolvedLastBounds = bounds;
+            break;
+          }
+        }
+        lastBounds = resolvedLastBounds ?? firstBounds;
       }
 
-      final topY = renderBox.localToGlobal(Offset.zero).dy;
-      final bottomY = topY + renderBox.size.height;
+      final topY = firstBounds.top;
+      final bottomY = lastBounds.bottom;
 
       // 收集可见帖子（帖子与视口有交集）
       if (topY < viewportHeight && bottomY > topBoundary) {
@@ -400,6 +450,8 @@ class _TopicPostListState extends State<TopicPostList> {
         closestDistance = distance;
         closestPostIndex = _postNumberToIndex[postNumber];
       }
+
+      index = groupEnd + 1;
     }
 
     if (staleTagKeys.isNotEmpty) {
