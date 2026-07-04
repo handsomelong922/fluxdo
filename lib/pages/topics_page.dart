@@ -80,6 +80,25 @@ final fabRefreshSignalProvider =
       return ScrollToTopNotifier();
     });
 
+const double _mobileHomeBarToggleThreshold = 36.0;
+
+@visibleForTesting
+double resolveMobileHomeBarVisibility({
+  required double currentVisibility,
+  required double pixels,
+  required double accumulatedDelta,
+  double threshold = _mobileHomeBarToggleThreshold,
+}) {
+  if (pixels <= 0) return 1.0;
+  if (currentVisibility >= 0.5 && accumulatedDelta >= threshold) {
+    return 0.0;
+  }
+  if (currentVisibility < 0.5 && accumulatedDelta <= -threshold) {
+    return 1.0;
+  }
+  return currentVisibility >= 0.5 ? 1.0 : 0.0;
+}
+
 /// Header 区域常量
 const _searchBarHeight = 56.0;
 const _tabRowHeight = 36.0;
@@ -87,7 +106,10 @@ const _sortBarHeight = 44.0;
 const _collapsibleHeight = _searchBarHeight + _sortBarHeight; // 100
 
 @visibleForTesting
-double quantizeMobileHeaderProgress(double rawProgress, {required double threshold}) {
+double quantizeMobileHeaderProgress(
+  double rawProgress, {
+  required double threshold,
+}) {
   return rawProgress >= threshold ? 1.0 : 0.0;
 }
 
@@ -157,6 +179,8 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   final LinkedHashSet<int?> _mountedCategoryTabIds = LinkedHashSet<int?>.of({
     null,
   });
+  double _mobileHomeBarAccumulatedDelta = 0;
+  double? _lastInnerScrollPixels;
 
   @override
   void initState() {
@@ -630,6 +654,11 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
       prev,
       next,
     ) {
+      if (!next) {
+        _mobileHomeBarAccumulatedDelta = 0;
+        _lastInnerScrollPixels = null;
+        ref.read(barVisibilityProvider.notifier).state = 1.0;
+      }
       if (!next &&
           _outerScrollController.hasClients &&
           _outerScrollController.positions.length == 1 &&
@@ -667,10 +696,16 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
           child: ExtendedNestedScrollView(
             controller: _outerScrollController,
             floatHeaderSlivers: true,
-            physics:
-                ref.watch(preferencesProvider.select((p) => p.hideBarOnScroll))
-                ? null
-                : const _NoOuterScrollPhysics(),
+            physics: (() {
+              final hideBarOnScroll = ref.watch(
+                preferencesProvider.select((p) => p.hideBarOnScroll),
+              );
+              final enableOuterCollapsibleScroll =
+                  hideBarOnScroll && !Responsive.isMobile(context);
+              return enableOuterCollapsibleScroll
+                  ? null
+                  : const _NoOuterScrollPhysics();
+            })(),
             pinnedHeaderSliverHeightBuilder: () => topPadding + _tabRowHeight,
             onlyOneScrollInBody: true,
             headerSliverBuilder: (context, innerBoxIsScrolled) => [
@@ -785,6 +820,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
     // 底栏根据进度做动态图标切换（见 _ActiveDestinationIcon）。
     if (notification.depth > 0 && notification.metrics.axis == Axis.vertical) {
       _publishHomeScrollProgress(notification.metrics.pixels);
+      _handleMobileHomeBarScroll(notification);
     }
 
     // 用 UserScrollNotification 追踪用户主动滚动方向，避免回弹/惯性误触发
@@ -904,6 +940,64 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   /// 避免触发 coordinator 的 beginActivity/goIdle 导致内部列表位置重置。
   void _publishHomeScrollProgress(double pixels) {
     ref.publishNavScrollProgress(NavEntryIds.home, pixels);
+  }
+
+  void _handleMobileHomeBarScroll(ScrollNotification notification) {
+    if (!Responsive.isMobile(context)) return;
+    if (!ref.read(preferencesProvider).hideBarOnScroll) return;
+
+    if (notification is ScrollStartNotification) {
+      _lastInnerScrollPixels = notification.metrics.pixels;
+      _mobileHomeBarAccumulatedDelta = 0;
+      return;
+    }
+
+    if (notification is ScrollUpdateNotification) {
+      final currentPixels = notification.metrics.pixels;
+      final delta =
+          notification.scrollDelta ??
+          (_lastInnerScrollPixels == null
+              ? 0.0
+              : currentPixels - _lastInnerScrollPixels!);
+      _lastInnerScrollPixels = currentPixels;
+
+      if (currentPixels <= 0) {
+        _mobileHomeBarAccumulatedDelta = 0;
+        _setHomeBarVisibility(1.0);
+        return;
+      }
+      if (delta == 0) return;
+
+      if ((_mobileHomeBarAccumulatedDelta > 0 && delta < 0) ||
+          (_mobileHomeBarAccumulatedDelta < 0 && delta > 0)) {
+        _mobileHomeBarAccumulatedDelta = delta;
+      } else {
+        _mobileHomeBarAccumulatedDelta += delta;
+      }
+
+      final currentVisibility = ref.read(barVisibilityProvider);
+      final nextVisibility = resolveMobileHomeBarVisibility(
+        currentVisibility: currentVisibility,
+        pixels: currentPixels,
+        accumulatedDelta: _mobileHomeBarAccumulatedDelta,
+      );
+      if (nextVisibility != currentVisibility) {
+        _setHomeBarVisibility(nextVisibility);
+        _mobileHomeBarAccumulatedDelta = 0;
+      }
+      return;
+    }
+
+    if (notification is ScrollEndNotification) {
+      _mobileHomeBarAccumulatedDelta = 0;
+      _lastInnerScrollPixels = null;
+    }
+  }
+
+  void _setHomeBarVisibility(double visibility) {
+    final normalized = visibility >= 0.5 ? 1.0 : 0.0;
+    if (ref.read(barVisibilityProvider) == normalized) return;
+    ref.read(barVisibilityProvider.notifier).state = normalized;
   }
 
   void _scrollCurrentHomeListToTop() {
@@ -1062,30 +1156,37 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
   ) {
     final isMobile = Responsive.isMobile(context);
     final clampedOffset = shrinkOffset.clamp(0.0, _collapsibleHeight);
+    final container = ProviderScope.containerOf(context, listen: false);
+    final mobileBarVisibility = (isMobile && hideBarOnScroll)
+        ? container.read(barVisibilityProvider).clamp(0.0, 1.0).toDouble()
+        : 1.0;
 
     // 搜索栏先折叠（shrinkOffset 0→56），排序栏后折叠（56→100）
     final rawSearchProgress = (clampedOffset / _searchBarHeight).clamp(
       0.0,
       1.0,
     );
-    final rawSortProgress = ((clampedOffset - _searchBarHeight) / _sortBarHeight)
-        .clamp(0.0, 1.0);
-    final searchProgress = isMobile
+    final rawSortProgress =
+        ((clampedOffset - _searchBarHeight) / _sortBarHeight).clamp(0.0, 1.0);
+    final searchProgress = isMobile && hideBarOnScroll
+        ? (mobileBarVisibility < 0.5 ? 1.0 : 0.0)
+        : isMobile
         ? quantizeMobileHeaderProgress(rawSearchProgress, threshold: 0.6)
         : rawSearchProgress;
-    final sortProgress = isMobile
+    final sortProgress = isMobile && hideBarOnScroll
+        ? (mobileBarVisibility < 0.5 ? 1.0 : 0.0)
+        : isMobile
         ? quantizeMobileHeaderProgress(rawSortProgress, threshold: 0.5)
         : rawSortProgress;
 
     // 更新 barVisibility（仅在值变化时才更新，避免快速滚动时的帧级联重建）
     final visibility = !hideBarOnScroll
         ? 1.0
-        : Responsive.isMobile(context)
-        ? (clampedOffset >= _searchBarHeight * 0.6 ? 0.0 : 1.0)
+        : isMobile
+        ? mobileBarVisibility
         : (1.0 - clampedOffset / _collapsibleHeight).clamp(0.0, 1.0);
-    final container = ProviderScope.containerOf(context, listen: false);
     final current = container.read(barVisibilityProvider);
-    if ((visibility - current).abs() > 0.01) {
+    if (!(isMobile && hideBarOnScroll) && (visibility - current).abs() > 0.01) {
       final v = visibility;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         container.read(barVisibilityProvider.notifier).state = v;
@@ -1106,7 +1207,8 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
               child: Align(
                 alignment: Alignment.bottomCenter,
                 heightFactor: 1.0 - searchProgress,
-                child: (isMobile
+                child:
+                    (isMobile
                         ? null
                         : Opacity(
                             opacity: 1.0 - searchProgress,
@@ -1176,7 +1278,8 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
               child: Align(
                 alignment: Alignment.bottomCenter,
                 heightFactor: 1.0 - sortProgress,
-                child: (isMobile
+                child:
+                    (isMobile
                         ? null
                         : Opacity(
                             opacity: 1.0 - sortProgress,
@@ -1194,12 +1297,7 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
     return SizedBox(
       height: _searchBarHeight,
       child: Padding(
-        padding: const EdgeInsets.only(
-          top: 8,
-          left: 16,
-          right: 8,
-          bottom: 8,
-        ),
+        padding: const EdgeInsets.only(top: 8, left: 16, right: 8, bottom: 8),
         child: Row(
           children: [
             Expanded(
@@ -1208,9 +1306,7 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
                 child: Container(
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest
                         .withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(20),
                   ),
@@ -1227,7 +1323,9 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
                         child: Text(
                           context.l10n.topics_searchHint,
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: 14,
                           ),
                           maxLines: 1,

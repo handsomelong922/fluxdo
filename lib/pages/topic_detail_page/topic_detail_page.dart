@@ -1599,8 +1599,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         );
 
     Widget buildPageView(bool lockAiSwipe, bool lockTextSelection) {
-      final buildAiPage =
-          _aiPageInitialized || _currentPageNotifier.value == _aiPage;
       return PageView(
         controller: _pageController,
         physics: isSearchMode || lockAiSwipe || lockTextSelection
@@ -1622,26 +1620,26 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         },
         children: [
           _KeepAlivePage(child: topicScaffold),
-          buildAiPage
-              ? AiChatPage(
-                  topicId: widget.topicId,
-                  detail: detail,
-                  embedded: true,
-                  onReplyToTopic: detail == null
-                      ? null
-                      : (imageMarkdown) {
-                          _animateToTopicPage();
-                          showReplySheet(
-                            context: context,
-                            topicId: widget.topicId,
-                            categoryId: detail.categoryId,
-                            initialContent: '$imageMarkdown\n',
-                            isPrivateMessageTopic: detail.isPrivateMessage,
-                            isPmWithNonHumanUser: detail.pmWithNonHumanUser,
-                          );
-                        },
-                )
-              : const SizedBox.expand(),
+          _KeepAlivePage(
+            child: AiChatPage(
+              topicId: widget.topicId,
+              detail: detail,
+              embedded: true,
+              onReplyToTopic: detail == null
+                  ? null
+                  : (imageMarkdown) {
+                      _animateToTopicPage();
+                      showReplySheet(
+                        context: context,
+                        topicId: widget.topicId,
+                        categoryId: detail.categoryId,
+                        initialContent: '$imageMarkdown\n',
+                        isPrivateMessageTopic: detail.isPrivateMessage,
+                        isPmWithNonHumanUser: detail.pmWithNonHumanUser,
+                      );
+                    },
+            ),
+          ),
         ],
       );
     }
