@@ -1380,7 +1380,21 @@ class _TopicListState extends ConsumerState<_TopicList> {
   Future<void> _refreshCurrentTopicList() async {
     try {
       await ref.read(topicListProvider(widget.categoryId).notifier).refresh();
+      if (ref.read(topicFilterProvider) == TopicListFilter.latest) {
+        _clearIncomingState();
+      }
     } catch (_) {}
+  }
+
+  void _scrollActiveTopicListToTop() {
+    final controller = PrimaryScrollController.maybeOf(context);
+    if (controller != null && controller.hasClients) {
+      controller.animateTo(
+        0,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   /// J/K 键盘导航：移动焦点（含 150ms 防抖）
@@ -1907,6 +1921,7 @@ class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
   String? _resolvedHtml;
   String? _pendingHtmlWhilePaused;
   Future<void>? _pendingLoad;
+  int? _pendingTopicId;
   ProviderSubscription<bool>? _pauseSubscription;
 
   @override
@@ -1931,10 +1946,19 @@ class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
   void didUpdateWidget(covariant _HomeExcerptLoader oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.topicId != widget.topicId) {
+      _detachPendingTopic();
       _resolvedHtml = null;
+      _pendingHtmlWhilePaused = null;
       _pendingLoad = null;
       _prime();
     }
+  }
+
+  void _detachPendingTopic() {
+    final topicId = _pendingTopicId;
+    if (topicId == null) return;
+    ref.read(homeTopicExcerptLoaderProvider).release(topicId);
+    _pendingTopicId = null;
   }
 
   void _prime() {
@@ -1947,6 +1971,7 @@ class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
     if (_pendingLoad != null) return;
 
     final topicId = widget.topicId;
+    _pendingTopicId = topicId;
     _pendingLoad = loader
         .load(topicId)
         .then((html) {
@@ -1962,7 +1987,10 @@ class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
           });
         })
         .whenComplete(() {
-          if (mounted && widget.topicId == topicId) {
+          if (_pendingTopicId == topicId) {
+            _pendingTopicId = null;
+          }
+          if (widget.topicId == topicId) {
             _pendingLoad = null;
           }
         });
@@ -1970,6 +1998,7 @@ class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
 
   @override
   void dispose() {
+    _detachPendingTopic();
     _pauseSubscription?.close();
     super.dispose();
   }

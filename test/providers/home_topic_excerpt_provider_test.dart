@@ -161,6 +161,39 @@ void main() {
     expect(maxActive, 2);
   });
 
+  test(
+    'HomeTopicExcerptLoader releases queued topics without fetching',
+    () async {
+      final firstStarted = Completer<void>();
+      final releaseFirst = Completer<void>();
+      final fetchedTopicIds = <int>[];
+      final loader = HomeTopicExcerptLoader(
+        maxConcurrentRequests: 1,
+        minRequestInterval: Duration.zero,
+        fetchPreview: (topicId) async {
+          fetchedTopicIds.add(topicId);
+          if (topicId == 1 && !firstStarted.isCompleted) {
+            firstStarted.complete();
+            await releaseFirst.future;
+          }
+          return _previewDetail(topicId);
+        },
+      );
+      addTearDown(loader.dispose);
+
+      final first = loader.load(1);
+      final second = loader.load(2);
+
+      await firstStarted.future.timeout(const Duration(milliseconds: 100));
+      loader.release(2);
+      releaseFirst.complete();
+
+      expect(await first, '<p>topic 1</p>');
+      expect(await second, isNull);
+      expect(fetchedTopicIds, [1]);
+    },
+  );
+
   test('home excerpt batch size reserves a foreground request slot', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -192,26 +225,29 @@ void main() {
     },
   );
 
-  test('HomeTopicExcerptLoader keeps preview cache smaller than excerpt cache', () async {
-    final loader = HomeTopicExcerptLoader(
-      minRequestInterval: Duration.zero,
-      maxCacheEntries: 4,
-      maxPreviewEntries: 2,
-      fetchPreview: (topicId) async => _previewDetail(topicId),
-    );
-    addTearDown(loader.dispose);
+  test(
+    'HomeTopicExcerptLoader keeps preview cache smaller than excerpt cache',
+    () async {
+      final loader = HomeTopicExcerptLoader(
+        minRequestInterval: Duration.zero,
+        maxCacheEntries: 4,
+        maxPreviewEntries: 2,
+        fetchPreview: (topicId) async => _previewDetail(topicId),
+      );
+      addTearDown(loader.dispose);
 
-    await loader.load(1);
-    await loader.load(2);
-    await loader.load(3);
+      await loader.load(1);
+      await loader.load(2);
+      await loader.load(3);
 
-    expect(loader.peekCached(1), isNotNull);
-    expect(loader.peekCached(2), isNotNull);
-    expect(loader.peekCached(3), isNotNull);
-    expect(loader.peekCachedPreview(1), isNull);
-    expect(loader.peekCachedPreview(2)?.id, 2);
-    expect(loader.peekCachedPreview(3)?.id, 3);
-  });
+      expect(loader.peekCached(1), isNotNull);
+      expect(loader.peekCached(2), isNotNull);
+      expect(loader.peekCached(3), isNotNull);
+      expect(loader.peekCachedPreview(1), isNull);
+      expect(loader.peekCachedPreview(2)?.id, 2);
+      expect(loader.peekCachedPreview(3)?.id, 3);
+    },
+  );
 
   test(
     'HomeTopicExcerptLoader warmupTopics dedupes ids and respects maxTopics',
@@ -329,33 +365,38 @@ void main() {
     expect(await loader.load(9), isNull);
   });
 
-  test('homeTopicExcerptProvider auto-disposes after listeners leave', () async {
-    final loader = HomeTopicExcerptLoader(
-      minRequestInterval: Duration.zero,
-      fetchPreview: (topicId) async => _previewDetail(topicId),
-    );
-    final container = ProviderContainer(
-      overrides: [homeTopicExcerptLoaderProvider.overrideWithValue(loader)],
-    );
-    addTearDown(loader.dispose);
-    addTearDown(container.dispose);
+  test(
+    'homeTopicExcerptProvider auto-disposes after listeners leave',
+    () async {
+      final loader = HomeTopicExcerptLoader(
+        minRequestInterval: Duration.zero,
+        fetchPreview: (topicId) async => _previewDetail(topicId),
+      );
+      final container = ProviderContainer(
+        overrides: [homeTopicExcerptLoaderProvider.overrideWithValue(loader)],
+      );
+      addTearDown(loader.dispose);
+      addTearDown(container.dispose);
 
-    final sub = container.listen<AsyncValue<String?>>(
-      homeTopicExcerptProvider(99),
-      (_, _) {},
-      fireImmediately: true,
-    );
+      final sub = container.listen<AsyncValue<String?>>(
+        homeTopicExcerptProvider(99),
+        (_, _) {},
+        fireImmediately: true,
+      );
 
-    await _waitUntil(
-      () => container.read(homeTopicExcerptProvider(99)).value == '<p>topic 99</p>',
-    );
-    expect(container.exists(homeTopicExcerptProvider(99)), isTrue);
+      await _waitUntil(
+        () =>
+            container.read(homeTopicExcerptProvider(99)).value ==
+            '<p>topic 99</p>',
+      );
+      expect(container.exists(homeTopicExcerptProvider(99)), isTrue);
 
-    sub.close();
-    await container.pump();
+      sub.close();
+      await container.pump();
 
-    expect(container.exists(homeTopicExcerptProvider(99)), isFalse);
-  });
+      expect(container.exists(homeTopicExcerptProvider(99)), isFalse);
+    },
+  );
 }
 
 Future<void> _waitUntil(

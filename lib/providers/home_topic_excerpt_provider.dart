@@ -96,6 +96,7 @@ class HomeTopicExcerptLoader {
   final _previewCache = <int, _CachedPreviewDetail>{};
   final _inFlight = <int, Future<String?>>{};
   final _failureUntil = <int, DateTime>{};
+  final _waiterCounts = <int, int>{};
   final _pendingQueue = Queue<_QueuedExcerpt>();
 
   Future<void> _startSlotTail = Future<void>.value();
@@ -154,18 +155,34 @@ class HomeTopicExcerptLoader {
     }
 
     final existing = _inFlight[topicId];
-    if (existing != null) return existing;
+    if (existing != null) {
+      _retainWaiter(topicId);
+      return existing;
+    }
 
     final completer = Completer<String?>();
     final future = completer.future.whenComplete(() {
       _inFlight.remove(topicId);
     });
     _inFlight[topicId] = future;
+    _retainWaiter(topicId);
 
     _pendingQueue.add(_QueuedExcerpt(topicId, completer));
     _pumpQueue();
 
     return future;
+  }
+
+  void release(int topicId) {
+    final count = _waiterCounts[topicId];
+    if (count == null) return;
+    if (count > 1) {
+      _waiterCounts[topicId] = count - 1;
+      return;
+    }
+
+    _waiterCounts.remove(topicId);
+    _cancelQueuedTopic(topicId);
   }
 
   void dispose() {
@@ -175,6 +192,7 @@ class HomeTopicExcerptLoader {
     _previewCache.clear();
     _inFlight.clear();
     _failureUntil.clear();
+    _waiterCounts.clear();
   }
 
   void setPaused(bool paused) {
@@ -191,6 +209,27 @@ class HomeTopicExcerptLoader {
       _completeIfNeeded(queued.completer, null);
     }
     _pendingQueue.clear();
+  }
+
+  void _cancelQueuedTopic(int topicId) {
+    if (_pendingQueue.isEmpty) return;
+
+    final retained = Queue<_QueuedExcerpt>();
+    _QueuedExcerpt? removed;
+    while (_pendingQueue.isNotEmpty) {
+      final queued = _pendingQueue.removeFirst();
+      if (queued.topicId == topicId && removed == null) {
+        removed = queued;
+      } else {
+        retained.addLast(queued);
+      }
+    }
+    _pendingQueue.addAll(retained);
+
+    if (removed != null) {
+      _inFlight.remove(topicId);
+      _completeIfNeeded(removed.completer, null);
+    }
   }
 
   void _pumpQueue() {
@@ -308,6 +347,10 @@ class HomeTopicExcerptLoader {
 
   void _completeIfNeeded(Completer<String?> completer, String? value) {
     if (!completer.isCompleted) completer.complete(value);
+  }
+
+  void _retainWaiter(int topicId) {
+    _waiterCounts[topicId] = (_waiterCounts[topicId] ?? 0) + 1;
   }
 }
 
