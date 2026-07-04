@@ -47,6 +47,7 @@ import '../../widgets/topic/topic_progress.dart';
 import '../../widgets/topic/topic_notification_button.dart';
 import '../../widgets/common/dismissible_popup_menu.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/content/discourse_html_content/chunked/html_chunk_cache.dart';
 import '../../widgets/content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../../widgets/content/discourse_html_content/discourse_html_content_widget.dart';
 import '../../widgets/post/post_item/segmented_long_post.dart';
@@ -710,6 +711,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _topicChannelSubscription?.close();
     _topicChannelSubscription = null;
     _controller.dispose();
+    if (Responsive.isMobile(context)) {
+      HtmlChunkCache.instance.clear();
+      DiscourseHtmlContent.clearRuntimeCaches();
+      LongPostRenderData.clearCache();
+    }
     if (PlatformUtils.isDesktop) {
       toggleAiPanelNotifier.removeListener(_onToggleAiPanel);
       // 延迟注销快捷键，避免在 widget tree finalizing 期间修改 provider

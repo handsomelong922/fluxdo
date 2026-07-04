@@ -32,7 +32,7 @@ class GalleryInfo {
   /// 全局 LRU 缓存，避免对同一 HTML 重复执行 DOM 解析
   static final Map<(int, int), GalleryInfo> _cache = {};
   static final int _maxCacheSize = Platform.isAndroid || Platform.isIOS
-      ? 24
+      ? 16
       : 100;
 
   static void clearCache() {
@@ -244,7 +244,8 @@ class DiscourseImageUtils {
   /// upload:// 短链接解析缓存（全局共享）
   static final LinkedHashMap<String, String?> _uploadUrlCache =
       LinkedHashMap<String, String?>();
-  static const int _maxUploadUrlCacheEntries = 512;
+  static final int _maxUploadUrlCacheEntries =
+      Platform.isAndroid || Platform.isIOS ? 192 : 512;
 
   static void clearRuntimeCache() {
     _uploadUrlCache.clear();

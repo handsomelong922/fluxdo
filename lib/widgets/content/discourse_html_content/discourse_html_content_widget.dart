@@ -14,6 +14,7 @@ import '../../../services/emoji_handler.dart';
 import '../../../providers/download_provider.dart';
 import '../../../utils/discourse_url_parser.dart';
 import '../../../utils/link_launcher.dart';
+import '../../../utils/responsive.dart';
 import '../../../utils/topic_search_highlight.dart';
 import '../../../utils/url_helper.dart';
 import 'discourse_widget_factory.dart';
@@ -177,13 +178,13 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
   /// 当帖子滑出再滑回时新 State 可直接命中，避免重复正则 + Pangu 处理
   static final Map<int, String> _globalPreprocessCache = {};
   static final int _maxGlobalCacheSize = Platform.isAndroid || Platform.isIOS
-      ? 48
+      ? 24
       : 200;
 
   /// Pangu 预处理缓存（支持 isolate 预热，避免首次渲染阻塞主线程）
   static final Map<(int, int), String> _panguCache = {};
   static final int _maxPanguCacheSize = Platform.isAndroid || Platform.isIOS
-      ? 48
+      ? 24
       : 200;
   static final Set<(int, int)> _pendingPanguKeys = {};
 
@@ -492,6 +493,9 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
             _cachedProcessedHtml!,
             highlightQuery,
           );
+    final animateInlineSpoilers =
+        !Responsive.isMobile(context) &&
+        !ref.watch(preferencesProvider).reduceLoadingAnimations;
 
     final htmlWidget = HtmlWidget(
       processedHtml,
@@ -635,11 +639,16 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
     );
 
     // 检测是否需要内联装饰（code 背景 / spoiler 粒子）
-    // 快速字符串检测，避免对无 code/spoiler 的帖子创建 Ticker + 扫描 RenderTree
-    final needsOverlay =
-        DiscourseHtmlContent.containsInlineCodeMarkup(processedHtml) ||
+    // 移动端对“仅内联代码背景”的装饰收益很小，但 RenderTree 扫描成本较高，
+    // 因此保留 spoiler 覆盖层，移动端跳过 code-only overlay。
+    final hasInlineCodeMarkup =
+        DiscourseHtmlContent.containsInlineCodeMarkup(processedHtml);
+    final hasSpoilerMarkup =
         processedHtml.contains('"spoiler"') ||
         processedHtml.contains('"spoiled"');
+    final needsOverlay =
+        hasSpoilerMarkup ||
+        (hasInlineCodeMarkup && !Responsive.isMobile(context));
 
     Widget result;
     if (needsOverlay) {
@@ -650,6 +659,7 @@ class _DiscourseHtmlContentState extends ConsumerState<DiscourseHtmlContent> {
           processedHtml.length,
         ),
         revealedSpoilers: _revealedSpoilers,
+        animateSpoilers: animateInlineSpoilers,
         onReveal: (id) {
           // 仅更新 Set，不触发父组件 rebuild
           // CombinedDecoratorOverlay 自身的 setState 已处理视觉更新

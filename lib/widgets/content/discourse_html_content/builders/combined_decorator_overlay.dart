@@ -16,12 +16,14 @@ class CombinedDecoratorOverlay extends StatefulWidget {
   final Set<String> revealedSpoilers;
   final void Function(String id)? onReveal;
   final Object contentSignature;
+  final bool animateSpoilers;
 
   const CombinedDecoratorOverlay({
     super.key,
     required this.child,
     required this.revealedSpoilers,
     required this.contentSignature,
+    this.animateSpoilers = true,
     this.onReveal,
   });
 
@@ -85,6 +87,10 @@ class _CombinedDecoratorOverlayState extends State<CombinedDecoratorOverlay>
     }
 
     // 动画阶段：更新 spoiler 粒子
+    if (!widget.animateSpoilers) {
+      _ticker?.stop();
+      return;
+    }
     if (!_hasActiveSpoilers()) {
       _ticker?.stop();
       return;
@@ -113,6 +119,7 @@ class _CombinedDecoratorOverlayState extends State<CombinedDecoratorOverlay>
   }
 
   bool _hasActiveSpoilers() {
+    if (!widget.animateSpoilers) return false;
     for (final group in _spoilerGroups) {
       if (!group.isRevealed) return true;
     }

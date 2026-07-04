@@ -24,6 +24,7 @@ const List<Duration> _topicInitialLoadRetryDelays = [
   Duration(milliseconds: 900),
 ];
 const Duration _topicDetailProviderRetention = Duration(seconds: 10);
+const Duration _topicDetailProviderRetentionMobile = Duration(seconds: 4);
 
 @visibleForTesting
 bool isRetryableTopicInitialLoadError(Object error) {
@@ -214,10 +215,15 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
 
     // 保持存活，防止布局切换的短暂间隙被 autoDispose 清理
     // 使用 onCancel/onResume 模式：最后一个 watcher 移除后才开始倒计时
+    final retention =
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)
+        ? _topicDetailProviderRetentionMobile
+        : _topicDetailProviderRetention;
     final link = ref.keepAlive();
     Timer? disposeTimer;
     ref.onCancel(() {
-      disposeTimer = Timer(_topicDetailProviderRetention, link.close);
+      disposeTimer = Timer(retention, link.close);
     });
     ref.onResume(() {
       // 新的 watcher 出现，取消清理定时器
@@ -319,7 +325,13 @@ final topicDetailProvider = AsyncNotifierProvider.family
     );
 
 final topicDetailCacheServiceProvider = Provider<TopicDetailCacheService>((ref) {
-  final service = TopicDetailCacheService();
+  final isMobilePlatform =
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+  final service = TopicDetailCacheService(
+    maxEntries: isMobilePlatform ? 8 : 20,
+    maxCacheablePosts: isMobilePlatform ? 96 : 160,
+  );
   ref.onDispose(service.clear);
   return service;
 });

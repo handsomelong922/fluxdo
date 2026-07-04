@@ -1,12 +1,17 @@
 import 'dart:collection';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// 懒加载作用域
 ///
 /// 在页面级别提供缓存，页面销毁时缓存自动清理
 class LazyLoadScope extends StatefulWidget {
-  static const int maxCacheEntries = 512;
+  static final int maxCacheEntries =
+      defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS
+      ? 192
+      : 512;
 
   final Widget child;
 

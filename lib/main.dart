@@ -382,9 +382,9 @@ Future<void> main() async {
   // 内存压力把所有页面的滚动一起拖慢。
   final isMobilePlatform = Platform.isAndroid || Platform.isIOS;
   PaintingBinding.instance.imageCache.maximumSizeBytes =
-      (isMobilePlatform ? 96 : 256) * 1024 * 1024;
+      (isMobilePlatform ? 72 : 256) * 1024 * 1024;
   PaintingBinding.instance.imageCache.maximumSize = isMobilePlatform
-      ? 3000
+      ? 1800
       : 30000;
   if (isMobilePlatform) {
     VisibilityDetectorController.instance.updateInterval = const Duration(

@@ -18,16 +18,22 @@ typedef TopicPreviewFetcher = Future<TopicDetail?> Function(int topicId);
 final homeTopicExcerptPausedProvider = StateProvider<bool>((ref) => false);
 
 final homeTopicExcerptLoaderProvider = Provider<HomeTopicExcerptLoader>((ref) {
+  final isMobilePlatform =
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
   final batchSize = ref.watch(
     preferencesProvider.select(resolveHomeExcerptBatchSize),
   );
   final persistentCache = HomeTopicExcerptPersistentCache(
     ref.watch(sharedPreferencesProvider),
+    maxEntries: isMobilePlatform ? 120 : 240,
   );
   unawaited(
     persistentCache.pruneExpired(HomeTopicExcerptLoader.defaultCacheTtl),
   );
   final loader = HomeTopicExcerptLoader(
+    maxCacheEntries: isMobilePlatform ? 96 : 160,
+    maxPreviewEntries: isMobilePlatform ? 12 : 24,
     maxConcurrentRequests: batchSize,
     persistentCache: persistentCache,
     fetchPreview: (topicId) => ref
