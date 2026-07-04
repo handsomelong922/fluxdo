@@ -92,12 +92,14 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
     final nextTags = normalizeCommaSeparated(raw);
     state = state.copyWith(blockedTags: nextTags);
     _prefs.setStringList(blockedTagsKey, nextTags);
+    BlockedUserFilter.clearCaches();
   }
 
   void setBlockedUsersFromInput(String raw) {
     final nextUsers = normalizeUsernameInput(raw);
     state = state.copyWith(blockedUsers: nextUsers);
     _prefs.setStringList(blockedUsersKey, nextUsers);
+    BlockedUserFilter.clearCaches();
   }
 
   Future<bool> addBlockedUser(String username) async {
@@ -110,6 +112,7 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
     final nextUsers = [...state.blockedUsers, normalized];
     state = state.copyWith(blockedUsers: nextUsers);
     await _prefs.setStringList(blockedUsersKey, nextUsers);
+    BlockedUserFilter.clearCaches();
     return true;
   }
 
@@ -134,17 +137,20 @@ class ContentFilterNotifier extends StateNotifier<ContentFilterState> {
     } else {
       await _prefs.setStringList(blockedUsersKey, nextUsers);
     }
+    BlockedUserFilter.clearCaches();
     return true;
   }
 
   void clearBlockedTags() {
     state = state.copyWith(blockedTags: const <String>[]);
     _prefs.remove(blockedTagsKey);
+    BlockedUserFilter.clearCaches();
   }
 
   void clearBlockedUsers() {
     state = state.copyWith(blockedUsers: const <String>[]);
     _prefs.remove(blockedUsersKey);
+    BlockedUserFilter.clearCaches();
   }
 
   bool matchesTagName(String? tagName) {

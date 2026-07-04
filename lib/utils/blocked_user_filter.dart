@@ -1,3 +1,8 @@
+import 'dart:collection';
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import '../models/nested_topic.dart';
 import '../models/notification.dart';
 import '../models/topic.dart';
@@ -8,10 +13,32 @@ import '../models/topic.dart';
 class BlockedUserFilter {
   BlockedUserFilter._();
 
-  static const int _maxVisibleCacheEntries = 256;
-  static final Map<int, List<Topic>> _visibleTopicsCache = <int, List<Topic>>{};
-  static final Map<int, List<Post>> _visiblePostsCache = <int, List<Post>>{};
-  static final Map<int, List<Boost>> _visibleBoostsCache = <int, List<Boost>>{};
+  static final int _maxVisibleCacheEntries =
+      Platform.isAndroid || Platform.isIOS ? 8 : 24;
+  static final LinkedHashMap<int, List<Topic>> _visibleTopicsCache =
+      LinkedHashMap<int, List<Topic>>();
+  static final LinkedHashMap<int, List<Post>> _visiblePostsCache =
+      LinkedHashMap<int, List<Post>>();
+  static final LinkedHashMap<int, List<Boost>> _visibleBoostsCache =
+      LinkedHashMap<int, List<Boost>>();
+
+  @visibleForTesting
+  static int get debugVisibleTopicsCacheSize => _visibleTopicsCache.length;
+
+  @visibleForTesting
+  static int get debugVisiblePostsCacheSize => _visiblePostsCache.length;
+
+  @visibleForTesting
+  static int get debugVisibleBoostsCacheSize => _visibleBoostsCache.length;
+
+  @visibleForTesting
+  static int get debugMaxVisibleCacheEntries => _maxVisibleCacheEntries;
+
+  static void clearCaches() {
+    _visibleTopicsCache.clear();
+    _visiblePostsCache.clear();
+    _visibleBoostsCache.clear();
+  }
 
   /// 兼容用户输入 `@alice` 的情况，持久化和匹配统一使用不带 `@` 的用户名。
   static String stripAtPrefix(String username) {
@@ -65,7 +92,7 @@ class BlockedUserFilter {
     Set<String> blockedUsernames,
   ) {
     if (blockedUsernames.isEmpty) return List<Topic>.from(topics);
-    final cacheKey = Object.hash(topics, blockedUsernames, blockedUsernames.length);
+    final cacheKey = Object.hash(topics, blockedUsernames);
     final cached = _visibleTopicsCache.remove(cacheKey);
     if (cached != null) {
       _visibleTopicsCache[cacheKey] = cached;
@@ -83,7 +110,7 @@ class BlockedUserFilter {
     Set<String> blockedUsernames,
   ) {
     if (blockedUsernames.isEmpty) return List<Post>.from(posts);
-    final cacheKey = Object.hash(posts, blockedUsernames, blockedUsernames.length);
+    final cacheKey = Object.hash(posts, blockedUsernames);
     final cached = _visiblePostsCache.remove(cacheKey);
     if (cached != null) {
       _visiblePostsCache[cacheKey] = cached;
@@ -101,7 +128,7 @@ class BlockedUserFilter {
     Set<String> blockedUsernames,
   ) {
     if (blockedUsernames.isEmpty) return List<Boost>.from(boosts);
-    final cacheKey = Object.hash(boosts, blockedUsernames, blockedUsernames.length);
+    final cacheKey = Object.hash(boosts, blockedUsernames);
     final cached = _visibleBoostsCache.remove(cacheKey);
     if (cached != null) {
       _visibleBoostsCache[cacheKey] = cached;

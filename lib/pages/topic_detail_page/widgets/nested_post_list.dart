@@ -189,7 +189,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
       return;
     }
 
-    if (_visibilityUpdateTimer != null) return;
+    _visibilityUpdateTimer?.cancel();
     _visibilityUpdateTimer = Timer(_visiblePostUpdateDelay, () {
       _visibilityUpdateTimer = null;
       if (!mounted) return;

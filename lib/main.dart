@@ -76,6 +76,7 @@ import 'providers/connectivity_provider.dart';
 import 'providers/cdk_providers.dart';
 import 'utils/dialog_utils.dart';
 import 'utils/time_utils.dart';
+import 'utils/blocked_user_filter.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ai_model_manager/ai_model_manager.dart';
@@ -1066,6 +1067,7 @@ class _MainPageState extends ConsumerState<MainPage>
     DiscourseHtmlContent.clearRuntimeCaches();
     LongPostRenderData.clearCache();
     EmojiText.clearTokenCache();
+    BlockedUserFilter.clearCaches();
     HighlighterService.instance.clearCache();
     final pageEntries = _lastResolvedEntries
         .where((entry) => entry.kind == NavEntryKind.page)

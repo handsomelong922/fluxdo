@@ -477,10 +477,11 @@ class _TopicPostListState extends State<TopicPostList> {
       return;
     }
 
-    if (_visiblePostUpdateTimer != null || _visiblePostUpdateFrameScheduled) {
+    if (_visiblePostUpdateFrameScheduled) {
       return;
     }
 
+    _visiblePostUpdateTimer?.cancel();
     _visiblePostUpdateTimer = Timer(_visiblePostUpdateDelay, () {
       _visiblePostUpdateTimer = null;
       _scheduleVisiblePostUpdateFrame();
@@ -708,12 +709,8 @@ class _TopicPostListState extends State<TopicPostList> {
     final posts = _visiblePosts;
     final cacheExtent = Responsive.isMobile(context) ? 160.0 : 500.0;
     final scrollPhysics = Theme.of(context).platform == TargetPlatform.iOS
-        ? const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
-          )
-        : const AlwaysScrollableScrollPhysics(
-            parent: ClampingScrollPhysics(),
-          );
+        ? const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics())
+        : const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics());
     final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
     _ensureRenderSegments(posts);
     final centerPostNumber =
