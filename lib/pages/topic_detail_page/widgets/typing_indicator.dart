@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../../../l10n/s.dart';
 import '../../../providers/message_bus_providers.dart';
 import '../../../widgets/common/smart_avatar.dart';
@@ -16,12 +17,16 @@ class TypingIndicator extends StatefulWidget {
 
 class _TypingIndicatorState extends State<TypingIndicator>
     with SingleTickerProviderStateMixin {
+  late final bool _animateDots =
+      defaultTargetPlatform != TargetPlatform.android &&
+      defaultTargetPlatform != TargetPlatform.iOS;
   late AnimationController _controller;
   late Animation<int> _dotCount;
 
   @override
   void initState() {
     super.initState();
+    if (!_animateDots) return;
     _controller = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
@@ -32,17 +37,24 @@ class _TypingIndicatorState extends State<TypingIndicator>
 
   @override
   void dispose() {
-    _controller.dispose();
+    if (_animateDots) {
+      _controller.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final baseText =
+        widget.text.isEmpty ? S.current.ai_typingIndicator : widget.text;
+    if (!_animateDots) {
+      return Text('$baseText...', style: widget.textStyle);
+    }
     return AnimatedBuilder(
       animation: _dotCount,
       builder: (context, child) {
         return Text(
-          '${widget.text.isEmpty ? S.current.ai_typingIndicator : widget.text}${'.' * (_dotCount.value + 1)}',
+          '$baseText${'.' * (_dotCount.value + 1)}',
           style: widget.textStyle,
         );
       },

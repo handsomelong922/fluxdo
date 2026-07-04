@@ -52,7 +52,11 @@ class TopicScrollState {
   }
 }
 
-const Duration _topicDetailScreenTrackThrottle = Duration(milliseconds: 240);
+final Duration _topicDetailScreenTrackThrottle =
+    (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS)
+    ? const Duration(milliseconds: 420)
+    : const Duration(milliseconds: 240);
 
 @visibleForTesting
 Set<int> resolveReadOnscreenPostNumbers({

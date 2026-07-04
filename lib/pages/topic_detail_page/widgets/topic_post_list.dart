@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/gestures.dart';
@@ -157,8 +158,20 @@ class TopicPostList extends StatefulWidget {
 }
 
 class _TopicPostListState extends State<TopicPostList> {
-  static const Duration _visiblePostUpdateDelay = Duration(milliseconds: 240);
-  static const Duration _autoReplyResumeDelay = Duration(milliseconds: 220);
+  static const Duration _visiblePostUpdateDelayDesktop = Duration(
+    milliseconds: 240,
+  );
+  static const Duration _visiblePostUpdateDelayMobile = Duration(
+    milliseconds: 360,
+  );
+  static const Duration _autoReplyResumeDelayDesktop = Duration(
+    milliseconds: 220,
+  );
+  static const Duration _autoReplyResumeDelayMobile = Duration(
+    milliseconds: 320,
+  );
+  static const int _maxInlineRepliesCacheEntriesMobile = 48;
+  static const int _maxInlineRepliesCacheEntriesDesktop = 160;
 
   int? _lastReportedPostNumber;
   Timer? _visiblePostUpdateTimer;
@@ -182,7 +195,8 @@ class _TopicPostListState extends State<TopicPostList> {
   SelectedContent? _lastLongPostSelectedContent;
   Post? _activeLongSelectionPost;
   CodeSelectionContext? _lastLongCodeSelectionContext;
-  final Map<int, InlineRepliesState> _inlineRepliesStateByPostNumber = {};
+  final LinkedHashMap<int, InlineRepliesState> _inlineRepliesStateByPostNumber =
+      LinkedHashMap<int, InlineRepliesState>();
 
   @override
   void initState() {
@@ -333,13 +347,20 @@ class _TopicPostListState extends State<TopicPostList> {
     final visiblePostNumbers = <int>{};
     double closestDistance = double.infinity;
     int? closestPostIndex;
+    final staleTagKeys = <int>[];
 
     for (final entry in tagMap.entries) {
       final postNumber = _scrollIndexToPostNumber[entry.key];
-      if (postNumber == null) continue;
+      if (postNumber == null) {
+        staleTagKeys.add(entry.key);
+        continue;
+      }
 
       final ctx = entry.value.context;
-      if (!ctx.mounted) continue;
+      if (!ctx.mounted) {
+        staleTagKeys.add(entry.key);
+        continue;
+      }
 
       // ctx.mounted 仅意味着 element 不为 null,但 inactive 状态下
       // (element 已从树中拆除,等待 unmount) findRenderObject 仍会抛
@@ -350,9 +371,11 @@ class _TopicPostListState extends State<TopicPostList> {
       try {
         renderBox = ctx.findRenderObject() as RenderBox?;
       } catch (_) {
+        staleTagKeys.add(entry.key);
         continue;
       }
       if (renderBox == null || !renderBox.hasSize || !renderBox.attached) {
+        staleTagKeys.add(entry.key);
         continue;
       }
 
@@ -376,6 +399,12 @@ class _TopicPostListState extends State<TopicPostList> {
       if (distance < closestDistance) {
         closestDistance = distance;
         closestPostIndex = _postNumberToIndex[postNumber];
+      }
+    }
+
+    if (staleTagKeys.isNotEmpty) {
+      for (final key in staleTagKeys) {
+        tagMap.remove(key);
       }
     }
 
@@ -465,6 +494,37 @@ class _TopicPostListState extends State<TopicPostList> {
       _visiblePostUpdateFrameScheduled = false;
       if (mounted) _updateFirstVisiblePost();
     });
+  }
+
+  int get _maxInlineRepliesCacheEntries => Responsive.isMobile(context)
+      ? _maxInlineRepliesCacheEntriesMobile
+      : _maxInlineRepliesCacheEntriesDesktop;
+
+  Duration get _visiblePostUpdateDelay => Responsive.isMobile(context)
+      ? _visiblePostUpdateDelayMobile
+      : _visiblePostUpdateDelayDesktop;
+
+  Duration get _autoReplyResumeDelay => Responsive.isMobile(context)
+      ? _autoReplyResumeDelayMobile
+      : _autoReplyResumeDelayDesktop;
+
+  InlineRepliesState? _inlineRepliesStateFor(int postNumber) {
+    final state = _inlineRepliesStateByPostNumber.remove(postNumber);
+    if (state != null) {
+      _inlineRepliesStateByPostNumber[postNumber] = state;
+    }
+    return state;
+  }
+
+  void _rememberInlineRepliesState(int postNumber, InlineRepliesState state) {
+    _inlineRepliesStateByPostNumber.remove(postNumber);
+    _inlineRepliesStateByPostNumber[postNumber] = state;
+    while (_inlineRepliesStateByPostNumber.length >
+        _maxInlineRepliesCacheEntries) {
+      _inlineRepliesStateByPostNumber.remove(
+        _inlineRepliesStateByPostNumber.keys.first,
+      );
+    }
   }
 
   String _segmentKey(_PostRenderSegment segment) {
@@ -646,7 +706,14 @@ class _TopicPostListState extends State<TopicPostList> {
   @override
   Widget build(BuildContext context) {
     final posts = _visiblePosts;
-    final cacheExtent = Responsive.isMobile(context) ? 240.0 : 500.0;
+    final cacheExtent = Responsive.isMobile(context) ? 160.0 : 500.0;
+    final scrollPhysics = Theme.of(context).platform == TargetPlatform.iOS
+        ? const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          )
+        : const AlwaysScrollableScrollPhysics(
+            parent: ClampingScrollPhysics(),
+          );
     final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
     _ensureRenderSegments(posts);
     final centerPostNumber =
@@ -704,9 +771,7 @@ class _TopicPostListState extends State<TopicPostList> {
             controller: scrollController,
             center: centerKey,
             cacheExtent: cacheExtent,
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
+            physics: scrollPhysics,
             slivers: [
               // 向上加载骨架屏 / 失败重试
               if (hasMoreBefore && isLoadPreviousFailed)
@@ -939,9 +1004,9 @@ class _TopicPostListState extends State<TopicPostList> {
           onShowPostDetail: widget.onShowPostDetail != null
               ? () => widget.onShowPostDetail!(post)
               : null,
-          inlineRepliesState: _inlineRepliesStateByPostNumber[post.postNumber],
+          inlineRepliesState: _inlineRepliesStateFor(post.postNumber),
           onInlineRepliesStateChanged: (state) {
-            _inlineRepliesStateByPostNumber[post.postNumber] = state;
+            _rememberInlineRepliesState(post.postNumber, state);
           },
           sharedIssueVisible: post.postNumber == 1 && detail.sharedIssueVisible,
           canCreateSharedIssue: detail.canCreateSharedIssue,
@@ -951,6 +1016,7 @@ class _TopicPostListState extends State<TopicPostList> {
           searchHighlightQuery: widget.searchHighlightQuery,
           autoLoadRepliesPaused: _autoLoadRepliesPaused,
           blockedUsernames: widget.blockedUsernames,
+          enableContentSelectionArea: false,
         );
         break;
       case _PostRenderSegmentType.longHeader:
@@ -1006,9 +1072,9 @@ class _TopicPostListState extends State<TopicPostList> {
           onShowPostDetail: widget.onShowPostDetail != null
               ? () => widget.onShowPostDetail!(post)
               : null,
-          inlineRepliesState: _inlineRepliesStateByPostNumber[post.postNumber],
+          inlineRepliesState: _inlineRepliesStateFor(post.postNumber),
           onInlineRepliesStateChanged: (state) {
-            _inlineRepliesStateByPostNumber[post.postNumber] = state;
+            _rememberInlineRepliesState(post.postNumber, state);
           },
           sharedIssueVisible: post.postNumber == 1 && detail.sharedIssueVisible,
           canCreateSharedIssue: detail.canCreateSharedIssue,

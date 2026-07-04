@@ -7,7 +7,6 @@ import '../../providers/nested_topic_provider.dart';
 import '../../providers/preferences_provider.dart';
 import '../../providers/topic_session_provider.dart';
 import '../../pages/user_profile_page.dart';
-import '../../services/settings/content_filter_service.dart';
 import '../../utils/blocked_user_filter.dart';
 import '../../utils/responsive.dart';
 import '../../utils/topic_link_navigation.dart';
@@ -67,6 +66,7 @@ class NestedPostCard extends ConsumerStatefulWidget {
   final int maxDepth;
   final bool isLastChild;
   final bool isLoggedIn;
+  final Set<String> blockedUsernames;
   final void Function(Post? replyToPost) onReply;
   final void Function(Post? replyToPost, String initialContent)?
   onReplyWithInitialContent;
@@ -97,6 +97,7 @@ class NestedPostCard extends ConsumerStatefulWidget {
     this.maxDepth = 10,
     this.isLastChild = false,
     required this.isLoggedIn,
+    required this.blockedUsernames,
     required this.onReply,
     this.onReplyWithInitialContent,
     required this.onEdit,
@@ -125,6 +126,9 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   int _page = 0;
   bool _depthLineHovered = false;
   bool _autoLoadScheduled = false;
+  List<NestedNode>? _visibleChildrenSourceChildren;
+  Set<String>? _visibleChildrenSourceBlockedUsernames;
+  List<NestedNode> _visibleChildrenCache = const [];
 
   @override
   void initState() {
@@ -156,6 +160,9 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     _isLoadingMore = false;
     _depthLineHovered = false;
     _autoLoadScheduled = false;
+    _visibleChildrenSourceChildren = null;
+    _visibleChildrenSourceBlockedUsernames = null;
+    _visibleChildrenCache = const [];
 
     final cachedReplies =
         widget.repliesStateByPostNumber?[widget.node.post.postNumber];
@@ -325,18 +332,30 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     });
   }
 
+  List<NestedNode> _visibleChildren() {
+    if (identical(_visibleChildrenSourceChildren, _children) &&
+        identical(
+          _visibleChildrenSourceBlockedUsernames,
+          widget.blockedUsernames,
+        )) {
+      return _visibleChildrenCache;
+    }
+
+    _visibleChildrenCache = BlockedUserFilter.visibleNestedNodes(
+      _children,
+      widget.blockedUsernames,
+    );
+    _visibleChildrenSourceChildren = _children;
+    _visibleChildrenSourceBlockedUsernames = widget.blockedUsernames;
+    return _visibleChildrenCache;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final post = widget.node.post;
     final isRoot = widget.depth == 0;
-    final blockedUsernames = ref.watch(
-      contentFilterProvider.select((state) => state.normalizedBlockedUsers),
-    );
-    final visibleChildren = BlockedUserFilter.visibleNestedNodes(
-      _children,
-      blockedUsernames,
-    );
+    final visibleChildren = _visibleChildren();
 
     // 线条颜色
     final defaultLineColor = theme.colorScheme.outlineVariant;
@@ -781,6 +800,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
             maxDepth: widget.maxDepth,
             isLastChild: i == children.length - 1 && !_hasMore,
             isLoggedIn: widget.isLoggedIn,
+            blockedUsernames: widget.blockedUsernames,
             onReply: widget.onReply,
             onReplyWithInitialContent: widget.onReplyWithInitialContent,
             onEdit: widget.onEdit,

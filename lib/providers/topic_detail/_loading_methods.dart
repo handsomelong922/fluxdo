@@ -2,6 +2,66 @@ part of '../topic_detail_provider.dart';
 
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
+List<Post> _sortedPostsByNumber(Iterable<Post> posts) {
+  final sorted = posts.toList(growable: false);
+  if (sorted.length < 2) {
+    return sorted;
+  }
+  sorted.sort((a, b) => a.postNumber.compareTo(b.postNumber));
+  return sorted;
+}
+
+List<Post> _mergePostsSortedByNumber(
+  List<Post> currentPosts,
+  Iterable<Post> incomingPosts,
+) {
+  final sortedIncoming = _sortedPostsByNumber(incomingPosts);
+  if (sortedIncoming.isEmpty) {
+    return currentPosts;
+  }
+  if (currentPosts.isEmpty) {
+    return sortedIncoming;
+  }
+
+  final firstCurrent = currentPosts.first.postNumber;
+  final lastCurrent = currentPosts.last.postNumber;
+  final firstIncoming = sortedIncoming.first.postNumber;
+  final lastIncoming = sortedIncoming.last.postNumber;
+
+  if (lastIncoming < firstCurrent) {
+    return [...sortedIncoming, ...currentPosts];
+  }
+  if (firstIncoming > lastCurrent) {
+    return [...currentPosts, ...sortedIncoming];
+  }
+
+  final merged = <Post>[];
+  var currentIndex = 0;
+  var incomingIndex = 0;
+
+  while (currentIndex < currentPosts.length &&
+      incomingIndex < sortedIncoming.length) {
+    final current = currentPosts[currentIndex];
+    final incoming = sortedIncoming[incomingIndex];
+    if (current.postNumber <= incoming.postNumber) {
+      merged.add(current);
+      currentIndex++;
+    } else {
+      merged.add(incoming);
+      incomingIndex++;
+    }
+  }
+
+  if (currentIndex < currentPosts.length) {
+    merged.addAll(currentPosts.skip(currentIndex));
+  }
+  if (incomingIndex < sortedIncoming.length) {
+    merged.addAll(sortedIncoming.skip(incomingIndex));
+  }
+
+  return merged;
+}
+
 /// 加载相关方法
 extension LoadingMethods on TopicDetailNotifier {
   /// 加载更早的帖子（向上滚动）
@@ -50,8 +110,7 @@ extension LoadingMethods on TopicDetailNotifier {
         final newPosts = newPostStream.posts
             .where((p) => !existingIds.contains(p.id))
             .toList();
-        final mergedPosts = [...newPosts, ...currentPosts];
-        mergedPosts.sort((a, b) => a.postNumber.compareTo(b.postNumber));
+        final mergedPosts = _mergePostsSortedByNumber(currentPosts, newPosts);
 
         final currentStream = currentDetail.postStream.stream;
         final existingStreamIds = currentStream.toSet();
@@ -151,8 +210,7 @@ extension LoadingMethods on TopicDetailNotifier {
         final newPosts = newPostStream.posts
             .where((p) => !existingIds.contains(p.id))
             .toList();
-        final mergedPosts = [...currentPosts, ...newPosts];
-        mergedPosts.sort((a, b) => a.postNumber.compareTo(b.postNumber));
+        final mergedPosts = _mergePostsSortedByNumber(currentPosts, newPosts);
 
         final currentStream = currentDetail.postStream.stream;
         final existingStreamIds = currentStream.toSet();
@@ -282,8 +340,10 @@ extension LoadingMethods on TopicDetailNotifier {
               return p;
             }).toList();
 
-      final mergedPosts = [...updatedCurrentPosts, ...newPosts];
-      mergedPosts.sort((a, b) => a.postNumber.compareTo(b.postNumber));
+      final mergedPosts = _mergePostsSortedByNumber(
+        updatedCurrentPosts,
+        newPosts,
+      );
 
       final nextDetail = _applyUserFilter(
         currentDetail.copyWith(
@@ -404,8 +464,7 @@ extension LoadingMethods on TopicDetailNotifier {
       final newPosts = newDetail.postStream.posts
           .where((p) => !existingIds.contains(p.id))
           .toList();
-      final mergedPosts = [...currentPosts, ...newPosts];
-      mergedPosts.sort((a, b) => a.postNumber.compareTo(b.postNumber));
+      final mergedPosts = _mergePostsSortedByNumber(currentPosts, newPosts);
 
       final currentStream = currentDetail.postStream.stream;
       final newStream = newDetail.postStream.stream;

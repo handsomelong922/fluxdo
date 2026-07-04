@@ -80,6 +80,7 @@ Widget _buildApp({
   VoidCallback? onProgressTap,
   ValueChanged<ProgressGestureAction>? onProgressAction,
 }) {
+  final currentStreamIndex = ValueNotifier<int>(1);
   return MaterialApp(
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
@@ -87,7 +88,7 @@ Widget _buildApp({
       body: TopicDetailOverlay(
         showBottomBar: true,
         isLoggedIn: false,
-        currentStreamIndex: 1,
+        currentStreamIndexListenable: currentStreamIndex,
         totalCount: 2,
         detail: _detail(),
         onScrollToTop: () {},

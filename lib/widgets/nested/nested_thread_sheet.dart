@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:collection';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/s.dart';
 import '../../models/nested_topic.dart';
@@ -91,12 +92,14 @@ class _NestedThreadSheetContent extends ConsumerStatefulWidget {
 
 class _NestedThreadSheetContentState
     extends ConsumerState<_NestedThreadSheetContent> {
+  static const int _maxNestedRepliesCacheEntries = 80;
   late List<NestedNode> _children;
   bool _hasMore = false;
   bool _isLoadingMore = false;
   int _page = 0;
   final Map<int, bool> _expansionState = {};
-  final Map<int, NestedRepliesState> _repliesStateByPostNumber = {};
+  final LinkedHashMap<int, NestedRepliesState> _repliesStateByPostNumber =
+      LinkedHashMap<int, NestedRepliesState>();
 
   @override
   void initState() {
@@ -128,6 +131,14 @@ class _NestedThreadSheetContentState
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingMore = false);
+    }
+  }
+
+  void _rememberRepliesState(int postNumber, NestedRepliesState state) {
+    _repliesStateByPostNumber.remove(postNumber);
+    _repliesStateByPostNumber[postNumber] = state;
+    while (_repliesStateByPostNumber.length > _maxNestedRepliesCacheEntries) {
+      _repliesStateByPostNumber.remove(_repliesStateByPostNumber.keys.first);
     }
   }
 
@@ -169,6 +180,7 @@ class _NestedThreadSheetContentState
                       maxDepth: widget.maxDepth,
                       isLastChild: i == children.length - 1 && !_hasMore,
                       isLoggedIn: widget.isLoggedIn,
+                      blockedUsernames: blockedUsernames,
                       onReply: widget.onReply,
                       onReplyWithInitialContent:
                           widget.onReplyWithInitialContent,
@@ -179,7 +191,7 @@ class _NestedThreadSheetContentState
                       expansionState: _expansionState,
                       repliesStateByPostNumber: _repliesStateByPostNumber,
                       onRepliesStateChanged: (postNumber, state) {
-                        _repliesStateByPostNumber[postNumber] = state;
+                        _rememberRepliesState(postNumber, state);
                       },
                     ),
                   // 加载更多

@@ -142,7 +142,7 @@ class TopicDetailOverlay extends StatelessWidget {
 
     return Stack(
       children: [
-        if (showProgress)
+        if (showProgress && (!isMobile || showBottomBar))
           Positioned(
             key: const ValueKey('progress_bar'),
             bottom: progressVisibleBottom,
@@ -161,45 +161,34 @@ class TopicDetailOverlay extends StatelessWidget {
                     child: progress,
                   ),
           ),
-        Positioned(
-          key: const ValueKey('bottom_bar'),
-          left: 16,
-          right: 16,
-          bottom: bottomBarVisibleBottom,
-          child: IgnorePointer(
-            ignoring: !showBottomBar,
-            child: isMobile
-                ? Transform.translate(
-                    offset: Offset(
-                      0,
-                      showBottomBar ? 0 : bottomBarHiddenOffsetY,
+        if (!isMobile || showBottomBar)
+          Positioned(
+            key: const ValueKey('bottom_bar'),
+            left: 16,
+            right: 16,
+            bottom: bottomBarVisibleBottom,
+            child: IgnorePointer(
+              ignoring: !showBottomBar,
+              child: isMobile
+                  ? bottomBar
+                  : _PaintOffsetTransition(
+                      offsetY: showBottomBar ? 0 : bottomBarHiddenOffsetY,
+                      child: AnimatedOpacity(
+                        opacity: showBottomBar ? 1 : 0,
+                        duration: topicDetailBarAnimationDuration,
+                        curve: topicDetailBarAnimationCurve,
+                        child: bottomBar,
+                      ),
                     ),
-                    child: Opacity(
-                      opacity: showBottomBar ? 1 : 0,
-                      child: bottomBar,
-                    ),
-                  )
-                : _PaintOffsetTransition(
-                    offsetY: showBottomBar ? 0 : bottomBarHiddenOffsetY,
-                    child: AnimatedOpacity(
-                      opacity: showBottomBar ? 1 : 0,
-                      duration: topicDetailBarAnimationDuration,
-                      curve: topicDetailBarAnimationCurve,
-                      child: bottomBar,
-                    ),
-                  ),
+            ),
           ),
-        ),
-        if (isLoggedIn)
+        if (isLoggedIn && (!isMobile || showBottomBar))
           Positioned(
             key: const ValueKey('fab_reply'),
             right: 16,
             bottom: fabVisibleBottom,
             child: isMobile
-                ? Transform.translate(
-                    offset: Offset(0, showBottomBar ? 0 : fabHiddenOffsetY),
-                    child: fab,
-                  )
+                ? fab
                 : _PaintOffsetTransition(
                     offsetY: showBottomBar ? 0 : fabHiddenOffsetY,
                     child: fab,

@@ -51,6 +51,7 @@ class PostItem extends ConsumerStatefulWidget {
   final void Function(int count, bool userCreated)? onSharedIssueChanged;
   final bool autoLoadRepliesPaused;
   final Set<String> blockedUsernames;
+  final bool enableContentSelectionArea;
 
   const PostItem({
     super.key,
@@ -87,6 +88,7 @@ class PostItem extends ConsumerStatefulWidget {
     this.onSharedIssueChanged,
     this.autoLoadRepliesPaused = false,
     this.blockedUsernames = const <String>{},
+    this.enableContentSelectionArea = true,
   });
 
   @override
@@ -195,6 +197,7 @@ class _PostItemState extends ConsumerState<PostItem> {
                   searchHighlightQuery: widget.searchHighlightQuery,
                   post: post,
                   topicId: widget.topicId,
+                  enableSelectionArea: widget.enableContentSelectionArea,
                   onQuoteImage: widget.onQuoteImage,
                   onInternalLinkTap:
                       (topicId, topicSlug, postNumber, {initialNestedView}) {

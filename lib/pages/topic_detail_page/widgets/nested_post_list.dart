@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/gestures.dart';
@@ -85,9 +86,17 @@ class NestedPostList extends ConsumerStatefulWidget {
 }
 
 class _NestedPostListState extends ConsumerState<NestedPostList> {
-  static const Duration _visiblePostUpdateDelay = Duration(milliseconds: 240);
+  static const Duration _visiblePostUpdateDelayDesktop = Duration(
+    milliseconds: 240,
+  );
+  static const Duration _visiblePostUpdateDelayMobile = Duration(
+    milliseconds: 360,
+  );
+  static const int _maxNestedRepliesCacheEntriesMobile = 40;
+  static const int _maxNestedRepliesCacheEntriesDesktop = 120;
   final Map<int, bool> _expansionState = {};
-  final Map<int, NestedRepliesState> _repliesStateByPostNumber = {};
+  final LinkedHashMap<int, NestedRepliesState> _repliesStateByPostNumber =
+      LinkedHashMap<int, NestedRepliesState>();
   final Map<int, int> _postNumberToScrollIndex = {};
   final Map<int, int> _scrollIndexToPostNumber = {};
   final NestedLoadMoreTrigger _loadMoreTrigger = NestedLoadMoreTrigger();
@@ -202,20 +211,29 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
     int? eyelinePostNumber;
     int? closestPostNumber;
     double closestDistance = double.infinity;
+    final staleTagKeys = <int>[];
 
     for (final entry in tagMap.entries) {
       final postNumber = _scrollIndexToPostNumber[entry.key];
-      if (postNumber == null) continue;
+      if (postNumber == null) {
+        staleTagKeys.add(entry.key);
+        continue;
+      }
 
       final ctx = entry.value.context;
-      if (!ctx.mounted) continue;
+      if (!ctx.mounted) {
+        staleTagKeys.add(entry.key);
+        continue;
+      }
       final RenderBox? renderBox;
       try {
         renderBox = ctx.findRenderObject() as RenderBox?;
       } catch (_) {
+        staleTagKeys.add(entry.key);
         continue;
       }
       if (renderBox == null || !renderBox.hasSize || !renderBox.attached) {
+        staleTagKeys.add(entry.key);
         continue;
       }
 
@@ -236,6 +254,12 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
       if (distance < closestDistance) {
         closestDistance = distance;
         closestPostNumber = postNumber;
+      }
+    }
+
+    if (staleTagKeys.isNotEmpty) {
+      for (final key in staleTagKeys) {
+        tagMap.remove(key);
       }
     }
 
@@ -263,6 +287,22 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
       DeviceType.tablet => 7,
       DeviceType.desktop => 10,
     };
+  }
+
+  int get _maxNestedRepliesCacheEntries => Responsive.isMobile(context)
+      ? _maxNestedRepliesCacheEntriesMobile
+      : _maxNestedRepliesCacheEntriesDesktop;
+
+  Duration get _visiblePostUpdateDelay => Responsive.isMobile(context)
+      ? _visiblePostUpdateDelayMobile
+      : _visiblePostUpdateDelayDesktop;
+
+  void _rememberRepliesState(int postNumber, NestedRepliesState state) {
+    _repliesStateByPostNumber.remove(postNumber);
+    _repliesStateByPostNumber[postNumber] = state;
+    while (_repliesStateByPostNumber.length > _maxNestedRepliesCacheEntries) {
+      _repliesStateByPostNumber.remove(_repliesStateByPostNumber.keys.first);
+    }
   }
 
   @override
@@ -304,7 +344,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
         },
         child: CustomScrollView(
           controller: widget.scrollController,
-          cacheExtent: Responsive.isMobile(context) ? 220.0 : 500.0,
+          cacheExtent: Responsive.isMobile(context) ? 160.0 : 500.0,
           slivers: [
             if (widget.topContentInset > 0)
               SliverToBoxAdapter(
@@ -442,6 +482,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                   maxDepth: maxDepth,
                   isLastChild: index == roots.length - 1,
                   isLoggedIn: widget.isLoggedIn,
+                  blockedUsernames: widget.blockedUsernames,
                   onReply: widget.onReply,
                   onReplyWithInitialContent: widget.onReplyWithInitialContent,
                   onEdit: widget.onEdit,
@@ -451,7 +492,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                   expansionState: _expansionState,
                   repliesStateByPostNumber: _repliesStateByPostNumber,
                   onRepliesStateChanged: (postNumber, state) {
-                    _repliesStateByPostNumber[postNumber] = state;
+                    _rememberRepliesState(postNumber, state);
                   },
                   searchHighlightQuery: widget.searchHighlightQuery,
                   buildScrollTag: (postNumber, child) => AutoScrollTag(
