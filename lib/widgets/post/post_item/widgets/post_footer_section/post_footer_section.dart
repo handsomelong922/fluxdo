@@ -160,6 +160,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
       !widget.hideRepliesButton &&
       !widget.useReplyDialog &&
       shouldAutoExpandReplyCount(widget.post.replyCount);
+  String get _autoReplyPrefetchKey => '${widget.topicId}:${widget.post.id}';
   InlineRepliesState? get _restorableInlineRepliesState =>
       widget.useReplyDialog ? null : widget.inlineRepliesState;
 
@@ -180,6 +181,12 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   void didUpdateWidget(PostFooterSection oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.post != widget.post) {
+      if (oldWidget.topicId != widget.topicId ||
+          oldWidget.post.id != widget.post.id) {
+        AutoReplyPrefetchQueue.instance.cancel(
+          '${oldWidget.topicId}:${oldWidget.post.id}',
+        );
+      }
       if (oldWidget.topicId != widget.topicId ||
           oldWidget.post.postNumber != widget.post.postNumber) {
         final inlineState = _restorableInlineRepliesState;
@@ -208,6 +215,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
 
   @override
   void dispose() {
+    AutoReplyPrefetchQueue.instance.cancel(_autoReplyPrefetchKey);
     _isLoadingRepliesNotifier.dispose();
     _showRepliesNotifier.removeListener(_emitInlineRepliesState);
     _showRepliesNotifier.dispose();
@@ -249,6 +257,9 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   }
 
   void _syncReplyExpansionState() {
+    if (!_shouldAutoExpandReplies) {
+      AutoReplyPrefetchQueue.instance.cancel(_autoReplyPrefetchKey);
+    }
     final hasCachedState = _restorableInlineRepliesState != null;
     if (!hasCachedState &&
         _shouldAutoExpandReplies &&
@@ -291,7 +302,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
       _showRepliesNotifier.value = true;
       _emitInlineRepliesState();
       AutoReplyPrefetchQueue.instance.enqueue(
-        '${widget.topicId}:${widget.post.id}',
+        _autoReplyPrefetchKey,
         _loadInitialReplies,
       );
     });

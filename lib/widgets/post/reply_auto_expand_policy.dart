@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 /// 少量直接回复自动展开；更多回复保留手动展开，避免移动端一次铺开过长。
 const int autoExpandReplyThreshold = 4;
 
@@ -13,28 +15,63 @@ class AutoReplyPrefetchQueue {
 
   static final AutoReplyPrefetchQueue instance = AutoReplyPrefetchQueue._();
 
-  final Queue<({String key, Future<void> Function() task})> _pending =
-      Queue<({String key, Future<void> Function() task})>();
-  final Set<String> _pendingKeys = <String>{};
+  final LinkedHashMap<String, Future<void> Function()> _pending =
+      LinkedHashMap<String, Future<void> Function()>();
+  final Set<String> _activeKeys = <String>{};
   bool _running = false;
+  Completer<void>? _idleCompleter;
 
   void enqueue(String key, Future<void> Function() task) {
-    if (_pendingKeys.contains(key)) return;
-    _pendingKeys.add(key);
-    _pending.add((key: key, task: task));
+    if (_activeKeys.contains(key)) return;
+    _activeKeys.add(key);
+    _pending[key] = task;
+    _idleCompleter ??= Completer<void>();
     _pump();
+  }
+
+  void cancel(String key) {
+    final removed = _pending.remove(key);
+    if (removed != null) {
+      _activeKeys.remove(key);
+    }
+    if (!_running && _pending.isEmpty) {
+      _completeIdle();
+    }
+  }
+
+  @visibleForTesting
+  int get debugPendingTaskCount => _pending.length;
+
+  @visibleForTesting
+  Future<void> get debugIdle => _idleCompleter?.future ?? Future.value();
+
+  @visibleForTesting
+  void clearPending() {
+    _pending.clear();
+    _activeKeys.clear();
+    if (!_running) {
+      _completeIdle();
+    }
   }
 
   Future<void> _pump() async {
     if (_running) return;
     _running = true;
     while (_pending.isNotEmpty) {
-      final next = _pending.removeFirst();
-      _pendingKeys.remove(next.key);
+      final next = _pending.entries.first;
+      _pending.remove(next.key);
       try {
-        await next.task();
+        await next.value();
       } catch (_) {}
+      _activeKeys.remove(next.key);
     }
     _running = false;
+    _completeIdle();
+  }
+
+  void _completeIdle() {
+    final completer = _idleCompleter;
+    _idleCompleter = null;
+    completer?.complete();
   }
 }
