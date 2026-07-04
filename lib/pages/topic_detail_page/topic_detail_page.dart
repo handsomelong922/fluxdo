@@ -2155,10 +2155,15 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           hasMoreAfter: notifier.hasMoreAfter || forceLoadMoreIndicator,
           isLoadingPrevious: notifier.isLoadingPrevious,
           isLoadingMore: notifier.isLoadingMore || forceLoadMoreIndicator,
+          incomingUnloadedPostCount: notifier.incomingUnloadedPostCount,
           isLoadMoreFailed: notifier.isLoadMoreFailed,
           isLoadPreviousFailed: notifier.isLoadPreviousFailed,
           onRetryLoadMore: () => notifier.retryLoadMore(),
           onRetryLoadPrevious: () => notifier.retryLoadPrevious(),
+          onLoadIncomingReplies:
+              notifier.hasMoreAfter && !notifier.isLoadingMore
+              ? () => notifier.loadMore()
+              : null,
           centerPostIndex: centerPostIndex,
           dividerPostIndex: dividerPostIndex,
           onFirstVisiblePostChanged: _updateStreamIndexForPostNumber,

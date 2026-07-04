@@ -99,6 +99,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   bool _filterTopLevelReplies = false; // 只看顶层回复
   /// 待加载的新帖子 ID 队列（对齐 Discourse _newPostsInStream）
   final List<int> _pendingNewPostIds = [];
+  final List<int> _incomingUnloadedPostIds = [];
   bool _isLoadingNewPosts = false;
 
   bool get hasMoreAfter => _hasMoreAfter;
@@ -108,6 +109,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   bool get isLoadMoreFailed => _isLoadMoreFailed;
   bool get isLoadPreviousFailed => _isLoadPreviousFailed;
   bool get isUsingPreviewSeed => _usingPreviewSeed;
+  int get incomingUnloadedPostCount => _incomingUnloadedPostIds.length;
   bool get isSummaryMode => _filter == 'summary';
   bool get isAuthorOnlyMode => _usernameFilter != null;
   bool get isTopLevelMode => _filterTopLevelReplies;
@@ -178,15 +180,20 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   void _cacheTopicDetail(TopicDetail detail) {
     if (_isFilteredMode) return;
     final username = _cacheUsername;
-    ref
-        .read(topicDetailCacheServiceProvider)
-        .write(detail, username: username);
+    ref.read(topicDetailCacheServiceProvider).write(detail, username: username);
   }
 
   void _setDataAndCache(TopicDetail detail) {
     _usingPreviewSeed = false;
+    _consumeLoadedIncomingPostIds(detail.postStream.posts);
     _cacheTopicDetail(detail);
     state = AsyncValue.data(detail);
+  }
+
+  void _consumeLoadedIncomingPostIds(Iterable<Post> posts) {
+    if (_incomingUnloadedPostIds.isEmpty) return;
+    final loadedPostIds = posts.map((post) => post.id).toSet();
+    _incomingUnloadedPostIds.removeWhere(loadedPostIds.contains);
   }
 
   Future<void> _refreshCachedTopicDetail() async {
@@ -324,7 +331,9 @@ final topicDetailProvider = AsyncNotifierProvider.family
       TopicDetailNotifier.new,
     );
 
-final topicDetailCacheServiceProvider = Provider<TopicDetailCacheService>((ref) {
+final topicDetailCacheServiceProvider = Provider<TopicDetailCacheService>((
+  ref,
+) {
   final isMobilePlatform =
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;

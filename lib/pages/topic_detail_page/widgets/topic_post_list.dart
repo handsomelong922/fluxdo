@@ -58,10 +58,12 @@ class TopicPostList extends StatefulWidget {
   final bool hasMoreAfter;
   final bool isLoadingPrevious;
   final bool isLoadingMore;
+  final int incomingUnloadedPostCount;
   final bool isLoadMoreFailed;
   final bool isLoadPreviousFailed;
   final VoidCallback? onRetryLoadMore;
   final VoidCallback? onRetryLoadPrevious;
+  final VoidCallback? onLoadIncomingReplies;
   final int centerPostIndex;
   final int? dividerPostIndex;
   final void Function(int postNumber) onFirstVisiblePostChanged;
@@ -121,10 +123,12 @@ class TopicPostList extends StatefulWidget {
     required this.hasMoreAfter,
     required this.isLoadingPrevious,
     required this.isLoadingMore,
+    this.incomingUnloadedPostCount = 0,
     this.isLoadMoreFailed = false,
     this.isLoadPreviousFailed = false,
     this.onRetryLoadMore,
     this.onRetryLoadPrevious,
+    this.onLoadIncomingReplies,
     required this.centerPostIndex,
     required this.dividerPostIndex,
     required this.onFirstVisiblePostChanged,
@@ -248,10 +252,12 @@ class _TopicPostListState extends State<TopicPostList> {
   bool get hasMoreAfter => widget.hasMoreAfter;
   bool get isLoadingPrevious => widget.isLoadingPrevious;
   bool get isLoadingMore => widget.isLoadingMore;
+  int get incomingUnloadedPostCount => widget.incomingUnloadedPostCount;
   bool get isLoadMoreFailed => widget.isLoadMoreFailed;
   bool get isLoadPreviousFailed => widget.isLoadPreviousFailed;
   VoidCallback? get onRetryLoadMore => widget.onRetryLoadMore;
   VoidCallback? get onRetryLoadPrevious => widget.onRetryLoadPrevious;
+  VoidCallback? get onLoadIncomingReplies => widget.onLoadIncomingReplies;
   int get centerPostIndex => widget.centerPostIndex;
   int? get dividerPostIndex => widget.dividerPostIndex;
   void Function(int postNumber) get onJumpToPost => widget.onJumpToPost;
@@ -855,6 +861,18 @@ class _TopicPostListState extends State<TopicPostList> {
                     ),
                   ),
                 ),
+              if (incomingUnloadedPostCount > 0)
+                SliverToBoxAdapter(
+                  child: _wrapContent(
+                    context,
+                    SelectionContainer.disabled(
+                      child: _IncomingRepliesIndicator(
+                        count: incomingUnloadedPostCount,
+                        onTap: isLoadingMore ? null : onLoadIncomingReplies,
+                      ),
+                    ),
+                  ),
+                ),
 
               // Before-center 帖子（SliverList.builder 实现虚拟化回收）
               // center 之前的 sliver 向上增长，index 0 离 center 最近，需要反转映射
@@ -899,6 +917,20 @@ class _TopicPostListState extends State<TopicPostList> {
                         ),
                       ),
                     ),
+                    if (incomingUnloadedPostCount > 0)
+                      SliverToBoxAdapter(
+                        child: _wrapContent(
+                          context,
+                          SelectionContainer.disabled(
+                            child: _IncomingRepliesIndicator(
+                              count: incomingUnloadedPostCount,
+                              onTap: isLoadingMore
+                                  ? null
+                                  : onLoadIncomingReplies,
+                            ),
+                          ),
+                        ),
+                      ),
                     SliverList.builder(
                       itemCount: _renderSegments.length,
                       itemBuilder: (context, index) =>
@@ -1411,6 +1443,51 @@ class _LoadMoreIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     return const TopicLinearLoadingIndicator(
       padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
+    );
+  }
+}
+
+class _IncomingRepliesIndicator extends StatelessWidget {
+  const _IncomingRepliesIndicator({required this.count, this.onTap});
+
+  final int count;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Material(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.arrow_downward_rounded,
+                  size: 14,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  context.l10n.topic_newRepliesSinceSummary(count),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

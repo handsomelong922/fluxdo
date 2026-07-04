@@ -295,6 +295,8 @@ extension LoadingMethods on TopicDetailNotifier {
     if (wasLoadedAllPosts) {
       _pendingNewPostIds.add(postId);
       _loadPendingNewPosts();
+    } else if (!_incomingUnloadedPostIds.contains(postId)) {
+      _incomingUnloadedPostIds.add(postId);
     }
   }
 
