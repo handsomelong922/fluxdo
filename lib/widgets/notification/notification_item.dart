@@ -110,7 +110,7 @@ class NotificationItem extends StatelessWidget {
 
   /// 获取头像 URL，无 acting_user 时使用系统用户头像
   String? _getAvatarUrl() {
-    final url = notification.getAvatarUrl();
+    final url = notification.getAvatarUrl(size: 48);
     if (url.isNotEmpty) return url;
     if (systemAvatarTemplate != null && systemAvatarTemplate!.isNotEmpty) {
       return UrlHelper.resolveUrlWithCdn(systemAvatarTemplate!);

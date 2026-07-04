@@ -1109,7 +1109,7 @@ class _SearchUserCard extends StatelessWidget {
             children: [
               SmartAvatar(
                 imageUrl: user.getAvatarUrl().isNotEmpty
-                    ? user.getAvatarUrl(size: 80)
+                    ? user.getAvatarUrl(size: 48)
                     : null,
                 radius: 20,
                 fallbackText: user.username,

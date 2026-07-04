@@ -38,6 +38,16 @@ void main() {
       expect(url, contains('1_2.png?foo=bar'));
     });
 
+    test('AvatarUrlPolicy can derive static avatar url without global switch', () {
+      AvatarUrlPolicy.setPreferStaticAvatars(false);
+
+      final url = AvatarUrlPolicy.resolveStaticAvatarUrl(
+        'https://linux.do/user_avatar/linux.do/test/40/1_2.webp?foo=bar',
+      );
+
+      expect(url, contains('1_2.png?foo=bar'));
+    });
+
     test('AvatarUrlPolicy staticizes additional animated avatar formats', () {
       AvatarUrlPolicy.setPreferStaticAvatars(true);
 

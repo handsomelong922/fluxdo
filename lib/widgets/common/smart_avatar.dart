@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:jovial_svg/jovial_svg.dart';
 import '../../models/avatar_url_policy.dart';
@@ -72,10 +73,16 @@ class _SmartAvatarState extends State<SmartAvatar> {
     final innerRadius = widget.radius - borderWidth;
     final innerSize = innerRadius * 2;
     final cacheExtentPx = innerSize.ceil().clamp(1, 4096);
-    final imageUrl = AvatarUrlPolicy.resolveDirectAvatarUrl(
+    final resolvedImageUrl = AvatarUrlPolicy.resolveDirectAvatarUrl(
       widget.imageUrl,
       size: innerSize.round(),
     );
+    final imageUrl = _shouldForceStaticTinyAvatar(innerSize, resolvedImageUrl)
+        ? AvatarUrlPolicy.resolveStaticAvatarUrl(
+            resolvedImageUrl,
+            size: innerSize.round(),
+          )
+        : resolvedImageUrl;
     if (_lastResolvedImageUrl != imageUrl) {
       _lastResolvedImageUrl = imageUrl;
       _svgContent = null;
@@ -184,6 +191,16 @@ class _SmartAvatarState extends State<SmartAvatar> {
     }
 
     return avatar;
+  }
+
+  bool _shouldForceStaticTinyAvatar(double innerSize, String imageUrl) {
+    if (AvatarUrlPolicy.preferStaticAvatars) return false;
+    final isMobilePlatform =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    if (!isMobilePlatform) return false;
+    if (innerSize > 40) return false;
+    return imageUrl.contains('/user_avatar/');
   }
 
   Widget? _buildSvg(String svgContent, double size) {

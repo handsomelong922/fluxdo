@@ -423,7 +423,7 @@ class _UserBadgeItem extends StatelessWidget {
                   ),
                 ),
                 child: SmartAvatar(
-                  imageUrl: user.getAvatarUrl(),
+                  imageUrl: user.getAvatarUrl(size: 56),
                   radius: 24,
                   backgroundColor: theme.colorScheme.surfaceContainerHighest,
                   fallbackText: user.username,

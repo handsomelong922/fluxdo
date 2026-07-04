@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../l10n/s.dart';
 import '../../../../constants.dart';
 import '../../../../models/avatar_url_policy.dart';
@@ -38,7 +39,9 @@ class PostAvatar extends StatefulWidget {
 class _PostAvatarState extends State<PostAvatar> {
   @override
   Widget build(BuildContext context) {
-    final avatarUrl = widget.post.getAvatarUrl();
+    final avatarUrl = widget.post.getAvatarUrl(
+      size: (widget.radius * 2).round(),
+    );
     final glowColor = AppConstants.siteCustomization.matchAvatarGlow(
       widget.post,
     );
@@ -62,7 +65,12 @@ class _PostAvatarState extends State<PostAvatar> {
       ),
     );
 
-    if (glowColor != null && !AvatarUrlPolicy.preferStaticAvatars) {
+    final isMobilePlatform =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    if (glowColor != null &&
+        !isMobilePlatform &&
+        !AvatarUrlPolicy.preferStaticAvatars) {
       avatar = AvatarGlow(glowColor: glowColor, child: avatar);
     }
 
@@ -292,6 +300,9 @@ class PostHeader extends StatelessWidget {
     bool isLoading = false,
     bool showUsername = false,
   }) {
+    final isMobilePlatform =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
     final replyToUser = post.replyToUser!;
     final displayName =
         (replyToUser.name != null && replyToUser.name!.isNotEmpty)
@@ -318,10 +329,17 @@ class PostHeader extends StatelessWidget {
           ValueListenableBuilder<int>(
             valueListenable: AvatarUrlPolicy.revisionListenable,
             builder: (context, _, _) {
-              final avatarUrl = AvatarUrlPolicy.resolveTemplate(
+              final templateAvatarUrl = AvatarUrlPolicy.resolveTemplate(
                 replyToUser.avatarTemplate,
                 size: 40,
               );
+              final avatarUrl = isMobilePlatform &&
+                      !AvatarUrlPolicy.preferStaticAvatars
+                  ? AvatarUrlPolicy.resolveStaticAvatarUrl(
+                      templateAvatarUrl,
+                      size: 40,
+                    )
+                  : templateAvatarUrl;
               return CircleAvatar(
                 radius: 10,
                 backgroundColor: theme.colorScheme.primaryContainer,

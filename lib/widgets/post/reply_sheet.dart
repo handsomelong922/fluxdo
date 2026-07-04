@@ -572,11 +572,12 @@ class _ReplySheetState extends ConsumerState<ReplySheet> {
                                   )
                                 else if (widget.replyToPost != null) ...[
                                   SmartAvatar(
-                                    imageUrl:
-                                        widget.replyToPost!
-                                            .getAvatarUrl()
+                                    imageUrl: widget.replyToPost!
+                                            .getAvatarUrl(size: 40)
                                             .isNotEmpty
-                                        ? widget.replyToPost!.getAvatarUrl()
+                                        ? widget.replyToPost!.getAvatarUrl(
+                                            size: 40,
+                                          )
                                         : null,
                                     radius: 14,
                                     fallbackText: widget.replyToPost!.username,

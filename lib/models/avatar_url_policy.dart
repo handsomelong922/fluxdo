@@ -48,6 +48,12 @@ class AvatarUrlPolicy {
     return UrlHelper.resolveUrlWithCdn(animatedAvatar);
   }
 
+  static String resolveStaticAvatarUrl(String? avatarUrl, {int? size}) {
+    if (avatarUrl == null || avatarUrl.isEmpty) return '';
+    final candidate = _toStaticAvatarCandidate(avatarUrl, size: size);
+    return UrlHelper.resolveUrlWithCdn(candidate);
+  }
+
   static String resolveDirectAvatarUrl(String? avatarUrl, {int? size}) {
     if (avatarUrl == null || avatarUrl.isEmpty) return '';
 
