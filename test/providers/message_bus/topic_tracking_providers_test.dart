@@ -8,6 +8,43 @@ import 'package:fluxdo/services/preloaded_data_service.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('tracked topic helper predicates match new and unread semantics', () {
+    const newTopic = TrackedTopicState(
+      topicId: 1,
+      lastReadPostNumber: null,
+      highestPostNumber: 3,
+      categoryId: 2,
+      notificationLevel: 2,
+      createdInNewPeriod: true,
+      isSeen: false,
+    );
+    const unreadTopic = TrackedTopicState(
+      topicId: 2,
+      lastReadPostNumber: 4,
+      highestPostNumber: 6,
+      categoryId: 2,
+      notificationLevel: 2,
+      createdInNewPeriod: false,
+      isSeen: true,
+    );
+    const mutedTopic = TrackedTopicState(
+      topicId: 3,
+      lastReadPostNumber: null,
+      highestPostNumber: 2,
+      categoryId: 2,
+      notificationLevel: 0,
+      createdInNewPeriod: true,
+      isSeen: true,
+    );
+
+    expect(isTrackedTopicNew(newTopic), isTrue);
+    expect(isTrackedTopicUnread(newTopic), isFalse);
+    expect(isTrackedTopicUnread(unreadTopic), isTrue);
+    expect(isTrackedTopicNew(unreadTopic), isFalse);
+    expect(isTrackedTopicNew(mutedTopic), isFalse);
+    expect(isTrackedTopicUnread(mutedTopic), isFalse);
+  });
+
   setUp(() {
     PreloadedDataService().reset();
   });

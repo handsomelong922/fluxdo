@@ -323,7 +323,7 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage> {
       child: ListView.builder(
         controller: _scrollController,
         addAutomaticKeepAlives: false,
-        cacheExtent: Responsive.isMobile(context) ? 180.0 : null,
+        cacheExtent: Responsive.isMobile(context) ? 120.0 : null,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
         itemCount: visibleTopics.length + 1,

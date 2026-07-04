@@ -24,6 +24,7 @@ final topicListRefreshingProvider = StateProvider.family<bool, int?>(
   (ref, categoryId) => false,
 );
 const Duration _topicListProviderRetention = Duration(seconds: 20);
+const Duration _topicListProviderRetentionMobile = Duration(seconds: 5);
 
 void _retainTopicListProvider(Ref ref, Duration duration) {
   final link = ref.keepAlive();
@@ -63,7 +64,13 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
 
   @override
   Future<List<Topic>> build() async {
-    _retainTopicListProvider(ref, _topicListProviderRetention);
+    _retainTopicListProvider(
+      ref,
+      (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS)
+          ? _topicListProviderRetentionMobile
+          : _topicListProviderRetention,
+    );
     ref.onDispose(() => _refreshGeneration++);
     final generation = ++_refreshGeneration;
 

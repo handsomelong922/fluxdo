@@ -36,17 +36,29 @@ class FilterDropdown extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    // 读取追踪状态计数
-    final trackingNotifier = ref.watch(topicTrackingStateProvider.notifier);
     final categoryId = ref.watch(currentTabCategoryIdProvider);
-    // watch state 本身以触发 rebuild
-    ref.watch(topicTrackingStateProvider);
-    final newCount = isLoggedIn
-        ? trackingNotifier.countNew(categoryId: categoryId)
-        : 0;
-    final unreadCount = isLoggedIn
-        ? trackingNotifier.countUnread(categoryId: categoryId)
-        : 0;
+    final counts = isLoggedIn
+        ? ref.watch(
+            topicTrackingStateProvider.select((state) {
+              var newCount = 0;
+              var unreadCount = 0;
+              for (final tracked in state.values) {
+                if (categoryId != null && tracked.categoryId != categoryId) {
+                  continue;
+                }
+                if (isTrackedTopicNew(tracked)) {
+                  newCount++;
+                }
+                if (isTrackedTopicUnread(tracked)) {
+                  unreadCount++;
+                }
+              }
+              return (newCount: newCount, unreadCount: unreadCount);
+            }),
+          )
+        : (newCount: 0, unreadCount: 0);
+    final newCount = counts.newCount;
+    final unreadCount = counts.unreadCount;
 
     /// 获取筛选选项的显示文本（带计数）
     String optionLabel(TopicListFilter filter, String baseLabel) {

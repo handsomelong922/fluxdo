@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_riverpod/legacy.dart';
@@ -12,6 +13,14 @@ final bookmarksLoadMoreProvider = StateProvider<bool>((ref) => false);
 final browsingHistoryRefreshingProvider = StateProvider<bool>((ref) => false);
 final bookmarksRefreshingProvider = StateProvider<bool>((ref) => false);
 const Duration _userContentProviderRetention = Duration(seconds: 20);
+const Duration _userContentProviderRetentionMobile = Duration(seconds: 5);
+
+Duration _resolvedUserContentProviderRetention() {
+  return (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS)
+      ? _userContentProviderRetentionMobile
+      : _userContentProviderRetention;
+}
 
 void _retainAutoDisposeState(Ref ref, Duration duration) {
   final link = ref.keepAlive();
@@ -43,7 +52,7 @@ class BrowsingHistoryNotifier extends AsyncNotifier<List<Topic>> {
 
   @override
   Future<List<Topic>> build() async {
-    _retainAutoDisposeState(ref, _userContentProviderRetention);
+    _retainAutoDisposeState(ref, _resolvedUserContentProviderRetention());
     _page = 0;
     _hasMore = true;
     _isLoadMoreFailed = false;
@@ -155,7 +164,7 @@ class BookmarksNotifier extends AsyncNotifier<List<Topic>> {
 
   @override
   Future<List<Topic>> build() async {
-    _retainAutoDisposeState(ref, _userContentProviderRetention);
+    _retainAutoDisposeState(ref, _resolvedUserContentProviderRetention());
     _page = 0;
     _hasMore = true;
     _isLoadMoreFailed = false;
@@ -330,7 +339,7 @@ class MyTopicsNotifier extends AsyncNotifier<List<Topic>> {
 
   @override
   Future<List<Topic>> build() async {
-    _retainAutoDisposeState(ref, _userContentProviderRetention);
+    _retainAutoDisposeState(ref, _resolvedUserContentProviderRetention());
     _page = 0;
     _hasMore = true;
     _isLoadMoreFailed = false;
@@ -427,7 +436,7 @@ abstract class PrivateMessagesNotifier extends AsyncNotifier<List<Topic>> {
 
   @override
   Future<List<Topic>> build() async {
-    _retainAutoDisposeState(ref, _userContentProviderRetention);
+    _retainAutoDisposeState(ref, _resolvedUserContentProviderRetention());
     _page = 0;
     _hasMore = true;
     _isLoadMoreFailed = false;

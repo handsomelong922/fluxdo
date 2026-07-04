@@ -86,6 +86,11 @@ const _tabRowHeight = 36.0;
 const _sortBarHeight = 44.0;
 const _collapsibleHeight = _searchBarHeight + _sortBarHeight; // 100
 
+@visibleForTesting
+double quantizeMobileHeaderProgress(double rawProgress, {required double threshold}) {
+  return rawProgress >= threshold ? 1.0 : 0.0;
+}
+
 /// 阻止外层滚动的 ScrollPhysics，所有滑动增量转给内层列表。
 class _NoOuterScrollPhysics extends ScrollPhysics {
   const _NoOuterScrollPhysics({super.parent});
@@ -840,6 +845,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
     }
 
     if (notification is ScrollEndNotification && !_isSnapping) {
+      if (Responsive.isMobile(context)) return false;
       // macOS 鼠标滚轮/触控板会产生大量离散的 ScrollEnd，若每次都立即 snap，
       // 会导致外层 header 在 0~阈值间反复吸附，从而表现为列表上下跳动。
       // pointer scrolling 期间跳过 snap，改由 onPointerSignal 的 idle 定时器统一触发一次。
@@ -887,6 +893,10 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
 
     final startOffset = _outerScrollController.offset;
     if (startOffset == target) return;
+    if (Responsive.isMobile(context)) {
+      _outerScrollController.position.snapToPixels(target);
+      return;
+    }
 
     _isSnapping = true;
     _snapAnim?.dispose();
@@ -1048,12 +1058,22 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
+    final isMobile = Responsive.isMobile(context);
     final clampedOffset = shrinkOffset.clamp(0.0, _collapsibleHeight);
 
     // 搜索栏先折叠（shrinkOffset 0→56），排序栏后折叠（56→100）
-    final searchProgress = (clampedOffset / _searchBarHeight).clamp(0.0, 1.0);
-    final sortProgress = ((clampedOffset - _searchBarHeight) / _sortBarHeight)
+    final rawSearchProgress = (clampedOffset / _searchBarHeight).clamp(
+      0.0,
+      1.0,
+    );
+    final rawSortProgress = ((clampedOffset - _searchBarHeight) / _sortBarHeight)
         .clamp(0.0, 1.0);
+    final searchProgress = isMobile
+        ? quantizeMobileHeaderProgress(rawSearchProgress, threshold: 0.6)
+        : rawSearchProgress;
+    final sortProgress = isMobile
+        ? quantizeMobileHeaderProgress(rawSortProgress, threshold: 0.5)
+        : rawSortProgress;
 
     // 更新 barVisibility（仅在值变化时才更新，避免快速滚动时的帧级联重建）
     final visibility = !hideBarOnScroll
@@ -1084,78 +1104,13 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
               child: Align(
                 alignment: Alignment.bottomCenter,
                 heightFactor: 1.0 - searchProgress,
-                child: Opacity(
-                  opacity: 1.0 - searchProgress,
-                  child: SizedBox(
-                    height: _searchBarHeight,
-                    child: Padding(
-                      padding: const EdgeInsets.only(
-                        top: 8,
-                        left: 16,
-                        right: 8,
-                        bottom: 8,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: onSearch,
-                              child: Container(
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .surfaceContainerHighest
-                                      .withValues(alpha: 0.5),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.search,
-                                      size: 20,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        context.l10n.topics_searchHint,
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurfaceVariant,
-                                          fontSize: 14,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (isLoggedIn &&
-                              !Responsive.showNavigationRail(context)) ...[
-                            const SizedBox(width: 12),
-                            const NotificationIconButton(),
-                          ],
-                          if (kDebugMode)
-                            IconButton(
-                              icon: const Icon(Icons.bug_report),
-                              onPressed: onDebugTopicId,
-                              tooltip: context.l10n.topics_debugJump,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+                child: (isMobile
+                        ? null
+                        : Opacity(
+                            opacity: 1.0 - searchProgress,
+                            child: _buildSearchBar(context),
+                          )) ??
+                    _buildSearchBar(context),
               ),
             ),
           // Tab 行（始终可见）
@@ -1182,16 +1137,24 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
                   ),
                 ),
                 // 筛选/排序栏隐藏时，渐显筛选快捷按钮
-                if (sortProgress > 0)
-                  Opacity(
-                    opacity: sortProgress,
-                    child: FilterDropdown(
-                      currentFilter: currentFilter,
-                      isLoggedIn: isLoggedIn,
-                      onFilterChanged: onFilterChanged,
-                      style: DropdownStyle.compact,
-                    ),
-                  ),
+                if ((!isMobile && sortProgress > 0) ||
+                    (isMobile && sortProgress >= 0.5))
+                  (!isMobile
+                      ? Opacity(
+                          opacity: sortProgress,
+                          child: FilterDropdown(
+                            currentFilter: currentFilter,
+                            isLoggedIn: isLoggedIn,
+                            onFilterChanged: onFilterChanged,
+                            style: DropdownStyle.compact,
+                          ),
+                        )
+                      : FilterDropdown(
+                          currentFilter: currentFilter,
+                          isLoggedIn: isLoggedIn,
+                          onFilterChanged: onFilterChanged,
+                          style: DropdownStyle.compact,
+                        )),
                 // 分类浏览按钮
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
@@ -1211,42 +1174,110 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
               child: Align(
                 alignment: Alignment.bottomCenter,
                 heightFactor: 1.0 - sortProgress,
-                child: Opacity(
-                  opacity: 1.0 - sortProgress,
-                  // 用 Consumer 局部读取排序状态，避免整个 header delegate 因排序变化而重建
-                  child: Consumer(
-                    builder: (context, ref, _) {
-                      final order = ref.watch(topicSortOrderProvider);
-                      final ascending = ref.watch(topicSortAscendingProvider);
-                      final subset = ref.watch(topicNewSubsetProvider);
-                      return SortAndTagsBar(
-                        currentFilter: currentFilter,
-                        isLoggedIn: isLoggedIn,
-                        onFilterChanged: onFilterChanged,
-                        currentSubset: subset,
-                        onSubsetChanged: (subset) => ref
-                            .read(topicNewSubsetProvider.notifier)
-                            .setSubset(subset),
-                        currentOrder: order,
-                        ascending: ascending,
-                        onOrderChanged: (o) => ref
-                            .read(topicSortOrderProvider.notifier)
-                            .setOrder(o),
-                        onToggleAscending: () => ref
-                            .read(topicSortAscendingProvider.notifier)
-                            .toggle(),
-                        selectedTags: currentTags,
-                        onTagRemoved: onTagRemoved,
-                        onAddTag: onAddTag,
-                        trailing: trailing,
-                      );
-                    },
-                  ),
-                ),
+                child: (isMobile
+                        ? null
+                        : Opacity(
+                            opacity: 1.0 - sortProgress,
+                            child: _buildSortBar(),
+                          )) ??
+                    _buildSortBar(),
               ),
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSearchBar(BuildContext context) {
+    return SizedBox(
+      height: _searchBarHeight,
+      child: Padding(
+        padding: const EdgeInsets.only(
+          top: 8,
+          left: 16,
+          right: 8,
+          bottom: 8,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: onSearch,
+                child: Container(
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest
+                        .withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.search,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          context.l10n.topics_searchHint,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (isLoggedIn && !Responsive.showNavigationRail(context)) ...[
+              const SizedBox(width: 12),
+              const NotificationIconButton(),
+            ],
+            if (kDebugMode)
+              IconButton(
+                icon: const Icon(Icons.bug_report),
+                onPressed: onDebugTopicId,
+                tooltip: context.l10n.topics_debugJump,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSortBar() {
+    return Consumer(
+      builder: (context, ref, _) {
+        final order = ref.watch(topicSortOrderProvider);
+        final ascending = ref.watch(topicSortAscendingProvider);
+        final subset = ref.watch(topicNewSubsetProvider);
+        return SortAndTagsBar(
+          currentFilter: currentFilter,
+          isLoggedIn: isLoggedIn,
+          onFilterChanged: onFilterChanged,
+          currentSubset: subset,
+          onSubsetChanged: (subset) =>
+              ref.read(topicNewSubsetProvider.notifier).setSubset(subset),
+          currentOrder: order,
+          ascending: ascending,
+          onOrderChanged: (o) =>
+              ref.read(topicSortOrderProvider.notifier).setOrder(o),
+          onToggleAscending: () =>
+              ref.read(topicSortAscendingProvider.notifier).toggle(),
+          selectedTags: currentTags,
+          onTagRemoved: onTagRemoved,
+          onAddTag: onAddTag,
+          trailing: trailing,
+        );
+      },
     );
   }
 
@@ -1316,6 +1347,9 @@ class _TopicListState extends ConsumerState<_TopicList> {
 
     _resumeExcerptLoadingTimer?.cancel();
     if (paused) {
+      if (!ref.read(homeTopicExcerptPausedProvider)) {
+        ref.read(homeTopicExcerptPausedProvider.notifier).state = true;
+      }
       ref.read(homeTopicExcerptLoaderProvider).setPaused(true);
       return;
     }
@@ -1323,6 +1357,9 @@ class _TopicListState extends ConsumerState<_TopicList> {
     _resumeExcerptLoadingTimer = Timer(const Duration(milliseconds: 180), () {
       if (!mounted) return;
       ref.read(homeTopicExcerptLoaderProvider).setPaused(false);
+      if (ref.read(homeTopicExcerptPausedProvider)) {
+        ref.read(homeTopicExcerptPausedProvider.notifier).state = false;
+      }
     });
   }
 
@@ -1590,7 +1627,7 @@ class _TopicListState extends ConsumerState<_TopicList> {
                   'topics-tab-${providerKey?.toString() ?? 'all'}',
                 ),
                 addAutomaticKeepAlives: false,
-                cacheExtent: Responsive.isMobile(context) ? 180.0 : null,
+                cacheExtent: Responsive.isMobile(context) ? 120.0 : null,
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.only(top: 8, bottom: 12),
                 itemCount: topics.length + incomingSlotCount + 1,
@@ -1871,11 +1908,25 @@ class _HomeExcerptLoader extends ConsumerStatefulWidget {
 
 class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
   String? _resolvedHtml;
+  String? _pendingHtmlWhilePaused;
   Future<void>? _pendingLoad;
+  ProviderSubscription<bool>? _pauseSubscription;
 
   @override
   void initState() {
     super.initState();
+    _pauseSubscription = ref.listenManual<bool>(
+      homeTopicExcerptPausedProvider,
+      (previous, next) {
+        if (next) return;
+        final pending = _pendingHtmlWhilePaused;
+        if (!mounted || pending == null || pending.isEmpty) return;
+        setState(() {
+          _resolvedHtml = pending;
+          _pendingHtmlWhilePaused = null;
+        });
+      },
+    );
     _prime();
   }
 
@@ -1905,6 +1956,10 @@ class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
           if (!mounted || widget.topicId != topicId) return;
           final normalized = html?.trim();
           if (normalized == null || normalized.isEmpty) return;
+          if (ref.read(homeTopicExcerptPausedProvider)) {
+            _pendingHtmlWhilePaused = normalized;
+            return;
+          }
           setState(() {
             _resolvedHtml = normalized;
           });
@@ -1914,6 +1969,12 @@ class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
             _pendingLoad = null;
           }
         });
+  }
+
+  @override
+  void dispose() {
+    _pauseSubscription?.close();
+    super.dispose();
   }
 
   @override

@@ -253,7 +253,7 @@ class _PrivateMessageTabViewState extends ConsumerState<_PrivateMessageTabView>
             key: PageStorageKey<String>('pm-list-${widget.filter.name}'),
             controller: _scrollController,
             addAutomaticKeepAlives: false,
-            cacheExtent: Responsive.isMobile(context) ? 180.0 : null,
+            cacheExtent: Responsive.isMobile(context) ? 120.0 : null,
             padding: const EdgeInsets.all(12),
             itemCount: topics.length + 1,
             itemBuilder: (context, index) {

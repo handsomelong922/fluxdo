@@ -7,6 +7,7 @@ import '../models/topic.dart';
 import 'core_providers.dart';
 
 const Duration _nestedTopicProviderRetention = Duration(seconds: 10);
+const Duration _nestedTopicProviderRetentionMobile = Duration(seconds: 4);
 
 /// 嵌套视图参数
 class NestedTopicParams {
@@ -92,10 +93,15 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
 
   @override
   Future<NestedTopicState> build() async {
+    final retention =
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)
+        ? _nestedTopicProviderRetentionMobile
+        : _nestedTopicProviderRetention;
     final link = ref.keepAlive();
     Timer? disposeTimer;
     ref.onCancel(() {
-      disposeTimer = Timer(_nestedTopicProviderRetention, link.close);
+      disposeTimer = Timer(retention, link.close);
     });
     ref.onResume(() {
       disposeTimer?.cancel();

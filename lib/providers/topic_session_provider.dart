@@ -31,10 +31,17 @@ class TopicSessionNotifier extends Notifier<TopicSessionState> {
 
   @override
   TopicSessionState build() {
+    final isMobilePlatform =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final retention = isMobilePlatform &&
+            cacheRetention > const Duration(seconds: 45)
+        ? const Duration(seconds: 45)
+        : cacheRetention;
     final link = ref.keepAlive();
     Timer? disposeTimer;
     ref.onCancel(() {
-      disposeTimer = Timer(cacheRetention, link.close);
+      disposeTimer = Timer(retention, link.close);
     });
     ref.onResume(() {
       disposeTimer?.cancel();

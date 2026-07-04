@@ -83,6 +83,19 @@ class TrackedTopicState {
   }
 }
 
+bool isTrackedTopicNew(TrackedTopicState state) {
+  return state.lastReadPostNumber == null &&
+      state.createdInNewPeriod &&
+      ((state.notificationLevel != 0 && !state.isSeen) ||
+          state.notificationLevel >= 2);
+}
+
+bool isTrackedTopicUnread(TrackedTopicState state) {
+  return state.lastReadPostNumber != null &&
+      state.lastReadPostNumber! < state.highestPostNumber &&
+      state.notificationLevel >= 2;
+}
+
 /// 全局话题追踪状态 Notifier
 /// 对齐 Discourse 网页版的 topic-tracking-state.js
 class TopicTrackingStateNotifier extends Notifier<Map<int, TrackedTopicState>> {
@@ -115,8 +128,8 @@ class TopicTrackingStateNotifier extends Notifier<Map<int, TrackedTopicState>> {
       );
       runtimeDebugPrint('[TopicTrackingState] 首条原始数据: ${states.first}');
     }
-    final newCount = map.values.where((s) => _isNew(s)).length;
-    final unreadCount = map.values.where((s) => _isUnread(s)).length;
+    final newCount = map.values.where(isTrackedTopicNew).length;
+    final unreadCount = map.values.where(isTrackedTopicUnread).length;
     runtimeDebugPrint(
       '[TopicTrackingState] 从预加载数据初始化 ${map.length} 条追踪状态, new=$newCount, unread=$unreadCount',
     );
@@ -146,7 +159,7 @@ class TopicTrackingStateNotifier extends Notifier<Map<int, TrackedTopicState>> {
   int countNew({int? categoryId}) {
     return state.values.where((s) {
       if (categoryId != null && s.categoryId != categoryId) return false;
-      return _isNew(s);
+      return isTrackedTopicNew(s);
     }).length;
   }
 
@@ -154,25 +167,8 @@ class TopicTrackingStateNotifier extends Notifier<Map<int, TrackedTopicState>> {
   int countUnread({int? categoryId}) {
     return state.values.where((s) {
       if (categoryId != null && s.categoryId != categoryId) return false;
-      return _isUnread(s);
+      return isTrackedTopicUnread(s);
     }).length;
-  }
-
-  /// 判断是否为 NEW 话题（对齐网页版 isNew）
-  /// 条件：未读过 + 在新话题期限内创建 +
-  ///   (非静音且未看过 或 TRACKING 及以上)
-  bool _isNew(TrackedTopicState s) {
-    return s.lastReadPostNumber == null &&
-        s.createdInNewPeriod &&
-        ((s.notificationLevel != 0 && !s.isSeen) || s.notificationLevel >= 2);
-  }
-
-  /// 判断是否为 UNREAD 话题（对齐网页版 isUnread）
-  /// 条件：已读过 + 有新帖子 + TRACKING 或以上
-  bool _isUnread(TrackedTopicState s) {
-    return s.lastReadPostNumber != null &&
-        s.lastReadPostNumber! < s.highestPostNumber &&
-        s.notificationLevel >= 2;
   }
 
   /// 处理 MessageBus 频道消息，更新追踪状态
@@ -259,7 +255,7 @@ class TopicTrackingStateNotifier extends Notifier<Map<int, TrackedTopicState>> {
       final categoryId = payload?['category_id'] as int?;
       final newState = Map<int, TrackedTopicState>.from(state);
       for (final entry in newState.entries) {
-        if (_isNew(entry.value)) {
+        if (isTrackedTopicNew(entry.value)) {
           if (categoryId == null || entry.value.categoryId == categoryId) {
             newState[entry.key] = entry.value.copyWith(isSeen: true);
           }
@@ -288,7 +284,7 @@ class TopicTrackingStateNotifier extends Notifier<Map<int, TrackedTopicState>> {
       final categoryId = payload?['category_id'] as int?;
       final newState = Map<int, TrackedTopicState>.from(state);
       for (final entry in newState.entries) {
-        if (_isUnread(entry.value)) {
+        if (isTrackedTopicUnread(entry.value)) {
           if (categoryId == null || entry.value.categoryId == categoryId) {
             newState[entry.key] = entry.value.copyWith(
               lastReadPostNumber: entry.value.highestPostNumber,
@@ -302,7 +298,7 @@ class TopicTrackingStateNotifier extends Notifier<Map<int, TrackedTopicState>> {
       final newState = Map<int, TrackedTopicState>.from(state);
       for (final id in ids) {
         final existing = newState[id];
-        if (existing != null && _isUnread(existing)) {
+        if (existing != null && isTrackedTopicUnread(existing)) {
           newState[id] = existing.copyWith(
             lastReadPostNumber: existing.highestPostNumber,
           );
@@ -333,7 +329,7 @@ class TopicTrackingStateNotifier extends Notifier<Map<int, TrackedTopicState>> {
   void dismissNewTopics({int? categoryId}) {
     final newState = Map<int, TrackedTopicState>.from(state);
     for (final entry in newState.entries) {
-      if (_isNew(entry.value)) {
+      if (isTrackedTopicNew(entry.value)) {
         if (categoryId == null || entry.value.categoryId == categoryId) {
           newState[entry.key] = entry.value.copyWith(isSeen: true);
         }
@@ -346,7 +342,7 @@ class TopicTrackingStateNotifier extends Notifier<Map<int, TrackedTopicState>> {
   void dismissUnreadTopics({int? categoryId}) {
     final newState = Map<int, TrackedTopicState>.from(state);
     for (final entry in newState.entries) {
-      if (_isUnread(entry.value)) {
+      if (isTrackedTopicUnread(entry.value)) {
         if (categoryId == null || entry.value.categoryId == categoryId) {
           newState[entry.key] = entry.value.copyWith(
             lastReadPostNumber: entry.value.highestPostNumber,

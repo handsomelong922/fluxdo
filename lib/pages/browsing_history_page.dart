@@ -187,7 +187,7 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
             key: const PageStorageKey<String>('browsing-history-list'),
             controller: _scrollController,
             addAutomaticKeepAlives: false,
-            cacheExtent: Responsive.isMobile(context) ? 180.0 : null,
+            cacheExtent: Responsive.isMobile(context) ? 120.0 : null,
             padding: const EdgeInsets.all(12),
             itemCount: visibleTopics.length + 1,
             itemBuilder: (context, index) {
