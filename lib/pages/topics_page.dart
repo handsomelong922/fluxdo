@@ -642,32 +642,13 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
     ref.listen(scrollToTopProvider, (previous, next) {
       ref.read(fabRefreshModeProvider.notifier).state = false;
       _cancelSnap(cancelPointerScrollSession: true);
-      // 通过 outer controller 的 animateTo 驱动 coordinator 统一动画。
-      // 目标设为 outer 当前 offset，这样 coordinator 的 nestOffset 会：
-      //   - outer → 保持当前位置（header 状态不变）
-      //   - inner → 回到 minScrollExtent（列表回顶部）
-      //
-      // 不能调用 inner 的 animateTo(0)，因为 unnestOffset 的边界条件 bug
-      // 会导致 coordinator 反而把 outer 推到 maxScrollExtent。
-      if (_outerScrollController.hasClients &&
-          _outerScrollController.positions.length == 1) {
-        _outerScrollController.animateTo(
-          _outerScrollController.offset,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
+      _scrollCurrentHomeListToTop();
     });
 
     ref.listen(refreshScrollToTopProvider, (previous, next) {
       ref.read(fabRefreshModeProvider.notifier).state = false;
       _cancelSnap(cancelPointerScrollSession: true);
-      if (_outerScrollController.hasClients &&
-          _outerScrollController.positions.length == 1) {
-        _outerScrollController.position.snapToPixels(
-          _outerScrollController.offset,
-        );
-      }
+      _scrollCurrentHomeListToTop();
     });
 
     return Listener(
@@ -923,6 +904,27 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   /// 避免触发 coordinator 的 beginActivity/goIdle 导致内部列表位置重置。
   void _publishHomeScrollProgress(double pixels) {
     ref.publishNavScrollProgress(NavEntryIds.home, pixels);
+  }
+
+  void _scrollCurrentHomeListToTop() {
+    final primaryController = PrimaryScrollController.maybeOf(context);
+    if (primaryController != null && primaryController.hasClients) {
+      primaryController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+      return;
+    }
+
+    if (_outerScrollController.hasClients &&
+        _outerScrollController.positions.length == 1) {
+      _outerScrollController.animateTo(
+        _outerScrollController.offset,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   void _snapOuterScroll() {
@@ -1364,12 +1366,7 @@ class _TopicListState extends ConsumerState<_TopicList> {
   }
 
   void scrollToTop() {
-    final controller = PrimaryScrollController.maybeOf(context);
-    controller?.animateTo(
-      0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
+    _scrollActiveTopicListToTop();
   }
 
   /// 清除当前 tab 的高亮和"新话题"计数
