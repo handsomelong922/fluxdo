@@ -288,41 +288,103 @@ class _AnimatedBottomNav extends StatelessWidget {
         height: 84 + bottomInset,
         child: Align(
           alignment: Alignment.bottomCenter,
-          child: FractionalTranslation(
-            translation: Offset(0, 1 - clampedVisibility),
-            child: Opacity(
-              opacity: clampedVisibility,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(36, 0, 36, bottomInset + 18),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(22),
-                  child: DecoratedBox(
+          child: isMobile
+              ? TweenAnimationBuilder<double>(
+                  tween: Tween<double>(
+                    begin: clampedVisibility,
+                    end: clampedVisibility,
+                  ),
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, child) {
+                    return _BottomNavTransform(visibility: value, child: child);
+                  },
+                  child: _BottomNavSurface(
+                    bottomInset: bottomInset,
+                    maxWidth: maxWidth,
                     decoration: navDecoration,
-                    child: isMobile
-                        ? ConstrainedBox(
-                            constraints: BoxConstraints(maxWidth: maxWidth),
-                            child: AdaptiveBottomNavigation(
-                              selectedIndex: selectedIndex,
-                              onDestinationSelected: onDestinationSelected,
-                              destinations: destinations,
-                            ),
-                          )
-                        : BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(maxWidth: maxWidth),
-                              child: AdaptiveBottomNavigation(
-                                selectedIndex: selectedIndex,
-                                onDestinationSelected: onDestinationSelected,
-                                destinations: destinations,
-                              ),
-                            ),
-                          ),
+                    selectedIndex: selectedIndex,
+                    onDestinationSelected: onDestinationSelected,
+                    destinations: destinations,
+                    blurDesktop: false,
+                  ),
+                )
+              : _BottomNavTransform(
+                  visibility: clampedVisibility,
+                  child: _BottomNavSurface(
+                    bottomInset: bottomInset,
+                    maxWidth: maxWidth,
+                    decoration: navDecoration,
+                    selectedIndex: selectedIndex,
+                    onDestinationSelected: onDestinationSelected,
+                    destinations: destinations,
+                    blurDesktop: true,
                   ),
                 ),
-              ),
-            ),
-          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomNavTransform extends StatelessWidget {
+  const _BottomNavTransform({required this.visibility, required this.child});
+
+  final double visibility;
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    final clampedVisibility = visibility.clamp(0.0, 1.0).toDouble();
+    return FractionalTranslation(
+      translation: Offset(0, 1 - clampedVisibility),
+      child: Opacity(opacity: clampedVisibility, child: child),
+    );
+  }
+}
+
+class _BottomNavSurface extends StatelessWidget {
+  const _BottomNavSurface({
+    required this.bottomInset,
+    required this.maxWidth,
+    required this.decoration,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+    required this.destinations,
+    required this.blurDesktop,
+  });
+
+  final double bottomInset;
+  final double maxWidth;
+  final BoxDecoration decoration;
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final List<AdaptiveDestination> destinations;
+  final bool blurDesktop;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: AdaptiveBottomNavigation(
+        selectedIndex: selectedIndex,
+        onDestinationSelected: onDestinationSelected,
+        destinations: destinations,
+      ),
+    );
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(36, 0, 36, bottomInset + 18),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: DecoratedBox(
+          decoration: decoration,
+          child: blurDesktop
+              ? BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                  child: content,
+                )
+              : content,
         ),
       ),
     );

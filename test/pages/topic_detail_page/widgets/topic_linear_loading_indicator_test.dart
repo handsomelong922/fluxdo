@@ -3,6 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/pages/topic_detail_page/widgets/topic_linear_loading_indicator.dart';
 
 void main() {
+  test('mobile loading bar animation uses faster cycle', () {
+    expect(
+      topicLoadingBarAnimationDuration,
+      const Duration(milliseconds: 1050),
+    );
+  });
+
   testWidgets(
     'renders desktop linear progress indicator without circular spinner',
     (tester) async {

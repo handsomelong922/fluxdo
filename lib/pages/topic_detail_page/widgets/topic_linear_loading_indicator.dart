@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../utils/responsive.dart';
 
+@visibleForTesting
+const Duration topicLoadingBarAnimationDuration = Duration(milliseconds: 1050);
+
 class TopicLinearLoadingIndicator extends StatelessWidget {
   const TopicLinearLoadingIndicator({
     super.key,
@@ -30,7 +33,7 @@ class _AnimatedTopicLoadingBarState extends State<_AnimatedTopicLoadingBar>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1650),
+    duration: topicLoadingBarAnimationDuration,
   )..repeat();
 
   @override

@@ -1023,22 +1023,17 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       right: 12,
       child: IgnorePointer(
         ignoring: !visible,
-        child: isMobile
-            ? Transform.translate(
-                offset: visible ? Offset.zero : const Offset(0, -48),
-                child: Opacity(opacity: visible ? 1 : 0, child: row),
-              )
-            : AnimatedSlide(
-                offset: visible ? Offset.zero : const Offset(0, -1.4),
-                duration: topicDetailBarAnimationDuration,
-                curve: topicDetailBarAnimationCurve,
-                child: AnimatedOpacity(
-                  opacity: visible ? 1 : 0,
-                  duration: topicDetailBarAnimationDuration,
-                  curve: topicDetailBarAnimationCurve,
-                  child: row,
-                ),
-              ),
+        child: AnimatedSlide(
+          offset: visible ? Offset.zero : Offset(0, isMobile ? -0.9 : -1.4),
+          duration: topicDetailBarAnimationDuration,
+          curve: topicDetailBarAnimationCurve,
+          child: AnimatedOpacity(
+            opacity: visible ? 1 : 0,
+            duration: topicDetailBarAnimationDuration,
+            curve: topicDetailBarAnimationCurve,
+            child: row,
+          ),
+        ),
       ),
     );
   }

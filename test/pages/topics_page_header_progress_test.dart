@@ -8,4 +8,13 @@ void main() {
     expect(quantizeMobileHeaderProgress(0.6, threshold: 0.6), 1.0);
     expect(quantizeMobileHeaderProgress(1.0, threshold: 0.6), 1.0);
   });
+
+  test(
+    'homeLoadMoreTriggerDistance prefetches before the footer is reached',
+    () {
+      expect(homeLoadMoreTriggerDistance(320), 520);
+      expect(homeLoadMoreTriggerDistance(800), closeTo(920, 0.001));
+      expect(homeLoadMoreTriggerDistance(1400), 1200);
+    },
+  );
 }

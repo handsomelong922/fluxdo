@@ -85,6 +85,14 @@ const _searchBarHeight = 56.0;
 const _tabRowHeight = 36.0;
 const _sortBarHeight = 44.0;
 const _collapsibleHeight = _searchBarHeight + _sortBarHeight; // 100
+const Duration _barSnapAnimationDuration = Duration(milliseconds: 220);
+const Curve _barSnapAnimationCurve = Curves.easeOutCubic;
+
+@visibleForTesting
+double homeLoadMoreTriggerDistance(double viewportDimension) {
+  final base = viewportDimension * 1.15;
+  return base.clamp(520.0, 1200.0).toDouble();
+}
 
 @visibleForTesting
 double quantizeMobileHeaderProgress(
@@ -877,22 +885,18 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
 
     final startOffset = _outerScrollController.offset;
     if (startOffset == target) return;
-    if (Responsive.isMobile(context)) {
-      _outerScrollController.position.snapToPixels(target);
-      return;
-    }
 
     _isSnapping = true;
     _snapAnim?.dispose();
     _snapAnim = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
+      duration: _barSnapAnimationDuration,
     );
 
     _snapAnim!.addListener(() {
       if (!_outerScrollController.hasClients) return;
       if (_outerScrollController.positions.length != 1) return;
-      final t = Curves.easeOut.transform(_snapAnim!.value);
+      final t = _barSnapAnimationCurve.transform(_snapAnim!.value);
       final newOffset = startOffset + (target - startOffset) * t;
       _outerScrollController.position.snapToPixels(newOffset);
     });
@@ -1072,14 +1076,10 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
       0.0,
       1.0,
     );
-    final rawSortProgress = ((clampedOffset - _searchBarHeight) / _sortBarHeight)
-        .clamp(0.0, 1.0);
-    final searchProgress = isMobile
-        ? quantizeMobileHeaderProgress(rawSearchProgress, threshold: 0.6)
-        : rawSearchProgress;
-    final sortProgress = isMobile
-        ? quantizeMobileHeaderProgress(rawSortProgress, threshold: 0.5)
-        : rawSortProgress;
+    final rawSortProgress =
+        ((clampedOffset - _searchBarHeight) / _sortBarHeight).clamp(0.0, 1.0);
+    final searchProgress = rawSearchProgress;
+    final sortProgress = rawSortProgress;
 
     // 更新 barVisibility（仅在值变化时才更新，避免快速滚动时的帧级联重建）
     final visibility = !hideBarOnScroll
@@ -1109,7 +1109,8 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
               child: Align(
                 alignment: Alignment.bottomCenter,
                 heightFactor: 1.0 - searchProgress,
-                child: (isMobile
+                child:
+                    (isMobile
                         ? null
                         : Opacity(
                             opacity: 1.0 - searchProgress,
@@ -1179,7 +1180,8 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
               child: Align(
                 alignment: Alignment.bottomCenter,
                 heightFactor: 1.0 - sortProgress,
-                child: (isMobile
+                child:
+                    (isMobile
                         ? null
                         : Opacity(
                             opacity: 1.0 - sortProgress,
@@ -1625,8 +1627,10 @@ class _TopicListState extends ConsumerState<_TopicList> {
                 }
                 if (notification.depth == 0 &&
                     notification is ScrollUpdateNotification &&
-                    notification.metrics.pixels >=
-                        notification.metrics.maxScrollExtent - 200) {
+                    notification.metrics.extentAfter <=
+                        homeLoadMoreTriggerDistance(
+                          notification.metrics.viewportDimension,
+                        )) {
                   ref.read(topicListProvider(providerKey).notifier).loadMore();
                 }
                 return false;
