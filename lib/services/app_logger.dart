@@ -31,7 +31,7 @@ class AppLogger {
       'level': 'info',
       'type': 'general',
       'message': message,
-      if (tag != null) 'tag': tag,
+      ...?(tag == null ? null : {'tag': tag}),
     });
   }
 
@@ -49,7 +49,7 @@ class AppLogger {
       'level': 'warning',
       'type': 'general',
       'message': message,
-      if (tag != null) 'tag': tag,
+      ...?(tag == null ? null : {'tag': tag}),
     });
   }
 
@@ -73,7 +73,7 @@ class AppLogger {
       error ?? message,
       stackTrace ?? StackTrace.current,
       extraData: {
-        if (tag != null) 'tag': tag,
+        ...?(tag == null ? null : {'tag': tag}),
         'message': message,
       },
     );

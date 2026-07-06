@@ -62,9 +62,7 @@ class FingerprintService {
     try {
       // 1. 优先复用 PreloadedDataService 缓存的 HTML，避免额外网络请求
       var html = PreloadedDataService().consumeCachedHtml();
-      if (html == null) {
-        html = await _fetchPageHtml();
-      }
+      html ??= await _fetchPageHtml();
       if (html == null) {
         debugPrint('[Fingerprint] 获取页面 HTML 失败');
         return false;
@@ -102,9 +100,11 @@ class FingerprintService {
       debugPrint('[Fingerprint] 上报成功');
       return true;
     } on DioException catch (e) {
-      debugPrint('[Fingerprint] 上报失败: ${e.response?.statusCode} '
-          'url=${e.requestOptions.uri} '
-          'body=${e.response?.data}');
+      debugPrint(
+        '[Fingerprint] 上报失败: ${e.response?.statusCode} '
+        'url=${e.requestOptions.uri} '
+        'body=${e.response?.data}',
+      );
       return false;
     } catch (e) {
       debugPrint('[Fingerprint] 上报异常: $e');
@@ -146,7 +146,7 @@ class FingerprintService {
     }
   }
 
-  /// 在 HTML 的 <head> 后注入 XHR hook 脚本
+  /// 在 HTML 的 `head` 后注入 XHR hook 脚本
   String _injectXhrHook(String html) {
     // 匹配 fingerprint 请求：body 包含 visitor_id= 且包含指纹特征字段 "fonts"
     const hookScript = '''
@@ -229,8 +229,7 @@ class FingerprintService {
     });
 
     final webView = HeadlessInAppWebView(
-      webViewEnvironment:
-          WindowsWebViewEnvironmentService.instance.environment,
+      webViewEnvironment: WindowsWebViewEnvironmentService.instance.environment,
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         userAgent: AppConstants.webViewUserAgentOverride,
@@ -246,8 +245,10 @@ class FingerprintService {
               final url = result['url']?.toString();
               final body = result['body']?.toString();
 
-              if (url != null && url.isNotEmpty &&
-                  body != null && body.isNotEmpty) {
+              if (url != null &&
+                  url.isNotEmpty &&
+                  body != null &&
+                  body.isNotEmpty) {
                 // 提取相对路径作为 endpoint
                 _endpoint = url.startsWith('http')
                     ? Uri.tryParse(url)?.path ?? url

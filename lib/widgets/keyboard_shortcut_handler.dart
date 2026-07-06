@@ -7,7 +7,6 @@ import '../pages/create_topic_page.dart';
 import '../pages/search_page.dart';
 import '../providers/topic_list/tab_state_provider.dart';
 import '../pages/settings_page.dart';
-import '../pages/topics_page.dart';
 import '../providers/shortcut_provider.dart';
 import '../utils/platform_utils.dart';
 import 'notification/notification_quick_panel.dart';
@@ -141,17 +140,21 @@ class _KeyboardShortcutHandlerState
         return true;
       case ShortcutAction.openSearch:
         if (_isTopRoute(nav, 'search')) return true;
-        nav.push(MaterialPageRoute(
-          settings: const RouteSettings(name: 'search'),
-          builder: (_) => const SearchPage(),
-        ));
+        nav.push(
+          MaterialPageRoute(
+            settings: const RouteSettings(name: 'search'),
+            builder: (_) => const SearchPage(),
+          ),
+        );
         return true;
       case ShortcutAction.openSettings:
         if (_isTopRoute(nav, 'settings')) return true;
-        nav.push(MaterialPageRoute(
-          settings: const RouteSettings(name: 'settings'),
-          builder: (_) => const SettingsPage(),
-        ));
+        nav.push(
+          MaterialPageRoute(
+            settings: const RouteSettings(name: 'settings'),
+            builder: (_) => const SettingsPage(),
+          ),
+        );
         return true;
       case ShortcutAction.refresh:
         final activePane = ref.read(activePaneProvider);
@@ -177,10 +180,11 @@ class _KeyboardShortcutHandlerState
         return true;
       case ShortcutAction.switchPane:
         final current = ref.read(activePaneProvider);
-        ref.read(activePaneProvider.notifier).state =
-            current == ActivePane.master
-                ? ActivePane.detail
-                : ActivePane.master;
+        ref
+            .read(activePaneProvider.notifier)
+            .state = current == ActivePane.master
+            ? ActivePane.detail
+            : ActivePane.master;
         // 触发 HUD 信号（仅键盘切换时）
         ref.read(paneSwitchSignalProvider.notifier).update((v) => v + 1);
         return true;
@@ -200,11 +204,13 @@ class _KeyboardShortcutHandlerState
         if (_isTopRoute(nav, 'search') || _isTopRoute(nav, 'settings')) {
           return true;
         }
-        nav.push(MaterialPageRoute(
-          builder: (_) => CreateTopicPage(
-            initialCategoryId: ref.read(currentTabCategoryIdProvider),
+        nav.push(
+          MaterialPageRoute(
+            builder: (_) => CreateTopicPage(
+              initialCategoryId: ref.read(currentTabCategoryIdProvider),
+            ),
           ),
-        ));
+        );
         return true;
       // 以下是上下文动作，不在此处处理
       case ShortcutAction.closeOverlay:

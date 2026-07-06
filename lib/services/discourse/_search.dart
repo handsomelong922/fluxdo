@@ -16,7 +16,7 @@ mixin _SearchMixin on _DiscourseServiceBase {
       queryParameters: {
         'q': query,
         if (page > 1) 'page': page,
-        if (typeFilter != null) 'type_filter': typeFilter,
+        ...?(typeFilter == null ? null : {'type_filter': typeFilter}),
       },
     );
     return SearchResult.fromJson(response.data);
@@ -74,7 +74,10 @@ mixin _SearchMixin on _DiscourseServiceBase {
         queryParams['selected_tags'] = selectedTags;
       }
 
-      final response = await _dio.get('/tags/filter/search', queryParameters: queryParams);
+      final response = await _dio.get(
+        '/tags/filter/search',
+        queryParameters: queryParams,
+      );
       return TagSearchResult.fromJson(response.data as Map<String, dynamic>);
     } catch (e) {
       debugPrint('[DiscourseService] searchTags failed: $e');
@@ -103,8 +106,13 @@ mixin _SearchMixin on _DiscourseServiceBase {
         queryParams['category_id'] = categoryId;
       }
 
-      final response = await _dio.get('/u/search/users', queryParameters: queryParams);
-      return MentionSearchResult.fromJson(response.data as Map<String, dynamic>);
+      final response = await _dio.get(
+        '/u/search/users',
+        queryParameters: queryParams,
+      );
+      return MentionSearchResult.fromJson(
+        response.data as Map<String, dynamic>,
+      );
     } catch (e) {
       debugPrint('[DiscourseService] searchUsers failed: $e');
       return const MentionSearchResult(users: [], groups: []);
@@ -119,9 +127,7 @@ mixin _SearchMixin on _DiscourseServiceBase {
     try {
       final response = await _dio.get(
         '/composer/mentions',
-        queryParameters: {
-          'names[]': names,
-        },
+        queryParameters: {'names[]': names},
       );
       return MentionCheckResult.fromJson(response.data as Map<String, dynamic>);
     } catch (e) {

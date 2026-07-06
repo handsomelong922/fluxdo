@@ -43,13 +43,16 @@ Widget _buildCategoryIcon(
         height: size,
         fit: BoxFit.contain,
         errorBuilder: (_, e, s) {
-          if (faIcon != null)
+          if (faIcon != null) {
             return FaIcon(faIcon, size: size * 0.7, color: color);
+          }
           return _buildColorDot(color, size * 0.5);
         },
       );
     }
-    if (faIcon != null) return FaIcon(faIcon, size: size * 0.7, color: color);
+    if (faIcon != null) {
+      return FaIcon(faIcon, size: size * 0.7, color: color);
+    }
   } else {
     // 图标优先：FA 图标 → logo → lock → 色点
     if (faIcon != null) return FaIcon(faIcon, size: size * 0.7, color: color);

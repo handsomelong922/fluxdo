@@ -1,1 +1,10 @@
 include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    # 独立 DevTools extension，有自己的 pubspec/package config；根工程分析时
+    # 不应按主 app 依赖解析它的 Flutter/DevTools imports。
+    - devtools_extension/**
+    # 插件 example 是独立示例 app，integration_test 等依赖由它自己的
+    # pubspec 管理；根工程分析只覆盖插件本体和主 app。
+    - packages/flutter_inappwebview_linux/example/**

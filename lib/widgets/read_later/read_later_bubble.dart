@@ -60,8 +60,9 @@ class _ReadLaterBubbleState extends ConsumerState<ReadLaterBubble>
     final items = ref.watch(readLaterProvider);
 
     // 应用未就绪、列表为空、或面板已打开时不显示
-    if (!appReady || items.isEmpty || _isSheetOpen)
+    if (!appReady || items.isEmpty || _isSheetOpen) {
       return const SizedBox.shrink();
+    }
 
     final pos = floatingPosition();
     final colorScheme = Theme.of(context).colorScheme;
