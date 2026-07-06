@@ -11,13 +11,12 @@ void main() {
     expect(options.extra![skipWebViewSessionSyncExtraKey], isTrue);
   });
 
-  test('visible topic list later pages preserve existing options', () {
+  test('visible topic list later pages keep foreground priority', () {
     final original = Options(extra: {'traceId': 'page-2'});
     final options = visibleTopicListReadOptions(page: 2, options: original);
 
-    expect(identical(options, original), isTrue);
     expect(options!.extra!['traceId'], 'page-2');
-    expect(options.extra!.containsKey('priority'), isFalse);
+    expect(options.extra!['priority'], 'high');
     expect(options.extra!.containsKey(skipWebViewSessionSyncExtraKey), isFalse);
   });
 

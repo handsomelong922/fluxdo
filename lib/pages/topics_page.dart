@@ -90,8 +90,8 @@ const Curve _barSnapAnimationCurve = Curves.easeOutCubic;
 
 @visibleForTesting
 double homeLoadMoreTriggerDistance(double viewportDimension) {
-  final base = viewportDimension * 1.15;
-  return base.clamp(520.0, 1200.0).toDouble();
+  final base = viewportDimension * 1.75;
+  return base.clamp(720.0, 1800.0).toDouble();
 }
 
 @visibleForTesting
@@ -1920,6 +1920,7 @@ class _HomeExcerptLoader extends ConsumerStatefulWidget {
 }
 
 class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
+  late final HomeTopicExcerptLoader _excerptLoader;
   String? _resolvedHtml;
   String? _pendingHtmlWhilePaused;
   Future<void>? _pendingLoad;
@@ -1929,6 +1930,7 @@ class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
   @override
   void initState() {
     super.initState();
+    _excerptLoader = ref.read(homeTopicExcerptLoaderProvider);
     _pauseSubscription = ref.listenManual<bool>(
       homeTopicExcerptPausedProvider,
       (previous, next) {
@@ -1959,13 +1961,12 @@ class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
   void _detachPendingTopic() {
     final topicId = _pendingTopicId;
     if (topicId == null) return;
-    ref.read(homeTopicExcerptLoaderProvider).release(topicId);
+    _excerptLoader.release(topicId);
     _pendingTopicId = null;
   }
 
   void _prime() {
-    final loader = ref.read(homeTopicExcerptLoaderProvider);
-    final cached = loader.peekCached(widget.topicId);
+    final cached = _excerptLoader.peekCached(widget.topicId);
     if (cached != null && cached.trim().isNotEmpty) {
       _resolvedHtml = cached;
       return;
@@ -1974,7 +1975,7 @@ class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
 
     final topicId = widget.topicId;
     _pendingTopicId = topicId;
-    _pendingLoad = loader
+    _pendingLoad = _excerptLoader
         .load(topicId)
         .then((html) {
           if (!mounted || widget.topicId != topicId) return;

@@ -182,7 +182,8 @@ TopicDetail buildTopicDetailPreviewFromTopic({
     updatedAt: previewTime,
     createdAt: previewTime,
     likeCount: 0,
-    replyCount: topic.replyCount,
+    // 预览帖使用的是临时 id，不能拿它请求 /posts/{id}/replies。
+    replyCount: 0,
     read: true,
     userId: createdBy?.id,
   );
@@ -423,6 +424,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   ModalRoute<dynamic>? _route;
   bool _isRouteVisible = true;
   bool _isParentActive = true;
+  bool _isMobileViewport = PlatformUtils.isMobile;
   bool _isScreenTrackRunning = false;
   TopicReadingState? _restoredReadingState;
   int? _pendingNestedRestorePostNumber;
@@ -532,7 +534,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _screenTrack = ScreenTrack(
       DiscourseService(),
       debugSourceId: _instanceId,
-      minRushFlushInterval: Responsive.isMobile(context)
+      minRushFlushInterval: _isMobileViewport
           ? const Duration(seconds: 6)
           : const Duration(seconds: 3),
       onTimingsSent: (topicId, postNumbers, highestSeen) {
@@ -714,6 +716,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _isMobileViewport = Responsive.isMobile(context);
     final route = ModalRoute.of(context);
     if (route == _route || route == null) return;
 
@@ -754,7 +757,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _topicChannelSubscription?.close();
     _topicChannelSubscription = null;
     _controller.dispose();
-    if (Responsive.isMobile(context)) {
+    if (_isMobileViewport) {
       HtmlChunkCache.instance.clear();
       DiscourseHtmlContent.clearRuntimeCaches();
       LongPostRenderData.clearCache();
@@ -776,7 +779,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       _pendingSeenUpdateHighestSeen = highestSeen;
     }
     _pendingTopicListSeenUpdateTimer?.cancel();
-    final delay = Responsive.isMobile(context)
+    final delay = _isMobileViewport
         ? const Duration(seconds: 2)
         : const Duration(milliseconds: 600);
     _pendingTopicListSeenUpdateTimer = Timer(

@@ -76,8 +76,7 @@ bool shouldAwaitWebViewSessionSyncForRequest({
   if (extra[skipWebViewSessionSyncExtraKey] == true) return false;
   final isSilentRequest = extra['isSilent'] == true;
   final isBackgroundRequest =
-      isSilentRequest ||
-      headers['Discourse-Background']?.toString() == 'true';
+      isSilentRequest || headers['Discourse-Background']?.toString() == 'true';
   return !isBackgroundRequest;
 }
 
@@ -112,8 +111,9 @@ Options _foregroundReadOptions({Options? options}) {
 
 @visibleForTesting
 Options? visibleTopicListReadOptions({required int page, Options? options}) {
-  if (page > 0) return options;
-  return _withSkipWebViewSessionSync(_foregroundReadOptions(options: options));
+  final prioritized = _foregroundReadOptions(options: options);
+  if (page > 0) return prioritized;
+  return _withSkipWebViewSessionSync(prioritized);
 }
 
 /// 基类，包含所有共享字段

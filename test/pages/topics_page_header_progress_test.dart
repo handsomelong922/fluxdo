@@ -12,9 +12,9 @@ void main() {
   test(
     'homeLoadMoreTriggerDistance prefetches before the footer is reached',
     () {
-      expect(homeLoadMoreTriggerDistance(320), 520);
-      expect(homeLoadMoreTriggerDistance(800), closeTo(920, 0.001));
-      expect(homeLoadMoreTriggerDistance(1400), 1200);
+      expect(homeLoadMoreTriggerDistance(320), 720);
+      expect(homeLoadMoreTriggerDistance(800), closeTo(1400, 0.001));
+      expect(homeLoadMoreTriggerDistance(1400), 1800);
     },
   );
 }
