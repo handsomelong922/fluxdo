@@ -615,6 +615,62 @@ extension _UserActions on _TopicDetailPageState {
 
   /// 处理帖子级别的 MessageBus 更新
   void _handlePostUpdate(TopicDetailNotifier notifier, PostUpdate update) {
+    if (_isUserScrolling && update.type != TopicMessageType.created) {
+      _deferredPostUpdates.add(
+        _DeferredPostUpdate(notifier: notifier, update: update),
+      );
+      return;
+    }
+    _applyPostUpdate(notifier, update);
+  }
+
+  bool get _isUserScrolling {
+    final scrollController = _controller.scrollController;
+    if (!scrollController.hasClients) return false;
+    return scrollController.position.isScrollingNotifier.value;
+  }
+
+  /// 滚动停止后回放推迟的更新。
+  ///
+  /// 同帖同类型的普通状态更新只保留最后一条；boost 增删按 boost id
+  /// 保留独立事件，避免滚动期间多个 boost 被误合并。
+  void _flushDeferredPostUpdates() {
+    if (_deferredPostUpdates.isEmpty) return;
+
+    final deduped = <String, _DeferredPostUpdate>{};
+    for (final entry in _deferredPostUpdates) {
+      deduped[_deferredPostUpdateKey(entry.update)] = entry;
+    }
+    _deferredPostUpdates.clear();
+
+    for (final entry in deduped.values) {
+      _applyPostUpdate(entry.notifier, entry.update);
+    }
+  }
+
+  String _deferredPostUpdateKey(PostUpdate update) {
+    switch (update.type) {
+      case TopicMessageType.boostAdded:
+        final boostId = update.boostData?['id'];
+        if (boostId == null) {
+          return '${update.postId}:${update.type.name}:'
+              '${update.updatedAt.microsecondsSinceEpoch}:'
+              '${identityHashCode(update)}';
+        }
+        return '${update.postId}:${update.type.name}:$boostId';
+      case TopicMessageType.boostRemoved:
+        if (update.boostId == null) {
+          return '${update.postId}:${update.type.name}:'
+              '${update.updatedAt.microsecondsSinceEpoch}:'
+              '${identityHashCode(update)}';
+        }
+        return '${update.postId}:${update.type.name}:${update.boostId}';
+      default:
+        return '${update.postId}:${update.type.name}';
+    }
+  }
+
+  void _applyPostUpdate(TopicDetailNotifier notifier, PostUpdate update) {
     switch (update.type) {
       case TopicMessageType.created:
         notifier.onNewPostCreated(update.postId);

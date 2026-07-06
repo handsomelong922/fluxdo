@@ -338,16 +338,27 @@ class _CarouselSlideState extends State<_CarouselSlide>
         ? heroTags[globalIndex]
         : 'carousel_${widget.imageData.src.hashCode}';
 
-    // 限制解码尺寸：轮播高度 300 * dpr，避免解码超大原图
+    // 按实际展示盒子限制解码尺寸，避免轮播里的超大原图直接上传纹理。
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    final maxHeight = (widget.carouselHeight * dpr).toInt();
+    final maxWidth = (MediaQuery.sizeOf(context).width * dpr * 1.5)
+        .round()
+        .clamp(1, 2560)
+        .toInt();
+    final maxHeight = (widget.carouselHeight * dpr * 1.5)
+        .round()
+        .clamp(1, 2560)
+        .toInt();
 
     return GestureDetector(
       onTap: () => widget.onTap(context, widget.index, url),
       child: Hero(
         tag: heroTag,
         child: Image(
-          image: discourseImageProvider(url, maxHeight: maxHeight),
+          image: discourseImageProvider(
+            url,
+            maxWidth: maxWidth,
+            maxHeight: maxHeight,
+          ),
           fit: BoxFit.contain,
           width: double.infinity,
           height: widget.carouselHeight,

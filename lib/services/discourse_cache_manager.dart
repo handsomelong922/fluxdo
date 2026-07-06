@@ -288,12 +288,12 @@ ImageProvider discourseImageProvider(
   int? maxWidth,
   int? maxHeight,
 }) {
+  ImageProvider provider;
   if (_isAvifUrl(url)) {
-    return AvifImageProvider(url, scale: scale);
-  }
-  if (_isNativeAnimatedUrl(url)) {
+    provider = AvifImageProvider(url, scale: scale);
+  } else if (_isNativeAnimatedUrl(url)) {
     final cache = DiscourseCacheManager();
-    return NativeAnimatedImageProvider.fromBytesProvider(
+    provider = NativeAnimatedImageProvider.fromBytesProvider(
       loader: () async {
         final bytes = await cache.getImageBytes(url);
         if (bytes == null || bytes.isEmpty) {
@@ -304,14 +304,18 @@ ImageProvider discourseImageProvider(
       tag: url,
       scale: scale,
     );
+  } else {
+    provider = CachedNetworkImageProvider(
+      url,
+      scale: scale,
+      cacheManager: DiscourseCacheManager(),
+    );
   }
-  return CachedNetworkImageProvider(
-    url,
-    scale: scale,
-    maxWidth: maxWidth,
-    maxHeight: maxHeight,
-    cacheManager: DiscourseCacheManager(),
-  );
+
+  // 用 decode-time resize 约束内存图尺寸。不要依赖
+  // CachedNetworkImageProvider.maxWidth/maxHeight：那会走 cache-manager
+  // resize 路径，webp/native 动图 provider 会绕过，jpg/png 还会额外重编码。
+  return ResizeImage.resizeIfNeeded(maxWidth, maxHeight, provider);
 }
 
 /// 创建 Emoji 图片 Provider

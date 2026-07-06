@@ -78,6 +78,13 @@ part 'actions/_scroll_actions.dart';
 part 'actions/_user_actions.dart';
 part 'actions/_filter_actions.dart';
 
+class _DeferredPostUpdate {
+  const _DeferredPostUpdate({required this.notifier, required this.update});
+
+  final TopicDetailNotifier notifier;
+  final PostUpdate update;
+}
+
 const double _topicDetailToolbarHeight = 48.0;
 const double _topicFloatingButtonSize = 44.0;
 const double _topicActionMenuWidth = 128.0;
@@ -394,6 +401,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   late final Animation<Offset> _animation;
   Set<int> _lastInitialReadPostNumbers = const <int>{};
   Set<int> _lastSessionReadPostNumbers = const <int>{};
+
+  /// 滚动中推迟的 msgbus 帖子更新，滚停后回放以避免上方楼层高度变化拉动视口。
+  final List<_DeferredPostUpdate> _deferredPostUpdates = [];
+  ScrollPosition? _idleFlushPosition;
   bool? _lastCanShowDetailPane;
   bool _isAutoSwitching = false;
   bool _autoOpenReplyHandled = false; // 是否已处理自动打开回复框
@@ -554,6 +565,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
 
     _controller.scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _attachScrollIdleFlush();
+    });
     _pageController = PageController(initialPage: _topicPage);
     _retainTopicAiProvider =
         widget.autoOpenAiChat || widget.initialSessionId != null;
@@ -566,6 +581,32 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         _registerPostShortcuts();
       });
     }
+  }
+
+  void _attachScrollIdleFlush() {
+    final scrollController = _controller.scrollController;
+    if (!scrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _attachScrollIdleFlush();
+      });
+      return;
+    }
+
+    final position = scrollController.position;
+    if (identical(_idleFlushPosition, position)) return;
+    _idleFlushPosition?.isScrollingNotifier.removeListener(_onScrollIdle);
+    _idleFlushPosition = position;
+    position.isScrollingNotifier.addListener(_onScrollIdle);
+    if (!position.isScrollingNotifier.value) {
+      _onScrollIdle();
+    }
+  }
+
+  void _onScrollIdle() {
+    if (!mounted) return;
+    if (_idleFlushPosition?.isScrollingNotifier.value ?? true) return;
+    if (_deferredPostUpdates.isEmpty) return;
+    _flushDeferredPostUpdates();
   }
 
   void _seedTopicDetailPreviewCache() {
@@ -707,6 +748,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _pageController.dispose();
     _currentPageNotifier.dispose();
     _controller.scrollController.removeListener(_onScroll);
+    _idleFlushPosition?.isScrollingNotifier.removeListener(_onScrollIdle);
+    _idleFlushPosition = null;
     _screenTrack.stop();
     _topicChannelSubscription?.close();
     _topicChannelSubscription = null;

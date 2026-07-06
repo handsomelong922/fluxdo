@@ -1048,7 +1048,7 @@ class _ImageDecodeFallbackState extends State<_ImageDecodeFallback> {
       // 使用 AvifImageProvider 解码并渲染，自动支持动画 AVIF
       return Center(
         child: Image(
-          image: AvifImageProvider(widget.imageUrl),
+          image: AvifImageProvider(widget.imageUrl, maxDimension: null),
           fit: BoxFit.contain,
         ),
       );

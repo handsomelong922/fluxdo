@@ -290,8 +290,14 @@ class _GridImageTileState extends State<_GridImageTile> {
     double displayHeight,
   ) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    final maxWidth = (widget.columnWidth * dpr).round().clamp(1, 4096);
-    final maxHeight = (displayHeight * dpr).round().clamp(1, 4096);
+    final maxWidth = (widget.columnWidth * dpr * 1.5)
+        .round()
+        .clamp(1, 2560)
+        .toInt();
+    final maxHeight = (displayHeight * dpr * 1.5)
+        .round()
+        .clamp(1, 2560)
+        .toInt();
     return SizedBox(
       width: widget.columnWidth,
       height: displayHeight,

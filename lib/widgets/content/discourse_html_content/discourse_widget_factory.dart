@@ -53,13 +53,24 @@ class DiscourseWidgetFactory extends WidgetFactory {
 
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final maxWidth =
-        ((width ?? (screenWidth - 32).clamp(120.0, screenWidth)) * dpr)
-            .round()
-            .clamp(1, 4096);
-    final int? maxHeight = height == null
-        ? null
-        : (height * dpr).round().clamp(1, 4096);
+    final logicalWidth = width ?? (screenWidth - 32).clamp(120.0, screenWidth);
+    final decodeCap = (logicalWidth * dpr * 1.5)
+        .round()
+        .clamp(512, 2560)
+        .toInt();
+
+    int maxWidth = decodeCap;
+    int? maxHeight;
+    if (width != null && height != null && width > 0 && height > 0) {
+      final ratio = width / height;
+      if (ratio >= 1) {
+        maxWidth = decodeCap;
+        maxHeight = (decodeCap / ratio).round().clamp(1, decodeCap).toInt();
+      } else {
+        maxHeight = decodeCap;
+        maxWidth = (decodeCap * ratio).round().clamp(1, decodeCap).toInt();
+      }
+    }
     return discourseImageProvider(
       resolvedUrl,
       maxWidth: maxWidth,
