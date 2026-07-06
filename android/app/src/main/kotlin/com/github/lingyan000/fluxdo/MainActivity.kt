@@ -12,6 +12,7 @@ import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.util.Log
 import android.view.View
@@ -56,6 +57,25 @@ class MainActivity : FlutterActivity() {
     private val CRASHLYTICS_CHANNEL = "com.github.lingyan000.fluxdo/crashlytics"
     private val ICON_CHANNEL = "com.github.lingyan000.fluxdo/app_icon"
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var cookieThread: HandlerThread? = null
+    private var cookieHandler: Handler? = null
+
+    @Synchronized
+    private fun onCookieThread(block: () -> Unit) {
+        val handler = cookieHandler ?: run {
+            val thread = HandlerThread("fluxdo-cookie").also { it.start() }
+            cookieThread = thread
+            Handler(thread.looper).also { cookieHandler = it }
+        }
+        handler.post(block)
+    }
+
+    override fun onDestroy() {
+        cookieThread?.quitSafely()
+        cookieThread = null
+        cookieHandler = null
+        super.onDestroy()
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -139,28 +159,32 @@ class MainActivity : FlutterActivity() {
                                 return
                             }
                             didReply = true
-                            try {
-                                result.success(success)
-                            } catch (e: Exception) {
-                                Log.e("RawCookie", "reply failed: ${e.message}", e)
+                            mainHandler.post {
+                                try {
+                                    result.success(success)
+                                } catch (e: Exception) {
+                                    Log.e("RawCookie", "reply failed: ${e.message}", e)
+                                }
                             }
                         }
 
-                        try {
-                            val cookieManager = WebCookieManager.getInstance()
-                            cookieManager.setCookie(url, rawSetCookie) { success ->
-                                try {
-                                    cookieManager.flush()
-                                } catch (e: Exception) {
-                                    Log.e("RawCookie", "flush failed: ${e.message}", e)
-                                    replyOnce(false)
-                                    return@setCookie
+                        onCookieThread {
+                            try {
+                                val cookieManager = WebCookieManager.getInstance()
+                                cookieManager.setCookie(url, rawSetCookie) { success ->
+                                    try {
+                                        cookieManager.flush()
+                                    } catch (e: Exception) {
+                                        Log.e("RawCookie", "flush failed: ${e.message}", e)
+                                        replyOnce(false)
+                                        return@setCookie
+                                    }
+                                    replyOnce(success)
                                 }
-                                replyOnce(success)
+                            } catch (e: Exception) {
+                                Log.e("RawCookie", "setCookie failed: ${e.message}", e)
+                                replyOnce(false)
                             }
-                        } catch (e: Exception) {
-                            Log.e("RawCookie", "setCookie failed: ${e.message}", e)
-                            replyOnce(false)
                         }
                     } else {
                         result.error("INVALID_ARGS", "url and rawSetCookie required", null)
@@ -171,14 +195,15 @@ class MainActivity : FlutterActivity() {
                 // 依据 §3.3.2: Android 删除变体必须 Domain 属性精确匹配
                 // 依据 §3.3.3: Android 无法精确枚举变体, 只能穷举候选组合
                 // CookieManager.setCookie(url, value, ValueCallback) 必须在带
-                // Looper 的线程上调用，因此这里调度到 main thread，且不能阻塞等待。
+                // Looper 的线程上调用，因此这里调度到 cookie HandlerThread，
+                // 避免高频 cookie IPC 挤占平台主线程。
                 "nukeAllVariants" -> {
                     val url = call.argument<String>("url")
                     val name = call.argument<String>("name")
                     val domainCandidates = call.argument<List<String?>>("domainCandidates")
                     val pathCandidates = call.argument<List<String>>("pathCandidates")
                     if (url != null && name != null && domainCandidates != null && pathCandidates != null) {
-                        mainHandler.post {
+                        onCookieThread {
                             try {
                                 val mgr = WebCookieManager.getInstance()
                                 // 优先：GET_COOKIE_INFO 拿每条 cookie 的真实 domain/path 精确删，
@@ -222,8 +247,8 @@ class MainActivity : FlutterActivity() {
                                     }
                                 }
                                 if (targets.isEmpty()) {
-                                    result.success(0)
-                                    return@post
+                                    mainHandler.post { result.success(0) }
+                                    return@onCookieThread
                                 }
                                 fun deleteRawVariants(domain: String?, path: String): List<String> {
                                     val base = mutableListOf(
@@ -237,7 +262,8 @@ class MainActivity : FlutterActivity() {
                                     return listOf(
                                         plain,
                                         "$plain; Secure",
-                                        "$plain; Secure; SameSite=None"
+                                        "$plain; Secure; SameSite=None",
+                                        "$plain; Secure; SameSite=None; Partitioned"
                                     )
                                 }
                                 fun countName(): Int {
@@ -267,9 +293,11 @@ class MainActivity : FlutterActivity() {
                                                 )
                                                 val stuck = round > 1 && after >= prevAfter
                                                 if (after > 0 && round < maxRounds && !stuck) {
-                                                    mainHandler.post { runRound(round + 1, after) }
+                                                    onCookieThread { runRound(round + 1, after) }
                                                 } else {
-                                                    result.success(deletedTotal.get())
+                                                    mainHandler.post {
+                                                        result.success(deletedTotal.get())
+                                                    }
                                                 }
                                             }
                                         }
@@ -278,7 +306,7 @@ class MainActivity : FlutterActivity() {
                                 runRound(1, Int.MAX_VALUE)
                             } catch (e: Exception) {
                                 Log.e("RawCookie", "nukeAllVariants failed: ${e.message}", e)
-                                result.success(0)
+                                mainHandler.post { result.success(0) }
                             }
                         }
                     } else {
@@ -294,35 +322,40 @@ class MainActivity : FlutterActivity() {
                     val domain = call.argument<String>("domain")
                     val path = call.argument<String>("path")
                     if (url != null && name != null && path != null) {
-                        try {
-                            val mgr = WebCookieManager.getInstance()
-                            val base = mutableListOf(
-                                "$name=",
-                                "Max-Age=0",
-                                "Expires=Thu, 01 Jan 1970 00:00:00 GMT",
-                                "Path=$path"
-                            )
-                            if (domain != null) base.add("Domain=$domain")
-                            val plain = base.joinToString("; ")
-                            val raws = listOf(
-                                plain,
-                                "$plain; Secure",
-                                "$plain; Secure; SameSite=None"
-                            )
-                            val remaining = AtomicInteger(raws.size)
-                            val anySuccess = java.util.concurrent.atomic.AtomicBoolean(false)
-                            for (raw in raws) {
-                                mgr.setCookie(url, raw) { success ->
-                                    if (success == true) anySuccess.set(true)
-                                    if (remaining.decrementAndGet() == 0) {
-                                        mgr.flush()
-                                        result.success(anySuccess.get())
+                        onCookieThread {
+                            try {
+                                val mgr = WebCookieManager.getInstance()
+                                val base = mutableListOf(
+                                    "$name=",
+                                    "Max-Age=0",
+                                    "Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+                                    "Path=$path"
+                                )
+                                if (domain != null) base.add("Domain=$domain")
+                                val plain = base.joinToString("; ")
+                                val raws = listOf(
+                                    plain,
+                                    "$plain; Secure",
+                                    "$plain; Secure; SameSite=None",
+                                    "$plain; Secure; SameSite=None; Partitioned"
+                                )
+                                val remaining = AtomicInteger(raws.size)
+                                val anySuccess = java.util.concurrent.atomic.AtomicBoolean(false)
+                                for (raw in raws) {
+                                    mgr.setCookie(url, raw) { success ->
+                                        if (success == true) anySuccess.set(true)
+                                        if (remaining.decrementAndGet() == 0) {
+                                            mgr.flush()
+                                            mainHandler.post {
+                                                result.success(anySuccess.get())
+                                            }
+                                        }
                                     }
                                 }
+                            } catch (e: Exception) {
+                                Log.e("RawCookie", "deleteExactCookie failed: ${e.message}", e)
+                                mainHandler.post { result.success(false) }
                             }
-                        } catch (e: Exception) {
-                            Log.e("RawCookie", "deleteExactCookie failed: ${e.message}", e)
-                            result.success(false)
                         }
                     } else {
                         result.error("INVALID_ARGS", "url, name, path required", null)
@@ -336,109 +369,113 @@ class MainActivity : FlutterActivity() {
                 "getAllCookieInfos" -> {
                     val url = call.argument<String>("url")
                     if (url != null) {
-                        try {
-                            val mgr = WebCookieManager.getInstance()
-                            fun parseCookieInfo(line: String): Map<String, Any?>? {
-                                val params = line.split(";")
-                                if (params.isEmpty()) return null
-                                val nv = params[0].split("=", limit = 2)
-                                val cookieName = nv[0].trim()
-                                if (cookieName.isEmpty()) return null
+                        onCookieThread {
+                            try {
+                                val mgr = WebCookieManager.getInstance()
+                                fun parseCookieInfo(line: String): Map<String, Any?>? {
+                                    val params = line.split(";")
+                                    if (params.isEmpty()) return null
+                                    val nv = params[0].split("=", limit = 2)
+                                    val cookieName = nv[0].trim()
+                                    if (cookieName.isEmpty()) return null
 
-                                var domain: String? = null
-                                var path: String? = null
-                                var isSecure: Boolean? = null
-                                var isHttpOnly: Boolean? = null
-                                var expiresMillis: Long? = null
-                                var sameSite: String? = null
-                                var isPartitioned: Boolean? = null
+                                    var domain: String? = null
+                                    var path: String? = null
+                                    var isSecure: Boolean? = null
+                                    var isHttpOnly: Boolean? = null
+                                    var expiresMillis: Long? = null
+                                    var sameSite: String? = null
+                                    var isPartitioned: Boolean? = null
 
-                                fun parseExpires(value: String): Long? {
-                                    val patterns = listOf(
-                                        "EEE, dd MMM yyyy HH:mm:ss zzz",
-                                        "EEE, dd-MMM-yyyy HH:mm:ss zzz"
-                                    )
-                                    for (pattern in patterns) {
-                                        try {
-                                            val format = java.text.SimpleDateFormat(
-                                                pattern,
-                                                java.util.Locale.US
-                                            )
-                                            format.timeZone = java.util.TimeZone.getTimeZone("GMT")
-                                            return format.parse(value)?.time
-                                        } catch (ignored: Exception) {
+                                    fun parseExpires(value: String): Long? {
+                                        val patterns = listOf(
+                                            "EEE, dd MMM yyyy HH:mm:ss zzz",
+                                            "EEE, dd-MMM-yyyy HH:mm:ss zzz"
+                                        )
+                                        for (pattern in patterns) {
+                                            try {
+                                                val format = java.text.SimpleDateFormat(
+                                                    pattern,
+                                                    java.util.Locale.US
+                                                )
+                                                format.timeZone = java.util.TimeZone.getTimeZone("GMT")
+                                                return format.parse(value)?.time
+                                            } catch (ignored: Exception) {
+                                            }
+                                        }
+                                        return null
+                                    }
+
+                                    for (i in 1 until params.size) {
+                                        val part = params[i].trim()
+                                        if (part.isEmpty()) continue
+                                        val kv = part.split("=", limit = 2)
+                                        val key = kv[0].trim()
+                                        val value = if (kv.size > 1) kv[1].trim() else ""
+                                        when {
+                                            key.equals("Domain", ignoreCase = true) -> domain = value
+                                            key.equals("Path", ignoreCase = true) -> path = value
+                                            key.equals("Secure", ignoreCase = true) -> isSecure = true
+                                            key.equals("HttpOnly", ignoreCase = true) -> isHttpOnly = true
+                                            key.equals("Expires", ignoreCase = true) -> expiresMillis = parseExpires(value)
+                                            key.equals("SameSite", ignoreCase = true) -> sameSite = value
+                                            key.equals("Partitioned", ignoreCase = true) -> isPartitioned = true
                                         }
                                     }
-                                    return null
+
+                                    if (cookieName == "cf_clearance") {
+                                        Log.d(
+                                            "RawCookie",
+                                            "cf_clearance attrs: partitioned=$isPartitioned " +
+                                                "secure=$isSecure samesite=$sameSite " +
+                                                "domain=$domain path=$path"
+                                        )
+                                    }
+
+                                    return mapOf<String, Any?>(
+                                        "name" to cookieName,
+                                        "value" to if (nv.size > 1) nv[1].trim() else "",
+                                        "domain" to domain,
+                                        "path" to path,
+                                        "isSecure" to isSecure,
+                                        "isHttpOnly" to isHttpOnly,
+                                        "expiresMillis" to expiresMillis,
+                                        "sameSite" to sameSite,
+                                        "partitioned" to isPartitioned
+                                    )
                                 }
 
-                                for (i in 1 until params.size) {
-                                    val part = params[i].trim()
-                                    if (part.isEmpty()) continue
-                                    val kv = part.split("=", limit = 2)
-                                    val key = kv[0].trim()
-                                    val value = if (kv.size > 1) kv[1].trim() else ""
-                                    when {
-                                        key.equals("Domain", ignoreCase = true) -> domain = value
-                                        key.equals("Path", ignoreCase = true) -> path = value
-                                        key.equals("Secure", ignoreCase = true) -> isSecure = true
-                                        key.equals("HttpOnly", ignoreCase = true) -> isHttpOnly = true
-                                        key.equals("Expires", ignoreCase = true) -> expiresMillis = parseExpires(value)
-                                        key.equals("SameSite", ignoreCase = true) -> sameSite = value
-                                        key.equals("Partitioned", ignoreCase = true) -> isPartitioned = true
+                                val infos = if (WebViewFeature.isFeatureSupported(WebViewFeature.GET_COOKIE_INFO)) {
+                                    CookieManagerCompat.getCookieInfo(mgr, url).mapNotNull { parseCookieInfo(it) }
+                                } else {
+                                    val cookieString = mgr.getCookie(url) ?: ""
+                                    cookieString.split(";").mapNotNull { entry ->
+                                        val trimmed = entry.trim()
+                                        if (trimmed.isEmpty()) return@mapNotNull null
+                                        val eqIdx = trimmed.indexOf('=')
+                                        if (eqIdx <= 0) return@mapNotNull null
+                                        val cookieName = trimmed.substring(0, eqIdx).trim()
+                                        val cookieValue = trimmed.substring(eqIdx + 1).trim()
+                                        mapOf<String, Any?>(
+                                            "name" to cookieName,
+                                            "value" to cookieValue,
+                                            "domain" to null,
+                                            "path" to null,
+                                            "isSecure" to null,
+                                            "isHttpOnly" to null,
+                                            "expiresMillis" to null,
+                                            "sameSite" to null,
+                                            "partitioned" to null
+                                        )
                                     }
                                 }
-
-                                if (cookieName == "cf_clearance") {
-                                    Log.d(
-                                        "RawCookie",
-                                        "cf_clearance attrs: partitioned=$isPartitioned " +
-                                            "secure=$isSecure samesite=$sameSite " +
-                                            "domain=$domain path=$path"
-                                    )
-                                }
-
-                                return mapOf<String, Any?>(
-                                    "name" to cookieName,
-                                    "value" to if (nv.size > 1) nv[1].trim() else "",
-                                    "domain" to domain,
-                                    "path" to path,
-                                    "isSecure" to isSecure,
-                                    "isHttpOnly" to isHttpOnly,
-                                    "expiresMillis" to expiresMillis,
-                                    "sameSite" to sameSite,
-                                    "partitioned" to isPartitioned
-                                )
-                            }
-
-                            val infos = if (WebViewFeature.isFeatureSupported(WebViewFeature.GET_COOKIE_INFO)) {
-                                CookieManagerCompat.getCookieInfo(mgr, url).mapNotNull { parseCookieInfo(it) }
-                            } else {
-                                val cookieString = mgr.getCookie(url) ?: ""
-                                cookieString.split(";").mapNotNull { entry ->
-                                    val trimmed = entry.trim()
-                                    if (trimmed.isEmpty()) return@mapNotNull null
-                                    val eqIdx = trimmed.indexOf('=')
-                                    if (eqIdx <= 0) return@mapNotNull null
-                                    val cookieName = trimmed.substring(0, eqIdx).trim()
-                                    val cookieValue = trimmed.substring(eqIdx + 1).trim()
-                                    mapOf<String, Any?>(
-                                        "name" to cookieName,
-                                        "value" to cookieValue,
-                                        "domain" to null,
-                                        "path" to null,
-                                        "isSecure" to null,
-                                        "isHttpOnly" to null,
-                                        "expiresMillis" to null,
-                                        "sameSite" to null,
-                                        "partitioned" to null
-                                    )
+                                mainHandler.post { result.success(infos) }
+                            } catch (e: Exception) {
+                                Log.e("RawCookie", "getAllCookieInfos failed: ${e.message}", e)
+                                mainHandler.post {
+                                    result.success(emptyList<Map<String, Any?>>())
                                 }
                             }
-                            result.success(infos)
-                        } catch (e: Exception) {
-                            Log.e("RawCookie", "getAllCookieInfos failed: ${e.message}", e)
-                            result.success(emptyList<Map<String, Any?>>())
                         }
                     } else {
                         result.error("INVALID_ARGS", "url required", null)
@@ -451,19 +488,21 @@ class MainActivity : FlutterActivity() {
                     val url = call.argument<String>("url")
                     val name = call.argument<String>("name")
                     if (url != null && name != null) {
-                        try {
-                            val mgr = WebCookieManager.getInstance()
-                            val cookieString = mgr.getCookie(url) ?: ""
-                            val count = cookieString.split(";").count { entry ->
-                                val trimmed = entry.trim()
-                                val eqIdx = trimmed.indexOf('=')
-                                if (eqIdx <= 0) false
-                                else trimmed.substring(0, eqIdx).trim() == name
+                        onCookieThread {
+                            try {
+                                val mgr = WebCookieManager.getInstance()
+                                val cookieString = mgr.getCookie(url) ?: ""
+                                val count = cookieString.split(";").count { entry ->
+                                    val trimmed = entry.trim()
+                                    val eqIdx = trimmed.indexOf('=')
+                                    if (eqIdx <= 0) false
+                                    else trimmed.substring(0, eqIdx).trim() == name
+                                }
+                                mainHandler.post { result.success(count) }
+                            } catch (e: Exception) {
+                                Log.e("RawCookie", "countCookiesByName failed: ${e.message}", e)
+                                mainHandler.post { result.success(0) }
                             }
-                            result.success(count)
-                        } catch (e: Exception) {
-                            Log.e("RawCookie", "countCookiesByName failed: ${e.message}", e)
-                            result.success(0)
                         }
                     } else {
                         result.error("INVALID_ARGS", "url, name required", null)

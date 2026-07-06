@@ -306,7 +306,13 @@ class _BoostListState extends State<BoostList>
     );
   }
 
-  _WrapEntry _buildGroupEntry(BuildContext context, BoostGroup group) {
+  double _groupWidth(BuildContext context, BoostGroup group) {
+    return group.count == 1
+        ? _estimateSingleBubbleWidth(context, group.displayText)
+        : _estimateGroupedBubbleWidth(context, group);
+  }
+
+  Widget _buildGroupBubble(BuildContext context, BoostGroup group) {
     final isHighlighted = _groupContainsHighlight(group);
 
     if (group.count == 1) {
@@ -324,10 +330,7 @@ class _BoostListState extends State<BoostList>
       if (isHighlighted) {
         bubble = _wrapHighlight(bubble);
       }
-      return _WrapEntry(
-        width: _estimateSingleBubbleWidth(context, group.displayText),
-        child: bubble,
-      );
+      return bubble;
     }
 
     Widget bubble = BoostBubble.group(
@@ -344,15 +347,12 @@ class _BoostListState extends State<BoostList>
     if (isHighlighted) {
       bubble = _wrapHighlight(bubble);
     }
-    return _WrapEntry(
-      width: _estimateGroupedBubbleWidth(context, group),
-      child: bubble,
-    );
+    return bubble;
   }
 
   _WrapEntry _buildToggleEntry(BuildContext context, bool expanded) {
     return _WrapEntry(
-      width: _estimateControlChipWidth(),
+      width: _controlChipWidth,
       child: _InlineControlChip(
         icon: expanded ? Icons.chevron_left : Icons.chevron_right,
         onTap: _toggleRows,
@@ -388,56 +388,6 @@ class _BoostListState extends State<BoostList>
     );
   }
 
-  int _computeWrapLineCount(List<double> widths, double maxWidth) {
-    if (widths.isEmpty) {
-      return 0;
-    }
-
-    var lines = 1;
-    var currentLineWidth = 0.0;
-
-    for (final rawWidth in widths) {
-      final width = rawWidth.clamp(0.0, maxWidth);
-      final nextLineWidth = currentLineWidth == 0
-          ? width
-          : currentLineWidth + _chipSpacing + width;
-
-      if (nextLineWidth <= maxWidth + 0.1) {
-        currentLineWidth = nextLineWidth;
-      } else {
-        lines += 1;
-        currentLineWidth = width;
-      }
-    }
-
-    return lines;
-  }
-
-  int _maxPrefixThatFits(
-    List<_WrapEntry> entries,
-    List<_WrapEntry> trailingEntries,
-    double maxWidth,
-  ) {
-    var low = 0;
-    var high = entries.length;
-
-    while (low < high) {
-      final mid = (low + high + 1) >> 1;
-      final widths = [
-        ...entries.take(mid).map((entry) => entry.width),
-        ...trailingEntries.map((entry) => entry.width),
-      ];
-      final lines = _computeWrapLineCount(widths, maxWidth);
-      if (lines <= _collapsedMaxLines) {
-        low = mid;
-      } else {
-        high = mid - 1;
-      }
-    }
-
-    return low;
-  }
-
   double _estimateSingleBubbleWidth(BuildContext context, String displayText) {
     final theme = Theme.of(context);
     final style = theme.textTheme.bodySmall?.copyWith(height: 1.2);
@@ -469,10 +419,6 @@ class _BoostListState extends State<BoostList>
     // 3+6 (bubble padding) + avatarWidth + 4 (avatar-text spacing) + textWidth
     // + 6 (spacing) + countWidth + 12 (pill padding) + 4 (spacing) + 14 (arrow)
     return 3 + 6 + avatarWidth + 4 + textWidth + 6 + countWidth + 12 + 4 + 14;
-  }
-
-  double _estimateControlChipWidth() {
-    return _controlChipWidth;
   }
 
   double _estimateAvatarStackWidth(BoostGroup group) {
@@ -507,51 +453,81 @@ class _BoostListState extends State<BoostList>
   @override
   Widget build(BuildContext context) {
     final groups = _groups;
-    final groupEntries = groups
-        .map((group) => _buildGroupEntry(context, group))
-        .toList();
     final addEntry = widget.canBoost ? _buildAddEntry(context) : null;
 
-    if (groupEntries.isEmpty && addEntry == null) {
+    if (groups.isEmpty && addEntry == null) {
       return const SizedBox.shrink();
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
-        final baseEntries = [
-          ...groupEntries,
-          ...?(addEntry == null ? null : [addEntry]),
-        ];
-        final hasOverflow =
-            _computeWrapLineCount(
-              baseEntries.map((entry) => entry.width).toList(),
-              maxWidth,
-            ) >
-            _collapsedMaxLines;
 
-        final visibleEntries = <_WrapEntry>[];
+        final widths = List<double?>.filled(groups.length, null);
+        double widthAt(int index) {
+          return widths[index] ??= _groupWidth(context, groups[index]);
+        }
+
+        (int, double) push((int, double) state, double rawWidth) {
+          final width = rawWidth.clamp(0.0, maxWidth);
+          final (lines, currentLineWidth) = state;
+          final nextLineWidth = currentLineWidth == 0
+              ? width
+              : currentLineWidth + _chipSpacing + width;
+          if (nextLineWidth <= maxWidth + 0.1) {
+            return (lines, nextLineWidth);
+          }
+          return (lines + 1, width);
+        }
+
+        var probe = (1, 0.0);
+        var hasOverflow = false;
+        for (var i = 0; i < groups.length && !hasOverflow; i++) {
+          probe = push(probe, widthAt(i));
+          hasOverflow = probe.$1 > _collapsedMaxLines;
+        }
+        if (!hasOverflow && addEntry != null) {
+          probe = push(probe, addEntry.width);
+          hasOverflow = probe.$1 > _collapsedMaxLines;
+        }
+
+        final children = <Widget>[];
 
         if (_showAllRows || !hasOverflow) {
-          visibleEntries.addAll(groupEntries);
+          for (final group in groups) {
+            children.add(_buildGroupBubble(context, group));
+          }
           if (hasOverflow) {
-            visibleEntries.add(_buildToggleEntry(context, true));
+            children.add(_buildToggleEntry(context, true).child);
           }
           if (addEntry != null) {
-            visibleEntries.add(addEntry);
+            children.add(addEntry.child);
           }
         } else {
-          final trailingEntries = <_WrapEntry>[
-            _buildToggleEntry(context, false),
-            ...?(addEntry == null ? null : [addEntry]),
+          final trailingEntries = <double>[
+            _controlChipWidth,
+            if (addEntry != null) addEntry.width,
           ];
-          final prefix = _maxPrefixThatFits(
-            groupEntries,
-            trailingEntries,
-            maxWidth,
-          );
-          visibleEntries.addAll(groupEntries.take(prefix));
-          visibleEntries.addAll(trailingEntries);
+          var prefix = 0;
+          var state = (1, 0.0);
+          while (prefix < groups.length) {
+            final withNext = push(state, widthAt(prefix));
+            var trial = withNext;
+            for (final width in trailingEntries) {
+              trial = push(trial, width);
+            }
+            if (trial.$1 > _collapsedMaxLines) break;
+            state = withNext;
+            prefix++;
+          }
+
+          for (var i = 0; i < prefix; i++) {
+            children.add(_buildGroupBubble(context, groups[i]));
+          }
+          children.add(_buildToggleEntry(context, false).child);
+          if (addEntry != null) {
+            children.add(addEntry.child);
+          }
         }
 
         return Padding(
@@ -560,9 +536,7 @@ class _BoostListState extends State<BoostList>
             spacing: _chipSpacing,
             runSpacing: _chipSpacing,
             crossAxisAlignment: WrapCrossAlignment.center,
-            children: visibleEntries
-                .map((entry) => entry.child)
-                .toList(growable: false),
+            children: children,
           ),
         );
       },
