@@ -38,10 +38,32 @@ class WebViewPage extends ConsumerStatefulWidget {
     return Navigator.push<T>(
       context,
       MaterialPageRoute(
+        settings: RouteSettings(
+          name: 'webview',
+          arguments: _routeArgumentsForUrl(url),
+        ),
         builder: (_) =>
             WebViewPage(url: url, title: title, injectCss: injectCss),
       ),
     );
+  }
+
+  static Map<String, Object?> _routeArgumentsForUrl(String url) {
+    final uri = Uri.tryParse(url);
+    return <String, Object?>{
+      if (uri != null && uri.host.isNotEmpty) 'host': uri.host,
+      if (uri != null && uri.path.isNotEmpty) 'path': uri.path,
+      if (uri != null && uri.hasQuery) 'hasQuery': true,
+      if (uri != null && uri.hasFragment) 'hasFragment': true,
+      if (_shouldRecordScheme(uri)) 'scheme': uri?.scheme,
+    };
+  }
+
+  static bool _shouldRecordScheme(Uri? uri) {
+    if (uri == null) return false;
+    return uri.scheme.isNotEmpty &&
+        uri.scheme != 'http' &&
+        uri.scheme != 'https';
   }
 
   @override

@@ -16,7 +16,31 @@ Route<T> buildTopicDetailRoute<T>({
   String? highlightBoostUsername,
   bool? initialNestedView,
 }) {
+  final routeArguments = <String, Object?>{'topicId': topicId};
+  if (scrollToPostNumber != null) {
+    routeArguments['postNumber'] = scrollToPostNumber;
+  }
+  if (initialTopicPreview != null) {
+    routeArguments['hasTopicPreview'] = true;
+  }
+  if (initialFirstPostHtml != null) {
+    routeArguments['hasFirstPostPreview'] = true;
+  }
+  if (autoSwitchToMasterDetail) {
+    routeArguments['autoSwitchToMasterDetail'] = true;
+  }
+  if (instanceId != null) {
+    routeArguments['hasInstanceId'] = true;
+  }
+  if (highlightBoostUsername != null) {
+    routeArguments['hasBoostHighlight'] = true;
+  }
+  if (initialNestedView != null) {
+    routeArguments['initialNestedView'] = initialNestedView;
+  }
+
   return PopPassthroughMaterialPageRoute<T>(
+    settings: RouteSettings(name: 'topic_detail', arguments: routeArguments),
     enableHorizontalPopGesture: true,
     horizontalPopGestureBlocker: QuoteSelectionHelper.selectionActiveListenable,
     builder: (_) => TopicDetailPage(

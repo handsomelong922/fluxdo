@@ -7,6 +7,7 @@ import '../../../l10n/s.dart';
 import '../../../utils/share_utils.dart';
 import '../../../services/network_logger.dart';
 import '../../../services/log/app_log_settings_service.dart';
+import '../../../services/performance_diagnostics_service.dart';
 import '../../../utils/dialog_utils.dart';
 import '../../../services/cf_challenge_service.dart';
 import '../../../services/cf_challenge_logger.dart';
@@ -65,6 +66,80 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
                 ),
                 trailing: const Icon(Icons.chevron_right, size: 20),
                 onTap: () => showAppLogSettingsSheet(context),
+              );
+            },
+          ),
+          Divider(
+            height: 1,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+          ),
+          AnimatedBuilder(
+            animation: PerformanceDiagnosticsService.instance,
+            builder: (context, _) {
+              final diagnostics = PerformanceDiagnosticsService.instance;
+              return Column(
+                children: [
+                  ListTile(
+                    leading: Icon(
+                      diagnostics.enabled
+                          ? Icons.monitor_heart_outlined
+                          : Icons.speed_outlined,
+                    ),
+                    title: const Text('性能诊断模式'),
+                    subtitle: Text(diagnostics.statusDescription),
+                    trailing: const Icon(Icons.chevron_right, size: 20),
+                    onTap: () => showAppLogSettingsSheet(context),
+                  ),
+                  if (diagnostics.enabled) ...[
+                    Divider(
+                      height: 1,
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.2,
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.add_location_alt_outlined),
+                      title: const Text('标记当前卡顿'),
+                      subtitle: const Text('感觉开始掉帧时点一下，日志会保存当前现场'),
+                      trailing: const Icon(Icons.chevron_right, size: 20),
+                      onTap: _markPerformanceJank,
+                    ),
+                  ],
+                  Divider(
+                    height: 1,
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.2,
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.ios_share_outlined),
+                    title: const Text('导出性能诊断日志'),
+                    trailing: const Icon(Icons.chevron_right, size: 20),
+                    onTap: _sharePerformanceTrace,
+                  ),
+                  Divider(
+                    height: 1,
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.2,
+                    ),
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.delete_outline,
+                      color: theme.colorScheme.error,
+                    ),
+                    title: Text(
+                      '清除性能诊断日志',
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: theme.colorScheme.error,
+                    ),
+                    onTap: _clearPerformanceTrace,
+                  ),
+                ],
               );
             },
           ),
@@ -357,6 +432,66 @@ class _DebugToolsCardState extends State<DebugToolsCard> {
 
     if (confirm == true) {
       await NetworkLogger.clear();
+      if (mounted) {
+        ToastService.showSuccess(S.current.appLogs_logsCleared);
+      }
+    }
+  }
+
+  Future<void> _markPerformanceJank() async {
+    if (!PerformanceDiagnosticsService.instance.enabled) {
+      ToastService.showInfo('性能诊断模式未开启');
+      return;
+    }
+    PerformanceDiagnosticsService.instance.markCurrentJank(
+      source: 'debug_card',
+    );
+    ToastService.showSuccess('已标记当前卡顿现场');
+  }
+
+  Future<void> _sharePerformanceTrace() async {
+    final logs = await PerformanceDiagnosticsService.instance.readLogs();
+    if (logs == null || logs.trim().isEmpty) {
+      if (!mounted) return;
+      ToastService.showInfo('暂无性能诊断日志可分享');
+      return;
+    }
+
+    final path = await PerformanceDiagnosticsService.instance.getLogPath();
+    if (!mounted) return;
+    if (path != null) {
+      await ShareUtils.shareOrSaveFile(XFile(path), subject: '性能诊断日志');
+    } else {
+      await SharePlus.instance.share(
+        ShareParams(text: logs, subject: '性能诊断日志'),
+      );
+    }
+  }
+
+  Future<void> _clearPerformanceTrace() async {
+    final confirm = await showAppDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.l10n.appLogs_clearTitle),
+        content: const Text('确定要清除性能诊断日志吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.l10n.common_cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: Text(context.l10n.common_clear),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await PerformanceDiagnosticsService.instance.clear();
       if (mounted) {
         ToastService.showSuccess(S.current.appLogs_logsCleared);
       }

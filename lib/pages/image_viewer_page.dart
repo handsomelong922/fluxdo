@@ -69,6 +69,14 @@ class ImageViewerPage extends StatefulWidget {
     Navigator.push(
       context,
       PageRouteBuilder(
+        settings: RouteSettings(
+          name: 'image_viewer',
+          arguments: _routeArgumentsForImage(
+            imageUrl,
+            galleryImages: galleryImages,
+            initialIndex: initialIndex,
+          ),
+        ),
         opaque: false,
         barrierColor: Colors.transparent,
         pageBuilder: (context, animation, secondaryAnimation) {
@@ -99,6 +107,13 @@ class ImageViewerPage extends StatefulWidget {
     Navigator.push(
       context,
       PageRouteBuilder(
+        settings: RouteSettings(
+          name: 'image_viewer',
+          arguments: <String, Object?>{
+            'source': 'memory',
+            'bytes': bytes.length,
+          },
+        ),
         opaque: false,
         barrierColor: Colors.transparent,
         pageBuilder: (context, animation, secondaryAnimation) {
@@ -112,6 +127,21 @@ class ImageViewerPage extends StatefulWidget {
         },
       ),
     );
+  }
+
+  static Map<String, Object?> _routeArgumentsForImage(
+    String imageUrl, {
+    List<String>? galleryImages,
+    required int initialIndex,
+  }) {
+    final uri = Uri.tryParse(imageUrl);
+    return <String, Object?>{
+      if (uri != null && uri.host.isNotEmpty) 'host': uri.host,
+      if (uri != null && uri.path.isNotEmpty) 'path': uri.path,
+      if (uri != null && uri.hasQuery) 'hasQuery': true,
+      'initialIndex': initialIndex,
+      if (galleryImages != null) 'galleryCount': galleryImages.length,
+    };
   }
 
   @override

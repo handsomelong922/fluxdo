@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/log/app_log_settings_service.dart';
+import '../../services/performance_diagnostics_service.dart';
 import '../../utils/dialog_utils.dart';
 
 Future<void> showAppLogSettingsSheet(BuildContext context) {
@@ -21,12 +22,14 @@ class _AppLogSettingsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = AppLogSettingsService.instance;
+    final diagnosticsService = PerformanceDiagnosticsService.instance;
     final theme = Theme.of(context);
 
     return AnimatedBuilder(
-      animation: service,
+      animation: Listenable.merge([service, diagnosticsService]),
       builder: (context, _) {
         final settings = service.settings;
+        final diagnosticsEnabled = diagnosticsService.enabled;
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
@@ -69,6 +72,22 @@ class _AppLogSettingsSheet extends StatelessWidget {
                   ),
                   value: settings.enabled,
                   onChanged: (value) => service.setEnabled(value),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('性能诊断模式'),
+                  subtitle: Text(diagnosticsService.statusDescription),
+                  value: diagnosticsEnabled,
+                  onChanged: (value) => diagnosticsService.setEnabled(value),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '开启后会独立记录慢帧、滚动、路由、触摸和资源快照，用于定位“越用越卡”的触发链路。',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(

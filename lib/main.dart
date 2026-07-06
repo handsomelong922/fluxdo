@@ -64,6 +64,7 @@ import 'services/log/app_log_settings_service.dart';
 import 'services/log/log_writer.dart';
 import 'services/log/runtime_log_settings.dart';
 import 'services/log/logger_utils.dart';
+import 'services/performance_diagnostics_service.dart';
 import 'services/download_service.dart';
 import 'services/migration_service.dart';
 import 'services/navigation/app_route_observer.dart';
@@ -413,6 +414,7 @@ Future<void> main() async {
       developerModeEnabled: prefs.getBool('developer_mode') ?? false,
     );
     AppLogSettingsService.instance.initialize(prefs);
+    PerformanceDiagnosticsService.instance.initialize(prefs);
     _configureAiRuntime(prefs);
 
     final preloadPrerequisites = _prepareDirectAndroidPreloadPrerequisites(
@@ -459,6 +461,7 @@ Future<void> main() async {
     developerModeEnabled: prefs.getBool('developer_mode') ?? false,
   );
   AppLogSettingsService.instance.initialize(prefs);
+  PerformanceDiagnosticsService.instance.initialize(prefs);
   await AuthIssueNoticeService.instance.initialize(prefs);
 
   // v0.4.0: 注册 Cookie 引擎 DevTools service extensions (仅 debug/profile 模式)
@@ -591,7 +594,10 @@ class MainApp extends ConsumerWidget {
 
         return MaterialApp(
           navigatorKey: navigatorKey,
-          navigatorObservers: [appRouteObserver],
+          navigatorObservers: [
+            appRouteObserver,
+            performanceDiagnosticsRouteObserver,
+          ],
           title: 'FluxDO',
           locale: ref.watch(localeProvider),
           localizationsDelegates: const [
@@ -699,7 +705,7 @@ class MainApp extends ConsumerWidget {
               );
             }
 
-            return result;
+            return PerformanceDiagnosticsListener(child: result);
           },
           home: const OnboardingGate(child: PreheatGate(child: MainPage())),
         );
@@ -1019,6 +1025,7 @@ class _MainPageState extends ConsumerState<MainPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    PerformanceDiagnosticsService.instance.recordLifecycle(state);
 
     if (state == AppLifecycleState.hidden) {
       // hidden 比 paused 更早触发，在系统挂起 Dart isolate 之前启动前台服务
@@ -1060,6 +1067,9 @@ class _MainPageState extends ConsumerState<MainPage>
   @override
   void didHaveMemoryPressure() {
     super.didHaveMemoryPressure();
+    PerformanceDiagnosticsService.instance.recordMemoryPressure(
+      stage: 'before_cache_clear',
+    );
     // 系统已经发出内存压力信号时，优先释放运行期缓存，减轻后续滚动中的 GC 抖动。
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
@@ -1081,6 +1091,10 @@ class _MainPageState extends ConsumerState<MainPage>
           ..add(activePageId);
       });
     }
+    PerformanceDiagnosticsService.instance.recordCacheMaintenance(
+      event: 'runtime_cache_cleared',
+      reason: 'memory_pressure',
+    );
     debugPrint('[MainPage] 收到内存压力，已清理运行期缓存');
   }
 
