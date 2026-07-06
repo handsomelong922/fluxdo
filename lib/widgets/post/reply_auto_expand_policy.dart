@@ -10,6 +10,18 @@ bool shouldAutoExpandReplyCount(int replyCount) {
   return replyCount > 0 && replyCount <= autoExpandReplyThreshold;
 }
 
+bool shouldAutoExpandRepliesNow({
+  required int replyCount,
+  required bool autoLoadRepliesPaused,
+  required bool hideRepliesButton,
+  required bool useReplyDialog,
+}) {
+  return !autoLoadRepliesPaused &&
+      !hideRepliesButton &&
+      !useReplyDialog &&
+      shouldAutoExpandReplyCount(replyCount);
+}
+
 class AutoReplyPrefetchQueue {
   AutoReplyPrefetchQueue._();
 

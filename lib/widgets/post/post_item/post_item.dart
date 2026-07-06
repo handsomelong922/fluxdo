@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,6 +51,7 @@ class PostItem extends ConsumerStatefulWidget {
   final bool userCreatedSharedIssue;
   final void Function(int count, bool userCreated)? onSharedIssueChanged;
   final bool autoLoadRepliesPaused;
+  final ValueListenable<bool>? autoLoadRepliesPausedListenable;
   final Set<String> blockedUsernames;
   final bool enableContentSelectionArea;
 
@@ -87,6 +89,7 @@ class PostItem extends ConsumerStatefulWidget {
     this.userCreatedSharedIssue = false,
     this.onSharedIssueChanged,
     this.autoLoadRepliesPaused = false,
+    this.autoLoadRepliesPausedListenable,
     this.blockedUsernames = const <String>{},
     this.enableContentSelectionArea = true,
   });
@@ -312,6 +315,8 @@ class _PostItemState extends ConsumerState<PostItem> {
                 userCreatedSharedIssue: widget.userCreatedSharedIssue,
                 onSharedIssueChanged: widget.onSharedIssueChanged,
                 autoLoadRepliesPaused: widget.autoLoadRepliesPaused,
+                autoLoadRepliesPausedListenable:
+                    widget.autoLoadRepliesPausedListenable,
                 blockedUsernames: widget.blockedUsernames,
                 onAcceptedAnswerChanged: (accepted) {
                   if (!mounted) return;

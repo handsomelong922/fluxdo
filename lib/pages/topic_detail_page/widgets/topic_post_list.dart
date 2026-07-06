@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 
-import 'package:flutter/foundation.dart' show setEquals;
+import 'package:flutter/foundation.dart' show ValueNotifier, setEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
@@ -181,7 +181,8 @@ class _TopicPostListState extends State<TopicPostList> {
   Timer? _visiblePostUpdateTimer;
   Timer? _autoReplyResumeTimer;
   bool _visiblePostUpdateFrameScheduled = false;
-  bool _autoLoadRepliesPaused = false;
+  final ValueNotifier<bool> _autoLoadRepliesPausedNotifier =
+      ValueNotifier<bool>(false);
   List<_PostRenderSegment> _renderSegments = const [];
   Map<int, int> _postIndexToScrollIndex = const {};
   Map<int, int> _scrollIndexToPostNumber = const {};
@@ -233,6 +234,7 @@ class _TopicPostListState extends State<TopicPostList> {
   void dispose() {
     _visiblePostUpdateTimer?.cancel();
     _autoReplyResumeTimer?.cancel();
+    _autoLoadRepliesPausedNotifier.dispose();
     super.dispose();
   }
 
@@ -511,19 +513,15 @@ class _TopicPostListState extends State<TopicPostList> {
 
   void _setAutoLoadRepliesPaused(bool paused) {
     _autoReplyResumeTimer?.cancel();
-    if (_autoLoadRepliesPaused == paused) return;
-    setState(() {
-      _autoLoadRepliesPaused = paused;
-    });
+    if (_autoLoadRepliesPausedNotifier.value == paused) return;
+    _autoLoadRepliesPausedNotifier.value = paused;
   }
 
   void _resumeAutoLoadReplies() {
     _autoReplyResumeTimer?.cancel();
     _autoReplyResumeTimer = Timer(_autoReplyResumeDelay, () {
-      if (!mounted || !_autoLoadRepliesPaused) return;
-      setState(() {
-        _autoLoadRepliesPaused = false;
-      });
+      if (!mounted || !_autoLoadRepliesPausedNotifier.value) return;
+      _autoLoadRepliesPausedNotifier.value = false;
     });
   }
 
@@ -1095,7 +1093,7 @@ class _TopicPostListState extends State<TopicPostList> {
           userCreatedSharedIssue: detail.userCreatedSharedIssue,
           onSharedIssueChanged: onSharedIssueChanged,
           searchHighlightQuery: widget.searchHighlightQuery,
-          autoLoadRepliesPaused: _autoLoadRepliesPaused,
+          autoLoadRepliesPausedListenable: _autoLoadRepliesPausedNotifier,
           blockedUsernames: widget.blockedUsernames,
           enableContentSelectionArea: false,
         );
@@ -1162,7 +1160,7 @@ class _TopicPostListState extends State<TopicPostList> {
           sharedIssueCount: detail.sharedIssueCount,
           userCreatedSharedIssue: detail.userCreatedSharedIssue,
           onSharedIssueChanged: onSharedIssueChanged,
-          autoLoadRepliesPaused: _autoLoadRepliesPaused,
+          autoLoadRepliesPausedListenable: _autoLoadRepliesPausedNotifier,
           blockedUsernames: widget.blockedUsernames,
         );
         break;

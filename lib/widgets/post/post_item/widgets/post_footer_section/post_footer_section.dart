@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,6 +91,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
   final bool userCreatedSharedIssue;
   final void Function(int count, bool userCreated)? onSharedIssueChanged;
   final bool autoLoadRepliesPaused;
+  final ValueListenable<bool>? autoLoadRepliesPausedListenable;
   final Set<String> blockedUsernames;
 
   const PostFooterSection({
@@ -121,6 +123,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
     this.userCreatedSharedIssue = false,
     this.onSharedIssueChanged,
     this.autoLoadRepliesPaused = false,
+    this.autoLoadRepliesPausedListenable,
     this.blockedUsernames = const <String>{},
   });
 
@@ -155,11 +158,15 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   bool _autoReplyLoadScheduled = false;
 
   bool get _canLoadMoreReplies => _replies.length < widget.post.replyCount;
-  bool get _shouldAutoExpandReplies =>
-      !widget.autoLoadRepliesPaused &&
-      !widget.hideRepliesButton &&
-      !widget.useReplyDialog &&
-      shouldAutoExpandReplyCount(widget.post.replyCount);
+  bool get _autoLoadRepliesPaused =>
+      widget.autoLoadRepliesPausedListenable?.value ??
+      widget.autoLoadRepliesPaused;
+  bool get _shouldAutoExpandReplies => shouldAutoExpandRepliesNow(
+    replyCount: widget.post.replyCount,
+    autoLoadRepliesPaused: _autoLoadRepliesPaused,
+    hideRepliesButton: widget.hideRepliesButton,
+    useReplyDialog: widget.useReplyDialog,
+  );
   String get _autoReplyPrefetchKey => '${widget.topicId}:${widget.post.id}';
   InlineRepliesState? get _restorableInlineRepliesState =>
       widget.useReplyDialog ? null : widget.inlineRepliesState;
@@ -167,6 +174,9 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   @override
   void initState() {
     super.initState();
+    widget.autoLoadRepliesPausedListenable?.addListener(
+      _handleAutoLoadRepliesPausedChanged,
+    );
     final inlineState = _restorableInlineRepliesState;
     _replies.addAll(inlineState?.replies ?? const []);
     _repliesUnavailable = inlineState?.repliesUnavailable ?? false;
@@ -180,6 +190,22 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   @override
   void didUpdateWidget(PostFooterSection oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final oldAutoLoadRepliesPaused =
+        oldWidget.autoLoadRepliesPausedListenable?.value ??
+        oldWidget.autoLoadRepliesPaused;
+    if (!identical(
+      oldWidget.autoLoadRepliesPausedListenable,
+      widget.autoLoadRepliesPausedListenable,
+    )) {
+      oldWidget.autoLoadRepliesPausedListenable?.removeListener(
+        _handleAutoLoadRepliesPausedChanged,
+      );
+      widget.autoLoadRepliesPausedListenable?.addListener(
+        _handleAutoLoadRepliesPausedChanged,
+      );
+    }
+    final autoLoadRepliesPausedChanged =
+        oldAutoLoadRepliesPaused != _autoLoadRepliesPaused;
     if (oldWidget.post != widget.post) {
       if (oldWidget.topicId != widget.topicId ||
           oldWidget.post.id != widget.post.id) {
@@ -204,8 +230,7 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
           _restorableInlineRepliesState?.showReplies ??
           _shouldAutoExpandReplies;
       _syncReplyExpansionState();
-    } else if (oldWidget.autoLoadRepliesPaused !=
-        widget.autoLoadRepliesPaused) {
+    } else if (autoLoadRepliesPausedChanged) {
       _syncReplyExpansionState();
     }
     if (!identical(oldWidget.blockedUsernames, widget.blockedUsernames)) {
@@ -216,6 +241,9 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
   @override
   void dispose() {
     AutoReplyPrefetchQueue.instance.cancel(_autoReplyPrefetchKey);
+    widget.autoLoadRepliesPausedListenable?.removeListener(
+      _handleAutoLoadRepliesPausedChanged,
+    );
     _isLoadingRepliesNotifier.dispose();
     _showRepliesNotifier.removeListener(_emitInlineRepliesState);
     _showRepliesNotifier.dispose();
@@ -233,6 +261,11 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
     _boosts = _dedupeBoostsById(widget.post.boosts ?? const []);
     _canBoost = widget.post.canBoost;
     _refreshVisibleFooterContent();
+  }
+
+  void _handleAutoLoadRepliesPausedChanged() {
+    if (!mounted) return;
+    _syncReplyExpansionState();
   }
 
   void _refreshVisibleFooterContent() {

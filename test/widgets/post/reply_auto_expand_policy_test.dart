@@ -4,6 +4,65 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/widgets/post/reply_auto_expand_policy.dart';
 
 void main() {
+  group('shouldAutoExpandRepliesNow', () {
+    test('allows small reply groups when no interaction gate blocks it', () {
+      expect(
+        shouldAutoExpandRepliesNow(
+          replyCount: autoExpandReplyThreshold,
+          autoLoadRepliesPaused: false,
+          hideRepliesButton: false,
+          useReplyDialog: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test(
+      'blocks automatic expansion while scrolling or in non-inline modes',
+      () {
+        expect(
+          shouldAutoExpandRepliesNow(
+            replyCount: 1,
+            autoLoadRepliesPaused: true,
+            hideRepliesButton: false,
+            useReplyDialog: false,
+          ),
+          isFalse,
+        );
+        expect(
+          shouldAutoExpandRepliesNow(
+            replyCount: 1,
+            autoLoadRepliesPaused: false,
+            hideRepliesButton: true,
+            useReplyDialog: false,
+          ),
+          isFalse,
+        );
+        expect(
+          shouldAutoExpandRepliesNow(
+            replyCount: 1,
+            autoLoadRepliesPaused: false,
+            hideRepliesButton: false,
+            useReplyDialog: true,
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    test('keeps large reply groups manual', () {
+      expect(
+        shouldAutoExpandRepliesNow(
+          replyCount: autoExpandReplyThreshold + 1,
+          autoLoadRepliesPaused: false,
+          hideRepliesButton: false,
+          useReplyDialog: false,
+        ),
+        isFalse,
+      );
+    });
+  });
+
   setUp(() async {
     AutoReplyPrefetchQueue.instance.clearPending();
     await AutoReplyPrefetchQueue.instance.debugIdle;

@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
 import 'dart:collection';
 import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/topic.dart';
 import '../../../providers/preferences_provider.dart';
@@ -230,6 +232,7 @@ class LongPostFooterSegment extends StatelessWidget {
   final bool userCreatedSharedIssue;
   final void Function(int count, bool userCreated)? onSharedIssueChanged;
   final bool autoLoadRepliesPaused;
+  final ValueListenable<bool>? autoLoadRepliesPausedListenable;
   final Set<String> blockedUsernames;
 
   const LongPostFooterSegment({
@@ -258,6 +261,7 @@ class LongPostFooterSegment extends StatelessWidget {
     this.userCreatedSharedIssue = false,
     this.onSharedIssueChanged,
     this.autoLoadRepliesPaused = false,
+    this.autoLoadRepliesPausedListenable,
     this.blockedUsernames = const <String>{},
   });
 
@@ -310,6 +314,7 @@ class LongPostFooterSegment extends StatelessWidget {
               userCreatedSharedIssue: userCreatedSharedIssue,
               onSharedIssueChanged: onSharedIssueChanged,
               autoLoadRepliesPaused: autoLoadRepliesPaused,
+              autoLoadRepliesPausedListenable: autoLoadRepliesPausedListenable,
               blockedUsernames: blockedUsernames,
             ),
           ),
