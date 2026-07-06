@@ -41,6 +41,68 @@ Evidence:
 - Home topic excerpts load asynchronously inside a `NestedScrollView`; keep the final card height adaptive to the real excerpt content and the user-selected max-line setting. Do not force every card into the same fixed excerpt height just to suppress scroll jank. If loading-time layout updates need smoothing, prefer isolating rebuild scope or temporarily pausing excerpt fetch/render work during the active drag.
 - Scroll-linked feedback providers must publish only the minimum state their consumers need. If the selected tab icon only cares about "at top / below threshold / above threshold", do not emit per-pixel provider updates on every drag frame; quantize the state before writing to Riverpod.
 - Startup request ranking and other performance diagnostics must not depend on verbose release-mode disk logging. Keep ranking/session inspection in memory when possible, and gate high-frequency request/cookie/WebView trace persistence behind explicit developer mode or warning/error paths.
+- List providers that support sort/filter switching plus pagination must treat in-flight page requests as generation-scoped. A stale page or stale sort response must not write old `roots/items/sort/page` back over the current state.
+
+## Scenario: Async Sorted List Provider Requests
+
+### 1. Scope / Trigger
+- Trigger: changing Riverpod providers that combine sort/filter selection, pagination, and async service calls, especially visible scroll lists such as topic detail nested replies.
+
+### 2. Signatures
+- `Future<void> changeSort(String newSort)`
+- `Future<void> loadMoreRoots()`
+- Equivalent provider methods that mutate `items`, `sort/filter`, `currentPage`, `isLoadingMore`, or refresh flags after an awaited request.
+
+### 3. Contracts
+- Capture the request generation, selected sort/filter, and source page before awaiting.
+- Increment the root-list generation whenever a sort/filter reset invalidates previous pages.
+- After await, read the latest provider state and apply the response only if generation, sort/filter, and source page still match.
+- Use the latest state as the merge base, not the stale `current` captured before await.
+- When a sort/filter reset starts, clear stale pagination flags such as `isLoadingMore` if the old page request has been invalidated.
+
+### 4. Validation & Error Matrix
+- Old page response returns after sort changes -> discard it; current sort and roots/items remain unchanged.
+- Earlier sort response returns after a later sort was selected -> discard it; later selection remains visible.
+- Active page request fails after generation changes -> ignore the failure for state rollback; do not restore old items.
+- Current page request fails without generation change -> clear the loading flag and keep the latest visible items.
+
+### 5. Good/Base/Bad Cases
+- Good: `loadMoreRoots()` captures generation and page, then appends to `latest.roots` only when still current.
+- Base: one sort request at a time may still race with old pagination, so generation checks are required.
+- Bad: `await service.fetch(...); state = AsyncValue.data(current.copyWith(...))` where `current` was captured before the user changed sort/filter.
+
+### 6. Tests Required
+- Regression-test stale load-more response after a sort/filter change.
+- Regression-test fast sort/filter switching where the earlier response returns last.
+- Assert loading flags are not left stuck after stale responses are ignored.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+final current = state.value;
+final response = await service.getNestedRoots(sort: current.sort, page: nextPage);
+state = AsyncValue.data(
+  current.copyWith(roots: [...current.roots, ...response.roots]),
+);
+```
+
+#### Correct
+```dart
+final generation = _rootRequestGeneration;
+final requestSort = current.sort;
+final requestPage = current.currentPage;
+final response = await service.getNestedRoots(sort: requestSort, page: requestPage + 1);
+final latest = state.value;
+if (latest == null ||
+    generation != _rootRequestGeneration ||
+    latest.sort != requestSort ||
+    latest.currentPage != requestPage) {
+  return;
+}
+state = AsyncValue.data(
+  latest.copyWith(roots: [...latest.roots, ...response.roots]),
+);
+```
 
 ## Scenario: Scroll-Linked Navigation Feedback And Diagnostic Logging
 

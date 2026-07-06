@@ -90,6 +90,8 @@ class NestedTopicState {
 class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
   NestedTopicNotifier(this.arg);
   final NestedTopicParams arg;
+  int _rootRequestGeneration = 0;
+  int _sortRequestSerial = 0;
 
   @override
   Future<NestedTopicState> build() async {
@@ -135,23 +137,34 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
       return;
     }
 
+    final requestGeneration = _rootRequestGeneration;
+    final requestSort = current.sort;
+    final requestPage = current.currentPage;
+
     // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
     state = AsyncValue.data(current.copyWith(isLoadingMore: true));
 
     try {
       final service = ref.read(discourseServiceProvider);
-      final nextPage = current.currentPage + 1;
+      final nextPage = requestPage + 1;
       final response = await service.getNestedRoots(
         arg.topicId,
-        sort: current.sort,
+        sort: requestSort,
         page: nextPage,
       );
 
       if (!ref.mounted) return;
+      final latest = state.value;
+      if (latest == null ||
+          requestGeneration != _rootRequestGeneration ||
+          latest.sort != requestSort ||
+          latest.currentPage != requestPage) {
+        return;
+      }
       // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
       state = AsyncValue.data(
-        current.copyWith(
-          roots: [...current.roots, ...response.roots],
+        latest.copyWith(
+          roots: [...latest.roots, ...response.roots],
           hasMoreRoots: response.hasMoreRoots,
           currentPage: nextPage,
           isLoadingMore: false,
@@ -160,8 +173,15 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
     } catch (e) {
       debugPrint('[NestedTopic] loadMoreRoots failed: $e');
       if (!ref.mounted) return;
+      final latest = state.value;
+      if (latest == null ||
+          requestGeneration != _rootRequestGeneration ||
+          latest.sort != requestSort ||
+          latest.currentPage != requestPage) {
+        return;
+      }
       // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
-      state = AsyncValue.data(current.copyWith(isLoadingMore: false));
+      state = AsyncValue.data(latest.copyWith(isLoadingMore: false));
     }
   }
 
@@ -170,9 +190,17 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
     final current = state.value;
     if (current == null || current.sort == newSort) return;
 
+    final previous = current;
+    final requestSerial = ++_sortRequestSerial;
+    final requestGeneration = ++_rootRequestGeneration;
+
     // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
     state = AsyncValue.data(
-      current.copyWith(sort: newSort, isRefreshingSort: true),
+      current.copyWith(
+        sort: newSort,
+        isRefreshingSort: true,
+        isLoadingMore: false,
+      ),
     );
 
     try {
@@ -184,9 +212,16 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
       );
 
       if (!ref.mounted) return;
+      final latest = state.value;
+      if (latest == null ||
+          requestSerial != _sortRequestSerial ||
+          requestGeneration != _rootRequestGeneration ||
+          latest.sort != newSort) {
+        return;
+      }
       // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
       state = AsyncValue.data(
-        current.copyWith(
+        latest.copyWith(
           roots: response.roots,
           hasMoreRoots: response.hasMoreRoots,
           currentPage: 0,
@@ -199,8 +234,18 @@ class NestedTopicNotifier extends AsyncNotifier<NestedTopicState> {
       );
     } catch (e, s) {
       if (!ref.mounted) return;
+      final latest = state.value;
+      if (latest == null ||
+          requestSerial != _sortRequestSerial ||
+          requestGeneration != _rootRequestGeneration ||
+          latest.sort != newSort) {
+        debugPrint('[NestedTopic] changeSort stale failure ignored: $e');
+        return;
+      }
       // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
-      state = AsyncValue.data(current.copyWith(isRefreshingSort: false));
+      state = AsyncValue.data(
+        previous.copyWith(isRefreshingSort: false, isLoadingMore: false),
+      );
       debugPrint('[NestedTopic] changeSort failed: $e\n$s');
     }
   }
