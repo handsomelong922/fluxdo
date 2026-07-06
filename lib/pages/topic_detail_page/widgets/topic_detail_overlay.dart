@@ -7,7 +7,7 @@ import 'progress_gesture_action_meta.dart';
 import 'topic_bottom_bar.dart';
 import 'topic_progress_gestures.dart';
 
-const topicDetailBarAnimationDuration = Duration(milliseconds: 200);
+const topicDetailBarAnimationDuration = Duration(milliseconds: 220);
 const topicDetailBarAnimationCurve = Curves.easeOutCubic;
 
 /// 话题详情页浮层
@@ -66,22 +66,14 @@ class TopicDetailOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile =
-        defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     const progressVisibleBottom = 96.0;
     final progressHiddenBottom = 24.0 + bottomPadding;
     final progressHiddenOffsetY = progressVisibleBottom - progressHiddenBottom;
 
     const bottomBarVisibleBottom = 8.0;
-    const bottomBarHiddenBottom = -88.0;
-    const bottomBarHiddenOffsetY =
-        bottomBarVisibleBottom - bottomBarHiddenBottom;
 
     final fabVisibleBottom = bottomPadding + (80 - bottomPadding - 56) / 2;
-    final fabHiddenBottom = 16.0 + bottomPadding;
-    final fabHiddenOffsetY = fabVisibleBottom - fabHiddenBottom;
 
     final progress = ValueListenableBuilder<int>(
       valueListenable: currentStreamIndexListenable,
@@ -142,77 +134,109 @@ class TopicDetailOverlay extends StatelessWidget {
 
     return Stack(
       children: [
-        if (showProgress && (!isMobile || showBottomBar))
+        if (showProgress)
           Positioned(
             key: const ValueKey('progress_bar'),
             bottom: progressVisibleBottom,
             left: 0,
             right: 0,
-            child: isMobile
-                ? Transform.translate(
-                    offset: Offset(
-                      0,
-                      showBottomBar ? 0 : progressHiddenOffsetY,
-                    ),
-                    child: progress,
-                  )
-                : _PaintOffsetTransition(
-                    offsetY: showBottomBar ? 0 : progressHiddenOffsetY,
-                    child: progress,
-                  ),
-          ),
-        if (!isMobile || showBottomBar)
-          Positioned(
-            key: const ValueKey('bottom_bar'),
-            left: 16,
-            right: 16,
-            bottom: bottomBarVisibleBottom,
             child: IgnorePointer(
               ignoring: !showBottomBar,
-              child: isMobile
-                  ? bottomBar
-                  : _PaintOffsetTransition(
-                      offsetY: showBottomBar ? 0 : bottomBarHiddenOffsetY,
-                      child: AnimatedOpacity(
-                        opacity: showBottomBar ? 1 : 0,
-                        duration: topicDetailBarAnimationDuration,
-                        curve: topicDetailBarAnimationCurve,
-                        child: bottomBar,
-                      ),
-                    ),
+              child: _PaintOffsetTransition(
+                visible: showBottomBar,
+                hiddenOffsetY: progressHiddenOffsetY,
+                child: progress,
+              ),
             ),
           ),
-        if (isLoggedIn && (!isMobile || showBottomBar))
+        Positioned(
+          key: const ValueKey('bottom_bar'),
+          left: 16,
+          right: 16,
+          bottom: bottomBarVisibleBottom,
+          child: IgnorePointer(
+            ignoring: !showBottomBar,
+            child: TopicDetailChromeVisibilityTransition(
+              visible: showBottomBar,
+              hiddenOffset: const Offset(0, 1),
+              child: bottomBar,
+            ),
+          ),
+        ),
+        if (isLoggedIn)
           Positioned(
             key: const ValueKey('fab_reply'),
             right: 16,
             bottom: fabVisibleBottom,
-            child: isMobile
-                ? fab
-                : _PaintOffsetTransition(
-                    offsetY: showBottomBar ? 0 : fabHiddenOffsetY,
-                    child: fab,
-                  ),
+            child: IgnorePointer(
+              ignoring: !showBottomBar,
+              child: TopicDetailChromeVisibilityTransition(
+                visible: showBottomBar,
+                hiddenOffset: const Offset(0, 1),
+                child: fab,
+              ),
+            ),
           ),
       ],
     );
   }
 }
 
-class _PaintOffsetTransition extends StatelessWidget {
-  const _PaintOffsetTransition({required this.offsetY, required this.child});
+class TopicDetailChromeVisibilityTransition extends StatelessWidget {
+  const TopicDetailChromeVisibilityTransition({
+    super.key,
+    required this.visible,
+    required this.hiddenOffset,
+    required this.child,
+  });
 
-  final double offsetY;
+  final bool visible;
+  final Offset hiddenOffset;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    final targetVisibility = visible ? 1.0 : 0.0;
     return TweenAnimationBuilder<double>(
-      tween: Tween<double>(end: offsetY),
+      tween: Tween<double>(end: targetVisibility),
       duration: topicDetailBarAnimationDuration,
       curve: topicDetailBarAnimationCurve,
       builder: (context, value, child) {
-        return Transform.translate(offset: Offset(0, value), child: child);
+        final clamped = value.clamp(0.0, 1.0).toDouble();
+        return FractionalTranslation(
+          translation: Offset.lerp(hiddenOffset, Offset.zero, clamped)!,
+          child: Opacity(opacity: clamped, child: child),
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+class _PaintOffsetTransition extends StatelessWidget {
+  const _PaintOffsetTransition({
+    required this.visible,
+    required this.hiddenOffsetY,
+    required this.child,
+  });
+
+  final bool visible;
+  final double hiddenOffsetY;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final targetVisibility = visible ? 1.0 : 0.0;
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: targetVisibility),
+      duration: topicDetailBarAnimationDuration,
+      curve: topicDetailBarAnimationCurve,
+      builder: (context, value, child) {
+        final clamped = value.clamp(0.0, 1.0).toDouble();
+        return Transform.translate(
+          offset: Offset(0, hiddenOffsetY * (1 - clamped)),
+          child: Opacity(opacity: clamped, child: child),
+        );
       },
       child: child,
     );

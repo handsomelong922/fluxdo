@@ -93,6 +93,7 @@ class PostHeader extends StatelessWidget {
   final bool isTopicOwner;
   final bool isOwnPost;
   final bool isWhisper;
+  final bool useUsernameAsPrimaryLabel;
   final Widget cachedAvatarWidget;
   final ValueNotifier<bool>? isLoadingReplyHistoryNotifier;
   final VoidCallback? onToggleReplyHistory;
@@ -118,6 +119,7 @@ class PostHeader extends StatelessWidget {
     required this.isTopicOwner,
     required this.isOwnPost,
     required this.isWhisper,
+    this.useUsernameAsPrimaryLabel = false,
     required this.cachedAvatarWidget,
     required this.isLoadingReplyHistoryNotifier,
     required this.onToggleReplyHistory,
@@ -130,6 +132,16 @@ class PostHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final primaryAuthorLabel = useUsernameAsPrimaryLabel
+        ? '@${post.username}'
+        : (post.name != null && post.name!.isNotEmpty)
+        ? post.name!
+        : post.username;
+    final hasUserTitle = post.userTitle != null && post.userTitle!.isNotEmpty;
+    final hasGrantedBadges =
+        post.badgesGranted != null && post.badgesGranted!.isNotEmpty;
+    final showSecondaryAuthorRow =
+        !useUsernameAsPrimaryLabel || hasUserTitle || hasGrantedBadges;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -145,9 +157,7 @@ class PostHeader extends StatelessWidget {
                 children: [
                   Flexible(
                     child: Text(
-                      (post.name != null && post.name!.isNotEmpty)
-                          ? post.name!
-                          : post.username,
+                      primaryAuthorLabel,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
@@ -208,52 +218,56 @@ class PostHeader extends StatelessWidget {
                 ],
               ),
               // @username + 用户头衔 + 帖子头部徽章
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Row(
-                  children: [
-                    Text(
-                      '@${post.username}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontSize: 11,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                    if (post.userTitle != null) ...[
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: () {
-                          final titleBuilder = AppConstants.siteCustomization
-                              .matchTitleStyle(post);
-                          return titleBuilder != null
-                              ? titleBuilder(post.userTitle!, 11)
-                              : Text(
-                                  post.userTitle!,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.primary.withValues(
-                                      alpha: 0.8,
+              if (showSecondaryAuthorRow)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Row(
+                    children: [
+                      if (!useUsernameAsPrimaryLabel)
+                        Text(
+                          '@${post.username}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: 11,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      if (!useUsernameAsPrimaryLabel &&
+                          (hasUserTitle || hasGrantedBadges))
+                        const SizedBox(width: 6),
+                      if (hasUserTitle)
+                        Flexible(
+                          child: () {
+                            final titleBuilder = AppConstants.siteCustomization
+                                .matchTitleStyle(post);
+                            return titleBuilder != null
+                                ? titleBuilder(post.userTitle!, 11)
+                                : Text(
+                                    post.userTitle!,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.primary
+                                          .withValues(alpha: 0.8),
+                                      fontSize: 11,
                                     ),
-                                    fontSize: 11,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                );
-                        }(),
-                      ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  );
+                          }(),
+                        ),
+                      // 帖子头部徽章
+                      if (hasGrantedBadges) ...[
+                        if (!hasUserTitle && !useUsernameAsPrimaryLabel)
+                          const SizedBox(width: 4)
+                        else if (hasUserTitle)
+                          const SizedBox(width: 4),
+                        ...post.badgesGranted!.map(
+                          (badge) => PostGrantedBadgeIcon(badge: badge),
+                        ),
+                      ],
                     ],
-                    // 帖子头部徽章
-                    if (post.badgesGranted != null &&
-                        post.badgesGranted!.isNotEmpty) ...[
-                      const SizedBox(width: 4),
-                      ...post.badgesGranted!.map(
-                        (badge) => PostGrantedBadgeIcon(badge: badge),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -333,8 +347,8 @@ class PostHeader extends StatelessWidget {
                 replyToUser.avatarTemplate,
                 size: 40,
               );
-              final avatarUrl = isMobilePlatform &&
-                      !AvatarUrlPolicy.preferStaticAvatars
+              final avatarUrl =
+                  isMobilePlatform && !AvatarUrlPolicy.preferStaticAvatars
                   ? AvatarUrlPolicy.resolveStaticAvatarUrl(
                       templateAvatarUrl,
                       size: 40,

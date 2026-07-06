@@ -36,6 +36,9 @@ class PostHeaderSection extends ConsumerStatefulWidget {
   /// wiki 首版没有历史时，点击编辑指示器可直接进入编辑器。
   final VoidCallback? onEditWiki;
 
+  /// 用账号名作为主标签，避免主帖首屏依赖自定义显示名。
+  final bool useUsernameAsPrimaryLabel;
+
   const PostHeaderSection({
     super.key,
     required this.post,
@@ -48,6 +51,7 @@ class PostHeaderSection extends ConsumerStatefulWidget {
     this.onReplyIndicatorTap,
     this.hideReplyToPostNumber,
     this.onEditWiki,
+    this.useUsernameAsPrimaryLabel = false,
   });
 
   @override
@@ -260,6 +264,7 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
                 isTopicOwner: widget.isTopicOwner,
                 isOwnPost: isOwnPost,
                 isWhisper: isWhisper,
+                useUsernameAsPrimaryLabel: widget.useUsernameAsPrimaryLabel,
                 cachedAvatarWidget: _cachedAvatarWidget!,
                 isLoadingReplyHistoryNotifier: widget.disableReplyHistory
                     ? null

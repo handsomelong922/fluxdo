@@ -4,6 +4,7 @@ import 'package:fluxdo/l10n/app_localizations.dart';
 import 'package:fluxdo/models/topic.dart';
 import 'package:fluxdo/pages/topic_detail_page/topic_detail_page.dart';
 import 'package:fluxdo/pages/topic_detail_page/widgets/progress_gesture_action_meta.dart';
+import 'package:fluxdo/pages/topic_detail_page/widgets/topic_bottom_bar.dart';
 import 'package:fluxdo/pages/topic_detail_page/widgets/topic_detail_overlay.dart';
 import 'package:fluxdo/widgets/topic/topic_progress.dart';
 
@@ -35,6 +36,13 @@ void main() {
   });
 
   group('TopicDetailOverlay', () {
+    test('uses the same duration as the home bottom navigation', () {
+      expect(
+        topicDetailBarAnimationDuration,
+        const Duration(milliseconds: 220),
+      );
+    });
+
     testWidgets('shows progress control by default', (tester) async {
       await tester.pumpWidget(_buildApp(showProgress: true));
 
@@ -55,7 +63,7 @@ void main() {
         _buildApp(showProgress: true, onProgressTap: () => tapped = true),
       );
 
-      await tester.tap(find.byType(TopicProgress));
+      await tester.tap(find.byType(TopicProgress), warnIfMissed: false);
       await tester.pump();
 
       expect(tapped, isTrue);
@@ -72,11 +80,33 @@ void main() {
 
       expect(action, ProgressGestureAction.nextPost);
     });
+
+    testWidgets('keeps hidden chrome mounted without intercepting taps', (
+      tester,
+    ) async {
+      var tapped = false;
+      await tester.pumpWidget(
+        _buildApp(
+          showProgress: true,
+          showBottomBar: false,
+          onProgressTap: () => tapped = true,
+        ),
+      );
+
+      expect(find.byType(TopicProgress), findsOneWidget);
+      expect(find.byType(TopicBottomBar), findsOneWidget);
+
+      await tester.tap(find.byType(TopicProgress), warnIfMissed: false);
+      await tester.pump();
+
+      expect(tapped, isFalse);
+    });
   });
 }
 
 Widget _buildApp({
   required bool showProgress,
+  bool showBottomBar = true,
   VoidCallback? onProgressTap,
   ValueChanged<ProgressGestureAction>? onProgressAction,
 }) {
@@ -86,7 +116,7 @@ Widget _buildApp({
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: TopicDetailOverlay(
-        showBottomBar: true,
+        showBottomBar: showBottomBar,
         isLoggedIn: false,
         currentStreamIndexListenable: currentStreamIndex,
         totalCount: 2,

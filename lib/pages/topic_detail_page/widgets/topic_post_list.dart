@@ -1096,6 +1096,7 @@ class _TopicPostListState extends State<TopicPostList> {
           autoLoadRepliesPausedListenable: _autoLoadRepliesPausedNotifier,
           blockedUsernames: widget.blockedUsernames,
           enableContentSelectionArea: false,
+          useUsernameAsPrimaryLabel: post.postNumber == 1,
         );
         break;
       case _PostRenderSegmentType.longHeader:
@@ -1107,6 +1108,7 @@ class _TopicPostListState extends State<TopicPostList> {
           dateSeparatorLabel: dateSeparatorLabel,
           showDivider: showDivider,
           onJumpToPost: onJumpToPost,
+          useUsernameAsPrimaryLabel: post.postNumber == 1,
         );
         break;
       case _PostRenderSegmentType.longChunk:

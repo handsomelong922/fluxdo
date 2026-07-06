@@ -723,8 +723,34 @@ class MainPage extends ConsumerStatefulWidget {
 
 enum _AuthErrorDialogAction { confirm, clearData }
 
+@visibleForTesting
+LinkedHashSet<String> rememberMountedBottomPageIds({
+  required Iterable<String> mountedPageIds,
+  required String activePageId,
+  required Iterable<String> availablePageIds,
+  required int maxMountedPages,
+}) {
+  final safeMaxMountedPages = maxMountedPages < 1 ? 1 : maxMountedPages;
+  final availableIds = availablePageIds.toSet();
+  final nextMountedPageIds = LinkedHashSet<String>.of(
+    mountedPageIds.where(availableIds.contains),
+  );
+
+  if (availableIds.contains(activePageId)) {
+    nextMountedPageIds.remove(activePageId);
+    nextMountedPageIds.add(activePageId);
+  }
+
+  while (nextMountedPageIds.length > safeMaxMountedPages) {
+    nextMountedPageIds.remove(nextMountedPageIds.first);
+  }
+
+  return nextMountedPageIds;
+}
+
 class _MainPageState extends ConsumerState<MainPage>
     with WidgetsBindingObserver {
+  static const int _maxMountedBottomPagesMobile = 4;
   static const int _maxMountedBottomPagesDesktop = 5;
 
   int _currentIndex = 0;
@@ -1347,22 +1373,18 @@ class _MainPageState extends ConsumerState<MainPage>
   }
 
   void _rememberMountedPage(String activePageId, List<NavEntry> pageEntries) {
-    if (Platform.isAndroid || Platform.isIOS) {
-      _mountedPageIds
-        ..clear()
-        ..add(activePageId);
-      return;
-    }
-
-    _mountedPageIds.removeWhere(
-      (id) => !pageEntries.any((entry) => entry.id == id),
+    final maxMountedPages = Platform.isAndroid || Platform.isIOS
+        ? _maxMountedBottomPagesMobile
+        : _maxMountedBottomPagesDesktop;
+    final nextMountedPageIds = rememberMountedBottomPageIds(
+      mountedPageIds: _mountedPageIds,
+      activePageId: activePageId,
+      availablePageIds: pageEntries.map((entry) => entry.id),
+      maxMountedPages: maxMountedPages,
     );
-    _mountedPageIds.remove(activePageId);
-    _mountedPageIds.add(activePageId);
-
-    while (_mountedPageIds.length > _maxMountedBottomPagesDesktop) {
-      _mountedPageIds.remove(_mountedPageIds.first);
-    }
+    _mountedPageIds
+      ..clear()
+      ..addAll(nextMountedPageIds);
   }
 
   /// 按偏好的顺序解析 entry 列表（含所有 kind）

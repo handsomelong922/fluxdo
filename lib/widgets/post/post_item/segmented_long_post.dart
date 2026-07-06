@@ -88,6 +88,7 @@ class LongPostHeaderSegment extends StatelessWidget {
   final String? dateSeparatorLabel;
   final bool showDivider;
   final void Function(int postNumber)? onJumpToPost;
+  final bool useUsernameAsPrimaryLabel;
 
   const LongPostHeaderSegment({
     super.key,
@@ -98,6 +99,7 @@ class LongPostHeaderSegment extends StatelessWidget {
     required this.dateSeparatorLabel,
     required this.showDivider,
     required this.onJumpToPost,
+    this.useUsernameAsPrimaryLabel = false,
   });
 
   @override
@@ -117,6 +119,7 @@ class LongPostHeaderSegment extends StatelessWidget {
           showStamp: post.acceptedAnswer,
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
           onJumpToPost: onJumpToPost,
+          useUsernameAsPrimaryLabel: useUsernameAsPrimaryLabel,
         ),
       ),
     );

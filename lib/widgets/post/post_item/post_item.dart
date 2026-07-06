@@ -54,6 +54,7 @@ class PostItem extends ConsumerStatefulWidget {
   final ValueListenable<bool>? autoLoadRepliesPausedListenable;
   final Set<String> blockedUsernames;
   final bool enableContentSelectionArea;
+  final bool useUsernameAsPrimaryLabel;
 
   const PostItem({
     super.key,
@@ -92,6 +93,7 @@ class PostItem extends ConsumerStatefulWidget {
     this.autoLoadRepliesPausedListenable,
     this.blockedUsernames = const <String>{},
     this.enableContentSelectionArea = true,
+    this.useUsernameAsPrimaryLabel = false,
   });
 
   @override
@@ -158,6 +160,7 @@ class _PostItemState extends ConsumerState<PostItem> {
                 padding: EdgeInsets.zero,
                 onJumpToPost: widget.onJumpToPost,
                 onEditWiki: widget.onEdit,
+                useUsernameAsPrimaryLabel: widget.useUsernameAsPrimaryLabel,
               ),
             ),
             const SizedBox(height: 12),

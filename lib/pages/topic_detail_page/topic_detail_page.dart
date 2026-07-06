@@ -1040,7 +1040,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     required TopicDetailNotifier notifier,
     required bool visible,
   }) {
-    final isMobile = Responsive.isMobile(context);
     final row = Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1069,16 +1068,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       right: 12,
       child: IgnorePointer(
         ignoring: !visible,
-        child: AnimatedSlide(
-          offset: visible ? Offset.zero : Offset(0, isMobile ? -0.9 : -1.4),
-          duration: topicDetailBarAnimationDuration,
-          curve: topicDetailBarAnimationCurve,
-          child: AnimatedOpacity(
-            opacity: visible ? 1 : 0,
-            duration: topicDetailBarAnimationDuration,
-            curve: topicDetailBarAnimationCurve,
-            child: row,
-          ),
+        child: TopicDetailChromeVisibilityTransition(
+          visible: visible,
+          hiddenOffset: const Offset(0, -1),
+          child: row,
         ),
       ),
     );
