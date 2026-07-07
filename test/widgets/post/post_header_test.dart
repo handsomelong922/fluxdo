@@ -20,16 +20,37 @@ void main() {
     expect(find.text('Custom Name'), findsNothing);
     expect(find.text('@account_name'), findsOneWidget);
   });
+
+  testWidgets('shows trust level badge below primary username', (tester) async {
+    await tester.pumpWidget(
+      _buildApp(
+        useUsernameAsPrimaryLabel: true,
+        post: _post(userTitle: '活跃用户'),
+      ),
+    );
+
+    expect(find.text('@account_name'), findsOneWidget);
+    expect(find.text('LV3'), findsOneWidget);
+    expect(find.text('活跃用户'), findsNothing);
+  });
+
+  test('resolves trust level from API field before title fallback', () {
+    expect(resolvePostTrustLevel(trustLevel: 4, userTitle: '活跃用户'), 4);
+    expect(resolvePostTrustLevel(userTitle: '活跃用户'), 3);
+    expect(resolvePostTrustLevel(userTitle: 'LV2'), 2);
+    expect(resolvePostTrustLevel(userTitle: '自定义头衔'), isNull);
+    expect(postTrustLevelLabel(3), 'LV3');
+  });
 }
 
-Widget _buildApp({required bool useUsernameAsPrimaryLabel}) {
+Widget _buildApp({required bool useUsernameAsPrimaryLabel, Post? post}) {
   return MaterialApp(
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: Center(
         child: PostHeader(
-          post: _post(),
+          post: post ?? _post(),
           topicId: 42,
           isTopicOwner: true,
           isOwnPost: false,
@@ -48,7 +69,7 @@ Widget _buildApp({required bool useUsernameAsPrimaryLabel}) {
   );
 }
 
-Post _post() {
+Post _post({String? userTitle, int? trustLevel}) {
   final createdAt = DateTime.utc(2026, 7, 7, 12);
   return Post(
     id: 101,
@@ -63,5 +84,7 @@ Post _post() {
     createdAt: createdAt,
     likeCount: 0,
     replyCount: 0,
+    userTitle: userTitle,
+    trustLevel: trustLevel,
   );
 }

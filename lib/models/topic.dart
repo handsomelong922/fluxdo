@@ -668,6 +668,7 @@ class Post {
 
   // 用户头衔和状态
   final String? userTitle; // 用户头衔
+  final int? trustLevel; // 用户信任等级（0-4）
   final UserStatus? userStatus; // 用户状态（emoji + 描述）
 
   // 帖子头部徽章
@@ -763,6 +764,7 @@ class Post {
     this.deletedAt,
     this.userDeleted = false,
     this.userTitle,
+    this.trustLevel,
     this.userStatus,
     this.badgesGranted,
     this.userId,
@@ -870,6 +872,7 @@ class Post {
       userTitle: (json['user_title'] as String?)?.isNotEmpty == true
           ? json['user_title'] as String
           : null,
+      trustLevel: json['trust_level'] as int?,
       userStatus: json['user_status'] != null
           ? UserStatus.fromJson(json['user_status'] as Map<String, dynamic>)
           : null,
@@ -961,6 +964,7 @@ class Post {
           read == other.read &&
           hidden == other.hidden &&
           cookedHidden == other.cookedHidden &&
+          trustLevel == other.trustLevel &&
           listEquals(reactions, other.reactions) &&
           currentUserReaction == other.currentUserReaction &&
           listEquals(boosts, other.boosts) &&
@@ -981,6 +985,7 @@ class Post {
     bookmarked,
     acceptedAnswer,
     hidden,
+    trustLevel,
     canBoost,
     signatureCooked,
     version,
@@ -1037,6 +1042,7 @@ class Post {
     DateTime? deletedAt,
     bool? userDeleted,
     String? userTitle,
+    int? trustLevel,
     UserStatus? userStatus,
     List<GrantedBadge>? badgesGranted,
     int? userId,
@@ -1121,6 +1127,7 @@ class Post {
       deletedAt: deletedAt ?? this.deletedAt,
       userDeleted: userDeleted ?? this.userDeleted,
       userTitle: userTitle ?? this.userTitle,
+      trustLevel: trustLevel ?? this.trustLevel,
       userStatus: userStatus ?? this.userStatus,
       badgesGranted: badgesGranted ?? this.badgesGranted,
       userId: userId ?? this.userId,

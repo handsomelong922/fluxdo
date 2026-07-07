@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 
-import 'package:flutter/foundation.dart' show setEquals;
+import 'package:flutter/foundation.dart' show ValueNotifier, setEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -92,6 +92,12 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
   static const Duration _visiblePostUpdateDelayMobile = Duration(
     milliseconds: 360,
   );
+  static const Duration _autoChildLoadResumeDelayDesktop = Duration(
+    milliseconds: 220,
+  );
+  static const Duration _autoChildLoadResumeDelayMobile = Duration(
+    milliseconds: 320,
+  );
   static const int _maxNestedRepliesCacheEntriesMobile = 40;
   static const int _maxNestedRepliesCacheEntriesDesktop = 120;
   final Map<int, bool> _expansionState = {};
@@ -100,8 +106,11 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
   final Map<int, int> _postNumberToScrollIndex = {};
   final Map<int, int> _scrollIndexToPostNumber = {};
   final NestedLoadMoreTrigger _loadMoreTrigger = NestedLoadMoreTrigger();
+  final ValueNotifier<bool> _autoLoadChildrenPausedNotifier =
+      ValueNotifier<bool>(false);
   int _nextScrollIndex = 0;
   Timer? _visibilityUpdateTimer;
+  Timer? _autoChildLoadResumeTimer;
   int? _lastReportedPostNumber;
   Set<int> _lastVisiblePostNumbers = const <int>{};
 
@@ -120,6 +129,8 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
   void dispose() {
     widget.scrollController.removeListener(_onScroll);
     _visibilityUpdateTimer?.cancel();
+    _autoChildLoadResumeTimer?.cancel();
+    _autoLoadChildrenPausedNotifier.dispose();
     super.dispose();
   }
 
@@ -297,6 +308,24 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
       ? _visiblePostUpdateDelayMobile
       : _visiblePostUpdateDelayDesktop;
 
+  Duration get _autoChildLoadResumeDelay => Responsive.isMobile(context)
+      ? _autoChildLoadResumeDelayMobile
+      : _autoChildLoadResumeDelayDesktop;
+
+  void _setAutoLoadChildrenPaused(bool paused) {
+    _autoChildLoadResumeTimer?.cancel();
+    if (_autoLoadChildrenPausedNotifier.value == paused) return;
+    _autoLoadChildrenPausedNotifier.value = paused;
+  }
+
+  void _resumeAutoLoadChildren() {
+    _autoChildLoadResumeTimer?.cancel();
+    _autoChildLoadResumeTimer = Timer(_autoChildLoadResumeDelay, () {
+      if (!mounted || !_autoLoadChildrenPausedNotifier.value) return;
+      _autoLoadChildrenPausedNotifier.value = false;
+    });
+  }
+
   void _rememberRepliesState(int postNumber, NestedRepliesState state) {
     _repliesStateByPostNumber.remove(postNumber);
     _repliesStateByPostNumber[postNumber] = state;
@@ -330,7 +359,12 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         final result = widget.onScrollNotification(notification);
+        if (notification is ScrollStartNotification ||
+            notification is ScrollUpdateNotification) {
+          _setAutoLoadChildrenPaused(true);
+        }
         if (notification is ScrollEndNotification) {
+          _resumeAutoLoadChildren();
           _scheduleVisiblePostsUpdate(immediate: true);
         }
         return result;
@@ -400,6 +434,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                     userCreatedSharedIssue:
                         widget.detail.userCreatedSharedIssue,
                     onSharedIssueChanged: widget.onSharedIssueChanged,
+                    useUsernameAsPrimaryLabel: true,
                   ),
                 ),
               ),
@@ -494,6 +529,8 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                   onRepliesStateChanged: (postNumber, state) {
                     _rememberRepliesState(postNumber, state);
                   },
+                  autoLoadChildrenPausedListenable:
+                      _autoLoadChildrenPausedNotifier,
                   searchHighlightQuery: widget.searchHighlightQuery,
                   buildScrollTag: (postNumber, child) => AutoScrollTag(
                     key: ValueKey('nested-post-$postNumber'),

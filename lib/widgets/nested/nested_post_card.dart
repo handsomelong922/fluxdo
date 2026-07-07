@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/s.dart';
 import '../../models/nested_topic.dart';
@@ -83,6 +84,7 @@ class NestedPostCard extends ConsumerStatefulWidget {
   final Map<int, NestedRepliesState>? repliesStateByPostNumber;
   final void Function(int postNumber, NestedRepliesState state)?
   onRepliesStateChanged;
+  final ValueListenable<bool>? autoLoadChildrenPausedListenable;
 
   final Widget Function(int postNumber, Widget child)? buildScrollTag;
   final String? searchHighlightQuery;
@@ -108,6 +110,7 @@ class NestedPostCard extends ConsumerStatefulWidget {
     this.expansionState,
     this.repliesStateByPostNumber,
     this.onRepliesStateChanged,
+    this.autoLoadChildrenPausedListenable,
     this.buildScrollTag,
     this.searchHighlightQuery,
   });
@@ -130,9 +133,15 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   Set<String>? _visibleChildrenSourceBlockedUsernames;
   List<NestedNode> _visibleChildrenCache = const [];
 
+  bool get _autoLoadChildrenPaused =>
+      widget.autoLoadChildrenPausedListenable?.value ?? false;
+
   @override
   void initState() {
     super.initState();
+    widget.autoLoadChildrenPausedListenable?.addListener(
+      _handleAutoLoadPauseChanged,
+    );
     _resetNodeState();
     _listenChildCreated();
     _scheduleAutoLoadChildren();
@@ -141,6 +150,15 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   @override
   void didUpdateWidget(NestedPostCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.autoLoadChildrenPausedListenable !=
+        widget.autoLoadChildrenPausedListenable) {
+      oldWidget.autoLoadChildrenPausedListenable?.removeListener(
+        _handleAutoLoadPauseChanged,
+      );
+      widget.autoLoadChildrenPausedListenable?.addListener(
+        _handleAutoLoadPauseChanged,
+      );
+    }
     if (oldWidget.node.post.id != widget.node.post.id ||
         oldWidget.params != widget.params) {
       _childCreatedSubscription?.close();
@@ -152,8 +170,17 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
 
   @override
   void dispose() {
+    widget.autoLoadChildrenPausedListenable?.removeListener(
+      _handleAutoLoadPauseChanged,
+    );
     _childCreatedSubscription?.close();
     super.dispose();
+  }
+
+  void _handleAutoLoadPauseChanged() {
+    if (!_autoLoadChildrenPaused) {
+      _scheduleAutoLoadChildren();
+    }
   }
 
   void _resetNodeState() {
@@ -313,7 +340,8 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         _children.isNotEmpty ||
         widget.node.directReplyCount <= 0 ||
         _isLoadingMore ||
-        _autoLoadScheduled) {
+        _autoLoadScheduled ||
+        _autoLoadChildrenPaused) {
       return;
     }
 
@@ -325,7 +353,8 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           _atMaxDepth ||
           _children.isNotEmpty ||
           widget.node.directReplyCount <= 0 ||
-          _isLoadingMore) {
+          _isLoadingMore ||
+          _autoLoadChildrenPaused) {
         return;
       }
       _loadChildren();
@@ -811,6 +840,8 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
             expansionState: widget.expansionState,
             repliesStateByPostNumber: widget.repliesStateByPostNumber,
             onRepliesStateChanged: widget.onRepliesStateChanged,
+            autoLoadChildrenPausedListenable:
+                widget.autoLoadChildrenPausedListenable,
             buildScrollTag: widget.buildScrollTag,
             searchHighlightQuery: widget.searchHighlightQuery,
           ),

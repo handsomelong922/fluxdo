@@ -236,6 +236,101 @@ onVisibilityChanged: (info) {
 }
 ```
 
+## Scenario: Nested Reply Auto-Load During Active Scroll
+
+### 1. Scope / Trigger
+- Trigger: changing `NestedPostList`, `NestedPostCard`, nested reply expansion state, or any automatic child-reply loading in topic detail.
+
+### 2. Signatures
+- `ValueListenable<bool>? autoLoadChildrenPausedListenable`
+- `_NestedPostCardState._scheduleAutoLoadChildren()`
+- `_NestedPostListState._setAutoLoadChildrenPaused(bool paused)`
+
+### 3. Contracts
+- Automatic child-reply loading must pause while the nested topic list is actively scrolling.
+- Resume automatic child-reply loading only after the same mobile/desktop idle delay style used for topic-detail media/reply auto-load.
+- Manual user actions such as tapping expand/load-more must remain immediate and must not be blocked by the auto-load pause flag.
+- Pass the pause listenable through recursive `NestedPostCard` children so deep reply trees follow the same rule.
+
+### 4. Validation & Error Matrix
+- Scroll start/update -> visible nested cards do not start first automatic child loads.
+- Scroll end + idle delay -> cards that still need children may schedule their automatic load.
+- User taps expand while paused -> load runs immediately because it is an explicit action.
+- Pause listenable missing, such as in a bottom sheet -> existing behavior continues.
+
+### 5. Good/Base/Bad Cases
+- Good: long nested reply trees render and scroll without starting a chain of child-fetch/setState work under the user's finger.
+- Base: root pagination can still be initiated by the list load-more policy near the bottom.
+- Bad: every newly built nested card calls `loadChildren()` during a fling through a large reply tree.
+
+### 6. Tests Required
+- Regression-test the pause/listenable helper or widget behavior when a lightweight harness is available.
+- Keep nested provider stale-response tests green.
+- Keep topic-detail scroll performance tests green.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+WidgetsBinding.instance.addPostFrameCallback((_) {
+  _loadChildren();
+});
+```
+
+#### Correct
+```dart
+if (_autoLoadChildrenPaused) return;
+WidgetsBinding.instance.addPostFrameCallback((_) {
+  if (!_autoLoadChildrenPaused) {
+    _loadChildren();
+  }
+});
+```
+
+## Scenario: Topic Post Author Header Labels
+
+### 1. Scope / Trigger
+- Trigger: changing `PostHeader`, `PostHeaderSection`, first-post preview handoff, nested OP rendering, or `Post.fromJson` author metadata.
+
+### 2. Signatures
+- `Post.trustLevel`
+- `resolvePostTrustLevel({int? trustLevel, String? userTitle})`
+- `PostItem(useUsernameAsPrimaryLabel: true)` for OP/first-post paths that should avoid display-name work.
+
+### 3. Contracts
+- OP/first-post entries that use cached preview data should render `@username` as the primary bold author label instead of the custom display name.
+- Trust-level UI must use already available post payload data (`trust_level`) or known `user_title` mappings; do not fetch user profile data just to draw the author header.
+- Known trust-level titles such as `活跃用户` / `Regular` must render as compact `LV3` style labels, not as raw localized words.
+- Unknown non-level custom titles may continue to render as text to preserve existing behavior.
+
+### 4. Validation & Error Matrix
+- `trust_level: 3` + `user_title: 活跃用户` -> display `LV3` and prefer the numeric API field.
+- `user_title: 活跃用户` without `trust_level` -> display `LV3`.
+- unknown custom title -> keep the title text.
+- nested topic OP path -> pass `useUsernameAsPrimaryLabel: true`, matching the flat topic-detail first-post path.
+
+### 5. Good/Base/Bad Cases
+- Good: screenshot-style OP row shows bold `@username` with `LV3` underneath and no duplicated nickname line.
+- Base: normal replies may still show display name primary plus `@username` secondary.
+- Bad: opening a topic triggers extra user-detail requests just to replace the header label.
+
+### 6. Tests Required
+- Widget-test primary username mode and trust-level badge rendering.
+- Unit-test trust-level title mapping and `Post.fromJson`/`copyWith` retention.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+Text(post.userTitle ?? '')
+```
+
+#### Correct
+```dart
+final level = resolvePostTrustLevel(
+  trustLevel: post.trustLevel,
+  userTitle: post.userTitle,
+);
+```
+
 ## Scenario: Image Viewer Loading Preview Must Remain Interactive
 
 ### 1. Scope / Trigger

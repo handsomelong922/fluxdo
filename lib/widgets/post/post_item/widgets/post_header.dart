@@ -19,6 +19,34 @@ String _getEmojiUrl(String emojiName) {
   return EmojiHandler().getEmojiUrl(emojiName);
 }
 
+@visibleForTesting
+int? resolvePostTrustLevel({int? trustLevel, String? userTitle}) {
+  if (trustLevel != null) return trustLevel;
+
+  final normalized = (userTitle ?? '').trim().toLowerCase().replaceAll(
+    RegExp(r'\s+'),
+    '',
+  );
+  if (normalized.isEmpty) return null;
+
+  final levelMatch = RegExp(r'^(?:l|lv)(\d+)$').firstMatch(normalized);
+  if (levelMatch != null) {
+    return int.tryParse(levelMatch.group(1)!);
+  }
+
+  return switch (normalized) {
+    '新用户' || 'newuser' => 0,
+    '基本用户' || 'basicuser' => 1,
+    '成员' || 'member' => 2,
+    '活跃用户' || 'regular' => 3,
+    '领导者' || '领袖' || 'leader' => 4,
+    _ => null,
+  };
+}
+
+@visibleForTesting
+String postTrustLevelLabel(int level) => 'LV$level';
+
 /// 帖子头像组件（独立widget避免不必要的重建）
 class PostAvatar extends StatefulWidget {
   final Post post;
@@ -137,11 +165,22 @@ class PostHeader extends StatelessWidget {
         : (post.name != null && post.name!.isNotEmpty)
         ? post.name!
         : post.username;
-    final hasUserTitle = post.userTitle != null && post.userTitle!.isNotEmpty;
+    final trustLevel = resolvePostTrustLevel(
+      trustLevel: post.trustLevel,
+      userTitle: post.userTitle,
+    );
+    final hasTrustLevel = trustLevel != null;
+    final hasFallbackUserTitle =
+        trustLevel == null &&
+        post.userTitle != null &&
+        post.userTitle!.isNotEmpty;
     final hasGrantedBadges =
         post.badgesGranted != null && post.badgesGranted!.isNotEmpty;
     final showSecondaryAuthorRow =
-        !useUsernameAsPrimaryLabel || hasUserTitle || hasGrantedBadges;
+        !useUsernameAsPrimaryLabel ||
+        hasTrustLevel ||
+        hasFallbackUserTitle ||
+        hasGrantedBadges;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -220,7 +259,7 @@ class PostHeader extends StatelessWidget {
               // @username + 用户头衔 + 帖子头部徽章
               if (showSecondaryAuthorRow)
                 Padding(
-                  padding: const EdgeInsets.only(top: 2),
+                  padding: const EdgeInsets.only(top: 3),
                   child: Row(
                     children: [
                       if (!useUsernameAsPrimaryLabel)
@@ -234,9 +273,16 @@ class PostHeader extends StatelessWidget {
                           maxLines: 1,
                         ),
                       if (!useUsernameAsPrimaryLabel &&
-                          (hasUserTitle || hasGrantedBadges))
+                          (hasTrustLevel ||
+                              hasFallbackUserTitle ||
+                              hasGrantedBadges))
                         const SizedBox(width: 6),
-                      if (hasUserTitle)
+                      if (hasTrustLevel)
+                        _buildTrustLevelBadge(context, theme, trustLevel),
+                      if (hasTrustLevel &&
+                          (hasFallbackUserTitle || hasGrantedBadges))
+                        const SizedBox(width: 4),
+                      if (hasFallbackUserTitle)
                         Flexible(
                           child: () {
                             final titleBuilder = AppConstants.siteCustomization
@@ -257,9 +303,11 @@ class PostHeader extends StatelessWidget {
                         ),
                       // 帖子头部徽章
                       if (hasGrantedBadges) ...[
-                        if (!hasUserTitle && !useUsernameAsPrimaryLabel)
+                        if (!hasTrustLevel &&
+                            !hasFallbackUserTitle &&
+                            !useUsernameAsPrimaryLabel)
                           const SizedBox(width: 4)
-                        else if (hasUserTitle)
+                        else if (hasTrustLevel || hasFallbackUserTitle)
                           const SizedBox(width: 4),
                         ...post.badgesGranted!.map(
                           (badge) => PostGrantedBadgeIcon(badge: badge),
@@ -275,6 +323,68 @@ class PostHeader extends StatelessWidget {
         _buildRightSection(context, theme),
       ],
     );
+  }
+
+  Widget _buildTrustLevelBadge(
+    BuildContext context,
+    ThemeData theme,
+    int level,
+  ) {
+    final colors = _trustLevelColors(theme, level);
+    return Semantics(
+      label: 'Trust level ${postTrustLevelLabel(level)}',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+        decoration: BoxDecoration(
+          color: colors.background,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: colors.foreground.withValues(alpha: 0.18)),
+        ),
+        child: Text(
+          postTrustLevelLabel(level),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: colors.foreground,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            height: 1.1,
+          ),
+        ),
+      ),
+    );
+  }
+
+  ({Color background, Color foreground}) _trustLevelColors(
+    ThemeData theme,
+    int level,
+  ) {
+    return switch (level) {
+      0 => (
+        background: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.6,
+        ),
+        foreground: theme.colorScheme.onSurfaceVariant,
+      ),
+      1 => (
+        background: Colors.teal.withValues(alpha: 0.12),
+        foreground: Colors.teal.shade700,
+      ),
+      2 => (
+        background: Colors.blue.withValues(alpha: 0.12),
+        foreground: Colors.blue.shade700,
+      ),
+      3 => (
+        background: Colors.purple.withValues(alpha: 0.13),
+        foreground: Colors.purple.shade700,
+      ),
+      4 => (
+        background: Colors.amber.withValues(alpha: 0.20),
+        foreground: Colors.orange.shade800,
+      ),
+      _ => (
+        background: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
+        foreground: theme.colorScheme.primary,
+      ),
+    };
   }
 
   Widget _buildRightSection(BuildContext context, ThemeData theme) {
