@@ -287,6 +287,35 @@ class DiscourseWidgetFactory extends WidgetFactory {
             );
           }
 
+          final canLazyLoadStandaloneImage =
+              !isEmoji &&
+              imageProvider != null &&
+              width != null &&
+              height != null &&
+              width > 0 &&
+              height > 0;
+          if (canLazyLoadStandaloneImage) {
+            return LazyImage(
+              imageProvider: imageProvider,
+              width: width,
+              height: height,
+              fit: BoxFit.contain,
+              heroTag: heroTag,
+              cacheKey: resolvedUrl ?? originalUrl,
+              onLongPress: resolvedUrl == null
+                  ? null
+                  : () => _showImageContextMenu(context, resolvedUrl, heroTag),
+              onSecondaryTapUp: resolvedUrl == null
+                  ? null
+                  : (details) => _showImageContextMenu(
+                      context,
+                      resolvedUrl,
+                      heroTag,
+                      position: details.globalPosition,
+                    ),
+            );
+          }
+
           Widget imageWidget = imageProvider != null
               ? Image(
                   image: imageProvider,

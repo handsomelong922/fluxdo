@@ -170,6 +170,8 @@ class _GridImageTile extends StatefulWidget {
 class _GridImageTileState extends State<_GridImageTile> {
   bool _shouldLoad = false;
   bool _initialized = false;
+  bool _isVisible = false;
+  bool _loadFrameScheduled = false;
 
   String get _cacheKey => 'grid_tile_${widget.heroTag}';
 
@@ -192,6 +194,19 @@ class _GridImageTileState extends State<_GridImageTile> {
     }
   }
 
+  void _scheduleLoadIfReady() {
+    if (_shouldLoad || !_isVisible || _loadFrameScheduled) return;
+    if (LazyLoadPauseScope.isPaused(context)) return;
+
+    _loadFrameScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadFrameScheduled = false;
+      if (!mounted || _shouldLoad || !_isVisible) return;
+      if (LazyLoadPauseScope.isPaused(context)) return;
+      _triggerLoad();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     // 计算显示高度，保持宽高比，限制最大高度
@@ -208,12 +223,12 @@ class _GridImageTileState extends State<_GridImageTile> {
 
     // 未进入视口：显示占位符 + VisibilityDetector
     if (!_shouldLoad) {
+      _scheduleLoadIfReady();
       return VisibilityDetector(
         key: Key('grid-lazy-${widget.heroTag}'),
         onVisibilityChanged: (info) {
-          if (!_shouldLoad && info.visibleFraction > 0) {
-            _triggerLoad();
-          }
+          _isVisible = info.visibleFraction > 0;
+          _scheduleLoadIfReady();
         },
         child: SizedBox(
           width: widget.columnWidth,

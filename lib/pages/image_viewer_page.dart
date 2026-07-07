@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:extended_image_lite/extended_image_lite.dart';
 import 'package:jovial_svg/jovial_svg.dart';
@@ -18,6 +19,15 @@ import '../widgets/common/image_context_menu.dart';
 import '../widgets/common/loading_spinner.dart';
 import '../l10n/s.dart';
 import '../navigation/page_transition_preferences.dart';
+
+@visibleForTesting
+bool shouldUseInteractiveLoadingPreview({
+  required String imageUrl,
+  String? thumbnailUrl,
+}) {
+  final preview = thumbnailUrl?.trim();
+  return preview != null && preview.isNotEmpty && preview != imageUrl;
+}
 
 class ImageViewerPage extends StatefulWidget {
   final String? imageUrl;
@@ -327,6 +337,53 @@ class _ImageViewerPageState extends State<ImageViewerPage>
     }
   }
 
+  Widget _buildInteractiveLoadingPreview({
+    required String previewUrl,
+    required String imageUrl,
+    required bool inPageView,
+    String? heroTag,
+  }) {
+    return ExtendedImage(
+      image: discourseImageProvider(previewUrl),
+      fit: BoxFit.contain,
+      mode: ExtendedImageMode.gesture,
+      enableSlideOutPage: true,
+      heroBuilderForSlidingPage: heroTag != null
+          ? (child) => Hero(
+              tag: heroTag,
+              flightShuttleBuilder: (_, _, _, _, _) => child,
+              child: child,
+            )
+          : null,
+      initGestureConfigHandler: (state) {
+        return GestureConfig(
+          minScale: 0.9,
+          animationMinScale: 0.7,
+          maxScale: 4.0,
+          animationMaxScale: 4.5,
+          speed: 1.0,
+          inertialSpeed: 500.0,
+          initialScale: 1.0,
+          inPageView: inPageView,
+          initialAlignment: InitialAlignment.center,
+        );
+      },
+      onDoubleTap: (state) {
+        _hideUI();
+        handleDoubleTapZoom(state, imageUrl: imageUrl);
+      },
+      loadStateChanged: (state) {
+        if (state.extendedImageLoadState == LoadState.failed) {
+          return _buildSvgFallback(previewUrl);
+        }
+        if (state.extendedImageLoadState == LoadState.loading) {
+          return const Center(child: LoadingSpinner());
+        }
+        return null;
+      },
+    );
+  }
+
   /// 保存内存图片到相册
   Future<void> _saveMemoryImage() async {
     if (_isSaving || widget.imageBytes == null) return;
@@ -615,13 +672,15 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                       loadStateChanged: (state) {
                         // 加载中时显示缩略图（如果有）
                         if (state.extendedImageLoadState == LoadState.loading) {
-                          if (widget.thumbnailUrl != null &&
-                              widget.thumbnailUrl != widget.imageUrl) {
-                            return Image(
-                              image: discourseImageProvider(
-                                widget.thumbnailUrl!,
-                              ),
-                              fit: BoxFit.contain,
+                          if (shouldUseInteractiveLoadingPreview(
+                            imageUrl: widget.imageUrl!,
+                            thumbnailUrl: widget.thumbnailUrl,
+                          )) {
+                            return _buildInteractiveLoadingPreview(
+                              previewUrl: widget.thumbnailUrl!,
+                              imageUrl: widget.imageUrl!,
+                              inPageView: false,
+                              heroTag: widget.heroTag,
                             );
                           }
                         }
@@ -728,10 +787,15 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                                 // 加载中时显示缩略图（如果有）
                                 if (state.extendedImageLoadState ==
                                     LoadState.loading) {
-                                  if (thumbUrl != null && thumbUrl != url) {
-                                    return Image(
-                                      image: discourseImageProvider(thumbUrl),
-                                      fit: BoxFit.contain,
+                                  if (shouldUseInteractiveLoadingPreview(
+                                    imageUrl: url,
+                                    thumbnailUrl: thumbUrl,
+                                  )) {
+                                    return _buildInteractiveLoadingPreview(
+                                      previewUrl: thumbUrl!,
+                                      imageUrl: url,
+                                      inPageView: true,
+                                      heroTag: heroTag,
                                     );
                                   }
                                   return const Center(child: LoadingSpinner());

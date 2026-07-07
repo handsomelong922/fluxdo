@@ -19,7 +19,9 @@ class LazyLoadScope extends StatefulWidget {
 
   /// 获取当前作用域的缓存
   static _LazyLoadCache? _of(BuildContext context) {
-    return context.dependOnInheritedWidgetOfExactType<_LazyLoadScopeData>()?.cache;
+    return context
+        .dependOnInheritedWidgetOfExactType<_LazyLoadScopeData>()
+        ?.cache;
   }
 
   /// 检查 key 是否已加载（如果没有作用域则返回 false）
@@ -43,23 +45,39 @@ class _LazyLoadScopeState extends State<LazyLoadScope> {
 
   @override
   Widget build(BuildContext context) {
-    return _LazyLoadScopeData(
-      cache: _cache,
-      child: widget.child,
-    );
+    return _LazyLoadScopeData(cache: _cache, child: widget.child);
   }
 }
 
 class _LazyLoadScopeData extends InheritedWidget {
   final _LazyLoadCache cache;
 
-  const _LazyLoadScopeData({
-    required this.cache,
-    required super.child,
-  });
+  const _LazyLoadScopeData({required this.cache, required super.child});
 
   @override
   bool updateShouldNotify(_LazyLoadScopeData oldWidget) => false;
+}
+
+/// 懒加载暂停作用域
+///
+/// 用于在高速滚动期间临时阻止图片/重资源组件触发首次加载，
+/// 等滚动停稳后再统一恢复，减少滚动中的 decode/raster 抖动。
+class LazyLoadPauseScope extends InheritedNotifier<ValueListenable<bool>> {
+  const LazyLoadPauseScope({
+    super.key,
+    required ValueListenable<bool> notifier,
+    required super.child,
+  }) : super(notifier: notifier);
+
+  static ValueListenable<bool>? maybeOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<LazyLoadPauseScope>()
+        ?.notifier;
+  }
+
+  static bool isPaused(BuildContext context) {
+    return maybeOf(context)?.value ?? false;
+  }
 }
 
 class _LazyLoadCache {

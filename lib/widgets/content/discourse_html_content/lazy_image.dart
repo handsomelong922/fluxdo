@@ -47,6 +47,8 @@ class LazyImage extends StatefulWidget {
 class _LazyImageState extends State<LazyImage> {
   bool _shouldLoad = false;
   bool _initialized = false;
+  bool _isVisible = false;
+  bool _loadFrameScheduled = false;
 
   String get _cacheKey => widget.cacheKey ?? widget.heroTag;
 
@@ -69,6 +71,19 @@ class _LazyImageState extends State<LazyImage> {
     }
   }
 
+  void _scheduleLoadIfReady() {
+    if (_shouldLoad || !_isVisible || _loadFrameScheduled) return;
+    if (LazyLoadPauseScope.isPaused(context)) return;
+
+    _loadFrameScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadFrameScheduled = false;
+      if (!mounted || _shouldLoad || !_isVisible) return;
+      if (LazyLoadPauseScope.isPaused(context)) return;
+      _triggerLoad();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -81,13 +96,14 @@ class _LazyImageState extends State<LazyImage> {
     // 静态占位符（无动画，避免多个 AnimationController 开销）
     Widget placeholder = _buildStaticPlaceholder(theme);
 
+    _scheduleLoadIfReady();
+
     // 使用 VisibilityDetector 检测可见性
     return VisibilityDetector(
       key: Key('lazy-image-${widget.heroTag}'),
       onVisibilityChanged: (info) {
-        if (!_shouldLoad && info.visibleFraction >= widget.visibilityThreshold) {
-          _triggerLoad();
-        }
+        _isVisible = info.visibleFraction >= widget.visibilityThreshold;
+        _scheduleLoadIfReady();
       },
       child: placeholder,
     );
@@ -122,7 +138,9 @@ class _LazyImageState extends State<LazyImage> {
         height: widget.height ?? 200,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+          color: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.2,
+          ),
           borderRadius: BorderRadius.circular(8),
         ),
       );
@@ -143,7 +161,9 @@ class _LazyImageState extends State<LazyImage> {
           height: widget.height ?? 200,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha:0.2),
+            color: theme.colorScheme.surfaceContainerHighest.withValues(
+              alpha: 0.2,
+            ),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(

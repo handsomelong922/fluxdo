@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 import '../../../l10n/s.dart';
 import '../../../models/topic.dart';
 import '../../../pages/search_page.dart';
@@ -16,6 +17,7 @@ import '../../../utils/blocked_user_filter.dart';
 import '../../../utils/code_selection_context.dart';
 import '../../../utils/responsive.dart';
 import '../../../utils/time_utils.dart';
+import '../../../widgets/content/lazy_load_scope.dart';
 import '../../../widgets/content/discourse_html_content/chunked/html_chunk.dart';
 import '../../../widgets/post/post_item/post_item.dart';
 import '../../../widgets/post/post_item/quote_selection_helper.dart';
@@ -522,6 +524,7 @@ class _TopicPostListState extends State<TopicPostList> {
     _autoReplyResumeTimer = Timer(_autoReplyResumeDelay, () {
       if (!mounted || !_autoLoadRepliesPausedNotifier.value) return;
       _autoLoadRepliesPausedNotifier.value = false;
+      VisibilityDetectorController.instance.notifyNow();
     });
   }
 
@@ -780,216 +783,222 @@ class _TopicPostListState extends State<TopicPostList> {
         ? 0
         : (_postIndexToScrollIndex[centerVisibleIndex] ?? 0);
 
-    return SelectionArea(
-      onSelectionChanged: (content) {
-        _lastLongPostSelectedContent = content;
-        QuoteSelectionHelper.updateSelectionActive(content?.plainText);
-        _lastLongCodeSelectionContext =
-            CodeSelectionContextTracker.instance.current;
-        if (content == null) {
-          _activeLongSelectionPost = null;
-          _lastLongCodeSelectionContext = null;
-        }
-      },
-      contextMenuBuilder: (context, state) {
-        final items = QuoteSelectionHelper.buildMenuItems(
-          baseItems: state.contextMenuButtonItems,
-          plainText: _lastLongPostSelectedContent?.plainText,
-          post: _activeLongSelectionPost,
-          hideToolbar: state.hideToolbar,
-          topicId: detail.id,
-          onQuoteSelection: onQuoteSelection,
-          onSearchSelection: (text) {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => SearchPage(initialQuery: text)),
-            );
-          },
-          codeContext: _lastLongCodeSelectionContext,
-        );
-        return AdaptiveTextSelectionToolbar.buttonItems(
-          anchors: state.contextMenuAnchors,
-          buttonItems: items,
-        );
-      },
-      child: NotificationListener<ScrollNotification>(
-        onNotification: _handleScrollNotification,
-        child: Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerSignal: (event) {
-            if (event is PointerScrollEvent) {
-              widget.onPointerScroll?.call(event.scrollDelta.dy);
-            }
-          },
-          child: CustomScrollView(
-            controller: scrollController,
-            center: centerKey,
-            cacheExtent: cacheExtent,
-            physics: scrollPhysics,
-            slivers: [
-              // 向上加载骨架屏 / 失败重试
-              if (hasMoreBefore && isLoadPreviousFailed)
-                SliverToBoxAdapter(
-                  child: _LoadFailedRetry(onRetry: onRetryLoadPrevious),
-                )
-              else if (hasMoreBefore && isLoadingPrevious)
-                SliverToBoxAdapter(
-                  child: _wrapContent(context, const _LoadMoreIndicator()),
+    return LazyLoadPauseScope(
+      notifier: _autoLoadRepliesPausedNotifier,
+      child: SelectionArea(
+        onSelectionChanged: (content) {
+          _lastLongPostSelectedContent = content;
+          QuoteSelectionHelper.updateSelectionActive(content?.plainText);
+          _lastLongCodeSelectionContext =
+              CodeSelectionContextTracker.instance.current;
+          if (content == null) {
+            _activeLongSelectionPost = null;
+            _lastLongCodeSelectionContext = null;
+          }
+        },
+        contextMenuBuilder: (context, state) {
+          final items = QuoteSelectionHelper.buildMenuItems(
+            baseItems: state.contextMenuButtonItems,
+            plainText: _lastLongPostSelectedContent?.plainText,
+            post: _activeLongSelectionPost,
+            hideToolbar: state.hideToolbar,
+            topicId: detail.id,
+            onQuoteSelection: onQuoteSelection,
+            onSearchSelection: (text) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SearchPage(initialQuery: text),
                 ),
-
-              // 话题 Header（centerPostIndex > 0 时放在 before-center 区域）
-              if (hasFirstPost &&
-                  centerPostIndex > 0 &&
-                  widget.topContentInset > 0)
-                SliverToBoxAdapter(
-                  child: SizedBox(height: widget.topContentInset),
-                ),
-              if (hasFirstPost && centerPostIndex > 0)
-                SliverToBoxAdapter(
-                  child: _wrapContent(
-                    context,
-                    SelectionContainer.disabled(
-                      child: TopicDetailHeader(
-                        detail: detail,
-                        headerKey: headerKey,
-                        onVoteChanged: onVoteChanged,
-                        onNotificationLevelChanged: onNotificationLevelChanged,
-                        onJumpToPost: onJumpToPost,
-                        onContinueAiSummary: onContinueAiSummary,
-                      ),
-                    ),
+              );
+            },
+            codeContext: _lastLongCodeSelectionContext,
+          );
+          return AdaptiveTextSelectionToolbar.buttonItems(
+            anchors: state.contextMenuAnchors,
+            buttonItems: items,
+          );
+        },
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _handleScrollNotification,
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerSignal: (event) {
+              if (event is PointerScrollEvent) {
+                widget.onPointerScroll?.call(event.scrollDelta.dy);
+              }
+            },
+            child: CustomScrollView(
+              controller: scrollController,
+              center: centerKey,
+              cacheExtent: cacheExtent,
+              physics: scrollPhysics,
+              slivers: [
+                // 向上加载骨架屏 / 失败重试
+                if (hasMoreBefore && isLoadPreviousFailed)
+                  SliverToBoxAdapter(
+                    child: _LoadFailedRetry(onRetry: onRetryLoadPrevious),
+                  )
+                else if (hasMoreBefore && isLoadingPrevious)
+                  SliverToBoxAdapter(
+                    child: _wrapContent(context, const _LoadMoreIndicator()),
                   ),
-                ),
-              if (incomingUnloadedPostCount > 0)
-                SliverToBoxAdapter(
-                  child: _wrapContent(
-                    context,
-                    SelectionContainer.disabled(
-                      child: _IncomingRepliesIndicator(
-                        count: incomingUnloadedPostCount,
-                        onTap: isLoadingMore ? null : onLoadIncomingReplies,
-                      ),
-                    ),
-                  ),
-                ),
 
-              // Before-center 帖子（SliverList.builder 实现虚拟化回收）
-              // center 之前的 sliver 向上增长，index 0 离 center 最近，需要反转映射
-              if (centerPostIndex > 0)
-                SliverList.builder(
-                  itemCount: centerScrollIndex,
-                  itemBuilder: (context, index) {
-                    final segmentIndex = centerScrollIndex - 1 - index;
-                    return _buildSegmentItem(
+                // 话题 Header（centerPostIndex > 0 时放在 before-center 区域）
+                if (hasFirstPost &&
+                    centerPostIndex > 0 &&
+                    widget.topContentInset > 0)
+                  SliverToBoxAdapter(
+                    child: SizedBox(height: widget.topContentInset),
+                  ),
+                if (hasFirstPost && centerPostIndex > 0)
+                  SliverToBoxAdapter(
+                    child: _wrapContent(
                       context,
-                      _renderSegments[segmentIndex],
-                    );
-                  },
-                ),
-
-              // 中心帖子 + after-center 帖子（合并为一个 SliverList.builder）
-              // SliverList 不会回收最后一个 child，所以必须合并，确保 center 帖子
-              // 是多 item 列表中的一项，滚出视口后能被正常回收。
-              // centerPostIndex == 0 且有 header 时，用 SliverMainAxisGroup 将
-              // header 和帖子列表组合为 center，保证 header 默认可见。
-              if (centerPostIndex == 0 && hasFirstPost)
-                SliverMainAxisGroup(
-                  key: centerKey,
-                  slivers: [
-                    if (widget.topContentInset > 0)
-                      SliverToBoxAdapter(
-                        child: SizedBox(height: widget.topContentInset),
-                      ),
-                    SliverToBoxAdapter(
-                      child: _wrapContent(
-                        context,
-                        SelectionContainer.disabled(
-                          child: TopicDetailHeader(
-                            detail: detail,
-                            headerKey: headerKey,
-                            onVoteChanged: onVoteChanged,
-                            onNotificationLevelChanged:
-                                onNotificationLevelChanged,
-                            onJumpToPost: onJumpToPost,
-                            onContinueAiSummary: onContinueAiSummary,
-                          ),
+                      SelectionContainer.disabled(
+                        child: TopicDetailHeader(
+                          detail: detail,
+                          headerKey: headerKey,
+                          onVoteChanged: onVoteChanged,
+                          onNotificationLevelChanged:
+                              onNotificationLevelChanged,
+                          onJumpToPost: onJumpToPost,
+                          onContinueAiSummary: onContinueAiSummary,
                         ),
                       ),
                     ),
-                    if (incomingUnloadedPostCount > 0)
+                  ),
+                if (incomingUnloadedPostCount > 0)
+                  SliverToBoxAdapter(
+                    child: _wrapContent(
+                      context,
+                      SelectionContainer.disabled(
+                        child: _IncomingRepliesIndicator(
+                          count: incomingUnloadedPostCount,
+                          onTap: isLoadingMore ? null : onLoadIncomingReplies,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Before-center 帖子（SliverList.builder 实现虚拟化回收）
+                // center 之前的 sliver 向上增长，index 0 离 center 最近，需要反转映射
+                if (centerPostIndex > 0)
+                  SliverList.builder(
+                    itemCount: centerScrollIndex,
+                    itemBuilder: (context, index) {
+                      final segmentIndex = centerScrollIndex - 1 - index;
+                      return _buildSegmentItem(
+                        context,
+                        _renderSegments[segmentIndex],
+                      );
+                    },
+                  ),
+
+                // 中心帖子 + after-center 帖子（合并为一个 SliverList.builder）
+                // SliverList 不会回收最后一个 child，所以必须合并，确保 center 帖子
+                // 是多 item 列表中的一项，滚出视口后能被正常回收。
+                // centerPostIndex == 0 且有 header 时，用 SliverMainAxisGroup 将
+                // header 和帖子列表组合为 center，保证 header 默认可见。
+                if (centerPostIndex == 0 && hasFirstPost)
+                  SliverMainAxisGroup(
+                    key: centerKey,
+                    slivers: [
+                      if (widget.topContentInset > 0)
+                        SliverToBoxAdapter(
+                          child: SizedBox(height: widget.topContentInset),
+                        ),
                       SliverToBoxAdapter(
                         child: _wrapContent(
                           context,
                           SelectionContainer.disabled(
-                            child: _IncomingRepliesIndicator(
-                              count: incomingUnloadedPostCount,
-                              onTap: isLoadingMore
-                                  ? null
-                                  : onLoadIncomingReplies,
+                            child: TopicDetailHeader(
+                              detail: detail,
+                              headerKey: headerKey,
+                              onVoteChanged: onVoteChanged,
+                              onNotificationLevelChanged:
+                                  onNotificationLevelChanged,
+                              onJumpToPost: onJumpToPost,
+                              onContinueAiSummary: onContinueAiSummary,
                             ),
                           ),
                         ),
                       ),
-                    SliverList.builder(
-                      itemCount: _renderSegments.length,
-                      itemBuilder: (context, index) =>
-                          _buildSegmentItem(context, _renderSegments[index]),
-                    ),
-                  ],
-                )
-              else
-                SliverList.builder(
-                  key: centerKey,
-                  itemCount: _renderSegments.length - centerScrollIndex,
-                  itemBuilder: (context, index) {
-                    final segmentIndex = centerScrollIndex + index;
-                    return _buildSegmentItem(
-                      context,
-                      _renderSegments[segmentIndex],
-                    );
-                  },
-                ),
+                      if (incomingUnloadedPostCount > 0)
+                        SliverToBoxAdapter(
+                          child: _wrapContent(
+                            context,
+                            SelectionContainer.disabled(
+                              child: _IncomingRepliesIndicator(
+                                count: incomingUnloadedPostCount,
+                                onTap: isLoadingMore
+                                    ? null
+                                    : onLoadIncomingReplies,
+                              ),
+                            ),
+                          ),
+                        ),
+                      SliverList.builder(
+                        itemCount: _renderSegments.length,
+                        itemBuilder: (context, index) =>
+                            _buildSegmentItem(context, _renderSegments[index]),
+                      ),
+                    ],
+                  )
+                else
+                  SliverList.builder(
+                    key: centerKey,
+                    itemCount: _renderSegments.length - centerScrollIndex,
+                    itemBuilder: (context, index) {
+                      final segmentIndex = centerScrollIndex + index;
+                      return _buildSegmentItem(
+                        context,
+                        _renderSegments[segmentIndex],
+                      );
+                    },
+                  ),
 
-              // 正在输入指示器（始终占位，通过 AnimatedSize 平滑过渡避免列表抖动）
-              if (!hasMoreAfter)
-                SliverToBoxAdapter(
-                  child: _wrapContent(
-                    context,
-                    SelectionContainer.disabled(
-                      child: AnimatedSize(
-                        duration: const Duration(milliseconds: 200),
-                        alignment: Alignment.topCenter,
-                        child: widget.enableTypingIndicator
-                            ? Consumer(
-                                builder: (context, ref, _) {
-                                  final typingUsers = ref.watch(
-                                    topicChannelProvider(
-                                      detail.id,
-                                    ).select((s) => s.typingUsers),
-                                  );
-                                  return TypingAvatars(users: typingUsers);
-                                },
-                              )
-                            : const SizedBox.shrink(),
+                // 正在输入指示器（始终占位，通过 AnimatedSize 平滑过渡避免列表抖动）
+                if (!hasMoreAfter)
+                  SliverToBoxAdapter(
+                    child: _wrapContent(
+                      context,
+                      SelectionContainer.disabled(
+                        child: AnimatedSize(
+                          duration: const Duration(milliseconds: 200),
+                          alignment: Alignment.topCenter,
+                          child: widget.enableTypingIndicator
+                              ? Consumer(
+                                  builder: (context, ref, _) {
+                                    final typingUsers = ref.watch(
+                                      topicChannelProvider(
+                                        detail.id,
+                                      ).select((s) => s.typingUsers),
+                                    );
+                                    return TypingAvatars(users: typingUsers);
+                                  },
+                                )
+                              : const SizedBox.shrink(),
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-              // 底部加载骨架屏 / 失败重试
-              if (hasMoreAfter && isLoadMoreFailed)
-                SliverToBoxAdapter(
-                  child: _LoadFailedRetry(onRetry: onRetryLoadMore),
-                )
-              else if (hasMoreAfter && isLoadingMore)
-                SliverToBoxAdapter(
-                  child: _wrapContent(context, const _LoadMoreIndicator()),
+                // 底部加载骨架屏 / 失败重试
+                if (hasMoreAfter && isLoadMoreFailed)
+                  SliverToBoxAdapter(
+                    child: _LoadFailedRetry(onRetry: onRetryLoadMore),
+                  )
+                else if (hasMoreAfter && isLoadingMore)
+                  SliverToBoxAdapter(
+                    child: _wrapContent(context, const _LoadMoreIndicator()),
+                  ),
+                SliverPadding(
+                  padding: EdgeInsets.only(
+                    bottom: 80 + MediaQuery.of(context).padding.bottom,
+                  ),
                 ),
-              SliverPadding(
-                padding: EdgeInsets.only(
-                  bottom: 80 + MediaQuery.of(context).padding.bottom,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

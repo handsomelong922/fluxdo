@@ -185,6 +185,104 @@ await AppLogSettingsService.instance.setEnabled(false);
 await AppLogSettingsService.instance.setMaxEntries(150);
 ```
 
+## Scenario: Topic Detail Deferred Media Loading During Active Scroll
+
+### 1. Scope / Trigger
+- Trigger: changing topic-detail long-post image rendering, `LazyImage`, `d-image-grid`, `LazyLoadScope`, or scroll-notification handling in `TopicPostList`.
+
+### 2. Signatures
+- `class LazyLoadPauseScope extends InheritedNotifier<ValueListenable<bool>>`
+- `LazyImage(...)`
+- `_GridImageTileState._scheduleLoadIfReady()`
+- `_TopicPostListState._resumeAutoLoadReplies()`
+
+### 3. Contracts
+- Topic-detail descendants may expose a `LazyLoadPauseScope` whose notifier is `true` while the list is actively scrolling and returns to `false` only after the existing mobile idle delay.
+- Visibility-triggered first loads for post images must check the pause scope before calling `setState(() => _shouldLoad = true)`.
+- When the pause scope flips back to `false`, topic detail should call `VisibilityDetectorController.instance.notifyNow()` so currently visible placeholders load immediately instead of waiting for the mobile detector interval.
+- Standalone post images with stable width/height metadata should prefer the same lazy-loading path as gallery/grid images instead of starting network/decode work the moment the post widget builds.
+
+### 4. Validation & Error Matrix
+- Visible image enters viewport while pause scope is `true` -> keep placeholder only; do not start the first image load.
+- Same image remains visible after pause scope becomes `false` -> load starts on the next frame without requiring another manual scroll.
+- Topic detail has no pause scope ancestor -> existing lazy-image behavior continues; do not block image loading globally.
+- Scroll ends on mobile with throttled `VisibilityDetector` updates -> `notifyNow()` flushes visible detectors so image loading does not lag for up to the global interval.
+
+### 5. Good/Base/Bad Cases
+- Good: fast-flinging through an image-heavy long topic keeps placeholders during the drag, then visible images start decoding only after the list settles.
+- Base: off-topic surfaces without the pause scope still load visible images as before.
+- Bad: every `VisibilityDetector` callback starts image decoding during active drag, or visible placeholders remain blank for a long time after scrolling stops because no detector flush occurs.
+
+### 6. Tests Required
+- Widget-test that `LazyImage` stays unloaded while a visible pause scope is `true`.
+- Widget-test that the same `LazyImage` loads once the pause scope flips to `false`.
+- Keep topic-detail scroll performance tests green to ensure the scroll pipeline still compiles with the added pause scope.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+onVisibilityChanged: (info) {
+  if (info.visibleFraction > 0) {
+    _triggerLoad();
+  }
+}
+```
+
+#### Correct
+```dart
+onVisibilityChanged: (info) {
+  _isVisible = info.visibleFraction > 0;
+  _scheduleLoadIfReady();
+}
+```
+
+## Scenario: Image Viewer Loading Preview Must Remain Interactive
+
+### 1. Scope / Trigger
+- Trigger: changing `ImageViewerPage`, `ExtendedImage.loadStateChanged`, thumbnail preview handoff, or full-image loading UX inside the viewer.
+
+### 2. Signatures
+- `bool shouldUseInteractiveLoadingPreview({required String imageUrl, String? thumbnailUrl})`
+- `_ImageViewerPageState._buildInteractiveLoadingPreview(...)`
+- `ExtendedImage.loadStateChanged`
+
+### 3. Contracts
+- When `thumbnailUrl` exists, is non-empty, and differs from the original `imageUrl`, the image viewer loading state must render a gesture-capable preview instead of a plain `Image`.
+- The preview must keep the same zoom/double-tap gesture affordances as the final viewer path and must still target the original `imageUrl` for double-tap zoom heuristics.
+- If no distinct thumbnail is available, the existing loading spinner path is allowed.
+
+### 4. Validation & Error Matrix
+- Distinct thumbnail available + full image still loading -> preview is visible and accepts pinch/double-tap gestures.
+- Thumbnail missing/blank/same as original -> fall back to the normal loading UI; do not try to build a duplicate preview.
+- Preview load fails -> use the existing fallback/error path instead of hanging on a blank frame.
+
+### 5. Good/Base/Bad Cases
+- Good: user opens a large image and can immediately pinch the blurry preview while the original continues loading.
+- Base: images without a separate thumbnail keep the normal loading indicator.
+- Bad: loading state swaps in a plain `Image` that ignores all gestures until the original fully loads.
+
+### 6. Tests Required
+- Unit-test `shouldUseInteractiveLoadingPreview()` for distinct, identical, blank, and null thumbnail cases.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+return Image(
+  image: discourseImageProvider(widget.thumbnailUrl!),
+  fit: BoxFit.contain,
+);
+```
+
+#### Correct
+```dart
+return _buildInteractiveLoadingPreview(
+  previewUrl: widget.thumbnailUrl!,
+  imageUrl: widget.imageUrl!,
+  inPageView: false,
+  heroTag: widget.heroTag,
+);
+```
+
 ## Scenario: Topic Detail Preview Handoff
 
 ### 1. Scope / Trigger
