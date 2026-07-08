@@ -82,7 +82,7 @@ class AvatarUrlPolicy {
     }
 
     return result.replaceFirst(
-      RegExp(r'\.(?:gif|webp|avif)(?=($|\?))', caseSensitive: false),
+      RegExp(r'\.(?:gif|webp|avif|apng)(?=($|\?))', caseSensitive: false),
       '.png',
     );
   }
@@ -94,6 +94,7 @@ class AvatarUrlPolicy {
     if (!isAvatarPath) return false;
 
     return path.endsWith('.gif') ||
+        path.endsWith('.apng') ||
         path.endsWith('.webp') ||
         path.endsWith('.avif');
   }

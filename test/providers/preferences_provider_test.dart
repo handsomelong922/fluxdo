@@ -38,15 +38,18 @@ void main() {
       expect(url, contains('1_2.png?foo=bar'));
     });
 
-    test('AvatarUrlPolicy can derive static avatar url without global switch', () {
-      AvatarUrlPolicy.setPreferStaticAvatars(false);
+    test(
+      'AvatarUrlPolicy can derive static avatar url without global switch',
+      () {
+        AvatarUrlPolicy.setPreferStaticAvatars(false);
 
-      final url = AvatarUrlPolicy.resolveStaticAvatarUrl(
-        'https://linux.do/user_avatar/linux.do/test/40/1_2.webp?foo=bar',
-      );
+        final url = AvatarUrlPolicy.resolveStaticAvatarUrl(
+          'https://linux.do/user_avatar/linux.do/test/40/1_2.webp?foo=bar',
+        );
 
-      expect(url, contains('1_2.png?foo=bar'));
-    });
+        expect(url, contains('1_2.png?foo=bar'));
+      },
+    );
 
     test('AvatarUrlPolicy staticizes additional animated avatar formats', () {
       AvatarUrlPolicy.setPreferStaticAvatars(true);
@@ -57,9 +60,13 @@ void main() {
       final avifUrl = AvatarUrlPolicy.resolveDirectAvatarUrl(
         'https://linux.do/user_avatar/linux.do/test/120/1_2.avif',
       );
+      final apngUrl = AvatarUrlPolicy.resolveDirectAvatarUrl(
+        'https://linux.do/user_avatar/linux.do/test/120/1_2.apng',
+      );
 
       expect(webpUrl, contains('1_2.png?foo=bar'));
       expect(avifUrl, contains('1_2.png'));
+      expect(apngUrl, contains('1_2.png'));
     });
 
     test('AvatarUrlPolicy does not rewrite non-avatar webp images', () {
