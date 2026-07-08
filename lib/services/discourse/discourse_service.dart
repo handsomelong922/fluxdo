@@ -69,16 +69,11 @@ part '_revisions.dart';
 const String skipWebViewSessionSyncExtraKey = 'skipWebViewSessionSync';
 
 @visibleForTesting
-const String backgroundWebViewSessionSyncExtraKey =
-    'backgroundWebViewSessionSync';
-
-@visibleForTesting
 bool shouldAwaitWebViewSessionSyncForRequest({
   required Map<String, dynamic> extra,
   required Map<String, dynamic> headers,
 }) {
   if (extra[skipWebViewSessionSyncExtraKey] == true) return false;
-  if (extra[backgroundWebViewSessionSyncExtraKey] == true) return false;
   final isSilentRequest = extra['isSilent'] == true;
   final isBackgroundRequest =
       isSilentRequest || headers['Discourse-Background']?.toString() == 'true';
@@ -88,12 +83,6 @@ bool shouldAwaitWebViewSessionSyncForRequest({
 Options _withSkipWebViewSessionSync(Options? options) {
   final extra = <String, dynamic>{...?options?.extra};
   extra[skipWebViewSessionSyncExtraKey] = true;
-  return (options ?? Options()).copyWith(extra: extra);
-}
-
-Options _withBackgroundWebViewSessionSync(Options? options) {
-  final extra = <String, dynamic>{...?options?.extra};
-  extra[backgroundWebViewSessionSyncExtraKey] = true;
   return (options ?? Options()).copyWith(extra: extra);
 }
 
@@ -120,15 +109,11 @@ Options _foregroundReadOptions({Options? options}) {
   return (options ?? Options()).copyWith(extra: extra);
 }
 
-Options _visibleReadOptions({Options? options}) {
-  final foreground = _foregroundReadOptions(options: options);
-  final skipBlockingSync = _withSkipWebViewSessionSync(foreground);
-  return _withBackgroundWebViewSessionSync(skipBlockingSync);
-}
-
 @visibleForTesting
 Options? visibleTopicListReadOptions({required int page, Options? options}) {
-  return _visibleReadOptions(options: options);
+  final prioritized = _foregroundReadOptions(options: options);
+  if (page > 0) return prioritized;
+  return _withSkipWebViewSessionSync(prioritized);
 }
 
 /// 基类，包含所有共享字段

@@ -12,16 +12,6 @@ void main() {
     );
   });
 
-  test('background sync visible requests do not await session sync', () {
-    expect(
-      shouldAwaitWebViewSessionSyncForRequest(
-        extra: {backgroundWebViewSessionSyncExtraKey: true},
-        headers: const {},
-      ),
-      isFalse,
-    );
-  });
-
   test('silent background requests do not await session sync', () {
     expect(
       shouldAwaitWebViewSessionSyncForRequest(

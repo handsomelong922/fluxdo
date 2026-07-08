@@ -11,7 +11,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/latest.json',
       queryParameters: {'topic_ids': topicIds.join(',')},
-      options: _visibleReadOptions(),
+      options: _foregroundReadOptions(),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -304,7 +304,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
   Future<TopicListResponse> getTopTopics() async {
     final response = await _dio.get(
       '/top.json',
-      options: _visibleReadOptions(),
+      options: _foregroundReadOptions(),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -312,7 +312,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
   Future<TopicListResponse> getCategoryTopics(String categorySlug) async {
     final response = await _dio.get(
       '/c/$categorySlug.json',
-      options: _visibleReadOptions(),
+      options: _foregroundReadOptions(),
     );
     return TopicListResponse.fromJson(response.data);
   }

@@ -9,17 +9,15 @@ void main() {
     expect(options, isNotNull);
     expect(options!.extra!['priority'], 'high');
     expect(options.extra![skipWebViewSessionSyncExtraKey], isTrue);
-    expect(options.extra![backgroundWebViewSessionSyncExtraKey], isTrue);
   });
 
-  test('visible topic list later pages also skip blocking sync', () {
+  test('visible topic list later pages keep foreground priority', () {
     final original = Options(extra: {'traceId': 'page-2'});
     final options = visibleTopicListReadOptions(page: 2, options: original);
 
     expect(options!.extra!['traceId'], 'page-2');
     expect(options.extra!['priority'], 'high');
-    expect(options.extra![skipWebViewSessionSyncExtraKey], isTrue);
-    expect(options.extra![backgroundWebViewSessionSyncExtraKey], isTrue);
+    expect(options.extra!.containsKey(skipWebViewSessionSyncExtraKey), isFalse);
   });
 
   test('background read options are low priority and skip session sync', () {
