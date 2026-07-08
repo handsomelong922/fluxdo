@@ -43,7 +43,10 @@ mixin _UsersMixin on _DiscourseServiceBase {
   }
 
   Future<User> _fetchUser(String username) async {
-    final response = await _dio.get('/u/$username.json');
+    final response = await _dio.get(
+      '/u/$username.json',
+      options: _visibleReadOptions(),
+    );
     final data = response.data as Map<String, dynamic>;
     return User.fromJson(data['user'] ?? data);
   }
@@ -110,7 +113,10 @@ mixin _UsersMixin on _DiscourseServiceBase {
   }
 
   Future<UserSummary> _fetchUserSummary(String username) async {
-    final response = await _dio.get('/u/$username/summary.json');
+    final response = await _dio.get(
+      '/u/$username/summary.json',
+      options: _visibleReadOptions(),
+    );
     final summary = UserSummary.fromJson(response.data);
 
     _cachedUserSummary = summary;
@@ -136,6 +142,7 @@ mixin _UsersMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/user_actions.json',
       queryParameters: queryParams,
+      options: _visibleReadOptions(),
     );
     return UserActionResponse.fromJson(response.data);
   }
@@ -152,13 +159,17 @@ mixin _UsersMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/discourse-reactions/posts/reactions.json',
       queryParameters: queryParams,
+      options: _visibleReadOptions(),
     );
     return UserReactionsResponse.fromJson(response.data);
   }
 
   /// 获取用户关注列表
   Future<List<FollowUser>> getFollowing(String username) async {
-    final response = await _dio.get('/u/$username/follow/following');
+    final response = await _dio.get(
+      '/u/$username/follow/following',
+      options: _visibleReadOptions(),
+    );
     return (response.data as List)
         .map((json) => FollowUser.fromJson(json))
         .toList();
@@ -166,7 +177,10 @@ mixin _UsersMixin on _DiscourseServiceBase {
 
   /// 获取用户粉丝列表
   Future<List<FollowUser>> getFollowers(String username) async {
-    final response = await _dio.get('/u/$username/follow/followers');
+    final response = await _dio.get(
+      '/u/$username/follow/followers',
+      options: _visibleReadOptions(),
+    );
     return (response.data as List)
         .map((json) => FollowUser.fromJson(json))
         .toList();
@@ -213,6 +227,7 @@ mixin _UsersMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/topics/private-messages/$username.json',
       queryParameters: page > 0 ? {'page': page} : null,
+      options: _visibleReadOptions(),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -226,6 +241,7 @@ mixin _UsersMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/topics/private-messages-sent/$username.json',
       queryParameters: page > 0 ? {'page': page} : null,
+      options: _visibleReadOptions(),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -239,6 +255,7 @@ mixin _UsersMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/topics/private-messages-archive/$username.json',
       queryParameters: page > 0 ? {'page': page} : null,
+      options: _visibleReadOptions(),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -248,6 +265,7 @@ mixin _UsersMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/read.json',
       queryParameters: page > 0 ? {'page': page} : null,
+      options: _visibleReadOptions(),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -264,7 +282,9 @@ mixin _UsersMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/u/$username/bookmarks.json',
       queryParameters: page > 0 ? {'page': page} : null,
-      options: _backgroundReadOptions(background: background),
+      options: background
+          ? _backgroundReadOptions(background: true)
+          : _visibleReadOptions(),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -278,6 +298,7 @@ mixin _UsersMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/topics/created-by/$username.json',
       queryParameters: page > 0 ? {'page': page} : null,
+      options: _visibleReadOptions(),
     );
     return TopicListResponse.fromJson(response.data);
   }
@@ -287,13 +308,17 @@ mixin _UsersMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/user-badges/${username.toLowerCase()}.json',
       queryParameters: {'grouped': 'true'},
+      options: _visibleReadOptions(),
     );
     return BadgeDetailResponse.fromJson(response.data);
   }
 
   /// 获取徽章信息
   Future<Badge> getBadge({required int badgeId}) async {
-    final response = await _dio.get('/badges/$badgeId.json');
+    final response = await _dio.get(
+      '/badges/$badgeId.json',
+      options: _visibleReadOptions(),
+    );
     final badgeData = response.data['badge'] as Map<String, dynamic>;
     return Badge.fromJson(badgeData);
   }
@@ -311,6 +336,7 @@ mixin _UsersMixin on _DiscourseServiceBase {
     final response = await _dio.get(
       '/user_badges.json',
       queryParameters: queryParams,
+      options: _visibleReadOptions(),
     );
 
     return BadgeDetailResponse.fromJson(response.data);

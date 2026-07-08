@@ -850,7 +850,10 @@ mixin _AuthMixin on _DiscourseServiceBase {
               );
               final skipWebViewSessionSync =
                   options.extra[skipWebViewSessionSyncExtraKey] == true;
-              if (!shouldAwait && !skipWebViewSessionSync) {
+              final backgroundWebViewSessionSync =
+                  options.extra[backgroundWebViewSessionSyncExtraKey] == true;
+              if (!shouldAwait &&
+                  (!skipWebViewSessionSync || backgroundWebViewSessionSync)) {
                 WebViewSessionCookieRefreshService.instance.ensureInBackground(
                   reason: 'dio_request:${options.method}:background',
                 );

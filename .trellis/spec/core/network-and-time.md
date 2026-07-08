@@ -19,7 +19,71 @@ Evidence:
 - Network behavior should stay inside `lib/services/network/` or focused providers that call those services.
 - Cookie synchronization is a cross-layer contract between Dio/CookieJar/WebView. Review `docs/cookie-sync-status.md` before changing login, CF verification, cookie persistence, or WebView priming.
 - Preserve platform-specific adapter boundaries under `lib/services/network/adapters/` and `lib/services/network/cookie/strategy/`.
-- Startup first-screen read requests may set `skipWebViewSessionSyncExtraKey` only when they are safe idempotent reads such as the visible topic-list first page or silent home first-post previews. This skips waiting for `WebViewSessionCookieRefreshService.ensureSynced()` but still lets the session sync continue in the background. Do not apply it to login/session recovery, CSRF, CF challenge, mutations, or requests that require a freshly bootstrapped WebView runtime session cookie.
+- Safe idempotent visible reads may bypass blocking WebView session sync only through the shared visible-read option path. That path must still request session sync in the background, and it must not be applied to login/session recovery, CSRF bootstrap, CF challenge recovery, mutations, or flows that require a freshly bootstrapped WebView runtime session cookie.
+
+## Scenario: Visible Read Requests Must Not Block On Session Bootstrap
+
+### 1. Scope / Trigger
+- Trigger: changing foreground GET/read request options for topic lists, user profile pages, bookmarks/history/private messages, badge/user summary pages, or the Dio auth interceptor's WebView session-sync gate.
+
+### 2. Signatures
+- `const String skipWebViewSessionSyncExtraKey = 'skipWebViewSessionSync'`
+- `const String backgroundWebViewSessionSyncExtraKey = 'backgroundWebViewSessionSync'`
+- `bool shouldAwaitWebViewSessionSyncForRequest({required Map<String, dynamic> extra, required Map<String, dynamic> headers})`
+- `Options _visibleReadOptions({Options? options})`
+- `Options? visibleTopicListReadOptions({required int page, Options? options})`
+
+### 3. Contracts
+- Foreground visible read-only requests should use high priority and must not await `WebViewSessionCookieRefreshService.ensureSynced()` on the critical path.
+- Those same requests should still request a background session sync attempt by setting both:
+  - `skipWebViewSessionSyncExtraKey = true`
+  - `backgroundWebViewSessionSyncExtraKey = true`
+- This contract applies to safe idempotent visible reads such as:
+  - topic list page 0 and load-more pages
+  - user profile / summary / action / reaction reads
+  - bookmarks, browsing history, private message lists, and similar visible user-content reads
+- Do not use `_visibleReadOptions()` for mutations, login/session recovery, CSRF bootstrap, CF challenge recovery, or other flows that must wait for a fresh WebView runtime session.
+
+### 4. Validation & Error Matrix
+- Visible topic list page > 0 -> request proceeds immediately; session sync continues in background.
+- Visible user profile open -> `/u/:username.json` and `/u/:username/summary.json` do not block on session bootstrap.
+- Silent/background reads -> continue using low-priority background options.
+- Mutations or auth recovery -> still use the existing blocking/auth-safe path; do not silently downgrade them to background sync.
+
+### 5. Good/Base/Bad Cases
+- Good: opening a profile or loading the second page of `/latest.json` is not stalled by a 15s WebView bootstrap timeout.
+- Base: foreground visible reads still trigger best-effort background sync so session freshness can recover without blocking UI.
+- Bad: every visible GET awaits `ensureSynced()` and makes profile/list pages feel frozen, or all visible requests fully skip sync without allowing the background recovery path to run.
+
+### 6. Tests Required
+- Unit-test `shouldAwaitWebViewSessionSyncForRequest()` for:
+  - explicit skip
+  - explicit background sync
+  - silent background request
+  - normal foreground request
+- Unit-test `visibleTopicListReadOptions()` for:
+  - high priority
+  - skip flag present
+  - background-sync flag present on later pages too
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+final response = await _dio.get(
+  '/latest.json',
+  queryParameters: {'page': 1},
+  options: _foregroundReadOptions(),
+);
+```
+
+#### Correct
+```dart
+final response = await _dio.get(
+  '/latest.json',
+  queryParameters: {'page': 1},
+  options: _visibleReadOptions(),
+);
+```
 
 ## Scenario: Discourse Plugin Mutation Endpoints
 
