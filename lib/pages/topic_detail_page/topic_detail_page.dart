@@ -424,6 +424,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   ModalRoute<dynamic>? _route;
   bool _isRouteVisible = true;
   bool _isParentActive = true;
+  bool _holdsHomeExcerptPause = false;
   bool _isMobileViewport = PlatformUtils.isMobile;
   bool _isScreenTrackRunning = false;
   TopicReadingState? _restoredReadingState;
@@ -571,6 +572,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       if (!mounted) return;
       _attachScrollIdleFlush();
     });
+    _syncHomeExcerptPause();
     _pageController = PageController(initialPage: _topicPage);
     _retainTopicAiProvider =
         widget.autoOpenAiChat || widget.initialSessionId != null;
@@ -706,6 +708,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.parentActive != widget.parentActive) {
       _isParentActive = widget.parentActive;
+      _syncHomeExcerptPause();
       _syncScreenTrackState(
         reason: _isParentActive ? 'parent_active' : 'parent_inactive',
       );
@@ -729,6 +732,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _isRouteVisible = route.isCurrent;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _syncHomeExcerptPause();
       _syncScreenTrackState(reason: 'route_subscribed');
       _syncTopicChannelSubscription();
     });
@@ -753,6 +757,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _controller.scrollController.removeListener(_onScroll);
     _idleFlushPosition?.isScrollingNotifier.removeListener(_onScrollIdle);
     _idleFlushPosition = null;
+    if (_holdsHomeExcerptPause) {
+      ref.read(homeTopicExcerptPauseControllerProvider).release(_instanceId);
+      _holdsHomeExcerptPause = false;
+    }
     _screenTrack.stop();
     _topicChannelSubscription?.close();
     _topicChannelSubscription = null;
@@ -839,8 +847,22 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     setState(() {
       _isRouteVisible = visible;
     });
+    _syncHomeExcerptPause();
     _syncScreenTrackState(reason: reason);
     _syncTopicChannelSubscription();
+  }
+
+  void _syncHomeExcerptPause() {
+    if (widget.embeddedMode) return;
+    final shouldPause = _isRouteVisible && _isParentActive;
+    if (shouldPause == _holdsHomeExcerptPause) return;
+    final pauseController = ref.read(homeTopicExcerptPauseControllerProvider);
+    if (shouldPause) {
+      pauseController.acquire(_instanceId);
+    } else {
+      pauseController.release(_instanceId);
+    }
+    _holdsHomeExcerptPause = shouldPause;
   }
 
   void _syncScreenTrackState({required String reason}) {

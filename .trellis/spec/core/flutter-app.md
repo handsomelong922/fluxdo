@@ -249,13 +249,17 @@ onVisibilityChanged: (info) {
 ### 3. Contracts
 - Automatic child-reply loading must pause while the nested topic list is actively scrolling.
 - Resume automatic child-reply loading only after the same mobile/desktop idle delay style used for topic-detail media/reply auto-load.
+- Automatic child-reply loading must enqueue through the shared reply prefetch queue instead of launching every visible card immediately in parallel.
+- Queued automatic child loads must be canceled when the card collapses, the pause flag turns back on, the route disposes, or the card identity changes.
 - Manual user actions such as tapping expand/load-more must remain immediate and must not be blocked by the auto-load pause flag.
 - Pass the pause listenable through recursive `NestedPostCard` children so deep reply trees follow the same rule.
 
 ### 4. Validation & Error Matrix
 - Scroll start/update -> visible nested cards do not start first automatic child loads.
 - Scroll end + idle delay -> cards that still need children may schedule their automatic load.
+- Scroll end with multiple visible expandable cards -> automatic child requests run sequentially, and list height grows in smaller steps instead of one burst.
 - User taps expand while paused -> load runs immediately because it is an explicit action.
+- Route pop / card dispose while queued -> pending automatic child load is canceled and must not keep fetching in the background.
 - Pause listenable missing, such as in a bottom sheet -> existing behavior continues.
 
 ### 5. Good/Base/Bad Cases
@@ -265,6 +269,7 @@ onVisibilityChanged: (info) {
 
 ### 6. Tests Required
 - Regression-test the pause/listenable helper or widget behavior when a lightweight harness is available.
+- Keep shared prefetch-queue cancellation tests green because nested child auto-load now relies on the same sequential queue semantics.
 - Keep nested provider stale-response tests green.
 - Keep topic-detail scroll performance tests green.
 
@@ -284,6 +289,53 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadChildren();
   }
 });
+```
+
+## Scenario: Home Topic Excerpt Background Prefetch While Detail Routes Are Visible
+
+### 1. Scope / Trigger
+- Trigger: changing `HomeTopicExcerptLoader`, topic-list excerpt warmup, home cards, or full-screen `TopicDetailPage` route lifecycle.
+
+### 2. Signatures
+- `HomeTopicExcerptPauseController.acquire(Object token)`
+- `HomeTopicExcerptPauseController.release(Object token)`
+- `HomeTopicExcerptLoader.setPaused(bool paused)`
+- `homeTopicExcerptPausedProvider`
+
+### 3. Contracts
+- Background home excerpt preview requests must pause while a full-screen topic-detail route is visible above the home list.
+- Pause state must be token-based, not a single bool flip, so stacked topic-detail routes and home-list scroll pauses can coexist safely.
+- Releasing one pause source must not resume loader activity while another pause source still holds a token.
+- While paused, finished excerpt HTML may be buffered but must not be applied to hidden home cards until the pause state is cleared.
+- Embedded/master-detail topic panes must not pause the home excerpt loader globally just because the detail pane is visible beside the list.
+
+### 4. Validation & Error Matrix
+- First topic-detail push over home -> excerpt loader pauses and home cards stop issuing new `/t/:id/1.json` preview requests.
+- Nested topic-detail push -> second token is added; popping only the top route keeps excerpt loading paused until the lower detail route becomes hidden or disposes.
+- Home list scroll pause + topic-detail pause coexist -> releasing only one source keeps `homeTopicExcerptPausedProvider` true.
+- Final token release -> loader resumes and any buffered excerpt HTML may render on home cards.
+
+### 5. Good/Base/Bad Cases
+- Good: entering a long topic stops hidden-home excerpt warmup so topic detail is not competing with dozens of low-priority first-post preview fetches.
+- Base: when no topic-detail route is visible, existing home excerpt pause/resume behavior during active list scroll stays the same.
+- Bad: one route or timer blindly sets the global pause bool to false while another route still expects excerpt warmup to remain suspended.
+
+### 6. Tests Required
+- Unit-test token acquire/release ordering so the loader stays paused until the final token releases.
+- Keep home excerpt loader queue tests green to ensure paused requests still resume correctly afterward.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+ref.read(homeTopicExcerptLoaderProvider).setPaused(false);
+ref.read(homeTopicExcerptPausedProvider.notifier).state = false;
+```
+
+#### Correct
+```dart
+final pauseController = ref.read(homeTopicExcerptPauseControllerProvider);
+pauseController.acquire(routeToken);
+pauseController.release(routeToken);
 ```
 
 ## Scenario: Topic Post Author Header Labels

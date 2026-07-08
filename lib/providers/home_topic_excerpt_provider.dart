@@ -49,6 +49,38 @@ final homeTopicExcerptProvider = FutureProvider.autoDispose
       return ref.watch(homeTopicExcerptLoaderProvider).load(topicId);
     });
 
+final homeTopicExcerptPauseControllerProvider =
+    Provider<HomeTopicExcerptPauseController>((ref) {
+      return HomeTopicExcerptPauseController(ref);
+    });
+
+class HomeTopicExcerptPauseController {
+  HomeTopicExcerptPauseController(this._ref);
+
+  final Ref _ref;
+  final Set<Object> _tokens = <Object>{};
+
+  @visibleForTesting
+  bool get isPaused => _tokens.isNotEmpty;
+
+  @visibleForTesting
+  int get activeTokenCount => _tokens.length;
+
+  void acquire(Object token) {
+    if (!_tokens.add(token)) return;
+    if (_tokens.length != 1) return;
+    _ref.read(homeTopicExcerptLoaderProvider).setPaused(true);
+    _ref.read(homeTopicExcerptPausedProvider.notifier).state = true;
+  }
+
+  void release(Object token) {
+    if (!_tokens.remove(token)) return;
+    if (_tokens.isNotEmpty) return;
+    _ref.read(homeTopicExcerptLoaderProvider).setPaused(false);
+    _ref.read(homeTopicExcerptPausedProvider.notifier).state = false;
+  }
+}
+
 @visibleForTesting
 int resolveHomeExcerptBatchSize(AppPreferences preferences) {
   final foregroundHeadroom = preferences.maxConcurrent > 1

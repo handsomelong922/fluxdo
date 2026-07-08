@@ -1323,11 +1323,15 @@ class _TopicListState extends ConsumerState<_TopicList> {
 
   /// J/K 防抖：上次触发时间
   DateTime _lastKeyNavTime = DateTime(0);
+  final Object _homeExcerptPauseToken = Object();
 
   @override
   void dispose() {
     _resumeExcerptLoadingTimer?.cancel();
     _pendingFabRefreshTimer?.cancel();
+    ref
+        .read(homeTopicExcerptPauseControllerProvider)
+        .release(_homeExcerptPauseToken);
     super.dispose();
   }
 
@@ -1348,20 +1352,15 @@ class _TopicListState extends ConsumerState<_TopicList> {
     if (widget.categoryId != null) return;
 
     _resumeExcerptLoadingTimer?.cancel();
+    final pauseController = ref.read(homeTopicExcerptPauseControllerProvider);
     if (paused) {
-      if (!ref.read(homeTopicExcerptPausedProvider)) {
-        ref.read(homeTopicExcerptPausedProvider.notifier).state = true;
-      }
-      ref.read(homeTopicExcerptLoaderProvider).setPaused(true);
+      pauseController.acquire(_homeExcerptPauseToken);
       return;
     }
 
     _resumeExcerptLoadingTimer = Timer(const Duration(milliseconds: 180), () {
       if (!mounted) return;
-      ref.read(homeTopicExcerptLoaderProvider).setPaused(false);
-      if (ref.read(homeTopicExcerptPausedProvider)) {
-        ref.read(homeTopicExcerptPausedProvider.notifier).state = false;
-      }
+      pauseController.release(_homeExcerptPauseToken);
     });
   }
 

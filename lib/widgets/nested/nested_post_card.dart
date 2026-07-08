@@ -136,6 +136,11 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   bool get _autoLoadChildrenPaused =>
       widget.autoLoadChildrenPausedListenable?.value ?? false;
 
+  String get _autoChildLoadQueueKey => _autoChildLoadQueueKeyFor(
+    topicId: widget.params.topicId,
+    postNumber: widget.node.post.postNumber,
+  );
+
   @override
   void initState() {
     super.initState();
@@ -150,6 +155,13 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   @override
   void didUpdateWidget(NestedPostCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final oldQueueKey = _autoChildLoadQueueKeyFor(
+      topicId: oldWidget.params.topicId,
+      postNumber: oldWidget.node.post.postNumber,
+    );
+    if (oldQueueKey != _autoChildLoadQueueKey) {
+      AutoReplyPrefetchQueue.instance.cancel(oldQueueKey);
+    }
     if (oldWidget.autoLoadChildrenPausedListenable !=
         widget.autoLoadChildrenPausedListenable) {
       oldWidget.autoLoadChildrenPausedListenable?.removeListener(
@@ -170,6 +182,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
 
   @override
   void dispose() {
+    AutoReplyPrefetchQueue.instance.cancel(_autoChildLoadQueueKey);
     widget.autoLoadChildrenPausedListenable?.removeListener(
       _handleAutoLoadPauseChanged,
     );
@@ -178,9 +191,20 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   }
 
   void _handleAutoLoadPauseChanged() {
+    if (_autoLoadChildrenPaused) {
+      AutoReplyPrefetchQueue.instance.cancel(_autoChildLoadQueueKey);
+      return;
+    }
     if (!_autoLoadChildrenPaused) {
       _scheduleAutoLoadChildren();
     }
+  }
+
+  static String _autoChildLoadQueueKeyFor({
+    required int topicId,
+    required int postNumber,
+  }) {
+    return 'nested-auto-child:$topicId:$postNumber';
   }
 
   void _resetNodeState() {
@@ -289,6 +313,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   void _toggleExpanded() {
     setState(() {
       if (_expanded) {
+        AutoReplyPrefetchQueue.instance.cancel(_autoChildLoadQueueKey);
         _expanded = false;
         _collapsed = true;
         _depthLineHovered = false;
@@ -296,6 +321,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         _expanded = true;
         _collapsed = false;
         if (_children.isEmpty && widget.node.directReplyCount > 0) {
+          AutoReplyPrefetchQueue.instance.cancel(_autoChildLoadQueueKey);
           _loadChildren();
         }
       }
@@ -357,7 +383,18 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           _autoLoadChildrenPaused) {
         return;
       }
-      _loadChildren();
+      AutoReplyPrefetchQueue.instance.enqueue(_autoChildLoadQueueKey, () async {
+        if (!mounted ||
+            !_expanded ||
+            _atMaxDepth ||
+            _children.isNotEmpty ||
+            widget.node.directReplyCount <= 0 ||
+            _isLoadingMore ||
+            _autoLoadChildrenPaused) {
+          return;
+        }
+        await _loadChildren();
+      });
     });
   }
 

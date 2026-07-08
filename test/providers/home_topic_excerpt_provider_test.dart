@@ -92,6 +92,53 @@ void main() {
     expect(calls, 1);
   });
 
+  test(
+    'HomeTopicExcerptPauseController keeps loader paused until all tokens release',
+    () async {
+      var calls = 0;
+      final loader = HomeTopicExcerptLoader(
+        minRequestInterval: Duration.zero,
+        fetchPreview: (topicId) async {
+          calls++;
+          return _previewDetail(topicId);
+        },
+      );
+      final container = ProviderContainer(
+        overrides: [homeTopicExcerptLoaderProvider.overrideWithValue(loader)],
+      );
+      addTearDown(loader.dispose);
+      addTearDown(container.dispose);
+
+      final controller = container.read(
+        homeTopicExcerptPauseControllerProvider,
+      );
+      final tokenA = Object();
+      final tokenB = Object();
+
+      controller.acquire(tokenA);
+      controller.acquire(tokenB);
+      expect(controller.isPaused, isTrue);
+      expect(controller.activeTokenCount, 2);
+      expect(container.read(homeTopicExcerptPausedProvider), isTrue);
+
+      final pending = loader.load(21);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(calls, 0);
+
+      controller.release(tokenA);
+      expect(controller.isPaused, isTrue);
+      expect(container.read(homeTopicExcerptPausedProvider), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(calls, 0);
+
+      controller.release(tokenB);
+      expect(controller.isPaused, isFalse);
+      expect(container.read(homeTopicExcerptPausedProvider), isFalse);
+      expect(await pending, '<p>topic 21</p>');
+      expect(calls, 1);
+    },
+  );
+
   test('HomeTopicExcerptLoader spaces queued requests', () async {
     final starts = <DateTime>[];
     final loader = HomeTopicExcerptLoader(
