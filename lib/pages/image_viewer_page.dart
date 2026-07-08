@@ -160,11 +160,16 @@ class ImageViewerPage extends StatefulWidget {
 
 class _ImageViewerPageState extends State<ImageViewerPage>
     with TickerProviderStateMixin, DoubleTapZoomMixin {
+  static const int _singleImageGestureSlot = -1;
   late int currentIndex;
   bool _isSaving = false;
   bool _isSharing = false;
   bool _showUI = true;
   final DiscourseCacheManager _cacheManager = DiscourseCacheManager();
+  late final GlobalKey<ExtendedImageGestureState> _singleGestureKey;
+  late final List<GlobalKey<ExtendedImageGestureState>> _galleryGestureKeys;
+  final Map<int, GestureDetails> _savedGestureDetailsBySlot =
+      <int, GestureDetails>{};
 
   /// 通知所有缓存页面当前活跃的 Hero 页码变化，确保只有当前页有 Hero
   late final ValueNotifier<int> _activeHeroPage;
@@ -183,6 +188,11 @@ class _ImageViewerPageState extends State<ImageViewerPage>
   void initState() {
     super.initState();
     currentIndex = widget.initialIndex;
+    _singleGestureKey = GlobalKey<ExtendedImageGestureState>();
+    _galleryGestureKeys = List<GlobalKey<ExtendedImageGestureState>>.generate(
+      widget.galleryImages?.length ?? 0,
+      (_) => GlobalKey<ExtendedImageGestureState>(),
+    );
     _activeHeroPage = ValueNotifier(currentIndex);
     // 初始化双击缩放
     initDoubleTapZoom();
@@ -341,6 +351,8 @@ class _ImageViewerPageState extends State<ImageViewerPage>
     required String previewUrl,
     required String imageUrl,
     required bool inPageView,
+    required int gestureSlot,
+    required GlobalKey<ExtendedImageGestureState> gestureKey,
     String? heroTag,
   }) {
     return ExtendedImage(
@@ -348,6 +360,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
       fit: BoxFit.contain,
       mode: ExtendedImageMode.gesture,
       enableSlideOutPage: true,
+      extendedImageGestureKey: gestureKey,
       heroBuilderForSlidingPage: heroTag != null
           ? (child) => Hero(
               tag: heroTag,
@@ -355,19 +368,8 @@ class _ImageViewerPageState extends State<ImageViewerPage>
               child: child,
             )
           : null,
-      initGestureConfigHandler: (state) {
-        return GestureConfig(
-          minScale: 0.9,
-          animationMinScale: 0.7,
-          maxScale: 4.0,
-          animationMaxScale: 4.5,
-          speed: 1.0,
-          inertialSpeed: 500.0,
-          initialScale: 1.0,
-          inPageView: inPageView,
-          initialAlignment: InitialAlignment.center,
-        );
-      },
+      initGestureConfigHandler: (_) =>
+          _buildGestureConfig(inPageView: inPageView, gestureSlot: gestureSlot),
       onDoubleTap: (state) {
         _hideUI();
         handleDoubleTapZoom(state, imageUrl: imageUrl);
@@ -382,6 +384,69 @@ class _ImageViewerPageState extends State<ImageViewerPage>
         return null;
       },
     );
+  }
+
+  GestureConfig _buildGestureConfig({
+    required bool inPageView,
+    required int gestureSlot,
+  }) {
+    return GestureConfig(
+      minScale: 0.9,
+      animationMinScale: 0.7,
+      maxScale: 4.0,
+      animationMaxScale: 4.5,
+      speed: 1.0,
+      inertialSpeed: 500.0,
+      initialScale: 1.0,
+      inPageView: inPageView,
+      initialAlignment: InitialAlignment.center,
+      gestureDetailsIsChanged: (details) {
+        if (details == null) {
+          _savedGestureDetailsBySlot.remove(gestureSlot);
+          return;
+        }
+        _savedGestureDetailsBySlot[gestureSlot] = details.copy();
+      },
+    );
+  }
+
+  int _gestureSlotForIndex(int? index) {
+    if (widget.galleryImages == null) return _singleImageGestureSlot;
+    return index ?? currentIndex;
+  }
+
+  GlobalKey<ExtendedImageGestureState> _gestureKeyForIndex(int? index) {
+    if (widget.galleryImages == null || _galleryGestureKeys.isEmpty) {
+      return _singleGestureKey;
+    }
+    return _galleryGestureKeys[index ?? currentIndex];
+  }
+
+  void _restoreGestureStateIfNeeded(int gestureSlot) {
+    final savedDetails = _savedGestureDetailsBySlot[gestureSlot];
+    final gestureState = _gestureKeyForIndex(
+      gestureSlot == _singleImageGestureSlot ? null : gestureSlot,
+    ).currentState;
+    if (savedDetails == null || gestureState == null) return;
+
+    final currentDetails = gestureState.gestureDetails;
+    final currentScale = currentDetails?.totalScale ?? 1.0;
+    final currentOffset = currentDetails?.offset ?? Offset.zero;
+    final savedScale = savedDetails.totalScale ?? 1.0;
+    final savedOffset = savedDetails.offset ?? Offset.zero;
+    final alreadyRestored =
+        (currentScale - savedScale).abs() < 0.001 &&
+        (currentOffset - savedOffset).distance < 0.5;
+    if (alreadyRestored) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final state = _gestureKeyForIndex(
+        gestureSlot == _singleImageGestureSlot ? null : gestureSlot,
+      ).currentState;
+      if (state == null) return;
+      state.gestureDetails = savedDetails.copy();
+    });
   }
 
   /// 保存内存图片到相册
@@ -645,6 +710,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                       fit: BoxFit.contain,
                       mode: ExtendedImageMode.gesture,
                       enableSlideOutPage: true,
+                      extendedImageGestureKey: _singleGestureKey,
                       heroBuilderForSlidingPage: widget.heroTag != null
                           ? (child) => Hero(
                               tag: widget.heroTag!,
@@ -652,19 +718,10 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                               child: child,
                             )
                           : null,
-                      initGestureConfigHandler: (state) {
-                        return GestureConfig(
-                          minScale: 0.9,
-                          animationMinScale: 0.7,
-                          maxScale: 4.0,
-                          animationMaxScale: 4.5,
-                          speed: 1.0,
-                          inertialSpeed: 500.0,
-                          initialScale: 1.0,
-                          inPageView: false,
-                          initialAlignment: InitialAlignment.center,
-                        );
-                      },
+                      initGestureConfigHandler: (_) => _buildGestureConfig(
+                        inPageView: false,
+                        gestureSlot: _singleImageGestureSlot,
+                      ),
                       onDoubleTap: (state) {
                         _hideUI();
                         handleDoubleTapZoom(state, imageUrl: widget.imageUrl);
@@ -680,6 +737,8 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                               previewUrl: widget.thumbnailUrl!,
                               imageUrl: widget.imageUrl!,
                               inPageView: false,
+                              gestureSlot: _singleImageGestureSlot,
+                              gestureKey: _singleGestureKey,
                               heroTag: widget.heroTag,
                             );
                           }
@@ -701,6 +760,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                               ),
                             );
                           }
+                          _restoreGestureStateIfNeeded(_singleImageGestureSlot);
                         }
                         return null;
                       },
@@ -758,6 +818,9 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                               image: discourseImageProvider(url),
                               mode: ExtendedImageMode.gesture,
                               enableSlideOutPage: true,
+                              extendedImageGestureKey: _gestureKeyForIndex(
+                                index,
+                              ),
                               heroBuilderForSlidingPage: heroTag != null
                                   ? (child) => Hero(
                                       tag: heroTag!,
@@ -766,19 +829,11 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                                       child: child,
                                     )
                                   : null,
-                              initGestureConfigHandler: (state) {
-                                return GestureConfig(
-                                  minScale: 0.9,
-                                  animationMinScale: 0.7,
-                                  maxScale: 4.0,
-                                  animationMaxScale: 4.5,
-                                  speed: 1.0,
-                                  inertialSpeed: 500.0,
-                                  initialScale: 1.0,
-                                  inPageView: true, // 必须为 true
-                                  initialAlignment: InitialAlignment.center,
-                                );
-                              },
+                              initGestureConfigHandler: (_) =>
+                                  _buildGestureConfig(
+                                    inPageView: true,
+                                    gestureSlot: _gestureSlotForIndex(index),
+                                  ),
                               onDoubleTap: (state) {
                                 _hideUI();
                                 handleDoubleTapZoom(state, imageUrl: url);
@@ -795,6 +850,8 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                                       previewUrl: thumbUrl!,
                                       imageUrl: url,
                                       inPageView: true,
+                                      gestureSlot: _gestureSlotForIndex(index),
+                                      gestureKey: _gestureKeyForIndex(index),
                                       heroTag: heroTag,
                                     );
                                   }
@@ -818,6 +875,9 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                                       ),
                                     );
                                   }
+                                  _restoreGestureStateIfNeeded(
+                                    _gestureSlotForIndex(index),
+                                  );
                                 }
                                 return null;
                               },
