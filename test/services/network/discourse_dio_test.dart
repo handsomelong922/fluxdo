@@ -212,18 +212,28 @@ void main() {
     });
 
     test('low priority background requests yield to normal requests', () async {
-      final adapter = _OrderRecordingAdapter(
-        delay: const Duration(milliseconds: 20),
-      );
+      final adapter = _GatedOrderRecordingAdapter();
       final dio = Dio(BaseOptions(baseUrl: 'https://linux.do'));
       dio.httpClientAdapter = adapter;
       dio.interceptors.add(RequestSchedulerInterceptor());
 
-      final first = dio.get('/first');
-      await Future<void>.delayed(const Duration(milliseconds: 1));
-      final low = dio.get('/low', options: Options(extra: {'priority': 'low'}));
-      await Future<void>.delayed(const Duration(milliseconds: 1));
-      final normal = dio.get('/normal');
+      final first = dio.get(
+        '/first',
+        options: Options(extra: {'skipBrowserTrustGate': true}),
+      );
+      await adapter.firstRequestStarted;
+      final low = dio.get(
+        '/low',
+        options: Options(
+          extra: {'priority': 'low', 'skipBrowserTrustGate': true},
+        ),
+      );
+      final normal = dio.get(
+        '/normal',
+        options: Options(extra: {'skipBrowserTrustGate': true}),
+      );
+      await pumpEventQueue();
+      adapter.releaseFirstRequest();
 
       await Future.wait([first, low, normal]);
 
@@ -233,26 +243,34 @@ void main() {
     test(
       'high priority foreground requests jump ahead of queued reads',
       () async {
-        final adapter = _OrderRecordingAdapter(
-          delay: const Duration(milliseconds: 20),
-        );
+        final adapter = _GatedOrderRecordingAdapter();
         final dio = Dio(BaseOptions(baseUrl: 'https://linux.do'));
         dio.httpClientAdapter = adapter;
         dio.interceptors.add(RequestSchedulerInterceptor());
 
-        final first = dio.get('/first');
-        await Future<void>.delayed(const Duration(milliseconds: 1));
+        final first = dio.get(
+          '/first',
+          options: Options(extra: {'skipBrowserTrustGate': true}),
+        );
+        await adapter.firstRequestStarted;
         final low = dio.get(
           '/low',
-          options: Options(extra: {'priority': 'low'}),
+          options: Options(
+            extra: {'priority': 'low', 'skipBrowserTrustGate': true},
+          ),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 1));
-        final normal = dio.get('/normal');
-        await Future<void>.delayed(const Duration(milliseconds: 1));
+        final normal = dio.get(
+          '/normal',
+          options: Options(extra: {'skipBrowserTrustGate': true}),
+        );
         final high = dio.get(
           '/topic-detail',
-          options: Options(extra: {'priority': 'high'}),
+          options: Options(
+            extra: {'priority': 'high', 'skipBrowserTrustGate': true},
+          ),
         );
+        await pumpEventQueue();
+        adapter.releaseFirstRequest();
 
         await Future.wait([first, low, normal, high]);
 
@@ -366,11 +384,18 @@ class _StatusAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
-class _OrderRecordingAdapter implements HttpClientAdapter {
-  _OrderRecordingAdapter({required this.delay});
-
-  final Duration delay;
+class _GatedOrderRecordingAdapter implements HttpClientAdapter {
   final List<String> completedPaths = [];
+  final Completer<void> _firstRequestStarted = Completer<void>();
+  final Completer<void> _releaseFirstRequest = Completer<void>();
+
+  Future<void> get firstRequestStarted => _firstRequestStarted.future;
+
+  void releaseFirstRequest() {
+    if (!_releaseFirstRequest.isCompleted) {
+      _releaseFirstRequest.complete();
+    }
+  }
 
   @override
   Future<ResponseBody> fetch(
@@ -378,7 +403,10 @@ class _OrderRecordingAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
-    await Future<void>.delayed(delay);
+    if (options.path == '/first' && !_firstRequestStarted.isCompleted) {
+      _firstRequestStarted.complete();
+      await _releaseFirstRequest.future;
+    }
     completedPaths.add(options.path);
     return ResponseBody.fromString(
       '{}',
