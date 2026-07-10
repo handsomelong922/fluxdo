@@ -986,7 +986,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
   }
 
-  void _maybeSwitchToMasterDetail(bool canShowDetailPane, TopicDetail? detail) {
+  void _maybeSwitchToMasterDetail(bool canShowDetailPane) {
     if (widget.embeddedMode) {
       _lastCanShowDetailPane = canShowDetailPane;
       return;
@@ -1009,17 +1009,17 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
     if (previous == null) {
       if (canShowDetailPane) {
-        _switchToMasterDetail(detail);
+        _switchToMasterDetail();
       }
       return;
     }
     if (previous == canShowDetailPane) return;
     if (!previous && canShowDetailPane) {
-      _switchToMasterDetail(detail);
+      _switchToMasterDetail();
     }
   }
 
-  void _switchToMasterDetail(TopicDetail? detail) {
+  void _switchToMasterDetail() {
     _isAutoSwitching = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -1031,16 +1031,27 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
       final currentPostNumber =
           _controller.currentPostNumber ?? widget.scrollToPostNumber;
+      final currentDetail = _mergeWithInitialPreview(
+        ref.read(topicDetailProvider(_params)).value,
+      );
       ref
           .read(selectedTopicProvider.notifier)
           .select(
             topicId: widget.topicId,
-            initialTitle: detail?.title ?? widget.initialTitle,
+            initialTitle: currentDetail?.title ?? widget.initialTitle,
             scrollToPostNumber: currentPostNumber,
             instanceId: _instanceId,
           );
       navigator.pop();
     });
+  }
+
+  TopicDetail? _mergeWithInitialPreview(TopicDetail? detail) {
+    if (detail == null) return null;
+    return mergeTopicDetailWithInitialPreview(
+      detail: detail,
+      previewDetail: _initialPreviewDetail,
+    );
   }
 
   /// 在大屏上为内容添加宽度约束
@@ -1416,19 +1427,13 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     });
 
     final params = _params;
-    final detailAsync = ref.watch(topicDetailProvider(params));
-    final rawDetail = detailAsync.value;
-    final detail = rawDetail == null
-        ? null
-        : mergeTopicDetailWithInitialPreview(
-            detail: rawDetail,
-            previewDetail: _initialPreviewDetail,
-          );
+    // 完整 detail 的监听下沉到正文和 AI 页各自的 Consumer。翻页、点赞、
+    // MessageBus 单帖更新时只重建真正消费 detail 的局部内容，不再牵动
+    // LazyLoadScope / PopScope / PageView 等页面骨架。
+    final hasDetail = ref.watch(
+      topicDetailProvider(params).select((value) => value.value != null),
+    );
     final notifier = ref.read(topicDetailProvider(params).notifier);
-    final nestedParams = NestedTopicParams(topicId: widget.topicId);
-    final primedNestedAsync = _isNestedView
-        ? ref.watch(nestedTopicProvider(nestedParams))
-        : null;
 
     ref.listen<TopicSessionState>(topicSessionProvider(widget.topicId), (
       _,
@@ -1437,7 +1442,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       _updateSessionReadPostNumbers(next.readPostNumbers);
     });
 
-    _maybeSwitchToMasterDetail(canShowDetailPane, detail);
+    _maybeSwitchToMasterDetail(canShowDetailPane);
 
     // 预解析帖子 HTML
     ref.listen(topicDetailProvider(params), (previous, next) {
@@ -1548,7 +1553,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
 
     // 首次引导检查（仅滑动入口模式）
-    if (useSwipeEntry && hasAiModel && !_aiGuideChecked && detail != null) {
+    if (useSwipeEntry && hasAiModel && !_aiGuideChecked && hasDetail) {
       _aiGuideChecked = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -1563,39 +1568,53 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     );
     final contentTopInset =
         MediaQuery.of(context).padding.top + _topicTopContentGap;
-    final topicBody = _buildBody(
-      context,
-      detailAsync,
-      detail,
-      notifier,
-      isLoggedIn,
-      topContentInset: contentTopInset,
-      primedNestedAsync: primedNestedAsync,
-    );
     final topicScaffold = Scaffold(
       extendBodyBehindAppBar: true,
-      body: Stack(
-        children: [
-          topicBody,
-          ValueListenableBuilder<bool>(
-            valueListenable: _controller.showBottomBarNotifier,
-            builder: (context, showBars, _) {
-              return ValueListenableBuilder<bool>(
-                valueListenable: _isAtTopNotifier,
-                builder: (context, isAtTop, _) {
-                  final shouldShowAppBar =
-                      !isAtTop && (!hideBarOnScroll || showBars);
-                  return _buildCollapsibleAppBarOverlay(
-                    theme: theme,
-                    detail: detail,
-                    notifier: notifier,
-                    visible: shouldShowAppBar,
+      body: Consumer(
+        builder: (context, consumerRef, _) {
+          final detailAsync = consumerRef.watch(topicDetailProvider(params));
+          final detail = _mergeWithInitialPreview(detailAsync.value);
+          final primedNestedAsync = _isNestedView
+              ? consumerRef.watch(
+                  nestedTopicProvider(
+                    NestedTopicParams(topicId: widget.topicId),
+                  ),
+                )
+              : null;
+          final topicBody = _buildBody(
+            context,
+            detailAsync,
+            detail,
+            notifier,
+            isLoggedIn,
+            topContentInset: contentTopInset,
+            primedNestedAsync: primedNestedAsync,
+          );
+
+          return Stack(
+            children: [
+              topicBody,
+              ValueListenableBuilder<bool>(
+                valueListenable: _controller.showBottomBarNotifier,
+                builder: (context, showBars, _) {
+                  return ValueListenableBuilder<bool>(
+                    valueListenable: _isAtTopNotifier,
+                    builder: (context, isAtTop, _) {
+                      final shouldShowAppBar =
+                          !isAtTop && (!hideBarOnScroll || showBars);
+                      return _buildCollapsibleAppBarOverlay(
+                        theme: theme,
+                        detail: detail,
+                        notifier: notifier,
+                        visible: shouldShowAppBar,
+                      );
+                    },
                   );
                 },
-              );
-            },
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -1634,7 +1653,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
             child: _buildSwipeEntryPageView(
               context: context,
               isSearchMode: isSearchMode,
-              detail: detail,
               topicScaffold: topicScaffold,
             ),
           );
@@ -1646,7 +1664,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   Widget _buildSwipeEntryPageView({
     required BuildContext context,
     required bool isSearchMode,
-    required TopicDetail? detail,
     required Widget topicScaffold,
   }) {
     final horizontalPopGestureActive =
@@ -1677,23 +1694,30 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         children: [
           _KeepAlivePage(child: topicScaffold),
           _KeepAlivePage(
-            child: AiChatPage(
-              topicId: widget.topicId,
-              detail: detail,
-              embedded: true,
-              onReplyToTopic: detail == null
-                  ? null
-                  : (imageMarkdown) {
-                      _animateToTopicPage();
-                      showReplySheet(
-                        context: context,
-                        topicId: widget.topicId,
-                        categoryId: detail.categoryId,
-                        initialContent: '$imageMarkdown\n',
-                        isPrivateMessageTopic: detail.isPrivateMessage,
-                        isPmWithNonHumanUser: detail.pmWithNonHumanUser,
-                      );
-                    },
+            child: Consumer(
+              builder: (context, consumerRef, _) {
+                final detail = _mergeWithInitialPreview(
+                  consumerRef.watch(topicDetailProvider(_params)).value,
+                );
+                return AiChatPage(
+                  topicId: widget.topicId,
+                  detail: detail,
+                  embedded: true,
+                  onReplyToTopic: detail == null
+                      ? null
+                      : (imageMarkdown) {
+                          _animateToTopicPage();
+                          showReplySheet(
+                            context: context,
+                            topicId: widget.topicId,
+                            categoryId: detail.categoryId,
+                            initialContent: '$imageMarkdown\n',
+                            isPrivateMessageTopic: detail.isPrivateMessage,
+                            isPmWithNonHumanUser: detail.pmWithNonHumanUser,
+                          );
+                        },
+                );
+              },
             ),
           ),
         ],
