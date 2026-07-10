@@ -65,6 +65,16 @@ void main() {
     );
   });
 
+  test('服务端确认 missing 时保留原始短链', () {
+    const markdown = '![missing](upload://missing.png)';
+
+    final resolved = replaceNotionUploadShortUrls(markdown, {
+      'upload://missing.png': ResolvedUploadUrl.missing,
+    }, secureUploads: false);
+
+    expect(resolved, markdown);
+  });
+
   test('收集 Markdown 中的 upload 短链并去重', () {
     final urls = collectNotionUploadShortUrls(
       '![a](upload://same.png) [b](upload://same.png) '

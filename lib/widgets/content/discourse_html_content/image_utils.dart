@@ -244,6 +244,7 @@ class DiscourseImageUtils {
   /// upload:// 短链接解析缓存（全局共享）
   static final LinkedHashMap<String, String?> _uploadUrlCache =
       LinkedHashMap<String, String?>();
+  static final Map<String, Future<String?>> _inflightUploadResolves = {};
   static final int _maxUploadUrlCacheEntries =
       Platform.isAndroid || Platform.isIOS ? 192 : 512;
 
@@ -258,12 +259,10 @@ class DiscourseImageUtils {
   /// 返回 null 表示未缓存，需要异步解析
   static String? getCachedUploadUrl(String shortUrl) {
     if (!isUploadUrl(shortUrl)) return shortUrl;
+    if (!_uploadUrlCache.containsKey(shortUrl)) return null;
     final cached = _uploadUrlCache.remove(shortUrl);
-    if (cached != null || _uploadUrlCache.containsKey(shortUrl)) {
-      _uploadUrlCache[shortUrl] = cached;
-      return cached;
-    }
-    return null;
+    _uploadUrlCache[shortUrl] = cached;
+    return cached;
   }
 
   /// 检查 upload:// URL 是否已缓存
@@ -272,25 +271,35 @@ class DiscourseImageUtils {
   }
 
   /// 异步解析 upload:// 短链接并缓存结果
-  static Future<String?> resolveUploadUrl(String shortUrl) async {
-    if (!isUploadUrl(shortUrl)) return shortUrl;
+  static Future<String?> resolveUploadUrl(String shortUrl) {
+    if (!isUploadUrl(shortUrl)) return Future.value(shortUrl);
 
     // 已缓存
     if (_uploadUrlCache.containsKey(shortUrl)) {
-      return getCachedUploadUrl(shortUrl);
+      return Future.value(getCachedUploadUrl(shortUrl));
     }
 
-    // 调用 API 解析
+    return _inflightUploadResolves[shortUrl] ??= _doResolveUploadUrl(shortUrl);
+  }
+
+  static Future<String?> _doResolveUploadUrl(String shortUrl) async {
     try {
-      final resolved = await DiscourseService().resolveShortUrl(shortUrl);
-      _cacheResolvedUploadUrl(shortUrl, resolved);
-      return resolved;
+      final resolved = await DiscourseService().resolveShortUpload(shortUrl);
+      if (resolved == null) return null;
+      if (resolved.isMissing) {
+        _cacheResolvedUploadUrl(shortUrl, null);
+        return null;
+      }
+      final url = resolved.mediaUrl();
+      _cacheResolvedUploadUrl(shortUrl, url);
+      return url;
     } catch (e) {
       debugPrint(
         '[DiscourseImageUtils] Failed to resolve upload url: $shortUrl, error: $e',
       );
-      _cacheResolvedUploadUrl(shortUrl, null); // 缓存失败结果，避免重复请求
       return null;
+    } finally {
+      _inflightUploadResolves.remove(shortUrl);
     }
   }
 

@@ -6,6 +6,11 @@ class ResolvedUploadUrl {
 
   const ResolvedUploadUrl({required this.url, this.shortPath});
 
+  /// `lookup-urls` 请求成功，但服务端未返回对应短链。
+  static const missing = ResolvedUploadUrl(url: '');
+
+  bool get isMissing => url.isEmpty;
+
   String mediaUrl() {
     if (url.contains('secure-media-uploads') ||
         url.contains('secure-uploads')) {
@@ -24,6 +29,20 @@ class ResolvedUploadUrl {
 
     return shortPath ?? url;
   }
+}
+
+class _UploadLookupBatchResult {
+  const _UploadLookupBatchResult({
+    required this.succeeded,
+    this.uploads = const [],
+  });
+
+  const _UploadLookupBatchResult.failure()
+    : succeeded = false,
+      uploads = const [];
+
+  final bool succeeded;
+  final List<Map<String, dynamic>> uploads;
 }
 
 class DownloadedUploadFile {
@@ -135,6 +154,53 @@ class UploadResult {
 
 /// 上传相关
 mixin _UploadsMixin on _DiscourseServiceBase {
+  static const Duration _uploadLookupBatchWindow = Duration(milliseconds: 8);
+  static const int _mobileUploadUrlCacheEntries = 192;
+  static const int _desktopUploadUrlCacheEntries = 512;
+
+  final Map<String, Future<ResolvedUploadUrl?>> _activeUploadResolves = {};
+  final Map<String, Completer<ResolvedUploadUrl?>> _pendingUploadResolves = {};
+  Timer? _uploadLookupBatchTimer;
+  int _uploadLookupGeneration = 0;
+
+  int get _maxUploadUrlCacheEntries => Platform.isAndroid || Platform.isIOS
+      ? _mobileUploadUrlCacheEntries
+      : _desktopUploadUrlCacheEntries;
+
+  bool _hasCachedUpload(String shortUrl) => _urlCache.containsKey(shortUrl);
+
+  ResolvedUploadUrl? _readCachedUpload(String shortUrl) {
+    if (!_urlCache.containsKey(shortUrl)) return null;
+    final cached = _urlCache.remove(shortUrl)!;
+    _urlCache[shortUrl] = cached;
+    return cached;
+  }
+
+  void _cacheUpload(String shortUrl, ResolvedUploadUrl resolved) {
+    _urlCache.remove(shortUrl);
+    while (_urlCache.length >= _maxUploadUrlCacheEntries) {
+      _urlCache.remove(_urlCache.keys.first);
+    }
+    _urlCache[shortUrl] = resolved;
+  }
+
+  /// 登出/换账号时清空会话级正负缓存，并让旧会话在途结果失效。
+  @override
+  void resetUploadLookupSessionState({String reason = 'logout'}) {
+    _uploadLookupGeneration++;
+    _uploadLookupBatchTimer?.cancel();
+    _uploadLookupBatchTimer = null;
+
+    final pending = _pendingUploadResolves.values.toList(growable: false);
+    _pendingUploadResolves.clear();
+    _activeUploadResolves.clear();
+    _urlCache.clear();
+    for (final completer in pending) {
+      if (!completer.isCompleted) completer.complete(null);
+    }
+    debugPrint('[DiscourseService] upload lookup 会话状态已复位: $reason');
+  }
+
   /// 获取图片请求头
   Future<Map<String, String>> getHeaders() async {
     final headers = <String, String>{'User-Agent': AppConstants.userAgent};
@@ -459,13 +525,26 @@ mixin _UploadsMixin on _DiscourseServiceBase {
   /// 上传图片（uploadFile 的别名，保持向后兼容）
   Future<UploadResult> uploadImage(String filePath) => uploadFile(filePath);
 
-  /// 批量解析 short_url
-  Future<List<Map<String, dynamic>>> lookupUrls(List<String> shortUrls) async {
-    final missingUrls = shortUrls
-        .where((url) => !_urlCache.containsKey(url))
-        .toList();
+  Future<_UploadLookupBatchResult> _lookupUrlsWithStatus(
+    List<String> shortUrls, {
+    int? expectedGeneration,
+  }) async {
+    final generation = expectedGeneration ?? _uploadLookupGeneration;
+    if (generation != _uploadLookupGeneration) {
+      return const _UploadLookupBatchResult.failure();
+    }
 
-    if (missingUrls.isEmpty) return [];
+    final uniqueUrls = <String>{
+      for (final url in shortUrls)
+        if (url.startsWith('upload://')) url,
+    };
+    final missingUrls = uniqueUrls
+        .where((url) => !_hasCachedUpload(url))
+        .toList(growable: false);
+
+    if (missingUrls.isEmpty) {
+      return const _UploadLookupBatchResult(succeeded: true);
+    }
 
     try {
       final response = await _dio.post(
@@ -473,55 +552,123 @@ mixin _UploadsMixin on _DiscourseServiceBase {
         data: {'short_urls': missingUrls},
       );
 
-      final List<dynamic> uploads = response.data;
+      if (generation != _uploadLookupGeneration || response.data is! List) {
+        return const _UploadLookupBatchResult.failure();
+      }
+
+      final uploads = response.data as List<dynamic>;
       final result = <Map<String, dynamic>>[];
+      final returnedUrls = <String>{};
 
       for (final item in uploads) {
-        if (item is Map<String, dynamic>) {
-          result.add(item);
-          final shortUrl = item['short_url'] as String?;
-          final url = item['url'] as String?;
-          if (shortUrl != null && url != null) {
-            _urlCache[shortUrl] = ResolvedUploadUrl(
-              url: url,
-              shortPath: item['short_path'] as String?,
+        if (item is Map) {
+          final normalized = Map<String, dynamic>.from(item);
+          result.add(normalized);
+          final shortUrl = normalized['short_url'] as String?;
+          final url = normalized['url'] as String?;
+          if (shortUrl != null &&
+              url != null &&
+              uniqueUrls.contains(shortUrl)) {
+            returnedUrls.add(shortUrl);
+            _cacheUpload(
+              shortUrl,
+              ResolvedUploadUrl(
+                url: url,
+                shortPath: normalized['short_path'] as String?,
+              ),
             );
           }
         }
       }
-      return result;
+
+      for (final shortUrl in missingUrls) {
+        if (!returnedUrls.contains(shortUrl)) {
+          _cacheUpload(shortUrl, ResolvedUploadUrl.missing);
+        }
+      }
+      return _UploadLookupBatchResult(succeeded: true, uploads: result);
     } catch (e) {
       debugPrint('[DiscourseService] lookupUrls failed: $e');
-      return [];
+      return const _UploadLookupBatchResult.failure();
     }
   }
 
-  /// 解析单个 short_url
-  Future<ResolvedUploadUrl?> resolveShortUpload(String shortUrl) async {
+  /// 批量解析 short_url。临时失败仍保持历史返回空列表语义，但不会写 missing。
+  Future<List<Map<String, dynamic>>> lookupUrls(List<String> shortUrls) async {
+    final result = await _lookupUrlsWithStatus(shortUrls);
+    return result.uploads;
+  }
+
+  void _scheduleUploadLookupFlush() {
+    _uploadLookupBatchTimer ??= Timer(_uploadLookupBatchWindow, () {
+      _uploadLookupBatchTimer = null;
+      unawaited(_flushPendingUploadLookups());
+    });
+  }
+
+  Future<void> _flushPendingUploadLookups() async {
+    if (_pendingUploadResolves.isEmpty) return;
+
+    final generation = _uploadLookupGeneration;
+    final pending = Map<String, Completer<ResolvedUploadUrl?>>.from(
+      _pendingUploadResolves,
+    );
+    _pendingUploadResolves.clear();
+    final result = await _lookupUrlsWithStatus(
+      pending.keys.toList(growable: false),
+      expectedGeneration: generation,
+    );
+
+    for (final entry in pending.entries) {
+      if (entry.value.isCompleted) continue;
+      final resolved = result.succeeded && generation == _uploadLookupGeneration
+          ? _readCachedUpload(entry.key)
+          : null;
+      entry.value.complete(resolved);
+    }
+  }
+
+  /// 解析单个 short_url。同一短链共享 Future，同一短窗口内的多条短链合并 POST。
+  Future<ResolvedUploadUrl?> resolveShortUpload(String shortUrl) {
     if (!shortUrl.startsWith('upload://')) {
-      return ResolvedUploadUrl(url: shortUrl, shortPath: shortUrl);
+      return Future.value(
+        ResolvedUploadUrl(url: shortUrl, shortPath: shortUrl),
+      );
     }
 
-    if (_urlCache.containsKey(shortUrl)) {
-      return _urlCache[shortUrl];
+    if (_hasCachedUpload(shortUrl)) {
+      return Future.value(_readCachedUpload(shortUrl));
     }
 
-    await lookupUrls([shortUrl]);
-    return _urlCache[shortUrl];
+    final active = _activeUploadResolves[shortUrl];
+    if (active != null) return active;
+
+    final completer = Completer<ResolvedUploadUrl?>();
+    late final Future<ResolvedUploadUrl?> future;
+    future = completer.future.whenComplete(() {
+      if (identical(_activeUploadResolves[shortUrl], future)) {
+        _activeUploadResolves.remove(shortUrl);
+      }
+    });
+    _activeUploadResolves[shortUrl] = future;
+    _pendingUploadResolves[shortUrl] = completer;
+    _scheduleUploadLookupFlush();
+    return future;
   }
 
   Future<String?> resolveShortUrl(String shortUrl) async {
     if (!shortUrl.startsWith('upload://')) return shortUrl;
 
     final resolved = await resolveShortUpload(shortUrl);
-    return resolved?.mediaUrl();
+    if (resolved == null || resolved.isMissing) return null;
+    return resolved.mediaUrl();
   }
 
   Future<String?> resolveShortUrlForLink(String shortUrl) async {
     if (!shortUrl.startsWith('upload://')) return shortUrl;
 
     final resolved = await resolveShortUpload(shortUrl);
-    if (resolved == null) return null;
+    if (resolved == null || resolved.isMissing) return null;
 
     final secureUploads =
         PreloadedDataService().siteSettingsSync?['secure_uploads'] == true;

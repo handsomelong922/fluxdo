@@ -175,6 +175,7 @@ abstract class _DiscourseServiceBase {
   // ignore: unused_element
   StreamController<void> get _cfChallengeController;
   Map<String, ResolvedUploadUrl> get _urlCache;
+  void resetUploadLookupSessionState({String reason = 'logout'});
 
   bool get isAuthenticated;
 

@@ -24,7 +24,7 @@ String replaceNotionUploadShortUrls(
       final original = match.group(0)!;
       final shortUrl = match.group(3)!;
       final resolved = resolvedUploads[shortUrl];
-      if (resolved == null) return original;
+      if (resolved == null || resolved.isMissing) return original;
 
       final replacement = match.group(1) == '!'
           ? resolved.mediaUrl()
@@ -36,7 +36,7 @@ String replaceNotionUploadShortUrls(
   return withMarkdownLinks.replaceAllMapped(_uploadShortUrlPattern, (match) {
     final shortUrl = match.group(0)!;
     final resolved = resolvedUploads[shortUrl];
-    if (resolved == null) return shortUrl;
+    if (resolved == null || resolved.isMissing) return shortUrl;
     return resolved.linkUrl(secureUploads: secureUploads);
   });
 }

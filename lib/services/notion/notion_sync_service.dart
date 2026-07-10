@@ -666,7 +666,7 @@ class NotionSyncService {
     final resolvedUploads = <String, ResolvedUploadUrl>{};
     for (final shortUrl in shortUrls) {
       final resolved = await _discourseService.resolveShortUpload(shortUrl);
-      if (resolved != null) {
+      if (resolved != null && !resolved.isMissing) {
         resolvedUploads[shortUrl] = resolved;
       }
     }
