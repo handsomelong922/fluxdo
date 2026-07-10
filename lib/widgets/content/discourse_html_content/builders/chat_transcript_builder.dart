@@ -195,11 +195,13 @@ Widget _buildReactionChip(ThemeData theme, _ChatReaction reaction) {
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Image.network(
-          reaction.emojiUrl,
-          width: 16,
-          height: 16,
-          errorBuilder: (_, _, _) => const SizedBox(width: 16, height: 16),
+        RepaintBoundary(
+          child: Image.network(
+            reaction.emojiUrl,
+            width: 16,
+            height: 16,
+            errorBuilder: (_, _, _) => const SizedBox(width: 16, height: 16),
+          ),
         ),
         if (reaction.count > 1) ...[
           const SizedBox(width: 3),

@@ -366,7 +366,9 @@ class DiscourseWidgetFactory extends WidgetFactory {
                       horizontal: 1.0,
                     )
                   : const EdgeInsets.symmetric(horizontal: 2.0),
-              child: imageWidget,
+              // 动态 WebP/AVIF 和无后缀 CDN emoji 不能靠扩展名识别。
+              // 无条件隔离逐帧重绘，避免脏区冒泡到整段帖子正文。
+              child: RepaintBoundary(child: imageWidget),
             );
             // 用 SelectableAdapter 包裹，使 emoji 参与文本选择
             if (emojiTitle != null && emojiTitle.isNotEmpty) {

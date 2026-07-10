@@ -83,10 +83,12 @@ Widget _buildStatusEmoji(dom.Element imgElement, double size) {
   // 将相对路径转换为绝对路径
   final resolvedSrc = UrlHelper.resolveUrlWithCdn(src);
 
-  return Image(
-    image: emojiImageProvider(resolvedSrc),
-    width: size,
-    height: size,
-    errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+  return RepaintBoundary(
+    child: Image(
+      image: emojiImageProvider(resolvedSrc),
+      width: size,
+      height: size,
+      errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+    ),
   );
 }
