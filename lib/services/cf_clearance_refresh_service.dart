@@ -6,7 +6,9 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants.dart';
+import '../utils/scroll_busy_signal.dart';
 import 'cf_challenge_logger.dart';
+import 'cf_webview_scroll_pause_policy.dart';
 import 'network/cookie/cookie_jar_service.dart';
 import 'network/discourse_dio.dart';
 import 'webview_settings.dart';
@@ -82,11 +84,18 @@ class CfClearanceRefreshService {
   /// Turnstile 首次解题超时
   static const Duration _initialTimeout = Duration(seconds: 30);
 
+  /// Android Headless WebView 滚动挂起状态检查间隔
+  static const Duration _scrollPauseCheckInterval = Duration(milliseconds: 500);
+
   /// 销毁前等待原生回调栈退出的缓冲时间
   static const Duration _disposeGracePeriod = Duration(milliseconds: 150);
 
   Timer? _initialTimer;
   Timer? _delayedStopTimer;
+  Timer? _scrollPauseTicker;
+  bool _webViewPausedForScroll = false;
+  bool _scrollPauseTransitionInFlight = false;
+  int _scrollPauseEpoch = 0;
 
   // ---------------------------------------------------------------------------
   // sitekey 管理
@@ -213,6 +222,8 @@ class CfClearanceRefreshService {
       return;
     }
 
+    _resetScrollPauseState();
+
     final html = _buildTurnstileHtml(_sitekey!);
     final webView = HeadlessInAppWebView(
       webViewEnvironment: WindowsWebViewEnvironmentService.instance.environment,
@@ -243,6 +254,7 @@ class CfClearanceRefreshService {
             }
 
             _cancelInitialTimer();
+            _startScrollPauseTicker(gen);
 
             if (args.isNotEmpty && args[0] is Map) {
               final data = args[0] as Map;
@@ -312,6 +324,7 @@ class CfClearanceRefreshService {
       debugPrint('[CfRefresh] WebView 启动失败: $e');
       CfChallengeLogger.log('[CfRefresh] WebView 启动失败: $e');
       _cancelInitialTimer();
+      _resetScrollPauseState();
       _isRunning = false;
       if (identical(_headlessWebView, webView)) {
         _headlessWebView = null;
@@ -339,6 +352,7 @@ class CfClearanceRefreshService {
     _isRunning = false;
     _isCallingRc = false;
     _cancelInitialTimer();
+    _resetScrollPauseState();
     _delayedStopTimer?.cancel();
     _delayedStopTimer = null;
 
@@ -435,6 +449,7 @@ class CfClearanceRefreshService {
   ) async {
     if (!_canHandleGeneration(gen)) return;
     _isCallingRc = true;
+    unawaited(_updateScrollPause(gen, _scrollPauseEpoch));
     try {
       final dio = DiscourseDio.create(
         enableCfChallenge: false,
@@ -536,6 +551,99 @@ class CfClearanceRefreshService {
   void _cancelInitialTimer() {
     _initialTimer?.cancel();
     _initialTimer = null;
+  }
+
+  void _startScrollPauseTicker(int gen) {
+    if (defaultTargetPlatform != TargetPlatform.android ||
+        !_canHandleGeneration(gen) ||
+        _scrollPauseTicker != null) {
+      return;
+    }
+
+    final epoch = ++_scrollPauseEpoch;
+    _scrollPauseTicker = Timer.periodic(_scrollPauseCheckInterval, (_) {
+      if (epoch != _scrollPauseEpoch || !_canHandleGeneration(gen)) {
+        _resetScrollPauseState();
+        return;
+      }
+      unawaited(_updateScrollPause(gen, epoch));
+    });
+  }
+
+  Future<void> _updateScrollPause(int gen, int epoch) async {
+    if (defaultTargetPlatform != TargetPlatform.android ||
+        epoch != _scrollPauseEpoch ||
+        _scrollPauseTransitionInFlight ||
+        !_canHandleGeneration(gen)) {
+      return;
+    }
+
+    final controller = _webViewController;
+    if (controller == null) return;
+
+    final action = decideCfWebViewScrollPauseAction(
+      isAndroid: true,
+      isScrollBusy: ScrollBusySignal.isBusy,
+      isInitialChallengePending: _initialTimer != null,
+      isCallingRc: _isCallingRc,
+      isPausedForScroll: _webViewPausedForScroll,
+    );
+    if (action == CfWebViewScrollPauseAction.none) return;
+
+    _scrollPauseTransitionInFlight = true;
+    try {
+      switch (action) {
+        case CfWebViewScrollPauseAction.none:
+          return;
+        case CfWebViewScrollPauseAction.pause:
+          await controller.pause();
+          if (!_isCurrentScrollPauseTarget(gen, epoch, controller)) return;
+          _webViewPausedForScroll = true;
+
+          final mustResumeImmediately = decideCfWebViewScrollPauseAction(
+            isAndroid: true,
+            isScrollBusy: ScrollBusySignal.isBusy,
+            isInitialChallengePending: _initialTimer != null,
+            isCallingRc: _isCallingRc,
+            isPausedForScroll: true,
+          );
+          if (mustResumeImmediately == CfWebViewScrollPauseAction.resume) {
+            await controller.resume();
+            if (!_isCurrentScrollPauseTarget(gen, epoch, controller)) return;
+            _webViewPausedForScroll = false;
+          }
+        case CfWebViewScrollPauseAction.resume:
+          await controller.resume();
+          if (!_isCurrentScrollPauseTarget(gen, epoch, controller)) return;
+          _webViewPausedForScroll = false;
+      }
+    } catch (e) {
+      // 不在调用前改状态：pause 失败仍是 resumed，resume 失败仍
+      // 保持 paused，后者会在下一轮 ticker 继续尝试，避免永久卡住。
+      CfChallengeLogger.log('[CfRefresh] 滚动挂起/恢复失败: $e');
+    } finally {
+      if (epoch == _scrollPauseEpoch) {
+        _scrollPauseTransitionInFlight = false;
+      }
+    }
+  }
+
+  bool _isCurrentScrollPauseTarget(
+    int gen,
+    int epoch,
+    InAppWebViewController controller,
+  ) {
+    return epoch == _scrollPauseEpoch &&
+        _canHandleGeneration(gen) &&
+        identical(controller, _webViewController);
+  }
+
+  void _resetScrollPauseState() {
+    _scrollPauseTicker?.cancel();
+    _scrollPauseTicker = null;
+    _scrollPauseEpoch++;
+    _scrollPauseTransitionInFlight = false;
+    _webViewPausedForScroll = false;
   }
 
   void _scheduleStop(String reason, {required int gen}) {
