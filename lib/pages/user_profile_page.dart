@@ -24,6 +24,7 @@ import '../widgets/content/discourse_html_content/discourse_html_content_widget.
 import '../widgets/content/collapsed_html_content.dart';
 import '../widgets/post/reply_sheet.dart';
 import '../widgets/user/user_profile_skeleton.dart';
+import '../widgets/user/user_profile_stats_area.dart';
 import '../widgets/badge/badge_ui_utils.dart';
 import '../services/toast_service.dart';
 import '../models/badge.dart' as badge_model;
@@ -1471,91 +1472,96 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
 
                       // Stats
                       const SizedBox(height: 16),
-                      if (_summary != null)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // 第一行：关注、粉丝
-                            if (_user?.totalFollowing != null ||
-                                _user?.totalFollowers != null)
-                              Wrap(
-                                spacing: 16,
-                                children: [
-                                  if (_user?.totalFollowing != null)
-                                    GestureDetector(
-                                      onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => FollowListPage(
-                                            username: widget.username,
-                                            isFollowing: true,
-                                          ),
-                                        ),
-                                      ),
-                                      child: _buildStatSlot(
-                                        NumberUtils.formatCount(
-                                          _user!.totalFollowing!,
-                                        ),
-                                        context.l10n.userProfile_following,
-                                        _user!.totalFollowing!,
-                                      ),
-                                    ),
-                                  if (_user?.totalFollowers != null)
-                                    GestureDetector(
-                                      onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => FollowListPage(
-                                            username: widget.username,
-                                            isFollowing: false,
-                                          ),
-                                        ),
-                                      ),
-                                      child: _buildStatSlot(
-                                        NumberUtils.formatCount(
-                                          _user!.totalFollowers!,
-                                        ),
-                                        context.l10n.userProfile_followers,
-                                        _user!.totalFollowers!,
-                                      ),
-                                    ),
-                                ],
+                      UserProfileStatsArea(
+                        primaryStats: [
+                          if (_user?.totalFollowing != null)
+                            UserProfileStatData(
+                              value: NumberUtils.formatCount(
+                                _user!.totalFollowing!,
                               ),
-                            // 第二行：获赞、访问、话题、回复
-                            if (_user?.totalFollowing != null ||
-                                _user?.totalFollowers != null)
-                              const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 16,
-                              children: [
-                                _buildStatSlot(
-                                  NumberUtils.formatCount(
+                              label: context.l10n.userProfile_following,
+                              rawValue: _user!.totalFollowing!,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => FollowListPage(
+                                    username: widget.username,
+                                    isFollowing: true,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (_user?.totalFollowers != null)
+                            UserProfileStatData(
+                              value: NumberUtils.formatCount(
+                                _user!.totalFollowers!,
+                              ),
+                              label: context.l10n.userProfile_followers,
+                              rawValue: _user!.totalFollowers!,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => FollowListPage(
+                                    username: widget.username,
+                                    isFollowing: false,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                        secondaryStats: _summary != null
+                            ? [
+                                UserProfileStatData(
+                                  value: NumberUtils.formatCount(
                                     _summary!.likesReceived,
                                   ),
-                                  context.l10n.userProfile_statsLikes,
-                                  _summary!.likesReceived,
+                                  label: context.l10n.userProfile_statsLikes,
+                                  rawValue: _summary!.likesReceived,
                                 ),
-                                _buildStatSlot(
-                                  NumberUtils.formatCount(
+                                UserProfileStatData(
+                                  value: NumberUtils.formatCount(
                                     _summary!.daysVisited,
                                   ),
-                                  context.l10n.userProfile_statsVisits,
-                                  _summary!.daysVisited,
+                                  label: context.l10n.userProfile_statsVisits,
+                                  rawValue: _summary!.daysVisited,
                                 ),
-                                _buildStatSlot(
-                                  NumberUtils.formatCount(_summary!.topicCount),
-                                  context.l10n.userProfile_statsTopics,
-                                  _summary!.topicCount,
+                                UserProfileStatData(
+                                  value: NumberUtils.formatCount(
+                                    _summary!.topicCount,
+                                  ),
+                                  label: context.l10n.userProfile_statsTopics,
+                                  rawValue: _summary!.topicCount,
                                 ),
-                                _buildStatSlot(
-                                  NumberUtils.formatCount(_summary!.postCount),
-                                  context.l10n.userProfile_statsReplies,
-                                  _summary!.postCount,
+                                UserProfileStatData(
+                                  value: NumberUtils.formatCount(
+                                    _summary!.postCount,
+                                  ),
+                                  label: context.l10n.userProfile_statsReplies,
+                                  rawValue: _summary!.postCount,
+                                ),
+                              ]
+                            : _isSummaryLoading
+                            ? null
+                            : [
+                                UserProfileStatData(
+                                  value: '—',
+                                  label: context.l10n.userProfile_statsLikes,
+                                ),
+                                UserProfileStatData(
+                                  value: '—',
+                                  label: context.l10n.userProfile_statsVisits,
+                                ),
+                                UserProfileStatData(
+                                  value: '—',
+                                  label: context.l10n.userProfile_statsTopics,
+                                ),
+                                UserProfileStatData(
+                                  value: '—',
+                                  label: context.l10n.userProfile_statsReplies,
                                 ),
                               ],
-                            ),
-                          ],
-                        ),
+                        isSummaryLoading: _isSummaryLoading,
+                      ),
 
                       // 最近活动时间
                       if (_user?.lastPostedAt != null ||
@@ -1660,35 +1666,6 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
             ],
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildStatSlot(String value, String label, int rawValue) {
-    return Tooltip(
-      message: '$rawValue',
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
-              fontSize: 12,
-            ),
-          ),
-        ],
       ),
     );
   }

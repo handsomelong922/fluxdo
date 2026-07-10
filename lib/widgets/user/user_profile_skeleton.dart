@@ -155,11 +155,11 @@ class UserProfileSkeleton extends StatelessWidget {
               ),
               // 签名后间距
               const SizedBox(height: 16),
-              // 统计行1：关注、粉丝（高度17）
-              const _SkeletonBoxWhite(width: 140, height: 17),
+              // 统计行1：关注、粉丝（与正式页固定行高一致）
+              const _SkeletonBoxWhite(width: 140, height: 21),
               const SizedBox(height: 8),
-              // 统计行2：获赞、访问、话题、回复（高度17）
-              const _SkeletonBoxWhite(width: 200, height: 17),
+              // 统计行2：获赞、访问、话题、回复（与正式页固定行高一致）
+              const _SkeletonBoxWhite(width: 200, height: 21),
               // 活动时间
               const SizedBox(height: 12),
               const _SkeletonBoxWhite(width: 80, height: 20, borderRadius: 12),
