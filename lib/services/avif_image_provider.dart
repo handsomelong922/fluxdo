@@ -5,6 +5,7 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_avif/flutter_avif.dart' as fa;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../l10n/s.dart';
+import '../utils/scroll_busy_signal.dart';
 import 'discourse_cache_manager.dart';
 
 /// 限制并发 AVIF 解码数(thumbnail batch 场景)。
@@ -436,6 +437,11 @@ class _AvifAnimatedImageStreamCompleter extends ImageStreamCompleter {
   Future<void> _decodeAndEmitNext() async {
     final codec = _codec;
     if (codec == null || !hasListeners) return;
+    if (ScrollBusySignal.isBusy) {
+      _timer?.cancel();
+      _timer = Timer(const Duration(milliseconds: 250), _decodeAndEmitNext);
+      return;
+    }
     final gen = _generation;
 
     final fa.AvifFrameInfo frame;

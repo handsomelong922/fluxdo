@@ -78,6 +78,7 @@ import 'providers/cdk_providers.dart';
 import 'utils/dialog_utils.dart';
 import 'utils/time_utils.dart';
 import 'utils/blocked_user_filter.dart';
+import 'utils/scroll_busy_signal.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ai_model_manager/ai_model_manager.dart';
@@ -704,6 +705,17 @@ class MainApp extends ConsumerWidget {
                 ),
               );
             }
+
+            result = NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollStartNotification ||
+                    notification is ScrollUpdateNotification) {
+                  ScrollBusySignal.touch();
+                }
+                return false;
+              },
+              child: result,
+            );
 
             return PerformanceDiagnosticsListener(child: result);
           },

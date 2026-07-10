@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import '../../../../services/discourse_cache_manager.dart';
+import '../../../../utils/image_decode_constraints.dart';
 import '../../../../utils/url_helper.dart';
 import '../image_utils.dart';
 import '../../lazy_load_scope.dart';
@@ -305,14 +306,10 @@ class _GridImageTileState extends State<_GridImageTile> {
     double displayHeight,
   ) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    final maxWidth = (widget.columnWidth * dpr * 1.5)
-        .round()
-        .clamp(1, 2560)
-        .toInt();
-    final maxHeight = (displayHeight * dpr * 1.5)
-        .round()
-        .clamp(1, 2560)
-        .toInt();
+    final maxSide = widget.columnWidth > displayHeight
+        ? widget.columnWidth
+        : displayHeight;
+    final cachePx = (maxSide * dpr).round().clamp(1, 4096);
     return SizedBox(
       width: widget.columnWidth,
       height: displayHeight,
@@ -322,30 +319,33 @@ class _GridImageTileState extends State<_GridImageTile> {
           onTap: () => _openViewer(context, fullUrl),
           child: Hero(
             tag: widget.heroTag,
-            child: Image(
-              image: discourseImageProvider(
-                displayUrl,
-                maxWidth: maxWidth,
-                maxHeight: maxHeight,
+            child: RepaintBoundary(
+              child: Image(
+                image: resizeImageToFit(
+                  discourseImageProvider(displayUrl),
+                  maxWidth: cachePx,
+                  maxHeight: cachePx,
+                ),
+                fit: BoxFit.cover,
+                width: widget.columnWidth,
+                height: displayHeight,
+                gaplessPlayback: true,
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded || frame != null) return child;
+                  return Container(
+                    color: widget.theme.colorScheme.surfaceContainerHighest,
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: widget.theme.colorScheme.surfaceContainerHighest,
+                    child: Icon(
+                      Icons.broken_image,
+                      color: widget.theme.colorScheme.outline,
+                    ),
+                  );
+                },
               ),
-              fit: BoxFit.cover,
-              width: widget.columnWidth,
-              height: displayHeight,
-              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                if (wasSynchronouslyLoaded || frame != null) return child;
-                return Container(
-                  color: widget.theme.colorScheme.surfaceContainerHighest,
-                );
-              },
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  color: widget.theme.colorScheme.surfaceContainerHighest,
-                  child: Icon(
-                    Icons.broken_image,
-                    color: widget.theme.colorScheme.outline,
-                  ),
-                );
-              },
             ),
           ),
         ),
