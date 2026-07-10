@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../constants.dart';
 import '../utils/client_id_generator.dart';
 import 'network/discourse_dio.dart';
+
+dynamic _decodeMessageBusJson(String source) => jsonDecode(source);
 
 /// MessageBus 消息
 class MessageBusMessage {
@@ -26,6 +29,22 @@ class MessageBusMessage {
       data: json['data'],
     );
   }
+}
+
+/// 解码一个 MessageBus JSON chunk；大包移到 isolate，小包保留同步快速路径。
+@visibleForTesting
+Future<List<MessageBusMessage>> decodeMessageBusMessages(
+  String chunk, {
+  int isolateDecodeThreshold = 32 * 1024,
+}) async {
+  final parsed = chunk.length >= isolateDecodeThreshold
+      ? await compute(_decodeMessageBusJson, chunk)
+      : developer.Timeline.timeSync('MsgBusDecode', () => jsonDecode(chunk));
+  if (parsed is! List) return const [];
+  return [
+    for (final item in parsed)
+      if (item is Map<String, dynamic>) MessageBusMessage.fromJson(item),
+  ];
 }
 
 /// MessageBus 频道订阅
@@ -340,7 +359,7 @@ class MessageBusService {
             buffer = buffer.substring(delimiterIndex + 1);
 
             if (messageChunk.isNotEmpty) {
-              _processChunk(messageChunk);
+              await _processChunk(messageChunk);
             }
           }
         }
@@ -348,7 +367,7 @@ class MessageBusService {
         // 处理剩余的数据
         if (!(_currentCancelToken?.isCancelled ?? false) &&
             buffer.trim().isNotEmpty) {
-          _processChunk(buffer.trim());
+          await _processChunk(buffer.trim());
         }
 
         // 请求结束后清空 token，避免后续误 cancel 已结束的请求。
@@ -417,17 +436,12 @@ class MessageBusService {
     }
   }
 
-  /// 处理单个消息块
-  void _processChunk(String chunk) {
+  /// 处理单个消息块。调用方逐块 await，保证消息顺序不变。
+  Future<void> _processChunk(String chunk) async {
     try {
-      final parsed = jsonDecode(chunk);
-      if (parsed is List) {
-        for (final item in parsed) {
-          if (item is Map<String, dynamic>) {
-            final message = MessageBusMessage.fromJson(item);
-            _handleMessage(message);
-          }
-        }
+      final messages = await decodeMessageBusMessages(chunk);
+      for (final message in messages) {
+        _handleMessage(message);
       }
     } catch (e) {
       debugPrint('[MessageBus] JSON 解析失败: $e, chunk: $chunk');

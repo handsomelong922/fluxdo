@@ -613,15 +613,48 @@ extension _UserActions on _TopicDetailPageState {
     }
   }
 
-  /// 处理帖子级别的 MessageBus 更新
-  void _handlePostUpdate(TopicDetailNotifier notifier, PostUpdate update) {
-    if (_isUserScrolling && update.type != TopicMessageType.created) {
-      _deferredPostUpdates.add(
-        _DeferredPostUpdate(notifier: notifier, update: update),
-      );
+  static const int _postUpdateBatchCollapseThreshold = 8;
+
+  /// 一批帖子更新的统一入口：去重、滚动延迟和积压坍缩共用同一套规则。
+  void _handlePostUpdateBatch(
+    TopicDetailNotifier notifier,
+    List<PostUpdate> updates, {
+    bool deferWhileScrolling = true,
+  }) {
+    if (updates.isEmpty) return;
+    final deduped = dedupePostUpdateBatch(updates);
+    final scrolling = deferWhileScrolling && _isUserScrolling;
+
+    if (networkRefreshPostCount(deduped) > _postUpdateBatchCollapseThreshold) {
+      // created 只更新 stream，并由 notifier 自己批量拉取新帖；仍即时应用。
+      for (final update in deduped) {
+        if (update.type == TopicMessageType.created) {
+          _applyPostUpdate(notifier, update);
+        }
+      }
+      final remaining = deduped
+          .where((update) => update.type != TopicMessageType.created)
+          .toList(growable: false);
+      if (remaining.isEmpty) return;
+      if (scrolling) {
+        _deferredPostUpdates.addAll(remaining);
+        return;
+      }
+
+      // 大量逐帖刷新只会制造请求和重建风暴。当前分支的整流刷新保留
+      // viewport anchor，因此不会破坏首页 preview 或把用户送回顶部。
+      _deferredPostUpdates.clear();
+      _handleReloadTopic(notifier, true);
       return;
     }
-    _applyPostUpdate(notifier, update);
+
+    for (final update in deduped) {
+      if (scrolling && update.type != TopicMessageType.created) {
+        _deferredPostUpdates.add(update);
+      } else {
+        _applyPostUpdate(notifier, update);
+      }
+    }
   }
 
   bool get _isUserScrolling {
@@ -631,43 +664,15 @@ extension _UserActions on _TopicDetailPageState {
   }
 
   /// 滚动停止后回放推迟的更新。
-  ///
-  /// 同帖同类型的普通状态更新只保留最后一条；boost 增删按 boost id
-  /// 保留独立事件，避免滚动期间多个 boost 被误合并。
   void _flushDeferredPostUpdates() {
     if (_deferredPostUpdates.isEmpty) return;
-
-    final deduped = <String, _DeferredPostUpdate>{};
-    for (final entry in _deferredPostUpdates) {
-      deduped[_deferredPostUpdateKey(entry.update)] = entry;
-    }
+    final batch = List<PostUpdate>.of(_deferredPostUpdates);
     _deferredPostUpdates.clear();
-
-    for (final entry in deduped.values) {
-      _applyPostUpdate(entry.notifier, entry.update);
-    }
-  }
-
-  String _deferredPostUpdateKey(PostUpdate update) {
-    switch (update.type) {
-      case TopicMessageType.boostAdded:
-        final boostId = update.boostData?['id'];
-        if (boostId == null) {
-          return '${update.postId}:${update.type.name}:'
-              '${update.updatedAt.microsecondsSinceEpoch}:'
-              '${identityHashCode(update)}';
-        }
-        return '${update.postId}:${update.type.name}:$boostId';
-      case TopicMessageType.boostRemoved:
-        if (update.boostId == null) {
-          return '${update.postId}:${update.type.name}:'
-              '${update.updatedAt.microsecondsSinceEpoch}:'
-              '${identityHashCode(update)}';
-        }
-        return '${update.postId}:${update.type.name}:${update.boostId}';
-      default:
-        return '${update.postId}:${update.type.name}';
-    }
+    _handlePostUpdateBatch(
+      ref.read(topicDetailProvider(_params).notifier),
+      batch,
+      deferWhileScrolling: false,
+    );
   }
 
   void _applyPostUpdate(TopicDetailNotifier notifier, PostUpdate update) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/message_bus_service.dart';
 import '../../services/discourse/discourse_service.dart';
@@ -6,6 +8,7 @@ import '../../utils/time_utils.dart';
 import '../discourse_providers.dart';
 import 'message_bus_service_provider.dart';
 import 'models.dart';
+import 'post_update_batch.dart';
 import 'topic_tracking_providers.dart';
 
 /// 话题频道监听器
@@ -16,6 +19,13 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
 
   @override
   TopicChannelState build() {
+    _disposed = false;
+    _pendingUpdates.clear();
+    _flushScheduled = false;
+    _typingDebounce?.cancel();
+    _typingDebounce = null;
+    _pendingTypingUsers = null;
+
     // 确保 MessageBus 已 configure（域名配置），避免用主站域名轮询
     ref.watch(messageBusInitProvider);
     final messageBus = ref.watch(messageBusServiceProvider);
@@ -61,7 +71,9 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
 
       switch (type) {
         case 'created':
-          state = state.copyWith(hasNewReplies: true);
+          if (!state.hasNewReplies) {
+            state = state.copyWith(hasNewReplies: true);
+          }
           if (postId != null) {
             _addPostUpdate(postId, TopicMessageType.created, updatedAt);
           }
@@ -217,7 +229,9 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
       final currentUser = ref.read(currentUserProvider).value;
       final currentUserId = currentUser?.id;
 
-      final currentUsers = List<TypingUser>.from(state.typingUsers);
+      final currentUsers = List<TypingUser>.from(
+        _pendingTypingUsers ?? state.typingUsers,
+      );
       bool changed = false;
 
       final enteringUsersList = data['entering_users'] as List<dynamic>?;
@@ -256,7 +270,14 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
       }
 
       if (changed) {
-        state = state.copyWith(typingUsers: currentUsers);
+        _pendingTypingUsers = currentUsers;
+        _typingDebounce ??= Timer(const Duration(milliseconds: 200), () {
+          _typingDebounce = null;
+          final pending = _pendingTypingUsers;
+          if (_disposed || pending == null) return;
+          _pendingTypingUsers = null;
+          state = state.copyWith(typingUsers: pending);
+        });
       }
     }
 
@@ -285,6 +306,11 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
     );
 
     ref.onDispose(() {
+      _disposed = true;
+      _pendingUpdates.clear();
+      _typingDebounce?.cancel();
+      _typingDebounce = null;
+      _pendingTypingUsers = null;
       messageBus.unsubscribe(topicChannel, onTopicMessage);
       messageBus.unsubscribe(reactionsChannel, onReactionsMessage);
       messageBus.unsubscribe(presenceChannel, onPresenceMessage);
@@ -302,6 +328,7 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
   ) async {
     try {
       final presence = await service.getPresence(topicId);
+      if (_disposed) return;
       runtimeDebugPrint(
         '[Presence] 初始状态: users=${presence.users.length}, messageId=${presence.messageId}',
       );
@@ -343,6 +370,34 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
     state = state.copyWith(clearNotificationLevelChange: true);
   }
 
+  bool _disposed = false;
+  final List<PostUpdate> _pendingUpdates = [];
+  bool _flushScheduled = false;
+  Timer? _typingDebounce;
+  List<TypingUser>? _pendingTypingUsers;
+
+  void _enqueueUpdate(PostUpdate update) {
+    final key = postUpdateDedupeKey(update);
+    if (key != null) {
+      _pendingUpdates.removeWhere(
+        (pending) => postUpdateDedupeKey(pending) == key,
+      );
+    }
+    _pendingUpdates.add(update);
+    if (_flushScheduled) return;
+    _flushScheduled = true;
+    scheduleMicrotask(() {
+      _flushScheduled = false;
+      if (_disposed || _pendingUpdates.isEmpty) return;
+      final batch = List<PostUpdate>.unmodifiable(_pendingUpdates);
+      _pendingUpdates.clear();
+      state = state.copyWith(
+        postUpdates: batch,
+        postUpdatesGeneration: state.postUpdatesGeneration + 1,
+      );
+    });
+  }
+
   void _addPostUpdate(
     int postId,
     TopicMessageType type,
@@ -351,32 +406,16 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
     int? readersCount,
     int? userId,
   }) {
-    // 去重：如果最近 2 秒内已有相同 postId + type 的更新，跳过
-    final updates = List<PostUpdate>.from(state.postUpdates);
-    if (updates.isNotEmpty) {
-      final last = updates.last;
-      if (last.postId == postId &&
-          last.type == type &&
-          updatedAt.difference(last.updatedAt).inSeconds.abs() < 2) {
-        return;
-      }
-    }
-
-    final update = PostUpdate(
-      postId: postId,
-      type: type,
-      updatedAt: updatedAt,
-      likesCount: likesCount,
-      readersCount: readersCount,
-      userId: userId,
+    _enqueueUpdate(
+      PostUpdate(
+        postId: postId,
+        type: type,
+        updatedAt: updatedAt,
+        likesCount: likesCount,
+        readersCount: readersCount,
+        userId: userId,
+      ),
     );
-
-    updates.add(update);
-    if (updates.length > 50) {
-      updates.removeAt(0);
-    }
-
-    state = state.copyWith(postUpdates: updates);
   }
 
   void _addBoostUpdate(
@@ -385,23 +424,15 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
     Map<String, dynamic>? boostData,
     int? boostId,
   }) {
-    final updates = List<PostUpdate>.from(state.postUpdates);
-    final update = PostUpdate(
-      postId: postId,
-      type: type,
-      updatedAt: DateTime.now(),
-      boostData: boostData,
-      boostId: boostId,
+    _enqueueUpdate(
+      PostUpdate(
+        postId: postId,
+        type: type,
+        updatedAt: DateTime.now(),
+        boostData: boostData,
+        boostId: boostId,
+      ),
     );
-    updates.add(update);
-    if (updates.length > 50) {
-      updates.removeAt(0);
-    }
-    state = state.copyWith(postUpdates: updates);
-  }
-
-  void clearPostUpdates() {
-    state = state.copyWith(postUpdates: []);
   }
 
   void clearStatsUpdate() {
@@ -413,6 +444,9 @@ class TopicChannelNotifier extends Notifier<TopicChannelState> {
   }
 
   void clearTypingUsers() {
+    _typingDebounce?.cancel();
+    _typingDebounce = null;
+    _pendingTypingUsers = null;
     state = state.copyWith(typingUsers: []);
   }
 }

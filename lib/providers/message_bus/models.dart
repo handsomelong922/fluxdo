@@ -126,7 +126,12 @@ class SharedIssueUpdate {
 class TopicChannelState {
   final bool hasNewReplies;
   final List<TypingUser> typingUsers;
+
+  /// 最近一次微任务批次的帖子更新，不是累积历史。
   final List<PostUpdate> postUpdates;
+
+  /// 每发布一批递增，监听方用它判断是否有新批次。
+  final int postUpdatesGeneration;
   final TopicStatsUpdate? statsUpdate;
   final SharedIssueUpdate? sharedIssueUpdate;
   final bool messageArchived;
@@ -138,6 +143,7 @@ class TopicChannelState {
     this.hasNewReplies = false,
     this.typingUsers = const [],
     this.postUpdates = const [],
+    this.postUpdatesGeneration = 0,
     this.statsUpdate,
     this.sharedIssueUpdate,
     this.messageArchived = false,
@@ -150,6 +156,7 @@ class TopicChannelState {
     bool? hasNewReplies,
     List<TypingUser>? typingUsers,
     List<PostUpdate>? postUpdates,
+    int? postUpdatesGeneration,
     TopicStatsUpdate? statsUpdate,
     bool? clearStatsUpdate,
     SharedIssueUpdate? sharedIssueUpdate,
@@ -164,6 +171,8 @@ class TopicChannelState {
       hasNewReplies: hasNewReplies ?? this.hasNewReplies,
       typingUsers: typingUsers ?? this.typingUsers,
       postUpdates: postUpdates ?? this.postUpdates,
+      postUpdatesGeneration:
+          postUpdatesGeneration ?? this.postUpdatesGeneration,
       statsUpdate: clearStatsUpdate == true
           ? null
           : (statsUpdate ?? this.statsUpdate),

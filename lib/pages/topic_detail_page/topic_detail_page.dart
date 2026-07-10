@@ -28,6 +28,7 @@ import '../reading_settings_page.dart';
 import '../../providers/selected_topic_provider.dart';
 import '../../providers/discourse_providers.dart';
 import '../../providers/message_bus_providers.dart';
+import '../../providers/message_bus/post_update_batch.dart';
 import '../../services/discourse/discourse_service.dart';
 import '../../services/settings/content_filter_service.dart';
 import '../../services/notion/notion_bookmark_auto_sync.dart';
@@ -77,13 +78,6 @@ import '../../widgets/desktop_refresh_indicator.dart';
 part 'actions/_scroll_actions.dart';
 part 'actions/_user_actions.dart';
 part 'actions/_filter_actions.dart';
-
-class _DeferredPostUpdate {
-  const _DeferredPostUpdate({required this.notifier, required this.update});
-
-  final TopicDetailNotifier notifier;
-  final PostUpdate update;
-}
 
 const double _topicDetailToolbarHeight = 48.0;
 const double _topicFloatingButtonSize = 44.0;
@@ -404,7 +398,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   Set<int> _lastSessionReadPostNumbers = const <int>{};
 
   /// 滚动中推迟的 msgbus 帖子更新，滚停后回放以避免上方楼层高度变化拉动视口。
-  final List<_DeferredPostUpdate> _deferredPostUpdates = [];
+  final List<PostUpdate> _deferredPostUpdates = [];
   ScrollPosition? _idleFlushPosition;
   bool? _lastCanShowDetailPane;
   bool _isAutoSwitching = false;
@@ -967,13 +961,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           .clearSharedIssueUpdate();
     }
 
-    final prevLen = previous?.postUpdates.length ?? 0;
-    final nextLen = next.postUpdates.length;
-    if (nextLen > prevLen) {
-      final newUpdates = next.postUpdates.sublist(prevLen);
-      for (final update in newUpdates) {
-        _handlePostUpdate(notifier, update);
-      }
+    if (next.postUpdates.isNotEmpty &&
+        next.postUpdatesGeneration != (previous?.postUpdatesGeneration ?? 0)) {
+      _handlePostUpdateBatch(notifier, next.postUpdates);
     }
   }
 
