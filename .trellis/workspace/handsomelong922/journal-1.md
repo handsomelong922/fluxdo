@@ -82,3 +82,39 @@ Parallelized user profile reads, stabilized profile stats geometry, capped topic
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Verify release build and port upstream P2 request safeguards
+
+**Date**: 2026-07-11
+**Task**: Verify release build and port upstream P2 request safeguards
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerprint endpoint extraction, session-scoped bootstrap backoff/fresh discovery, and bounded micro-batched upload short-url lookup with missing/transient separation; targeted 83-test regression, full analyze, and 473-test suite passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f45f0fc9` | (see git log) |
+| `833e0cd2` | (see git log) |
+| `f6368a02` | (see git log) |
+| `a2d93334` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
