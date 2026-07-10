@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import '../../../l10n/s.dart';
@@ -18,13 +19,17 @@ import '../../../utils/code_selection_context.dart';
 import '../../../utils/responsive.dart';
 import '../../../utils/time_utils.dart';
 import '../../../widgets/content/lazy_load_scope.dart';
+import '../../../widgets/content/discourse_html_content/chunked/chunked_html_content.dart';
 import '../../../widgets/content/discourse_html_content/chunked/html_chunk.dart';
+import '../../../widgets/content/discourse_html_content/chunked/html_chunk_cache.dart';
+import '../../../widgets/content/discourse_html_content/image_utils.dart';
 import '../../../widgets/post/post_item/post_item.dart';
 import '../../../widgets/post/post_item/quote_selection_helper.dart';
 import '../../../widgets/post/post_item/segmented_long_post.dart';
 import '../../../widgets/post/post_item/widgets/post_footer_section/post_footer_section.dart';
 import 'topic_linear_loading_indicator.dart';
 import 'topic_detail_header.dart';
+import 'topic_post_materialization.dart';
 import 'typing_indicator.dart';
 
 @visibleForTesting
@@ -164,6 +169,7 @@ class TopicPostList extends StatefulWidget {
 }
 
 class _TopicPostListState extends State<TopicPostList> {
+  static const int _materializeStep = 4;
   static const Duration _visiblePostUpdateDelayDesktop = Duration(
     milliseconds: 240,
   );
@@ -196,6 +202,11 @@ class _TopicPostListState extends State<TopicPostList> {
   Set<String>? _renderSegmentsSourceBlockedUsernames;
   List<Post> _visiblePostsCache = const [];
   Set<int> _lastVisiblePostNumbers = const <int>{};
+  int? _materializeCapBefore;
+  int? _materializeCapAfter;
+  bool _initialMaterializationInitialized = false;
+  bool _materializeTicking = false;
+  int _parseWarmUpGeneration = 0;
 
   /// postNumber → postIndex 反查表（避免 indexWhere 线性查找）
   Map<int, int> _postNumberToIndex = const {};
@@ -229,6 +240,25 @@ class _TopicPostListState extends State<TopicPostList> {
       _visiblePostsSourcePosts = null;
       _visiblePostsSourceBlockedUsernames = null;
       _visiblePostsCache = const [];
+      _materializeCapBefore = null;
+      _materializeCapAfter = null;
+      _initialMaterializationInitialized = false;
+      _parseWarmUpGeneration++;
+    } else if (didTopicPostCenterChange(
+      oldPostNumbers: oldWidget.detail.postStream.posts
+          .map((post) => post.postNumber)
+          .toList(growable: false),
+      oldCenterPostIndex: oldWidget.centerPostIndex,
+      newPostNumbers: widget.detail.postStream.posts
+          .map((post) => post.postNumber)
+          .toList(growable: false),
+      newCenterPostIndex: widget.centerPostIndex,
+    )) {
+      // 同话题显式更换中心点时放开当前已加载段，避免旧 cap 围绕新中心
+      // 重新解释后卸载已经物化的 element。prepend 仅平移索引，postNumber
+      // 不变，因此不会触发该分支。
+      _materializeCapBefore = null;
+      _materializeCapAfter = null;
     }
   }
 
@@ -237,6 +267,7 @@ class _TopicPostListState extends State<TopicPostList> {
     _visiblePostUpdateTimer?.cancel();
     _autoReplyResumeTimer?.cancel();
     _autoLoadRepliesPausedNotifier.dispose();
+    _parseWarmUpGeneration++;
     super.dispose();
   }
 
@@ -291,6 +322,11 @@ class _TopicPostListState extends State<TopicPostList> {
   void Function(int postId)? get onExpandHiddenPost =>
       widget.onExpandHiddenPost;
   bool get useReplyDialog => widget.useReplyDialog;
+
+  int? get _centerPostNumber =>
+      centerPostIndex >= 0 && centerPostIndex < detail.postStream.posts.length
+      ? detail.postStream.posts[centerPostIndex].postNumber
+      : null;
 
   void _ensureVisiblePosts() {
     final posts = detail.postStream.posts;
@@ -656,6 +692,15 @@ class _TopicPostListState extends State<TopicPostList> {
     if (_hasSameRenderSegmentsSource(posts)) {
       return;
     }
+    final oldPosts = _renderSegmentsSourcePosts;
+    final oldSegmentCount = _renderSegments.length;
+    final oldCenterPostNumber = _centerPostNumber;
+    final oldCenterVisibleIndex = oldCenterPostNumber == null
+        ? null
+        : _postNumberToIndex[oldCenterPostNumber];
+    final oldCenterScrollIndex = oldCenterVisibleIndex == null
+        ? -1
+        : (_postIndexToScrollIndex[oldCenterVisibleIndex] ?? -1);
     final segments = <_PostRenderSegment>[];
     final postIndexToScrollIndex = <int, int>{};
     final scrollIndexToPostNumber = <int, int>{};
@@ -756,6 +801,139 @@ class _TopicPostListState extends State<TopicPostList> {
     _renderSegmentsSourceGaps = detail.postStream.gaps;
     _renderSegmentsSourceBlockedUsernames = widget.blockedUsernames;
     widget.onScrollIndexMappingChanged?.call(postIndexToScrollIndex);
+    _handlePostGrowth(
+      oldPosts: oldPosts,
+      newPosts: posts,
+      oldSegmentCount: oldSegmentCount,
+      oldCenterScrollIndex: oldCenterScrollIndex,
+    );
+  }
+
+  void _handlePostGrowth({
+    required List<Post>? oldPosts,
+    required List<Post> newPosts,
+    required int oldSegmentCount,
+    required int oldCenterScrollIndex,
+  }) {
+    final growth = detectTopicPostGrowth(
+      oldPostIds: oldPosts?.map((post) => post.id).toList(growable: false),
+      newPostIds: newPosts.map((post) => post.id).toList(growable: false),
+    );
+    if (growth == null || oldPosts == null) return;
+
+    final addedPostCount = newPosts.length - oldPosts.length;
+    final addedPosts = switch (growth) {
+      TopicPostGrowth.append => newPosts.sublist(oldPosts.length),
+      TopicPostGrowth.prepend => newPosts.sublist(0, addedPostCount),
+    };
+    _schedulePostParseWarmUp(addedPosts);
+
+    final plan = planTopicPostPagingMaterialization(
+      growth: growth,
+      oldSegmentCount: oldSegmentCount,
+      newSegmentCount: _renderSegments.length,
+      oldCenterScrollIndex: oldCenterScrollIndex,
+      step: _materializeStep,
+    );
+    if (plan == null) return;
+
+    switch (plan.side) {
+      case TopicPostMaterializationSide.before:
+        _materializeCapBefore ??= plan.initialCap;
+      case TopicPostMaterializationSide.after:
+        _materializeCapAfter ??= plan.initialCap;
+    }
+    _scheduleMaterializeStep();
+  }
+
+  void _initializeMaterialization(int centerScrollIndex) {
+    if (_initialMaterializationInitialized) return;
+    _initialMaterializationInitialized = true;
+    _materializeCapBefore = _materializeStep;
+    _materializeCapAfter = initialAfterMaterializationCap(
+      segmentPostIds: _renderSegments
+          .map((segment) => segment.post.id)
+          .toList(growable: false),
+      centerScrollIndex: centerScrollIndex,
+      step: _materializeStep,
+    );
+    _scheduleMaterializeStep();
+  }
+
+  void _scheduleMaterializeStep() {
+    if (_materializeTicking) return;
+    _materializeTicking = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _materializeTicking = false;
+      if (!mounted || !_initialMaterializationInitialized) return;
+
+      final centerPostNumber = _centerPostNumber;
+      final centerVisibleIndex = centerPostNumber == null
+          ? null
+          : _postNumberToIndex[centerPostNumber];
+      final centerScrollIndex = centerVisibleIndex == null
+          ? 0
+          : (_postIndexToScrollIndex[centerVisibleIndex] ?? 0);
+      final beforeTotal = centerScrollIndex;
+      final afterTotal = _renderSegments.length - centerScrollIndex;
+      var advanced = false;
+
+      final capBefore = _materializeCapBefore;
+      if (capBefore != null) {
+        if (capBefore >= beforeTotal) {
+          _materializeCapBefore = null;
+        } else {
+          _materializeCapBefore = capBefore + _materializeStep;
+          advanced = true;
+        }
+      }
+
+      final capAfter = _materializeCapAfter;
+      if (capAfter != null) {
+        if (capAfter >= afterTotal) {
+          _materializeCapAfter = null;
+        } else {
+          _materializeCapAfter = capAfter + _materializeStep;
+          advanced = true;
+        }
+      }
+
+      if (advanced) {
+        setState(() {});
+        _scheduleMaterializeStep();
+      }
+    });
+  }
+
+  void _schedulePostParseWarmUp(List<Post> posts) {
+    if (posts.isEmpty) return;
+    final generation = ++_parseWarmUpGeneration;
+    var index = 0;
+
+    void step() {
+      SchedulerBinding.instance.scheduleTask<void>(() async {
+        if (!mounted || generation != _parseWarmUpGeneration) return;
+        final post = posts[index++];
+        try {
+          if (post.cooked.length > ChunkedHtmlContent.chunkThreshold) {
+            await HtmlChunkCache.instance.parseAsync(post.cooked);
+            if (!mounted || generation != _parseWarmUpGeneration) return;
+            LongPostRenderData.fromHtml(post.cooked);
+          } else {
+            GalleryInfo.fromHtml(post.cooked);
+          }
+        } catch (_) {
+          // 预热失败不影响正式渲染，进入视口时仍走现有同步兜底。
+        }
+        if (mounted &&
+            generation == _parseWarmUpGeneration &&
+            index < posts.length) {
+          step();
+        }
+      }, Priority.idle);
+    }
+
+    step();
   }
 
   void _rememberLongSelectionPost(Post post) {
@@ -772,16 +950,14 @@ class _TopicPostListState extends State<TopicPostList> {
         : const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics());
     final hasFirstPost = posts.isNotEmpty && posts.first.postNumber == 1;
     _ensureRenderSegments(posts);
-    final centerPostNumber =
-        centerPostIndex >= 0 && centerPostIndex < detail.postStream.posts.length
-        ? detail.postStream.posts[centerPostIndex].postNumber
-        : null;
+    final centerPostNumber = _centerPostNumber;
     final centerVisibleIndex = centerPostNumber == null
         ? null
         : _postNumberToIndex[centerPostNumber];
     final centerScrollIndex = centerVisibleIndex == null
         ? 0
         : (_postIndexToScrollIndex[centerVisibleIndex] ?? 0);
+    _initializeMaterialization(centerScrollIndex);
 
     return LazyLoadPauseScope(
       notifier: _autoLoadRepliesPausedNotifier,
@@ -884,7 +1060,10 @@ class _TopicPostListState extends State<TopicPostList> {
                 // center 之前的 sliver 向上增长，index 0 离 center 最近，需要反转映射
                 if (centerPostIndex > 0)
                   SliverList.builder(
-                    itemCount: centerScrollIndex,
+                    itemCount: materializedSegmentCount(
+                      total: centerScrollIndex,
+                      cap: _materializeCapBefore,
+                    ),
                     itemBuilder: (context, index) {
                       final segmentIndex = centerScrollIndex - 1 - index;
                       return _buildSegmentItem(
@@ -938,7 +1117,10 @@ class _TopicPostListState extends State<TopicPostList> {
                           ),
                         ),
                       SliverList.builder(
-                        itemCount: _renderSegments.length,
+                        itemCount: materializedSegmentCount(
+                          total: _renderSegments.length,
+                          cap: _materializeCapAfter,
+                        ),
                         itemBuilder: (context, index) =>
                             _buildSegmentItem(context, _renderSegments[index]),
                       ),
@@ -947,7 +1129,10 @@ class _TopicPostListState extends State<TopicPostList> {
                 else
                   SliverList.builder(
                     key: centerKey,
-                    itemCount: _renderSegments.length - centerScrollIndex,
+                    itemCount: materializedSegmentCount(
+                      total: _renderSegments.length - centerScrollIndex,
+                      cap: _materializeCapAfter,
+                    ),
                     itemBuilder: (context, index) {
                       final segmentIndex = centerScrollIndex + index;
                       return _buildSegmentItem(
