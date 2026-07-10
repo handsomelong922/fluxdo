@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 1
+- **Total Sessions**: 2
 - **Last Active**: 2026-07-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~45 | Active |
+| `journal-1.md` | ~84 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 2 | 2026-07-10 | Optimize profile loading and port upstream P1 scroll performance | `2c8ed16a`, `800417bc`, `172bda0c`, `1dc76df1`, `2dd02db1`, `fffd87b4`, `6ab9b2ed` | `codex/rollback-to-v0.3.1` |
 | 1 | 2026-07-10 | 手工移植 7月7日至10日 P0 滚动性能优化 | `f708c073`, `f3a6fb67`, `b1b45d9d`, `a51faa27`, `eed07e6c`, `2976013d` | `codex/rollback-to-v0.3.1` |
 <!-- @@@/auto:session-history -->
 

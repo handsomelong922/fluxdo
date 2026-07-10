@@ -43,3 +43,42 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: Optimize profile loading and port upstream P1 scroll performance
+
+**Date**: 2026-07-10
+**Task**: Optimize profile loading and port upstream P1 scroll performance
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+Parallelized user profile reads, stabilized profile stats geometry, capped topic image decoding, coordinated AVIF and CF work with scroll busy state, progressively materialized paged posts while preserving the full preview OP, and completed full Flutter verification.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2c8ed16a` | (see git log) |
+| `800417bc` | (see git log) |
+| `172bda0c` | (see git log) |
+| `1dc76df1` | (see git log) |
+| `2dd02db1` | (see git log) |
+| `fffd87b4` | (see git log) |
+| `6ab9b2ed` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
