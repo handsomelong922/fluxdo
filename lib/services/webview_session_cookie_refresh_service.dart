@@ -43,6 +43,17 @@ class SessionBootstrapResult {
       'status: $status, phase: $phase)';
 }
 
+/// fingerprint 插件上报端点的稳定源码结构。
+///
+/// 压缩后的调用函数名会随论坛构建变化，因此只约束它是合法 JavaScript
+/// identifier；POST 方法与 `visitor_id` 数据结构继续作为严格边界。
+const String fingerprintEndpointPattern =
+    r'(?:^|[^A-Za-z0-9_$])[A-Za-z_$][\w$]*\("([^"]+)",\{type:"POST",data:\{visitor_id:';
+
+@visibleForTesting
+String? extractFingerprintEndpointForTesting(String source) =>
+    RegExp(fingerprintEndpointPattern).firstMatch(source)?.group(1);
+
 /// 让 WebView 浏览器会话与 native CookieJar 保持一致。
 ///
 /// 一些站点会在登录后的普通页面里由 JS/XHR 产生额外的 HttpOnly/session
@@ -559,6 +570,7 @@ document.close();
   String _bootstrapScript(String handlerName) {
     final handler = jsonEncode(handlerName);
     final baseUrl = jsonEncode(AppConstants.baseUrl);
+    final endpointPattern = jsonEncode(fingerprintEndpointPattern);
     return '''
 (async function() {
   const handlerName = $handler;
@@ -683,7 +695,7 @@ document.close();
   }
 
   function extractFingerprintRunner(source) {
-    const endpointMatch = source.match(/_\\("([^"]+)",\\{type:"POST",data:\\{visitor_id:/);
+    const endpointMatch = source.match(new RegExp($endpointPattern));
     if (!endpointMatch) {
       throw new Error('fingerprint endpoint not found');
     }

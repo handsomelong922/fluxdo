@@ -2,23 +2,70 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/services/webview_session_cookie_refresh_service.dart';
 
 void main() {
-  test('cookie summary omits verbose cookie details outside developer mode', () {
-    final entry = buildCookieSummaryLogEntry(
-      timestamp: DateTime.utc(2026, 7, 3, 14),
-      level: 'warning',
-      reason: 'dio_request:POST',
-      cookieNames: const ['_t', '_forum_session'],
-      cookieDetails: const [
-        {'name': '_t', 'valueLength': 10},
-      ],
-      includeCookieDetails: false,
-      bootstrapOk: false,
-    );
+  group('fingerprint endpoint extraction', () {
+    test('accepts changing minified JavaScript identifiers', () {
+      expect(
+        extractFingerprintEndpointForTesting(
+          r'_("/old",{type:"POST",data:{visitor_id:',
+        ),
+        '/old',
+      );
+      expect(
+        extractFingerprintEndpointForTesting(
+          r'L("/cj2tt",{type:"POST",data:{visitor_id:',
+        ),
+        '/cj2tt',
+      );
+      expect(
+        extractFingerprintEndpointForTesting(
+          r'$a1("/next",{type:"POST",data:{visitor_id:',
+        ),
+        '/next',
+      );
+    });
 
-    expect(entry['cookieNames'], ['_t', '_forum_session']);
-    expect(entry['cookieCount'], 2);
-    expect(entry.containsKey('cookieDetails'), isFalse);
+    test('rejects invalid identifiers and incomplete request shapes', () {
+      expect(
+        extractFingerprintEndpointForTesting(
+          r'1bad("/wrong",{type:"POST",data:{visitor_id:',
+        ),
+        isNull,
+      );
+      expect(
+        extractFingerprintEndpointForTesting(
+          r'L("/wrong",{type:"GET",data:{visitor_id:',
+        ),
+        isNull,
+      );
+      expect(
+        extractFingerprintEndpointForTesting(
+          r'L("/wrong",{type:"POST",data:{user_id:',
+        ),
+        isNull,
+      );
+    });
   });
+
+  test(
+    'cookie summary omits verbose cookie details outside developer mode',
+    () {
+      final entry = buildCookieSummaryLogEntry(
+        timestamp: DateTime.utc(2026, 7, 3, 14),
+        level: 'warning',
+        reason: 'dio_request:POST',
+        cookieNames: const ['_t', '_forum_session'],
+        cookieDetails: const [
+          {'name': '_t', 'valueLength': 10},
+        ],
+        includeCookieDetails: false,
+        bootstrapOk: false,
+      );
+
+      expect(entry['cookieNames'], ['_t', '_forum_session']);
+      expect(entry['cookieCount'], 2);
+      expect(entry.containsKey('cookieDetails'), isFalse);
+    },
+  );
 
   test('cookie summary keeps details in verbose mode', () {
     final entry = buildCookieSummaryLogEntry(
