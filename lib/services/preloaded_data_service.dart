@@ -69,6 +69,15 @@ class PreloadedDataService {
   }
 
   List<String>? get pluginCandidatesSync => _pluginCandidates;
+
+  /// fingerprint endpoint 404/discover 失败说明这份插件快照已经过期。
+  /// 清空后下一轮 bootstrap 会走 fresh discover，后续首页解析可自然重建。
+  void invalidatePluginCandidates() {
+    if (_pluginCandidates == null) return;
+    _pluginCandidates = null;
+    debugPrint('[PreloadedData] pluginCandidates 已废弃(端点过期)');
+  }
+
   List<Map<String, dynamic>>? get topicTrackingStatesSync =>
       _topicTrackingStates;
 

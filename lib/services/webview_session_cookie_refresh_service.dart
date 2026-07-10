@@ -54,6 +54,17 @@ const String fingerprintEndpointPattern =
 String? extractFingerprintEndpointForTesting(String source) =>
     RegExp(fingerprintEndpointPattern).firstMatch(source)?.group(1);
 
+@visibleForTesting
+Duration webViewSessionFailureCooldownForStreak(int failureStreak) {
+  const base = Duration(seconds: 45);
+  const maximum = Duration(minutes: 15);
+  if (failureStreak <= 1) return base;
+
+  final exponent = (failureStreak - 1).clamp(0, 5);
+  final cooldown = base * (1 << exponent);
+  return cooldown > maximum ? maximum : cooldown;
+}
+
 /// 让 WebView 浏览器会话与 native CookieJar 保持一致。
 ///
 /// 一些站点会在登录后的普通页面里由 JS/XHR 产生额外的 HttpOnly/session
@@ -69,8 +80,6 @@ class WebViewSessionCookieRefreshService {
   static final WebViewSessionCookieRefreshService instance =
       WebViewSessionCookieRefreshService._();
 
-  static const Duration _attemptCooldown = Duration(seconds: 45);
-  static const Duration _successTtl = Duration(minutes: 15);
   static const Duration _bootstrapTimeout = Duration(seconds: 18);
   static const Duration _cookieSummaryDedupeWindow = Duration(minutes: 2);
 
@@ -80,6 +89,8 @@ class WebViewSessionCookieRefreshService {
   DateTime? _lastAttemptAt;
   DateTime? _lastSuccessAt;
   String? _lastSuccessToken;
+  int _failureStreak = 0;
+  bool _forceFreshPlugin = false;
   String? _lastCookieSummarySignature;
   DateTime? _lastCookieSummaryLoggedAt;
 
@@ -92,6 +103,8 @@ class WebViewSessionCookieRefreshService {
   }) {
     _lastSuccessAt = DateTime.now();
     _lastSuccessToken = tToken;
+    _failureStreak = 0;
+    _forceFreshPlugin = false;
     if (!RuntimeLogSettings.persistVerboseDiagnostics) return;
     final extra = <String, dynamic>{
       'tokenBound': tToken != null && tToken.isNotEmpty,
@@ -108,12 +121,27 @@ class WebViewSessionCookieRefreshService {
   }
 
   bool hasFreshSyncForToken(String? tToken) {
-    final lastSuccessAt = _lastSuccessAt;
     return tToken != null &&
         tToken.isNotEmpty &&
         _lastSuccessToken == tToken &&
-        lastSuccessAt != null &&
-        DateTime.now().difference(lastSuccessAt) < _successTtl;
+        _lastSuccessAt != null;
+  }
+
+  Duration get _effectiveCooldown =>
+      webViewSessionFailureCooldownForStreak(_failureStreak);
+
+  /// 换账号等同于新的浏览器登录会话，下次请求需要重新 bootstrap。
+  void resetSessionState({String reason = 'logout'}) {
+    _lastSuccessAt = null;
+    _lastSuccessToken = null;
+    _lastAttemptAt = null;
+    _failureStreak = 0;
+    _forceFreshPlugin = false;
+    _logEnsureEvent(
+      event: 'webview_session_sync_reset',
+      reason: reason,
+      level: 'info',
+    );
   }
 
   /// 确保当前进程已经让 WebView 登录页面跑过一次并同步 cookie。
@@ -143,19 +171,15 @@ class WebViewSessionCookieRefreshService {
       return const SessionBootstrapResult.failure(phase: 'no_t');
     }
 
-    final lastSuccessAt = _lastSuccessAt;
-    if (!force &&
-        lastSuccessAt != null &&
-        _lastSuccessToken == tToken &&
-        DateTime.now().difference(lastSuccessAt) < _successTtl) {
+    if (!force && _lastSuccessAt != null) {
       _logEnsureEvent(
         event: 'webview_session_sync_skipped',
         reason: reason,
         level: 'info',
         extra: {
-          'skipReason': 'success_ttl',
+          'skipReason': 'synced_this_session',
           'lastSuccessAgeMs': DateTime.now()
-              .difference(lastSuccessAt)
+              .difference(_lastSuccessAt!)
               .inMilliseconds,
         },
       );
@@ -174,9 +198,10 @@ class WebViewSessionCookieRefreshService {
 
     final now = DateTime.now();
     final lastAttemptAt = _lastAttemptAt;
+    final cooldown = _effectiveCooldown;
     if (!force &&
         lastAttemptAt != null &&
-        now.difference(lastAttemptAt) < _attemptCooldown) {
+        now.difference(lastAttemptAt) < cooldown) {
       _logEnsureEvent(
         event: 'webview_session_sync_skipped',
         reason: reason,
@@ -184,6 +209,8 @@ class WebViewSessionCookieRefreshService {
         extra: {
           'skipReason': 'attempt_cooldown',
           'lastAttemptAgeMs': now.difference(lastAttemptAt).inMilliseconds,
+          if (_failureStreak > 0) 'failureStreak': _failureStreak,
+          if (_failureStreak > 0) 'cooldownMs': cooldown.inMilliseconds,
         },
       );
       return const SessionBootstrapResult.failure(phase: 'attempt_cooldown');
@@ -193,6 +220,11 @@ class WebViewSessionCookieRefreshService {
     late final Future<SessionBootstrapResult> future;
     future = _refreshBrowserSession(reason: reason)
         .then((result) {
+          if (result.ok) {
+            _failureStreak = 0;
+          } else {
+            _failureStreak++;
+          }
           _logEnsureEvent(
             event: 'webview_session_sync_completed',
             reason: reason,
@@ -202,6 +234,7 @@ class WebViewSessionCookieRefreshService {
               'cfBlocked': result.cfBlocked,
               if (result.status != null) 'status': result.status,
               if (result.phase != null) 'phase': result.phase,
+              if (!result.ok) 'failureStreak': _failureStreak,
               'elapsedMs': DateTime.now().difference(startedAt).inMilliseconds,
             },
           );
@@ -452,6 +485,7 @@ class WebViewSessionCookieRefreshService {
     final handlerName =
         'fluxdo_session_bootstrap_${DateTime.now().microsecondsSinceEpoch}';
     final completer = Completer<Map<String, dynamic>>();
+    final freshPlugin = _forceFreshPlugin;
 
     controller.addJavaScriptHandler(
       handlerName: handlerName,
@@ -475,7 +509,14 @@ class WebViewSessionCookieRefreshService {
     );
 
     try {
-      await _injectPluginCandidates(controller, pluginCandidates);
+      await _injectPluginCandidates(
+        controller,
+        freshPlugin ? null : pluginCandidates,
+      );
+      await controller.evaluateJavascript(
+        source:
+            'window.__fluxdoFreshPlugin = ${freshPlugin ? 'true' : 'false'};',
+      );
       final script = _bootstrapScript(handlerName);
       await controller.evaluateJavascript(source: script);
       final result = await completer.future.timeout(timeout);
@@ -484,11 +525,17 @@ class WebViewSessionCookieRefreshService {
       final endpoint = result['endpoint']?.toString();
       final status = (result['status'] as num?)?.toInt();
       final phase = result['phase']?.toString();
+      if (ok) {
+        _forceFreshPlugin = false;
+      } else if (status == 404 || phase == 'discover') {
+        _forceFreshPlugin = true;
+        PreloadedDataService().invalidatePluginCandidates();
+      }
       debugPrint(
         '[WebViewSessionSync] bootstrap result: ok=$ok cfBlocked=$cfBlocked '
         'reason=$reason phase=$phase '
         'plugin=${result['plugin']} endpoint=$endpoint status=$status '
-        'error=${result['error']}',
+        'fresh=$freshPlugin error=${result['error']}',
       );
       final logLevel = ok ? 'info' : 'warning';
       if (RuntimeLogSettings.shouldPersistDiagnosticEvent(level: logLevel)) {
@@ -501,6 +548,7 @@ class WebViewSessionCookieRefreshService {
           'reason': reason,
           'ok': ok,
           if (cfBlocked) 'cfBlocked': true,
+          if (freshPlugin) 'freshPlugin': true,
           'phase': phase,
           'plugin': result['plugin']?.toString(),
           'endpoint': endpoint,
@@ -672,13 +720,14 @@ document.close();
   }
 
   async function findFingerprintPlugin() {
+    const freshPlugin = window.__fluxdoFreshPlugin === true;
     const candidates = await discoverPluginUrls();
     for (const url of candidates) {
       try {
         const response = await fetch(url, {
           method: 'GET',
           credentials: 'omit',
-          cache: 'force-cache'
+          cache: freshPlugin ? 'reload' : 'force-cache'
         });
         if (!response.ok) continue;
         const source = await response.text();

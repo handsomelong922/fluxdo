@@ -102,6 +102,27 @@ void main() {
       expect(preloaded.topicTrackingStatesSync, same(states));
     },
   );
+
+  test('invalidatePluginCandidates discards stale bootstrap assets', () async {
+    final preloaded = PreloadedDataService();
+    final html = _preloadedHtml(topicList: _emptyTopicList()).replaceFirst(
+      '</head>',
+      '<script src="/assets/plugins/fingerprint/plugin.js"></script></head>',
+    );
+
+    expect(await preloaded.hydrateFromHtml(html), isTrue);
+    for (
+      var attempt = 0;
+      attempt < 100 && preloaded.pluginCandidatesSync == null;
+      attempt++
+    ) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+
+    expect(preloaded.pluginCandidatesSync, isNotEmpty);
+    preloaded.invalidatePluginCandidates();
+    expect(preloaded.pluginCandidatesSync, isNull);
+  });
 }
 
 String _preloadedHtml({

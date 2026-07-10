@@ -2,6 +2,41 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/services/webview_session_cookie_refresh_service.dart';
 
 void main() {
+  test('bootstrap failure cooldown grows exponentially and caps at 15m', () {
+    expect(
+      webViewSessionFailureCooldownForStreak(0),
+      const Duration(seconds: 45),
+    );
+    expect(
+      webViewSessionFailureCooldownForStreak(1),
+      const Duration(seconds: 45),
+    );
+    expect(
+      webViewSessionFailureCooldownForStreak(2),
+      const Duration(seconds: 90),
+    );
+    expect(
+      webViewSessionFailureCooldownForStreak(3),
+      const Duration(minutes: 3),
+    );
+    expect(
+      webViewSessionFailureCooldownForStreak(4),
+      const Duration(minutes: 6),
+    );
+    expect(
+      webViewSessionFailureCooldownForStreak(5),
+      const Duration(minutes: 12),
+    );
+    expect(
+      webViewSessionFailureCooldownForStreak(6),
+      const Duration(minutes: 15),
+    );
+    expect(
+      webViewSessionFailureCooldownForStreak(99),
+      const Duration(minutes: 15),
+    );
+  });
+
   group('fingerprint endpoint extraction', () {
     test('accepts changing minified JavaScript identifiers', () {
       expect(

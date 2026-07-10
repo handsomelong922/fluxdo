@@ -1392,6 +1392,7 @@ mixin _AuthMixin on _DiscourseServiceBase {
     _userSummaryCacheTime = null;
     await _storage.delete(key: DiscourseService._usernameKey);
     _credentialsLoaded = false;
+    WebViewSessionCookieRefreshService.instance.resetSessionState();
 
     // ===== 第五步：清除 Cookie（保留 cf_clearance）=====
     await _cookieSync.reset();
