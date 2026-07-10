@@ -44,6 +44,52 @@ Evidence:
 - Startup request ranking and other performance diagnostics must not depend on verbose release-mode disk logging. Keep ranking/session inspection in memory when possible, and gate high-frequency request/cookie/WebView trace persistence behind explicit developer mode or warning/error paths.
 - List providers that support sort/filter switching plus pagination must treat in-flight page requests as generation-scoped. A stale page or stale sort response must not write old `roots/items/sort/page` back over the current state.
 
+## Scenario: Stable User Profile Summary Geometry
+
+### 1. Scope / Trigger
+- Trigger: changing the expanded user-profile header, follow/follower counts, summary statistics, or the transition from profile loading to loaded content.
+
+### 2. Signatures
+- `UserProfileStatsArea(summary: UserSummary?, isSummaryLoading: bool, ...)`
+- Fixed geometry: one follow/follower row plus one likes/views/topics/replies row inside a 50 logical-pixel area.
+
+### 3. Contracts
+- Once the base user profile is available, always mount the two-row stats area even when summary is loading or failed.
+- Loading and failure placeholders use the same outer dimensions as the final values; summary arrival must not move the avatar, name, last-seen text, tabs, or following content.
+- Compact labels remain single-line on narrow screens through scale-down behavior rather than wrapping and increasing height.
+- Follow/follower tap targets and final-value tooltips remain usable; placeholders are visual only and do not invent click actions.
+- Do not delay the whole profile page until summary completes merely to avoid layout shift.
+
+### 4. Validation & Error Matrix
+- User loads first, summary later -> page shell appears and the widget below the stats area keeps the same vertical position.
+- Summary fails -> the reserved area remains; no collapse or second layout jump.
+- Narrow width or longer localized labels -> rows scale down without overflow or extra height.
+- Follow/follower counts are available before summary -> their normal tap behavior remains active.
+
+### 5. Good/Base/Bad Cases
+- Good: a fixed wrapper switches only the row contents from placeholders to real values.
+- Base: the full-page skeleton may still be used while the base user object is unavailable.
+- Bad: `if (summary != null) UserStats(...)`, which inserts the whole block late and shifts the header.
+
+### 6. Tests Required
+- Widget-test the vertical position of content after the stats area before and after summary completion.
+- Widget-test narrow-width single-line behavior and follow/follower taps.
+- Keep profile request-option tests separate from layout tests so network and geometry failures are independently diagnosable.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+if (summary != null) UserStats(summary: summary),
+```
+
+#### Correct
+```dart
+UserProfileStatsArea(
+  summary: summary,
+  isSummaryLoading: isSummaryLoading,
+),
+```
+
 ## Scenario: Async Sorted List Provider Requests
 
 ### 1. Scope / Trigger
@@ -185,55 +231,118 @@ await AppLogSettingsService.instance.setEnabled(false);
 await AppLogSettingsService.instance.setMaxEntries(150);
 ```
 
-## Scenario: Topic Detail Deferred Media Loading During Active Scroll
+## Scenario: Scroll-Busy Media And Background Work Coordination
 
 ### 1. Scope / Trigger
-- Trigger: changing topic-detail long-post image rendering, `LazyImage`, `d-image-grid`, `LazyLoadScope`, or scroll-notification handling in `TopicPostList`.
+- Trigger: changing standalone post images, image grids, AVIF animation, global scroll notifications, or the persistent CF Headless WebView.
 
 ### 2. Signatures
-- `class LazyLoadPauseScope extends InheritedNotifier<ValueListenable<bool>>`
-- `LazyImage(...)`
-- `_GridImageTileState._scheduleLoadIfReady()`
-- `_TopicPostListState._resumeAutoLoadReplies()`
+- `ScrollBusySignal.touch()` / `ScrollBusySignal.isBusy`
+- `constrainImageDecodeSize(...) -> ImageDecodeSize`
+- `ResizeImage(..., policy: ResizeImagePolicy.fit)`
+- `decideCfWebViewScrollPauseAction(...) -> CfWebViewScrollPauseAction`
+- `InAppWebViewController.pause()` / `resume()` on Android only
 
 ### 3. Contracts
-- Topic-detail descendants may expose a `LazyLoadPauseScope` whose notifier is `true` while the list is actively scrolling and returns to `false` only after the existing mobile idle delay.
-- Visibility-triggered first loads for post images must check the pause scope before calling `setState(() => _shouldLoad = true)`.
-- When the pause scope flips back to `false`, topic detail should call `VisibilityDetectorController.instance.notifyNow()` so currently visible placeholders load immediately instead of waiting for the mobile detector interval.
-- Standalone post images with stable width/height metadata should prefer the same lazy-loading path as gallery/grid images instead of starting network/decode work the moment the post widget builds.
+- The app root may call `ScrollBusySignal.touch()` on scroll start/update, but the signal must remain timestamp-only: no listeners, provider writes, or widget rebuilds on the hot path.
+- Standalone topic images must mount a normal Flutter `Image` without a per-image `VisibilityDetector`; rely on sliver virtualization and Flutter's scroll-aware image provider behavior.
+- Decode constraints use the rendered logical size times DPR and cap both width and height/long edge. The full-screen image viewer keeps the original provider path.
+- Standalone images, gallery tiles, and animated media own an image-local `RepaintBoundary`; an unknown-size image may remember its decoded aspect ratio to stabilize recycle/rebuild geometry.
+- AVIF animation freezes the current frame while `ScrollBusySignal.isBusy` and resumes decoding after the busy window; do not replace the current frame with a placeholder.
+- The CF WebView ticker runs only on Android after the initial Turnstile request has appeared. Pause only while scrolling is busy, `_initialTimer == null`, and no RC request is active; an active RC request or scroll idle must resume it.
+- CF pause/resume transitions are serialized and generation/controller scoped. Stop, app-background pause, disposal, startup failure, and a new WebView generation cancel the ticker and clear the scroll-pause state.
+- A failed pause keeps the internal state resumed. A failed resume keeps the state paused so the next ticker retries; never mark a failed resume as completed.
+- Do not add `ImagePaintGate`, scroll anchoring, or a transition-time body-hiding branch through this contract.
 
 ### 4. Validation & Error Matrix
-- Visible image enters viewport while pause scope is `true` -> keep placeholder only; do not start the first image load.
-- Same image remains visible after pause scope becomes `false` -> load starts on the next frame without requiring another manual scroll.
-- Topic detail has no pause scope ancestor -> existing lazy-image behavior continues; do not block image loading globally.
-- Scroll ends on mobile with throttled `VisibilityDetector` updates -> `notifyNow()` flushes visible detectors so image loading does not lag for up to the global interval.
+- Fast scroll through large standalone images -> no detector callback churn; decode size stays within both caps.
+- Open the image viewer -> original/full-resolution provider remains available.
+- Scroll starts during AVIF playback -> current frame remains painted and no new animation frame is decoded until idle.
+- Non-Android CF service -> no WebView pause/resume platform call.
+- Initial Turnstile or active RC request -> CF WebView remains resumed even while scrolling.
+- Resume throws -> state remains retryable as paused; stop/dispose still clears it without depending on a successful resume.
 
 ### 5. Good/Base/Bad Cases
-- Good: fast-flinging through an image-heavy long topic keeps placeholders during the drag, then visible images start decoding only after the list settles.
-- Base: off-topic surfaces without the pause scope still load visible images as before.
-- Bad: every `VisibilityDetector` callback starts image decoding during active drag, or visible placeholders remain blank for a long time after scrolling stops because no detector flush occurs.
+- Good: one root scroll timestamp coordinates AVIF and CF background work, while image widgets stay virtualized and repaint-isolated.
+- Base: non-topic images may keep their established loading mechanism when they are not in the long scrolling post pipeline.
+- Bad: one `VisibilityDetector` per standalone post image, width-only decode caps for long screenshots, or calling WebView pause/resume directly from every scroll notification.
 
 ### 6. Tests Required
-- Widget-test that `LazyImage` stays unloaded while a visible pause scope is `true`.
-- Widget-test that the same `LazyImage` loads once the pause scope flips to `false`.
-- Keep topic-detail scroll performance tests green to ensure the scroll pipeline still compiles with the added pause scope.
+- Widget-test that `LazyImage` mounts an `Image` without a `VisibilityDetector` and remembers decoded aspect ratio.
+- Unit-test decode width/height caps and `ScrollBusySignal` busy/idle windows.
+- Keep image-viewer tests proving the original-image path and interactive preview behavior.
+- Unit-test CF decisions for non-Android, initial challenge, active RC, busy pause, idle resume, and already-matching states.
+- Run CF challenge, WebView session, and cookie-boundary regressions after changing the ticker lifecycle.
 
 ### 7. Wrong vs Correct
 #### Wrong
 ```dart
-onVisibilityChanged: (info) {
-  if (info.visibleFraction > 0) {
-    _triggerLoad();
-  }
-}
+VisibilityDetector(
+  onVisibilityChanged: (info) => setState(() => shouldLoad = info.visibleFraction > 0),
+  child: Image(image: provider),
+);
 ```
 
 #### Correct
 ```dart
-onVisibilityChanged: (info) {
-  _isVisible = info.visibleFraction > 0;
-  _scheduleLoadIfReady();
-}
+RepaintBoundary(
+  child: Image(
+    image: ResizeImage(provider, width: targetWidth, height: targetHeight),
+  ),
+);
+```
+
+## Scenario: Topic Post Progressive Materialization
+
+### 1. Scope / Trigger
+- Trigger: changing `TopicPostList` first mount, append/prepend pagination, long-post segmentation, parse warm-up, or the center post used for jump navigation.
+
+### 2. Signatures
+- `detectTopicPostGrowth(oldPostIds, newPostIds) -> TopicPostGrowth?`
+- `planTopicPostPagingMaterialization(...) -> TopicPostMaterializationPlan?`
+- `initialAfterMaterializationCap(segmentPostIds, centerScrollIndex)`
+- `didTopicPostCenterChange(...) -> bool`
+- `materializedSegmentCount(total, cap) -> int`
+
+### 3. Contracts
+- First mount may cap both remote sides and grow by four segments per frame, but the center post's complete segment run plus four nearby after-segments must be present on the first frame.
+- This complete-center rule protects the home-detail preview handoff: `initialTopicPreview`, `_initialPreviewDetail`, and `mergeTopicDetailWithInitialPreview` must still show the full OP immediately while replies continue loading.
+- Restart a cap only for a pure append or pure prepend with at least eight new segments. Gap fill, replacement, and small growth keep the previous all-at-once behavior.
+- A paging cap starts no lower than the previously loaded side plus four, so already materialized elements are never removed.
+- Prepend index shifts that retain the same center `postNumber` do not count as a center change. An explicit same-topic center change releases current caps so old materialized elements are not reinterpreted around the new center.
+- New-page parse warm-up is generation-scoped and scheduled at idle priority. Long posts reuse `HtmlChunkCache`/`LongPostRenderData`; short posts may warm `GalleryInfo`. Warm-up failure must not affect normal rendering fallback.
+- Do not apply this cap to nested/tree lists or replace the existing jump, search, MessageBus, gap, and load-more provider semantics.
+
+### 4. Validation & Error Matrix
+- Long OP split into more than four segments -> every OP segment is visible on first paint, then nearby replies materialize progressively.
+- Tail append -> only the after cap restarts; old visible elements keep identity.
+- Head prepend -> only the before cap restarts and the logical center remains the same post.
+- Middle gap fill or whole-window replacement -> no paging plan is created.
+- Explicit local jump while caps are active -> caps open rather than unloading old elements around the new center.
+- A second page arrives during warm-up -> the previous generation exits without writing stale work.
+
+### 5. Good/Base/Bad Cases
+- Good: the preview OP paints fully, pagination adds distant reply segments over several frames, and cached parsing reduces build-frame work.
+- Base: a small page or gap fill uses normal sliver virtualization without an extra materialization cap.
+- Bad: a fixed four-segment after cap truncates a long OP, or prepend index movement is mistaken for a new center target.
+
+### 6. Tests Required
+- Unit-test append, prepend, gap, replacement, small-growth, complete-center, cap clamp, prepend center shift, and explicit center change.
+- Keep topic preview, jump-target, render-identity, scroll-performance, long-post cache, and MessageBus batching tests green.
+- Verify tree view and explicit search targets still use their existing navigation semantics.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+_materializeCapAfter = 4;
+```
+
+#### Correct
+```dart
+_materializeCapAfter = initialAfterMaterializationCap(
+  segmentPostIds: segmentPostIds,
+  centerScrollIndex: centerScrollIndex,
+);
 ```
 
 ## Scenario: Nested Reply Auto-Load During Active Scroll

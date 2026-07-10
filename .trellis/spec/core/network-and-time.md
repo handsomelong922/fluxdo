@@ -21,6 +21,62 @@ Evidence:
 - Preserve platform-specific adapter boundaries under `lib/services/network/adapters/` and `lib/services/network/cookie/strategy/`.
 - Startup first-screen read requests may set `skipWebViewSessionSyncExtraKey` only when they are safe idempotent reads such as the visible topic-list first page or silent home first-post previews. This skips waiting for `WebViewSessionCookieRefreshService.ensureSynced()` but still lets the session sync continue in the background. Do not apply it to login/session recovery, CSRF, CF challenge, mutations, or requests that require a freshly bootstrapped WebView runtime session cookie.
 
+## Scenario: Visible User Profile Read Bootstrap
+
+### 1. Scope / Trigger
+- Trigger: changing the first-load path for another user's profile, profile summary statistics, or request extras used by `/u/:username` reads.
+
+### 2. Signatures
+- `Options visibleUserProfileReadOptions()`
+- `GET /u/{Uri.encodeComponent(username)}.json`
+- `GET /u/{Uri.encodeComponent(username)}/summary.json`
+- Request extras:
+  - `priority: "high"`
+  - `skipWebViewSessionSync: true`
+  - `backgroundWebViewSessionSync: true`
+
+### 3. Contracts
+- Start the profile and summary requests concurrently; profile data remains the page-shell gate, while summary failure or latency must not cancel the profile request.
+- Only the two user-profile endpoints above may use `visibleUserProfileReadOptions()`.
+- Skipping the blocking session-sync wait must still trigger best-effort background WebView session sync through the explicit background flag.
+- Preserve existing in-flight dedupe, five-minute summary cache, follow/block/notification mutations, and normal 401/403/CF recovery.
+- Do not reuse this helper for login, CSRF, CF challenge, private messages, bookmarks, mutations, or generic user-content lists.
+
+### 4. Validation & Error Matrix
+- Profile succeeds before summary -> reveal the stable profile shell immediately; fill summary later.
+- Summary fails -> keep the profile usable and retain the fixed summary placeholder geometry.
+- Profile fails while summary succeeds -> show the existing profile error path; do not treat summary as a complete profile.
+- Background session sync fails -> the safe GET may still complete with current cookies; existing auth/CF interceptors remain authoritative for recovery.
+
+### 5. Good/Base/Bad Cases
+- Good: both requests start in `initState`, use the dedicated options helper, and catch errors independently.
+- Base: a cached summary may complete immediately while the profile request is still the page-shell gate.
+- Bad: `await getUser()` before starting `getUserSummary()`, or globally marking all visible reads as session-sync-skipping.
+
+### 6. Tests Required
+- Assert the dedicated options contain high priority, blocking-sync skip, and background-sync flags.
+- Assert an ordinary skip-only request does not silently gain background sync behavior.
+- Keep request-session policy tests proving foreground interactive requests still wait for session sync.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+final user = await service.getUser(username);
+final summary = await service.getUserSummary(username);
+```
+
+#### Correct
+```dart
+final summaryFuture = loadSummaryWithIndependentErrorHandling();
+try {
+  final user = await service.getUser(username);
+  revealProfileShell(user);
+} catch (error) {
+  showProfileError(error);
+}
+await summaryFuture;
+```
+
 ## Scenario: Discourse Plugin Mutation Endpoints
 
 ### 1. Scope / Trigger
