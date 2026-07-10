@@ -128,8 +128,10 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
   }
 
   Future<void> _loadUser() async {
+    final service = ref.read(discourseServiceProvider);
+    final summaryFuture = _loadSummary();
+
     try {
-      final service = ref.read(discourseServiceProvider);
       final user = await service.getUser(widget.username);
 
       if (mounted) {
@@ -151,9 +153,12 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
           _isLoading = false;
         });
       }
-      return;
     }
 
+    await summaryFuture;
+  }
+
+  Future<void> _loadSummary() async {
     try {
       final summary = await ref
           .read(discourseServiceProvider)

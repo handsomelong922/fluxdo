@@ -69,6 +69,10 @@ part '_revisions.dart';
 const String skipWebViewSessionSyncExtraKey = 'skipWebViewSessionSync';
 
 @visibleForTesting
+const String backgroundWebViewSessionSyncExtraKey =
+    'backgroundWebViewSessionSync';
+
+@visibleForTesting
 bool shouldAwaitWebViewSessionSyncForRequest({
   required Map<String, dynamic> extra,
   required Map<String, dynamic> headers,
@@ -78,6 +82,18 @@ bool shouldAwaitWebViewSessionSyncForRequest({
   final isBackgroundRequest =
       isSilentRequest || headers['Discourse-Background']?.toString() == 'true';
   return !isBackgroundRequest;
+}
+
+@visibleForTesting
+bool shouldStartBackgroundWebViewSessionSyncForRequest({
+  required Map<String, dynamic> extra,
+  required Map<String, dynamic> headers,
+}) {
+  if (shouldAwaitWebViewSessionSyncForRequest(extra: extra, headers: headers)) {
+    return false;
+  }
+  return extra[skipWebViewSessionSyncExtraKey] != true ||
+      extra[backgroundWebViewSessionSyncExtraKey] == true;
 }
 
 Options _withSkipWebViewSessionSync(Options? options) {
@@ -107,6 +123,17 @@ Options _foregroundReadOptions({Options? options}) {
   final extra = <String, dynamic>{...?options?.extra};
   extra['priority'] = 'high';
   return (options ?? Options()).copyWith(extra: extra);
+}
+
+@visibleForTesting
+Options visibleUserProfileReadOptions({Options? options}) {
+  final extra = <String, dynamic>{...?options?.extra};
+  extra[backgroundWebViewSessionSyncExtraKey] = true;
+  return _withSkipWebViewSessionSync(
+    _foregroundReadOptions(
+      options: (options ?? Options()).copyWith(extra: extra),
+    ),
+  );
 }
 
 @visibleForTesting

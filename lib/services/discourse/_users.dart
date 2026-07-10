@@ -43,7 +43,10 @@ mixin _UsersMixin on _DiscourseServiceBase {
   }
 
   Future<User> _fetchUser(String username) async {
-    final response = await _dio.get('/u/$username.json');
+    final response = await _dio.get(
+      '/u/$username.json',
+      options: visibleUserProfileReadOptions(),
+    );
     final data = response.data as Map<String, dynamic>;
     return User.fromJson(data['user'] ?? data);
   }
@@ -110,7 +113,10 @@ mixin _UsersMixin on _DiscourseServiceBase {
   }
 
   Future<UserSummary> _fetchUserSummary(String username) async {
-    final response = await _dio.get('/u/$username/summary.json');
+    final response = await _dio.get(
+      '/u/$username/summary.json',
+      options: visibleUserProfileReadOptions(),
+    );
     final summary = UserSummary.fromJson(response.data);
 
     _cachedUserSummary = summary;
