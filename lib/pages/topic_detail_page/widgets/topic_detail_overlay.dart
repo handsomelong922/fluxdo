@@ -75,30 +75,32 @@ class TopicDetailOverlay extends StatelessWidget {
 
     final fabVisibleBottom = bottomPadding + (80 - bottomPadding - 56) / 2;
 
-    final progress = ValueListenableBuilder<int>(
-      valueListenable: currentStreamIndexListenable,
-      builder: (context, currentStreamIndex, _) {
-        final progressPercent = totalCount > 1
-            ? (currentStreamIndex - 1) / (totalCount - 1)
-            : 0.0;
-        return Center(
-          child: TopicProgressGestures(
-            onAction: (action) {
-              if (action == ProgressGestureAction.openTimeline) {
-                onProgressTap();
-              } else {
-                onProgressAction?.call(action);
-              }
-            },
-            child: TopicProgress(
-              currentIndex: currentStreamIndex,
-              totalCount: totalCount,
-              progressPercent: progressPercent,
-              onTap: onProgressTap,
+    final progress = RepaintBoundary(
+      child: ValueListenableBuilder<int>(
+        valueListenable: currentStreamIndexListenable,
+        builder: (context, currentStreamIndex, _) {
+          final progressPercent = totalCount > 1
+              ? (currentStreamIndex - 1) / (totalCount - 1)
+              : 0.0;
+          return Center(
+            child: TopicProgressGestures(
+              onAction: (action) {
+                if (action == ProgressGestureAction.openTimeline) {
+                  onProgressTap();
+                } else {
+                  onProgressAction?.call(action);
+                }
+              },
+              child: TopicProgress(
+                currentIndex: currentStreamIndex,
+                totalCount: totalCount,
+                progressPercent: progressPercent,
+                onTap: onProgressTap,
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
 
     final bottomBar = Center(

@@ -1197,19 +1197,22 @@ class _TopicPostListState extends State<TopicPostList> {
         break;
     }
 
+    final tagChild = segment.type == _PostRenderSegmentType.shortPost
+        ? child
+        : Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => _rememberLongSelectionPost(post),
+            child: child,
+          );
     final wrapped = _wrapContent(
       context,
       AutoScrollTag(
         key: ValueKey(_segmentKey(segment)),
         controller: scrollController,
         index: segment.scrollIndex,
-        child: segment.type == _PostRenderSegmentType.shortPost
-            ? child
-            : Listener(
-                behavior: HitTestBehavior.translucent,
-                onPointerDown: (_) => _rememberLongSelectionPost(post),
-                child: child,
-              ),
+        // 帖子高亮由 PostItem 自己处理，直通现有 child，避免每个 segment
+        // 常驻默认 DecoratedBoxTransition 和 DecorationTween。
+        builder: (context, animation) => tagChild,
       ),
     );
 
