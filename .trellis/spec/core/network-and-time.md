@@ -130,6 +130,121 @@ Evidence:
 - `lib/services/network/cookie/`
 - `lib/services/network/adapters/`
 
+## Scenario: WebView Session Bootstrap Retry Governance
+
+### 1. Scope / Trigger
+- Trigger: changing fingerprint plugin discovery, WebView session bootstrap success caching, failure retry timing, logout state reset, or plugin candidate preloading.
+
+### 2. Signatures
+- `WebViewSessionCookieRefreshService.ensureSynced({reason, force})`
+- `WebViewSessionCookieRefreshService.markSynced(...)`
+- `WebViewSessionCookieRefreshService.resetSessionState({reason})`
+- `PreloadedDataService.invalidatePluginCandidates()`
+- Failure cooldown: `45s -> 90s -> 3m -> 6m -> 12m -> 15m cap`.
+
+### 3. Contracts
+- A successful bootstrap is cached for the current process × login session; ordinary foreground/background requests must not restart the Headless WebView every 15 minutes.
+- `force: true` may bypass success/cooldown only for explicit login or CF recovery paths; it does not create a scheduler bypass for native requests.
+- Every executed failure increments the streak once. Cooldown/active-join/no-token early returns do not increment it.
+- Fingerprint endpoint 404 or `phase == "discover"` invalidates preloaded plugin candidates and marks the next attempt for one fresh discover. Do not retry inside the same failure callback.
+- Fresh discover omits injected candidates and loads plugin JavaScript with `cache: reload`; normal discovery keeps `force-cache`.
+- Success and `markSynced` reset failure/fresh state. Logout resets success, last-attempt, failure, and fresh state before the next account session.
+- Endpoint extraction may accept changing minified function identifiers, but must remain bounded by the stable `POST` plus `visitor_id` request shape.
+
+### 4. Validation & Error Matrix
+- Endpoint POST returns 404 -> finish current attempt, invalidate candidates, apply exponential cooldown, fresh-discover on the next allowed attempt.
+- Plugin cannot be discovered -> same stale-candidate behavior as 404; no immediate second WebView lifecycle.
+- Network/CF failure -> return the existing failure result; BrowserTrust/CF recovery remains authoritative and may later call `force`.
+- Bootstrap succeeds -> sync cookies through `BoundarySyncService`, mark the login session successful, and stop ordinary repeat bootstraps.
+- Logout/account switch -> next authenticated session performs a new bootstrap; old success state cannot suppress it.
+
+### 5. Good/Base/Bad Cases
+- Good: a stale endpoint causes increasingly sparse attempts and one fresh plugin fetch after cooldown.
+- Base: normal login runs bootstrap once, then SPA-like app navigation reuses the session state.
+- Bad: fixed 45-second retries for permanent 404, immediate retry inside `runOnController`, or clearing/replacing the CookieJar/BrowserTrust architecture.
+
+### 6. Tests Required
+- Assert the exact cooldown sequence and 15-minute cap.
+- Assert fingerprint regex accepts `_`, `L`, and `$a1`, while rejecting invalid identifiers, GET requests, and missing `visitor_id` shape.
+- Assert stale plugin candidates can be invalidated and rebuilt by later preload parsing.
+- Keep Cookie/CF, login/logout, request-session policy, and full Flutter tests green.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+if (result.status == 404) {
+  await runOnController(controller); // immediate full WebView retry
+}
+```
+
+#### Correct
+```dart
+if (result.status == 404 || result.phase == 'discover') {
+  markNextAttemptFresh();
+  PreloadedDataService().invalidatePluginCandidates();
+}
+// The next attempt runs only after exponential cooldown.
+```
+
+## Scenario: Upload Short URL Lookup Containment
+
+### 1. Scope / Trigger
+- Trigger: changing `/uploads/lookup-urls`, `resolveShortUpload`, upload image rendering, Notion short-link replacement, or caches containing `upload://` keys.
+
+### 2. Signatures
+- `POST /uploads/lookup-urls`
+- Body: `{ "short_urls": List<String> }`
+- `ResolvedUploadUrl.missing`
+- `DiscourseService.resolveShortUpload(String) -> Future<ResolvedUploadUrl?>`
+- `DiscourseImageUtils.resolveUploadUrl(String) -> Future<String?>`
+
+### 3. Contracts
+- Same short URL shares one active Future. Different short URLs created in the same short event-loop window are sent in one POST.
+- The lookup request must use the normal `DiscourseDio` interceptor chain; do not set `skipScheduler` and do not add client-side multi-retry loops.
+- HTTP success plus an absent requested key means confirmed missing and may be cached as `ResolvedUploadUrl.missing`.
+- Network errors, CF/auth failures, 429, malformed responses, or other thrown failures are transient: return null, do not write missing, and allow a later scheduler-governed attempt.
+- Positive and negative service cache entries share a bounded LRU capacity. Logout clears them and invalidates old-session in-flight responses by generation.
+- Widget-level image cache may store positive URLs and confirmed missing null entries, but must not cache transient null. Reading a null LRU entry must not remove it accidentally.
+- `resolveShortUrl`, link resolution, image rendering, and Notion export must treat `missing` as unavailable; never call `mediaUrl()`/`linkUrl()` on the sentinel.
+
+### 4. Validation & Error Matrix
+- Two widgets request the same short URL synchronously -> one Future and one network key.
+- Several images request different short URLs in one build -> one POST containing all keys.
+- Successful response omits one key -> returned keys resolve; omitted key becomes cached missing and causes zero later requests.
+- First request throws, second later succeeds -> first returns null without cache; second sends a new request and resolves.
+- Logout during pending/in-flight lookup -> pending callers complete safely; old response does not populate the new session cache.
+
+### 5. Good/Base/Bad Cases
+- Good: a post with five upload images emits one lookup POST; a deleted sixth upload becomes a bounded negative cache entry.
+- Base: a single uncached upload waits for the micro-batch window and sends one normal request.
+- Bad: every `FutureBuilder` rebuild sends its own POST, caching all failures as null, or retrying 429 three times from the upload layer.
+
+### 6. Tests Required
+- Assert same-key Future identity/in-flight dedupe and multi-key micro-batching.
+- Assert confirmed missing is cached and does not retry.
+- Assert transient failure is not cached and can recover.
+- Assert widget cache preserves a missing null entry and does not cache transient null.
+- Assert reset completes unsent batches without a request and prevents stale-session cache writes.
+- Assert Notion leaves confirmed-missing short links unchanged.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+final resolved = await service.resolveShortUrl(shortUrl);
+cache[shortUrl] = resolved; // transient null becomes permanent
+```
+
+#### Correct
+```dart
+final resolved = await service.resolveShortUpload(shortUrl);
+if (resolved == null) return null; // transient, retry later
+if (resolved.isMissing) {
+  cacheConfirmedMissing(shortUrl);
+  return null;
+}
+return resolved.mediaUrl();
+```
+
 ## Links And Routing
 
 - Internal topic link extraction and internal-link routing must use compatible URL normalization.
