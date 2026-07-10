@@ -638,3 +638,85 @@ Evidence:
 - `packages/enhanced_cookie_jar/`
 - `packages/flutter_inappwebview_linux/`
 - `.trellis/spec/guides/cross-layer-thinking-guide.md`
+
+## Scenario: Topic MessageBus Backlog Batching
+
+### 1. Scope / Trigger
+
+- Trigger: changing topic-channel post updates, typing presence, MessageBus JSON
+  decoding, or topic-detail handling of `created/revised/acted/liked/boost` events.
+
+### 2. Signatures
+
+- `TopicChannelState.postUpdates` is the latest batch, not an accumulated history.
+- `TopicChannelState.postUpdatesGeneration` increments once per non-empty flush.
+- `dedupePostUpdateBatch(Iterable<PostUpdate>) -> List<PostUpdate>`
+- `networkRefreshPostCount(Iterable<PostUpdate>) -> int`
+- `decodeMessageBusMessages(String, {int isolateDecodeThreshold})`
+
+### 3. Contracts
+
+- `TopicChannelNotifier` must collect synchronously dispatched post updates and publish
+  them once at the next microtask boundary.
+- Consumers detect a new batch by generation change and consume the whole batch once.
+- Ordinary updates dedupe by `postId + type`; boost updates dedupe only when a boost id
+  exists, and distinct/unknown-id increments must remain separate.
+- During active topic scrolling, non-`created` updates that can change layout stay deferred
+  until idle. `created` updates continue updating the stream immediately.
+- More than eight different posts requiring individual network refreshes collapse into one
+  `refreshWithPostNumber(anchor)` final-state refresh. The current viewport anchor must be
+  preserved.
+- MessageBus chunks at or above 32 KiB decode with `compute`; smaller chunks decode on the
+  main isolate. Callers await chunks sequentially so channel/message order cannot change.
+- Presence updates may debounce for 200ms, but pending enter/leave changes must accumulate
+  on the pending list and all timers must be canceled on provider disposal.
+
+### 4. Validation & Error Matrix
+
+- Same post/type repeated in one poll -> keep the latest payload only.
+- Two different boost ids -> keep both; missing boost ids -> keep every event.
+- Large backlog while scrolling -> apply `created`, defer the remainder, collapse only after
+  scroll idle.
+- Provider disposed before microtask/timer -> do not write state.
+- Large and small JSON decode paths -> return identical ordered messages.
+- Invalid JSON -> log the existing decode error and keep the polling loop alive.
+
+### 5. Good/Base/Bad Cases
+
+- Good: background resume publishes one generation and either applies a small deduped batch
+  or performs one anchored final-state refresh.
+- Base: normal real-time traffic usually publishes one or two updates per generation.
+- Bad: append every event to an ever-growing state list, notify Riverpod for every message,
+  or launch one post request/rebuild per backlog event.
+
+### 6. Tests Required
+
+- Unit-test ordinary update and boost-id dedupe behavior.
+- Unit-test unique network-refresh post counting using the current notifier semantics.
+- Test `TopicChannelState.copyWith` generation retention/advance.
+- Test synchronous and forced-isolate MessageBus decode paths for identical ordering.
+- Keep topic preview, jump target, scrolling, and overlay tests green because backlog refresh
+  must not break the first-post preview handoff or viewport anchoring.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```dart
+final updates = [...state.postUpdates, update];
+state = state.copyWith(postUpdates: updates);
+for (final update in newUpdates) {
+  notifier.refreshPost(update.postId);
+}
+```
+
+#### Correct
+
+```dart
+_pendingUpdates.add(update);
+scheduleMicrotask(_flushPostUpdateBatch);
+
+if (next.postUpdatesGeneration != previous?.postUpdatesGeneration) {
+  _handlePostUpdateBatch(notifier, next.postUpdates);
+}
+```
