@@ -83,6 +83,30 @@ void main() {
     expect(materializedSegmentCount(total: 5, cap: -1), 0);
   });
 
+  test('主动滚动期间暂停渐进物化，结束后继续', () {
+    expect(
+      shouldAdvanceTopicPostMaterialization(
+        isScrollActive: true,
+        hasPendingMaterialization: true,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldAdvanceTopicPostMaterialization(
+        isScrollActive: false,
+        hasPendingMaterialization: true,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldAdvanceTopicPostMaterialization(
+        isScrollActive: false,
+        hasPendingMaterialization: false,
+      ),
+      isFalse,
+    );
+  });
+
   test('prepend 平移 center 索引不视为显式换中心', () {
     expect(
       didTopicPostCenterChange(

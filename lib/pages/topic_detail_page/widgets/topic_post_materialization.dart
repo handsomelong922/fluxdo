@@ -87,6 +87,13 @@ int materializedSegmentCount({required int total, required int? cap}) {
   return cap.clamp(0, total);
 }
 
+bool shouldAdvanceTopicPostMaterialization({
+  required bool isScrollActive,
+  required bool hasPendingMaterialization,
+}) {
+  return !isScrollActive && hasPendingMaterialization;
+}
+
 bool didTopicPostCenterChange({
   required List<int> oldPostNumbers,
   required int oldCenterPostIndex,

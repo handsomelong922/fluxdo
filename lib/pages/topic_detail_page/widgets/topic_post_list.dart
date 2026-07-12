@@ -207,6 +207,7 @@ class _TopicPostListState extends State<TopicPostList> {
   int? _materializeCapAfter;
   bool _initialMaterializationInitialized = false;
   bool _materializeTicking = false;
+  bool _materializationPausedForScroll = false;
   int _parseWarmUpGeneration = 0;
 
   /// postNumber → postIndex 反查表（避免 indexWhere 线性查找）
@@ -244,6 +245,7 @@ class _TopicPostListState extends State<TopicPostList> {
       _materializeCapBefore = null;
       _materializeCapAfter = null;
       _initialMaterializationInitialized = false;
+      _materializationPausedForScroll = false;
       _parseWarmUpGeneration++;
     } else if (didTopicPostCenterChange(
       oldPostNumbers: oldWidget.detail.postStream.posts
@@ -539,10 +541,13 @@ class _TopicPostListState extends State<TopicPostList> {
     if (notification is ScrollStartNotification ||
         notification is ScrollUpdateNotification) {
       _setAutoLoadRepliesPaused(true);
+      _materializationPausedForScroll = true;
     }
     if (notification is ScrollUpdateNotification) {
       _scheduleVisiblePostUpdate();
     } else if (notification is ScrollEndNotification) {
+      _materializationPausedForScroll = false;
+      _scheduleMaterializeStep();
       _resumeAutoLoadReplies();
       _scheduleVisiblePostUpdate(immediate: true);
     }
@@ -878,6 +883,13 @@ class _TopicPostListState extends State<TopicPostList> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _materializeTicking = false;
       if (!mounted || !_initialMaterializationInitialized) return;
+      if (!shouldAdvanceTopicPostMaterialization(
+        isScrollActive: _materializationPausedForScroll,
+        hasPendingMaterialization:
+            _materializeCapBefore != null || _materializeCapAfter != null,
+      )) {
+        return;
+      }
 
       final centerPostNumber = _centerPostNumber;
       final centerVisibleIndex = centerPostNumber == null
