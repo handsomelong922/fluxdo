@@ -165,6 +165,8 @@ state = AsyncValue.data(
 - `RuntimeLogSettings.configure({required bool developerModeEnabled})`
 - `RuntimeLogSettings.shouldPersistRequestLog({required String level, required bool isSilent})`
 - `RuntimeLogSettings.shouldPersistDiagnosticEvent({required String level})`
+- `PerformanceDiagnosticsService.shouldSampleFrame(severity, now, lastSampleAt)`
+- `PerformanceDiagnosticsService.readLogs()` / `clear()` / `setEnabled(false)`
 
 ### 3. Contracts
 - `navScrollProgressProvider` is a feedback-state channel, not a telemetry stream. Publishers must quantize values to:
@@ -180,6 +182,10 @@ state = AsyncValue.data(
   - `pref_app_logs_max_entries`
 - Turning app-log recording off must stop both persistent app-log writes and startup-request ranking collection. Re-enabling should resume both with the currently selected retention limit.
 - The selectable retention limit must stay within `50..300` and be quantized in 25-entry steps before applying it to file retention and startup ranking memory buffers.
+- Performance diagnostics must aggregate every frame into `frame_window`, but detailed slow-frame JSONL entries must be severity-rate-limited. Frozen frames are never sampled out.
+- Ordinary jank entries keep route/cache/component attribution but do not duplicate the full recent-event queue; severe/frozen frames, UI-isolate stalls, and manual markers may include recent events.
+- High-frequency performance events must be appended in bounded batches rather than opening/appending the trace file once per event. `readLogs()` must flush queued entries before reading.
+- Disabling diagnostics must close the event ingress before awaiting pending writes. Clearing diagnostics must suppress writes during the clear boundary and then emit only the new `cleared` marker.
 
 ### 4. Validation & Error Matrix
 - Scroll stays below threshold -> provider state remains `1.0`; selected icon does not switch to the action glyph.
@@ -190,11 +196,16 @@ state = AsyncValue.data(
 - Developer mode on -> verbose request/cookie/WebView diagnostics persist as before.
 - App-log recording off -> `StartupRequestRecorder.records` stays empty, and `LogWriter` skips new JSONL writes.
 - App-log retention limit lowered -> both the in-memory startup ranking buffer and `app_log.jsonl` must trim older entries down to the new limit.
+- Repeated slow/jank frames inside their severity cooldown -> window counters still increase, but duplicate detailed entries are skipped.
+- Frozen frame inside any cooldown -> detailed entry is still written.
+- Share immediately after scrolling -> queued trace lines are flushed before the exported file is read.
+- Disable/clear while frame callbacks are active -> no late pre-boundary event is appended after the operation completes.
 
 ### 5. Good/Base/Bad Cases
 - Good: list scrolling flips navigation feedback only on top/threshold transitions, while startup ranking still shows silent excerpt requests in-memory.
 - Base: normal browsing persists only actionable warnings/errors, and developers can opt into full traces when investigating session issues.
 - Bad: every scroll frame writes new pixel values into `navScrollProgressProvider`, or release browsing flushes every silent request / cookie trace to disk.
+- Bad: every slow frame JSON-encodes a recent-event snapshot and performs an individual file append, causing the diagnostic tool to amplify the jank it measures.
 
 ### 6. Tests Required
 - Unit-test `collapseNavScrollProgress()` for top / below-threshold / above-threshold quantization.
@@ -202,6 +213,8 @@ state = AsyncValue.data(
 - Unit-test that disabling app logs suppresses both persistent request/diagnostic logging and startup ranking retention.
 - Unit-test that startup ranking trims to the configured max-entry limit.
 - Keep startup request recorder tests proving in-memory ranking still records request timing independently from persistent logs.
+- Unit-test slow-frame sampling cooldowns, including unconditional frozen-frame retention.
+- Regression-test that share/read flushes queued trace entries and that disable/clear cannot leak late queued writes across their boundary.
 
 ### 7. Wrong vs Correct
 #### Wrong
@@ -229,6 +242,24 @@ if (RuntimeLogSettings.shouldPersistRequestLog(
 ```dart
 await AppLogSettingsService.instance.setEnabled(false);
 await AppLogSettingsService.instance.setMaxEntries(150);
+```
+
+#### Wrong
+```dart
+for (final timing in timings) {
+  writeJsonLine(buildDetailedFrameEntry(timing, includeRecentEvents: true));
+}
+```
+
+#### Correct
+```dart
+if (PerformanceDiagnosticsService.shouldSampleFrame(
+  severity: severity,
+  now: now,
+  lastSampleAt: lastSampleAt,
+)) {
+  queueTraceLine(buildDetailedFrameEntry(timing));
+}
 ```
 
 ## Scenario: Scroll-Busy Media And Background Work Coordination
@@ -303,6 +334,7 @@ RepaintBoundary(
 - `initialAfterMaterializationCap(segmentPostIds, centerScrollIndex)`
 - `didTopicPostCenterChange(...) -> bool`
 - `materializedSegmentCount(total, cap) -> int`
+- `shouldAdvanceTopicPostMaterialization(isScrollActive, hasPendingMaterialization) -> bool`
 
 ### 3. Contracts
 - First mount may cap both remote sides and grow by four segments per frame, but the center post's complete segment run plus four nearby after-segments must be present on the first frame.
@@ -311,6 +343,7 @@ RepaintBoundary(
 - A paging cap starts no lower than the previously loaded side plus four, so already materialized elements are never removed.
 - Prepend index shifts that retain the same center `postNumber` do not count as a center change. An explicit same-topic center change releases current caps so old materialized elements are not reinterpreted around the new center.
 - New-page parse warm-up is generation-scoped and scheduled at idle priority. Long posts reuse `HtmlChunkCache`/`LongPostRenderData`; short posts may warm `GalleryInfo`. Warm-up failure must not affect normal rendering fallback.
+- Active drag/ballistic scrolling pauses cap advancement. An already scheduled post-frame callback must return without `setState`; `ScrollEndNotification` resumes from the existing cap rather than resetting it.
 - Do not apply this cap to nested/tree lists or replace the existing jump, search, MessageBus, gap, and load-more provider semantics.
 
 ### 4. Validation & Error Matrix
@@ -320,14 +353,18 @@ RepaintBoundary(
 - Middle gap fill or whole-window replacement -> no paging plan is created.
 - Explicit local jump while caps are active -> caps open rather than unloading old elements around the new center.
 - A second page arrives during warm-up -> the previous generation exits without writing stale work.
+- Scroll starts while caps remain -> visible/materialized segments stay unchanged and no expansion rebuild runs until scroll end.
+- Scroll ends with a pending cap -> progressive growth resumes from the prior cap automatically.
 
 ### 5. Good/Base/Bad Cases
 - Good: the preview OP paints fully, pagination adds distant reply segments over several frames, and cached parsing reduces build-frame work.
 - Base: a small page or gap fill uses normal sliver virtualization without an extra materialization cap.
 - Bad: a fixed four-segment after cap truncates a long OP, or prepend index movement is mistaken for a new center target.
+- Bad: cap advancement calls `setState` every frame while the user's finger or fling is moving the list.
 
 ### 6. Tests Required
 - Unit-test append, prepend, gap, replacement, small-growth, complete-center, cap clamp, prepend center shift, and explicit center change.
+- Unit-test the scroll-active materialization gate for paused, resumed, and no-pending states.
 - Keep topic preview, jump-target, render-identity, scroll-performance, long-post cache, and MessageBus batching tests green.
 - Verify tree view and explicit search targets still use their existing navigation semantics.
 
@@ -343,6 +380,21 @@ _materializeCapAfter = initialAfterMaterializationCap(
   segmentPostIds: segmentPostIds,
   centerScrollIndex: centerScrollIndex,
 );
+```
+
+#### Wrong
+```dart
+WidgetsBinding.instance.addPostFrameCallback((_) => setState(_growCap));
+```
+
+#### Correct
+```dart
+if (shouldAdvanceTopicPostMaterialization(
+  isScrollActive: _materializationPausedForScroll,
+  hasPendingMaterialization: hasPendingCap,
+)) {
+  setState(_growCap);
+}
 ```
 
 ## Scenario: Nested Reply Auto-Load During Active Scroll
