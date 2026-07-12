@@ -179,6 +179,7 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
   final List<String> _pendingTraceLines = <String>[];
   int _pendingTraceBytes = 0;
   Timer? _traceFlushTimer;
+  bool _suppressTraceWrites = false;
   int? _cachedEntryCount;
   Map<String, Object?>? _currentRoute;
   String? _lastLifecycleState;
@@ -232,12 +233,12 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
       data: _buildSnapshot(includeRecentEvents: true),
       force: true,
     );
-    await _flushPendingWrites();
     _enabled = false;
-    await _prefs?.setBool(prefEnabledKey, false);
     _detachTimingsCallback();
     _stopUiHeartbeat();
     _attributionBuffer.clear();
+    await _flushPendingWrites();
+    await _prefs?.setBool(prefEnabledKey, false);
     notifyListeners();
   }
 
@@ -479,13 +480,19 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
   }
 
   Future<void> clear() async {
-    await _flushPendingWrites();
-    _writeChain = _writeChain.then((_) async {
-      final file = await _getLogFile();
-      await file.writeAsString('');
-      _cachedEntryCount = 0;
-    });
-    await _writeChain;
+    _suppressTraceWrites = true;
+    try {
+      await _flushPendingWrites();
+      _writeChain = _writeChain.then((_) async {
+        final file = await _getLogFile();
+        await file.writeAsString('');
+        _cachedEntryCount = 0;
+      });
+      await _writeChain;
+      _recentEvents.clear();
+    } finally {
+      _suppressTraceWrites = false;
+    }
     if (_enabled) {
       _writeTrace(
         type: 'diagnostics',
@@ -726,7 +733,7 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
     required Map<String, Object?> data,
     bool force = false,
   }) {
-    if (!_enabled && !force) return;
+    if (_suppressTraceWrites || (!_enabled && !force)) return;
     final now = DateTime.now();
     final entry = <String, Object?>{
       'timestamp': now.toIso8601String(),
