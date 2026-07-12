@@ -58,6 +58,40 @@ class _TextWidthCache {
   }
 }
 
+Widget _buildTopicCardSurface({
+  required BuildContext context,
+  required EdgeInsetsGeometry margin,
+  required Color? color,
+  required BorderRadius borderRadius,
+  required BorderSide borderSide,
+  required Widget child,
+}) {
+  final shape = RoundedRectangleBorder(
+    borderRadius: borderRadius,
+    side: borderSide,
+  );
+  if (!Responsive.isMobile(context)) {
+    return Card(margin: margin, color: color, shape: shape, child: child);
+  }
+
+  // 移动端主题的卡片 elevation 恒为 0。继续使用 Card 会为每个列表项
+  // 创建 AnimatedPhysicalModel 等隐式动画/物理形状结构；这里仅替换
+  // 外壳，颜色、圆角、描边、布局、语义和内部 InkWell 子树保持一致。
+  final theme = Theme.of(context);
+  final effectiveColor =
+      color ?? theme.cardTheme.color ?? theme.colorScheme.surfaceContainerLow;
+  return Padding(
+    padding: margin,
+    child: Semantics(
+      container: true,
+      child: DecoratedBox(
+        decoration: ShapeDecoration(color: effectiveColor, shape: shape),
+        child: Material(type: MaterialType.transparency, child: child),
+      ),
+    ),
+  );
+}
+
 /// 话题卡片组件 — 紧凑横向布局
 class TopicCard extends ConsumerWidget {
   final Topic topic;
@@ -137,20 +171,18 @@ class TopicCard extends ConsumerWidget {
     }
 
     return RepaintBoundary(
-      child: Card(
+      child: _buildTopicCardSurface(
+        context: context,
         margin: const EdgeInsets.only(bottom: 8),
-        elevation: isMobile ? 0 : null,
         color: isSelected
             ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
             : highlightColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: isSelected
-              ? BorderSide(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.5),
-                )
-              : BorderSide.none,
-        ),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: isSelected
+            ? BorderSide(
+                color: theme.colorScheme.primary.withValues(alpha: 0.5),
+              )
+            : BorderSide.none,
         child: InkWell(
           onTap: onTap,
           onLongPress: onLongPress,
@@ -658,21 +690,19 @@ class CompactTopicCard extends ConsumerWidget {
     }
 
     return RepaintBoundary(
-      child: Card(
+      child: _buildTopicCardSurface(
+        context: context,
         margin: const EdgeInsets.only(bottom: 6),
-        elevation: Responsive.isMobile(context) ? 0 : null,
         color: isSelected
             ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
             : highlightColor ??
                   theme.colorScheme.surfaceContainerLow.withValues(alpha: 0.5),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: isSelected
-              ? BorderSide(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.5),
-                )
-              : BorderSide.none,
-        ),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: isSelected
+            ? BorderSide(
+                color: theme.colorScheme.primary.withValues(alpha: 0.5),
+              )
+            : BorderSide.none,
         child: InkWell(
           onTap: onTap,
           onLongPress: onLongPress,
