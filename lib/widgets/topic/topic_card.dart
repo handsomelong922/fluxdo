@@ -14,6 +14,7 @@ import '../../utils/url_helper.dart';
 import '../common/topic_badges.dart';
 import '../common/smart_avatar.dart';
 import '../../services/discourse_cache_manager.dart';
+import '../../services/performance_diagnostics_service.dart';
 import '../../utils/number_utils.dart';
 import '../../utils/time_utils.dart';
 import '../common/emoji_text.dart';
@@ -121,6 +122,10 @@ class TopicCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    PerformanceDiagnosticsService.instance.noteBuild(
+      'topic:card',
+      id: topic.id,
+    );
     final theme = Theme.of(context);
     final isUnread = topic.unseen || topic.unread > 0;
     final unreadTitleColor = theme.brightness == Brightness.light
@@ -666,6 +671,10 @@ class CompactTopicCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    PerformanceDiagnosticsService.instance.noteBuild(
+      'topic:compactCard',
+      id: topic.id,
+    );
     final theme = Theme.of(context);
     final isUnread = topic.unseen || topic.unread > 0;
     final unreadTitleColor = theme.brightness == Brightness.light

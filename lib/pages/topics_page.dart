@@ -47,6 +47,7 @@ import '../services/toast_service.dart';
 import '../services/navigation/app_route_observer.dart';
 import '../services/navigation/pop_passthrough_material_page_route.dart';
 import '../services/navigation/topic_detail_route.dart';
+import '../services/performance_diagnostics_service.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/html_excerpt.dart';
 import '../utils/platform_utils.dart';
@@ -584,6 +585,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
 
   @override
   Widget build(BuildContext context) {
+    PerformanceDiagnosticsService.instance.noteBuild('home:page');
     // 桌面端：注册分类 Tab 切换快捷键（在 build 中确保每次重建都刷新）
     if (PlatformUtils.isDesktop) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1507,6 +1509,10 @@ class _TopicListState extends ConsumerState<_TopicList> {
 
   @override
   Widget build(BuildContext context) {
+    PerformanceDiagnosticsService.instance.noteBuild(
+      widget.categoryId == null ? 'home:topicList' : 'category:topicList',
+      id: widget.categoryId,
+    );
     final providerKey = widget.categoryId;
     final isCurrentTab =
         ref.watch(currentTabCategoryIdProvider) == widget.categoryId;
@@ -2007,6 +2013,10 @@ class _HomeExcerptLoaderState extends ConsumerState<_HomeExcerptLoader> {
 
   @override
   Widget build(BuildContext context) {
+    PerformanceDiagnosticsService.instance.noteBuild(
+      'home:excerptLoader',
+      id: widget.topicId,
+    );
     final html = _resolvedHtml;
     if (html != null && html.isNotEmpty) {
       return _HomeExcerptText(html: html, maxLines: widget.maxLines);
@@ -2024,7 +2034,16 @@ class _HomeExcerptText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final diagnostics = PerformanceDiagnosticsService.instance;
+    diagnostics.noteBuild('home:excerptText');
+    final cleanTimer = diagnostics.startSyncWork();
     final cleaned = cleanHtmlExcerpt(html);
+    diagnostics.finishSyncWork(
+      cleanTimer,
+      label: 'home:cleanExcerpt',
+      threshold: const Duration(milliseconds: 2),
+      data: <String, Object?>{'htmlChars': html.length},
+    );
     if (cleaned.isEmpty) return const SizedBox.shrink();
 
     final colorScheme = Theme.of(context).colorScheme;
@@ -2048,6 +2067,7 @@ class _HomeExcerptPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    PerformanceDiagnosticsService.instance.noteBuild('home:excerptPlaceholder');
     final color = Theme.of(
       context,
     ).colorScheme.onSurfaceVariant.withValues(alpha: 0.12);

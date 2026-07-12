@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:flutter/material.dart';
 
 import '../../../utils/image_decode_constraints.dart';
+import '../../../services/performance_diagnostics_service.dart';
 import '../../common/hero_image.dart';
 
 /// 帖子正文图片：由 sliver 虚拟化控制挂载，并在解码阶段限制纹理尺寸。
@@ -66,6 +67,7 @@ class LazyImage extends StatefulWidget {
 
 class _LazyImageState extends State<LazyImage> {
   double? _resolvedRatio;
+  bool _paintEventRecorded = false;
   ImageStream? _ratioStream;
   ImageStreamListener? _ratioListener;
 
@@ -92,6 +94,7 @@ class _LazyImageState extends State<LazyImage> {
         oldWidget.height != widget.height) {
       _stopRatioResolve();
       _resolvedRatio = null;
+      _paintEventRecorded = false;
       _resolveRatioIfNeeded();
     }
   }
@@ -194,7 +197,25 @@ class _LazyImageState extends State<LazyImage> {
       height: widget.height,
       gaplessPlayback: true,
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-        if (wasSynchronouslyLoaded || frame != null) return child;
+        if (wasSynchronouslyLoaded || frame != null) {
+          if (!_paintEventRecorded) {
+            _paintEventRecorded = true;
+            final diagnostics = PerformanceDiagnosticsService.instance;
+            if (diagnostics.enabled) {
+              diagnostics.noteFrameEvent(
+                wasSynchronouslyLoaded
+                    ? 'image:cacheReattach'
+                    : 'image:firstFrame',
+                data: <String, Object?>{
+                  'widthPx': _targetDecodeWidth(context),
+                  if (widget.height != null)
+                    'heightLogical': widget.height!.round(),
+                },
+              );
+            }
+          }
+          return child;
+        }
         return buildLoadingShell();
       },
       errorBuilder: (context, error, stackTrace) {

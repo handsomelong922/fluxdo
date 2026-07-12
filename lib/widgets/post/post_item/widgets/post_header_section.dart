@@ -8,6 +8,7 @@ import '../../../../utils/responsive.dart';
 import 'package:dio/dio.dart';
 import '../../../../services/app_error_handler.dart';
 import '../../../../services/discourse/discourse_service.dart';
+import '../../../../services/performance_diagnostics_service.dart';
 import '../../../common/relative_time_text.dart';
 import '../../post_revision/edits_indicator.dart';
 import '../../post_revision/revision_modal.dart';
@@ -169,6 +170,10 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
 
   @override
   Widget build(BuildContext context) {
+    PerformanceDiagnosticsService.instance.noteBuild(
+      'post:header',
+      id: widget.post.postNumber,
+    );
     final theme = Theme.of(context);
     final post = widget.post;
     final preferStaticAvatars = ref.watch(

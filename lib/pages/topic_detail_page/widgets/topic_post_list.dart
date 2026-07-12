@@ -14,6 +14,7 @@ import '../../../models/topic.dart';
 import '../../../pages/search_page.dart';
 import '../../../providers/message_bus_providers.dart';
 import '../../../services/toast_service.dart';
+import '../../../services/performance_diagnostics_service.dart';
 import '../../../utils/blocked_user_filter.dart';
 import '../../../utils/code_selection_context.dart';
 import '../../../utils/responsive.dart';
@@ -692,6 +693,8 @@ class _TopicPostListState extends State<TopicPostList> {
     if (_hasSameRenderSegmentsSource(posts)) {
       return;
     }
+    final diagnostics = PerformanceDiagnosticsService.instance;
+    final segmentsTimer = diagnostics.startSyncWork();
     final oldPosts = _renderSegmentsSourcePosts;
     final oldSegmentCount = _renderSegments.length;
     final oldCenterPostNumber = _centerPostNumber;
@@ -800,6 +803,15 @@ class _TopicPostListState extends State<TopicPostList> {
     _renderSegmentsSourceStream = detail.postStream.stream;
     _renderSegmentsSourceGaps = detail.postStream.gaps;
     _renderSegmentsSourceBlockedUsernames = widget.blockedUsernames;
+    diagnostics.finishSyncWork(
+      segmentsTimer,
+      label: 'topic:segments',
+      data: <String, Object?>{
+        'topicId': detail.id,
+        'posts': posts.length,
+        'segments': segments.length,
+      },
+    );
     widget.onScrollIndexMappingChanged?.call(postIndexToScrollIndex);
     _handlePostGrowth(
       oldPosts: oldPosts,
@@ -943,6 +955,10 @@ class _TopicPostListState extends State<TopicPostList> {
 
   @override
   Widget build(BuildContext context) {
+    PerformanceDiagnosticsService.instance.noteBuild(
+      'topic:postList',
+      id: detail.id,
+    );
     final posts = _visiblePosts;
     final cacheExtent = Responsive.isMobile(context) ? 160.0 : 500.0;
     final scrollPhysics = Theme.of(context).platform == TargetPlatform.iOS

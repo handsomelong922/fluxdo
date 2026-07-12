@@ -6,6 +6,7 @@ import '../../../models/topic.dart';
 import '../../../l10n/s.dart';
 import '../../../pages/search_page.dart';
 import '../../../providers/preferences_provider.dart';
+import '../../../services/performance_diagnostics_service.dart';
 import '../../../utils/code_selection_context.dart';
 import '../../../utils/topic_link_navigation.dart';
 import '../../content/discourse_html_content/chunked/chunked_html_content.dart';
@@ -130,6 +131,10 @@ class _PostItemState extends ConsumerState<PostItem> {
   @override
   Widget build(BuildContext context) {
     final post = widget.post;
+    PerformanceDiagnosticsService.instance.noteBuild(
+      'post:item',
+      id: post.postNumber,
+    );
     final theme = Theme.of(context);
 
     if (post.postType == PostTypes.smallAction) {

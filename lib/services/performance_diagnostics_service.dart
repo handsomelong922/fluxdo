@@ -24,6 +24,125 @@ extension PerformanceFrameSeverityLabel on PerformanceFrameSeverity {
   }
 }
 
+class PerformanceFrameAttribution {
+  PerformanceFrameAttribution({
+    Map<String, int> builds = const <String, int>{},
+    List<Map<String, Object?>> works = const <Map<String, Object?>>[],
+    List<Map<String, Object?>> events = const <Map<String, Object?>>[],
+    this.droppedBuildLabels = 0,
+    this.droppedWorks = 0,
+    this.droppedEvents = 0,
+  }) : builds = LinkedHashMap<String, int>.of(builds),
+       works = List<Map<String, Object?>>.of(works),
+       events = List<Map<String, Object?>>.of(events);
+
+  final LinkedHashMap<String, int> builds;
+  final List<Map<String, Object?>> works;
+  final List<Map<String, Object?>> events;
+  int droppedBuildLabels;
+  int droppedWorks;
+  int droppedEvents;
+
+  bool get hasImageEvent => events.any(
+    (event) => event['label']?.toString().startsWith('image:') ?? false,
+  );
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      if (builds.isNotEmpty) 'builds': builds,
+      if (works.isNotEmpty) 'works': works,
+      if (events.isNotEmpty) 'events': events,
+      if (droppedBuildLabels > 0) 'droppedBuildLabels': droppedBuildLabels,
+      if (droppedWorks > 0) 'droppedWorks': droppedWorks,
+      if (droppedEvents > 0) 'droppedEvents': droppedEvents,
+    };
+  }
+}
+
+/// 只在性能诊断开启时使用的帧内归因缓冲。
+///
+/// 按 engine frame number 聚合，容量和每帧条目数均有上限；正常关闭状态
+/// 不会调用它，也不会产生列表滚动热路径写盘。
+class PerformanceFrameAttributionBuffer {
+  PerformanceFrameAttributionBuffer({
+    this.maxFrames = 96,
+    this.maxBuildLabelsPerFrame = 24,
+    this.maxWorksPerFrame = 12,
+    this.maxEventsPerFrame = 12,
+  });
+
+  final int maxFrames;
+  final int maxBuildLabelsPerFrame;
+  final int maxWorksPerFrame;
+  final int maxEventsPerFrame;
+  final LinkedHashMap<int, PerformanceFrameAttribution> _frames =
+      LinkedHashMap<int, PerformanceFrameAttribution>();
+
+  int get length => _frames.length;
+
+  void noteBuild({required int frameNumber, required String label}) {
+    final frame = _frame(frameNumber);
+    final previous = frame.builds[label];
+    if (previous != null) {
+      frame.builds[label] = previous + 1;
+      return;
+    }
+    if (frame.builds.length >= maxBuildLabelsPerFrame) {
+      frame.droppedBuildLabels++;
+      return;
+    }
+    frame.builds[label] = 1;
+  }
+
+  void noteWork({
+    required int frameNumber,
+    required String label,
+    required int elapsedMicros,
+    Map<String, Object?> data = const <String, Object?>{},
+  }) {
+    final frame = _frame(frameNumber);
+    if (frame.works.length >= maxWorksPerFrame) {
+      frame.droppedWorks++;
+      return;
+    }
+    frame.works.add(<String, Object?>{
+      'label': label,
+      'elapsedMicros': elapsedMicros,
+      ...data,
+    });
+  }
+
+  void noteEvent({
+    required int frameNumber,
+    required String label,
+    Map<String, Object?> data = const <String, Object?>{},
+  }) {
+    final frame = _frame(frameNumber);
+    if (frame.events.length >= maxEventsPerFrame) {
+      frame.droppedEvents++;
+      return;
+    }
+    frame.events.add(<String, Object?>{'label': label, ...data});
+  }
+
+  PerformanceFrameAttribution? take(int frameNumber) {
+    return _frames.remove(frameNumber);
+  }
+
+  void clear() => _frames.clear();
+
+  PerformanceFrameAttribution _frame(int frameNumber) {
+    final existing = _frames[frameNumber];
+    if (existing != null) return existing;
+    final created = PerformanceFrameAttribution();
+    _frames[frameNumber] = created;
+    while (_frames.length > maxFrames) {
+      _frames.remove(_frames.keys.first);
+    }
+    return created;
+  }
+}
+
 /// 设备端性能诊断采集器。
 ///
 /// 默认关闭；开启后只记录慢帧、路由、滚动、触摸、生命周期和资源快照，
@@ -45,6 +164,8 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
   static const int _buildOrRasterJankMs = 24;
   static const int _buildOrRasterSlowMs = 12;
   static const int _recentEventLimit = 40;
+  static const Duration _uiHeartbeatInterval = Duration(milliseconds: 100);
+  static const Duration _uiStallThreshold = Duration(milliseconds: 40);
 
   SharedPreferences? _prefs;
   bool _enabled = false;
@@ -65,8 +186,12 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
   int _frameWindowWorstMs = 0;
   int _frameWindowTotalMs = 0;
   int _slowFrameStreak = 0;
+  Timer? _uiHeartbeatTimer;
+  DateTime? _nextUiHeartbeatAt;
   final ListQueue<Map<String, Object?>> _recentEvents =
       ListQueue<Map<String, Object?>>();
+  final PerformanceFrameAttributionBuffer _attributionBuffer =
+      PerformanceFrameAttributionBuffer();
 
   bool get enabled => _enabled;
 
@@ -74,7 +199,7 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
     if (!_enabled) {
       return '已关闭 · 不记录性能追踪';
     }
-    return '已开启 · 慢帧、滚动、路由和资源快照会写入 performance_trace.jsonl';
+    return '已开启 · 慢帧、组件归因、滚动和资源快照会写入 performance_trace.jsonl';
   }
 
   void initialize(SharedPreferences prefs) {
@@ -104,7 +229,55 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
     _enabled = false;
     await _prefs?.setBool(prefEnabledKey, false);
     _detachTimingsCallback();
+    _stopUiHeartbeat();
+    _attributionBuffer.clear();
     notifyListeners();
+  }
+
+  /// 标记当前 engine 帧正在构建的重组件。关闭诊断时为空操作。
+  void noteBuild(String component, {int? id}) {
+    if (!_enabled) return;
+    _attributionBuffer.noteBuild(
+      frameNumber: _currentFrameNumber,
+      label: id == null ? component : '$component#$id',
+    );
+  }
+
+  /// 记录当前帧发生的图片上屏等有限事件。关闭诊断时为空操作。
+  void noteFrameEvent(
+    String label, {
+    Map<String, Object?> data = const <String, Object?>{},
+  }) {
+    if (!_enabled) return;
+    _attributionBuffer.noteEvent(
+      frameNumber: _currentFrameNumber,
+      label: label,
+      data: data,
+    );
+  }
+
+  /// 仅在诊断开启时创建 Stopwatch，避免关闭状态产生对象分配。
+  Stopwatch? startSyncWork() {
+    if (!_enabled) return null;
+    return Stopwatch()..start();
+  }
+
+  /// 把超过阈值的同步工作挂到完成时所在的 engine 帧。
+  void finishSyncWork(
+    Stopwatch? stopwatch, {
+    required String label,
+    Duration threshold = const Duration(milliseconds: 4),
+    Map<String, Object?> data = const <String, Object?>{},
+  }) {
+    if (stopwatch == null || !_enabled) return;
+    stopwatch.stop();
+    if (stopwatch.elapsed < threshold) return;
+    _attributionBuffer.noteWork(
+      frameNumber: _currentFrameNumber,
+      label: label,
+      elapsedMicros: stopwatch.elapsedMicroseconds,
+      data: data,
+    );
   }
 
   void recordInteraction(
@@ -208,6 +381,37 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
     return PerformanceFrameSeverity.good;
   }
 
+  static String classifyDominantPhase({
+    required int buildMs,
+    required int rasterMs,
+    required int vsyncOverheadMs,
+    required int queueWaitMs,
+  }) {
+    final phases = <String, int>{
+      'build': buildMs,
+      'raster': rasterMs,
+      'vsync_overhead': vsyncOverheadMs,
+      'pipeline_wait': queueWaitMs,
+    };
+    return phases.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+  }
+
+  static String? buildAttributionHint({
+    required int buildMs,
+    required int rasterMs,
+    required PerformanceFrameAttribution? attribution,
+  }) {
+    if (buildMs >= _buildOrRasterSlowMs &&
+        (attribution == null || attribution.builds.isEmpty)) {
+      return 'build_slow_without_component_notes';
+    }
+    if (rasterMs >= _buildOrRasterSlowMs &&
+        (attribution == null || !attribution.hasImageEvent)) {
+      return 'raster_slow_without_image_events';
+    }
+    return null;
+  }
+
   @visibleForTesting
   static List<String> retainedTraceLines(
     List<String> lines, {
@@ -266,7 +470,9 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
     _sessionId = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
     _sessionStartedAt = DateTime.now();
     _resetFrameWindow();
+    _attributionBuffer.clear();
     _attachTimingsCallback();
+    _startUiHeartbeat();
     _writeTrace(
       type: 'diagnostics',
       event: 'enabled',
@@ -297,6 +503,14 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
       final buildMs = _durationMs(timing.buildDuration);
       final rasterMs = _durationMs(timing.rasterDuration);
       final totalMs = _durationMs(timing.totalSpan);
+      final vsyncOverheadMs = _durationMs(timing.vsyncOverhead);
+      final queueWaitMicros =
+          timing.timestampInMicroseconds(ui.FramePhase.rasterStart) -
+          timing.timestampInMicroseconds(ui.FramePhase.buildFinish);
+      final queueWaitMs = queueWaitMicros <= 0
+          ? 0
+          : (queueWaitMicros / 1000).round();
+      final attribution = _attributionBuffer.take(timing.frameNumber);
       final severity = classifyFrame(
         totalMs: totalMs,
         buildMs: buildMs,
@@ -321,13 +535,27 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
           'totalMs': totalMs,
           'buildMs': buildMs,
           'rasterMs': rasterMs,
-          'vsyncOverheadMs': _durationMs(timing.vsyncOverhead),
+          'vsyncOverheadMs': vsyncOverheadMs,
+          'queueWaitMs': queueWaitMs,
+          'dominantPhase': classifyDominantPhase(
+            buildMs: buildMs,
+            rasterMs: rasterMs,
+            vsyncOverheadMs: vsyncOverheadMs,
+            queueWaitMs: queueWaitMs,
+          ),
           'frameNumber': timing.frameNumber,
           'slowFrameStreak': _slowFrameStreak,
           'layerCacheCount': timing.layerCacheCount,
           'layerCacheBytes': timing.layerCacheBytes,
           'pictureCacheCount': timing.pictureCacheCount,
           'pictureCacheBytes': timing.pictureCacheBytes,
+          if (attribution case final attribution?)
+            'attribution': attribution.toJson(),
+          'attributionHint': ?buildAttributionHint(
+            buildMs: buildMs,
+            rasterMs: rasterMs,
+            attribution: attribution,
+          ),
           'snapshot': _buildSnapshot(
             includeRecentEvents:
                 severity.index >= PerformanceFrameSeverity.jank.index ||
@@ -337,6 +565,37 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
       );
     }
     _flushFrameWindowIfNeeded(now);
+  }
+
+  int get _currentFrameNumber =>
+      WidgetsBinding.instance.platformDispatcher.frameData.frameNumber;
+
+  void _startUiHeartbeat() {
+    _stopUiHeartbeat();
+    _nextUiHeartbeatAt = DateTime.now().add(_uiHeartbeatInterval);
+    _uiHeartbeatTimer = Timer.periodic(_uiHeartbeatInterval, (_) {
+      if (!_enabled) return;
+      final now = DateTime.now();
+      final expected = _nextUiHeartbeatAt ?? now;
+      final drift = now.difference(expected);
+      _nextUiHeartbeatAt = now.add(_uiHeartbeatInterval);
+      if (drift < _uiStallThreshold) return;
+      _recordEvent(
+        type: 'runtime',
+        event: 'ui_isolate_stall',
+        data: <String, Object?>{
+          'driftMs': drift.inMilliseconds,
+          'snapshot': _buildSnapshot(includeRecentEvents: true),
+        },
+        important: true,
+      );
+    });
+  }
+
+  void _stopUiHeartbeat() {
+    _uiHeartbeatTimer?.cancel();
+    _uiHeartbeatTimer = null;
+    _nextUiHeartbeatAt = null;
   }
 
   bool _shouldWriteFrameSample(

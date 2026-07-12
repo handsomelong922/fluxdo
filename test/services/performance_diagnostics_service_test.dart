@@ -104,4 +104,138 @@ void main() {
       ]);
     });
   });
+
+  group('PerformanceFrameAttributionBuffer', () {
+    test(
+      'aggregates repeated builds and structured work in the same frame',
+      () {
+        final buffer = PerformanceFrameAttributionBuffer(maxFrames: 4);
+
+        buffer.noteBuild(frameNumber: 12, label: 'home:topicCard#42');
+        buffer.noteBuild(frameNumber: 12, label: 'home:topicCard#42');
+        buffer.noteBuild(frameNumber: 12, label: 'home:excerpt#42');
+        buffer.noteWork(
+          frameNumber: 12,
+          label: 'topic:segments',
+          elapsedMicros: 5200,
+          data: const {'posts': 70, 'segments': 74},
+        );
+        buffer.noteEvent(
+          frameNumber: 12,
+          label: 'image:firstFrame',
+          data: const {'widthPx': 1080},
+        );
+
+        final attribution = buffer.take(12);
+        expect(attribution, isNotNull);
+        expect(attribution?.builds, {
+          'home:topicCard#42': 2,
+          'home:excerpt#42': 1,
+        });
+        expect(attribution?.works.single, {
+          'label': 'topic:segments',
+          'elapsedMicros': 5200,
+          'posts': 70,
+          'segments': 74,
+        });
+        expect(attribution?.events.single, {
+          'label': 'image:firstFrame',
+          'widthPx': 1080,
+        });
+        expect(buffer.take(12), isNull);
+      },
+    );
+
+    test('evicts oldest frames and caps labels and events', () {
+      final buffer = PerformanceFrameAttributionBuffer(
+        maxFrames: 2,
+        maxBuildLabelsPerFrame: 2,
+        maxEventsPerFrame: 1,
+      );
+
+      buffer.noteBuild(frameNumber: 1, label: 'old');
+      buffer.noteBuild(frameNumber: 2, label: 'first');
+      buffer.noteBuild(frameNumber: 2, label: 'second');
+      buffer.noteBuild(frameNumber: 2, label: 'dropped');
+      buffer.noteEvent(frameNumber: 2, label: 'kept');
+      buffer.noteEvent(frameNumber: 2, label: 'dropped');
+      buffer.noteBuild(frameNumber: 3, label: 'new');
+
+      expect(buffer.take(1), isNull);
+      final frame = buffer.take(2);
+      expect(frame?.builds.keys, ['first', 'second']);
+      expect(frame?.events.single['label'], 'kept');
+      expect(frame?.droppedBuildLabels, 1);
+      expect(frame?.droppedEvents, 1);
+      expect(buffer.length, 1);
+    });
+  });
+
+  group('PerformanceDiagnosticsService attribution helpers', () {
+    test('classifies the dominant slow-frame phase', () {
+      expect(
+        PerformanceDiagnosticsService.classifyDominantPhase(
+          buildMs: 28,
+          rasterMs: 5,
+          vsyncOverheadMs: 2,
+          queueWaitMs: 1,
+        ),
+        'build',
+      );
+      expect(
+        PerformanceDiagnosticsService.classifyDominantPhase(
+          buildMs: 4,
+          rasterMs: 31,
+          vsyncOverheadMs: 2,
+          queueWaitMs: 3,
+        ),
+        'raster',
+      );
+      expect(
+        PerformanceDiagnosticsService.classifyDominantPhase(
+          buildMs: 4,
+          rasterMs: 5,
+          vsyncOverheadMs: 3,
+          queueWaitMs: 45,
+        ),
+        'pipeline_wait',
+      );
+      expect(
+        PerformanceDiagnosticsService.classifyDominantPhase(
+          buildMs: 4,
+          rasterMs: 5,
+          vsyncOverheadMs: 38,
+          queueWaitMs: 3,
+        ),
+        'vsync_overhead',
+      );
+    });
+
+    test('adds actionable hints when a slow frame has no component notes', () {
+      expect(
+        PerformanceDiagnosticsService.buildAttributionHint(
+          buildMs: 25,
+          rasterMs: 4,
+          attribution: null,
+        ),
+        'build_slow_without_component_notes',
+      );
+      expect(
+        PerformanceDiagnosticsService.buildAttributionHint(
+          buildMs: 4,
+          rasterMs: 30,
+          attribution: null,
+        ),
+        'raster_slow_without_image_events',
+      );
+      expect(
+        PerformanceDiagnosticsService.buildAttributionHint(
+          buildMs: 25,
+          rasterMs: 4,
+          attribution: PerformanceFrameAttribution(builds: {'post:item#3': 1}),
+        ),
+        isNull,
+      );
+    });
+  });
 }
