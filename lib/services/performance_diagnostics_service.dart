@@ -163,9 +163,11 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
   static const int _frozenFrameMs = 100;
   static const int _buildOrRasterJankMs = 24;
   static const int _buildOrRasterSlowMs = 12;
-  static const int _recentEventLimit = 40;
+  static const int _recentEventLimit = 24;
   static const Duration _uiHeartbeatInterval = Duration(milliseconds: 100);
   static const Duration _uiStallThreshold = Duration(milliseconds: 40);
+  static const Duration _traceFlushDelay = Duration(milliseconds: 250);
+  static const int _traceFlushBytes = 16 * 1024;
 
   SharedPreferences? _prefs;
   bool _enabled = false;
@@ -174,10 +176,14 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
   DateTime? _sessionStartedAt;
   File? _logFile;
   Future<void> _writeChain = Future.value();
+  final List<String> _pendingTraceLines = <String>[];
+  int _pendingTraceBytes = 0;
+  Timer? _traceFlushTimer;
   int? _cachedEntryCount;
   Map<String, Object?>? _currentRoute;
   String? _lastLifecycleState;
-  DateTime? _lastSlowFrameSampleAt;
+  final Map<PerformanceFrameSeverity, DateTime> _lastFrameSampleAt =
+      <PerformanceFrameSeverity, DateTime>{};
   DateTime? _frameWindowStartedAt;
   int _frameWindowCount = 0;
   int _frameWindowSlowCount = 0;
@@ -226,6 +232,7 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
       data: _buildSnapshot(includeRecentEvents: true),
       force: true,
     );
+    await _flushPendingWrites();
     _enabled = false;
     await _prefs?.setBool(prefEnabledKey, false);
     _detachTimingsCallback();
@@ -381,6 +388,29 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
     return PerformanceFrameSeverity.good;
   }
 
+  @visibleForTesting
+  static Duration frameSampleInterval(PerformanceFrameSeverity severity) {
+    return switch (severity) {
+      PerformanceFrameSeverity.good => Duration.zero,
+      PerformanceFrameSeverity.slow => const Duration(seconds: 1),
+      PerformanceFrameSeverity.jank => const Duration(milliseconds: 300),
+      PerformanceFrameSeverity.severe => const Duration(milliseconds: 150),
+      PerformanceFrameSeverity.frozen => Duration.zero,
+    };
+  }
+
+  @visibleForTesting
+  static bool shouldSampleFrame({
+    required PerformanceFrameSeverity severity,
+    required DateTime now,
+    DateTime? lastSampleAt,
+  }) {
+    if (severity == PerformanceFrameSeverity.good) return false;
+    if (severity == PerformanceFrameSeverity.frozen) return true;
+    if (lastSampleAt == null) return true;
+    return now.difference(lastSampleAt) >= frameSampleInterval(severity);
+  }
+
   static String classifyDominantPhase({
     required int buildMs,
     required int rasterMs,
@@ -437,7 +467,7 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
   }
 
   Future<String?> readLogs() async {
-    await _writeChain;
+    await _flushPendingWrites();
     final file = await _getLogFile();
     if (!await file.exists()) return null;
     return file.readAsString();
@@ -449,6 +479,7 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
   }
 
   Future<void> clear() async {
+    await _flushPendingWrites();
     _writeChain = _writeChain.then((_) async {
       final file = await _getLogFile();
       await file.writeAsString('');
@@ -462,7 +493,7 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
         data: _buildSnapshot(includeRecentEvents: false),
         force: true,
       );
-      await _writeChain;
+      await _flushPendingWrites();
     }
   }
 
@@ -525,7 +556,7 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
 
       _slowFrameStreak++;
       if (!_shouldWriteFrameSample(severity, now)) continue;
-      _lastSlowFrameSampleAt = now;
+      _lastFrameSampleAt[severity] = now;
 
       _writeTrace(
         type: 'frame',
@@ -558,8 +589,7 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
           ),
           'snapshot': _buildSnapshot(
             includeRecentEvents:
-                severity.index >= PerformanceFrameSeverity.jank.index ||
-                _slowFrameStreak >= 3,
+                severity.index >= PerformanceFrameSeverity.severe.index,
           ),
         },
       );
@@ -602,10 +632,11 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
     PerformanceFrameSeverity severity,
     DateTime now,
   ) {
-    if (severity.index >= PerformanceFrameSeverity.jank.index) return true;
-    if (_slowFrameStreak == 1) return true;
-    final last = _lastSlowFrameSampleAt;
-    return last == null || now.difference(last) >= const Duration(seconds: 1);
+    return shouldSampleFrame(
+      severity: severity,
+      now: now,
+      lastSampleAt: _lastFrameSampleAt[severity],
+    );
   }
 
   void _updateFrameWindow({
@@ -663,7 +694,7 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
     _frameWindowWorstMs = 0;
     _frameWindowTotalMs = 0;
     _slowFrameStreak = 0;
-    _lastSlowFrameSampleAt = null;
+    _lastFrameSampleAt.clear();
   }
 
   int _durationMs(Duration duration) {
@@ -706,15 +737,36 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
       ...data,
     };
     final line = '${jsonEncode(entry)}\n';
-    _writeChain = _writeChain.then((_) => _writeLine(line));
+    _pendingTraceLines.add(line);
+    _pendingTraceBytes += line.length;
+    if (force || _pendingTraceBytes >= _traceFlushBytes) {
+      unawaited(_flushPendingWrites());
+      return;
+    }
+    _traceFlushTimer ??= Timer(_traceFlushDelay, () {
+      unawaited(_flushPendingWrites());
+    });
   }
 
-  Future<void> _writeLine(String line) async {
+  Future<void> _flushPendingWrites() {
+    _traceFlushTimer?.cancel();
+    _traceFlushTimer = null;
+    if (_pendingTraceLines.isEmpty) return _writeChain;
+
+    final batch = _pendingTraceLines.join();
+    final entryCount = _pendingTraceLines.length;
+    _pendingTraceLines.clear();
+    _pendingTraceBytes = 0;
+    _writeChain = _writeChain.then((_) => _writeBatch(batch, entryCount));
+    return _writeChain;
+  }
+
+  Future<void> _writeBatch(String batch, int entryCount) async {
     try {
       final file = await _getLogFile();
       await _loadEntryCountIfNeeded(file);
-      await file.writeAsString(line, mode: FileMode.append);
-      _cachedEntryCount = (_cachedEntryCount ?? 0) + 1;
+      await file.writeAsString(batch, mode: FileMode.append);
+      _cachedEntryCount = (_cachedEntryCount ?? 0) + entryCount;
       await _enforceRetentionIfNeeded(file);
     } catch (_) {
       // 诊断写盘失败不能影响正常浏览。

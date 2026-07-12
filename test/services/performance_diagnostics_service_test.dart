@@ -105,6 +105,71 @@ void main() {
     });
   });
 
+  group('PerformanceDiagnosticsService frame sampling', () {
+    final now = DateTime(2026, 7, 13, 0, 30);
+
+    test('always records frozen frames and never records good frames', () {
+      expect(
+        PerformanceDiagnosticsService.shouldSampleFrame(
+          severity: PerformanceFrameSeverity.frozen,
+          now: now,
+          lastSampleAt: now,
+        ),
+        isTrue,
+      );
+      expect(
+        PerformanceDiagnosticsService.shouldSampleFrame(
+          severity: PerformanceFrameSeverity.good,
+          now: now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('uses shorter cooldowns for more severe frames', () {
+      expect(
+        PerformanceDiagnosticsService.frameSampleInterval(
+          PerformanceFrameSeverity.severe,
+        ),
+        lessThan(
+          PerformanceDiagnosticsService.frameSampleInterval(
+            PerformanceFrameSeverity.jank,
+          ),
+        ),
+      );
+      expect(
+        PerformanceDiagnosticsService.frameSampleInterval(
+          PerformanceFrameSeverity.jank,
+        ),
+        lessThan(
+          PerformanceDiagnosticsService.frameSampleInterval(
+            PerformanceFrameSeverity.slow,
+          ),
+        ),
+      );
+    });
+
+    test('samples again only after the severity cooldown expires', () {
+      final lastSampleAt = now.subtract(const Duration(milliseconds: 299));
+      expect(
+        PerformanceDiagnosticsService.shouldSampleFrame(
+          severity: PerformanceFrameSeverity.jank,
+          now: now,
+          lastSampleAt: lastSampleAt,
+        ),
+        isFalse,
+      );
+      expect(
+        PerformanceDiagnosticsService.shouldSampleFrame(
+          severity: PerformanceFrameSeverity.jank,
+          now: now,
+          lastSampleAt: now.subtract(const Duration(milliseconds: 300)),
+        ),
+        isTrue,
+      );
+    });
+  });
+
   group('PerformanceFrameAttributionBuffer', () {
     test(
       'aggregates repeated builds and structured work in the same frame',
