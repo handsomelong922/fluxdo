@@ -184,6 +184,18 @@ NestedTopicState? buildInitialNestedPreviewState(TopicDetail detail) {
 }
 
 @visibleForTesting
+bool shouldUseNestedTopicView({
+  required bool requestedNestedView,
+  required TopicDetail? detail,
+  bool forceFlatView = false,
+}) {
+  return requestedNestedView &&
+      !forceFlatView &&
+      detail != null &&
+      !detail.isPrivateMessage;
+}
+
+@visibleForTesting
 TopicDetail mergeTopicDetailWithInitialPreview({
   required TopicDetail detail,
   required TopicDetail? previewDetail,
@@ -392,6 +404,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   Set<int> _cachedInitialReadPostNumbers = const <int>{};
   ProviderSubscription<TopicChannelState>? _topicChannelSubscription;
   bool _topicChannelNeedsCatchUp = false;
+  bool _privateMessageFlatViewScheduled = false;
   Timer? _pendingTopicListSeenUpdateTimer;
   int? _pendingSeenUpdateTopicId;
   int _pendingSeenUpdateHighestSeen = 0;
@@ -1003,6 +1016,21 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     );
   }
 
+  void _ensurePrivateMessageUsesFlatView(TopicDetail? detail) {
+    if (detail?.isPrivateMessage != true ||
+        !_isNestedView ||
+        _privateMessageFlatViewScheduled) {
+      return;
+    }
+
+    _privateMessageFlatViewScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _privateMessageFlatViewScheduled = false;
+      if (!mounted || !_isNestedView) return;
+      setState(() => _isNestedView = false);
+    });
+  }
+
   /// 在大屏上为内容添加宽度约束
   Widget _wrapWithConstraint(Widget child) {
     if (Responsive.isMobile(context)) return child;
@@ -1523,7 +1551,12 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         builder: (context, consumerRef, _) {
           final detailAsync = consumerRef.watch(topicDetailProvider(params));
           final detail = _mergeWithInitialPreview(detailAsync.value);
-          final primedNestedAsync = _isNestedView
+          _ensurePrivateMessageUsesFlatView(detail);
+          final useNestedView = shouldUseNestedTopicView(
+            requestedNestedView: _isNestedView,
+            detail: detail,
+          );
+          final primedNestedAsync = useNestedView
               ? consumerRef.watch(
                   nestedTopicProvider(
                     NestedTopicParams(topicId: widget.topicId),
@@ -2049,7 +2082,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     );
 
     // 嵌套视图模式
-    if (_isNestedView && !forceFlatView) {
+    if (shouldUseNestedTopicView(
+      requestedNestedView: _isNestedView,
+      detail: detail,
+      forceFlatView: forceFlatView,
+    )) {
       final nestedParams = NestedTopicParams(topicId: widget.topicId);
       final AsyncValue<NestedTopicState> nestedAsync =
           primedNestedAsync ?? ref.watch(nestedTopicProvider(nestedParams));

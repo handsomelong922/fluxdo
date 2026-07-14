@@ -779,6 +779,54 @@ buildTopicDetailRoute(
 );
 ```
 
+## Scenario: Private Message Detail Uses Flat Posts
+
+### 1. Scope / Trigger
+- Trigger: changing notification/private-message navigation, topic-detail nested-view selection, `nestedTopicProvider` prefetch, or rendering topics whose `archetype` is `private_message`.
+
+### 2. Signatures
+- `shouldUseNestedTopicView(requestedNestedView, detail, forceFlatView?) -> bool`
+- `TopicDetail.isPrivateMessage` is authoritative once detail has loaded.
+
+### 3. Contracts
+- A private-message topic must always render through the flat `TopicPostList`, even when the global preference or restored page state requests nested view.
+- Do not watch `/n/topic` data before `TopicDetail` is available. Start nested provider work only after detail confirms a regular topic and nested view is still requested.
+- When private-message detail arrives, clear only the page-local `_isNestedView` state after the current frame. Do not overwrite the user's global nested-view preference for subsequent regular topics.
+- Notification payload, target post number, read marking, and regular-topic nested behavior remain unchanged.
+
+### 4. Validation & Error Matrix
+- Nested requested + detail loading -> do not watch nested provider; keep normal detail loading path.
+- Nested requested + regular detail -> watch/render nested provider as before.
+- Nested requested + private-message detail -> render flat posts immediately and clear local nested state.
+- Force-flat preview/jump state + regular detail -> render flat path without nested provider.
+
+### 5. Good/Base/Bad Cases
+- Good: a private-message notification opens, the normal detail response renders posts, and no later nested response can replace them with an empty tree.
+- Base: a regular topic still enters nested view after its detail identifies the archetype.
+- Bad: keying only on `_isNestedView`, which temporarily paints the detail OP and then swaps to an empty `/n/topic` response for private messages.
+
+### 6. Tests Required
+- Unit-test `shouldUseNestedTopicView` for loading detail, regular detail, private-message detail, and explicit force-flat mode.
+- Keep topic preview/jump tests green because the helper also guards nested prefetch during initial detail loading.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+```dart
+final nested = _isNestedView
+    ? ref.watch(nestedTopicProvider(params))
+    : null;
+```
+
+#### Correct
+```dart
+final useNested = shouldUseNestedTopicView(
+  requestedNestedView: _isNestedView,
+  detail: detail,
+);
+final nested = useNested ? ref.watch(nestedTopicProvider(params)) : null;
+```
+
 ## Scenario: Topic Detail Snapshot Cache
 
 ### 1. Scope / Trigger

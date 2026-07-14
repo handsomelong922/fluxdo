@@ -191,6 +191,49 @@ void main() {
       );
     },
   );
+
+  test('私信详情即使请求树形视图也强制使用平铺列表', () {
+    final privateMessage = _detail(archetype: 'private_message');
+    final regularTopic = _detail();
+
+    expect(
+      shouldUseNestedTopicView(
+        requestedNestedView: true,
+        detail: privateMessage,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldUseNestedTopicView(requestedNestedView: true, detail: regularTopic),
+      isTrue,
+    );
+    expect(
+      shouldUseNestedTopicView(requestedNestedView: true, detail: null),
+      isFalse,
+    );
+    expect(
+      shouldUseNestedTopicView(
+        requestedNestedView: true,
+        detail: regularTopic,
+        forceFlatView: true,
+      ),
+      isFalse,
+    );
+  });
+}
+
+TopicDetail _detail({String archetype = 'regular'}) {
+  return TopicDetail(
+    id: 42,
+    title: '标题',
+    slug: 'sample-topic',
+    postsCount: 1,
+    postStream: PostStream(posts: const [], stream: const []),
+    categoryId: 9,
+    closed: false,
+    archived: false,
+    archetype: archetype,
+  );
 }
 
 Post _post({
