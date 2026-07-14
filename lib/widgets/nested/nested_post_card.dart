@@ -643,6 +643,8 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         ],
       );
     }
+    mainRow = RepaintBoundary(child: mainRow);
+
     // 子节点
     final bool showContinueThread = _atMaxDepth && _hasReplies;
     final bool showChildren =
@@ -758,7 +760,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
 
     final builtCard =
         widget.buildScrollTag?.call(post.postNumber, card) ?? card;
-    return RepaintBoundary(child: builtCard);
+    return builtCard;
   }
 
   /// 帖子文章区
