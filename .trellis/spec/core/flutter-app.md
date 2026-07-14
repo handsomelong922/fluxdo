@@ -511,6 +511,65 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
 });
 ```
 
+## Scenario: Viewport-Bounded Nested Reply Materialization
+
+### 1. Scope / Trigger
+- Trigger: changing recursive `NestedPostCard` rendering, nested reply auto-expansion, scroll-index tags, or repaint boundaries inside tree view.
+
+### 2. Signatures
+- `shouldRunNestedAutoWork(expanded, isVisible, autoLoadPaused, atMaxDepth)`
+- `ValueListenable<Set<int>>? autoWorkVisiblePostNumbersListenable`
+- `NestedRepliesState.childrenMaterialized`
+- `NestedScrollIndexRegistry.indexFor(postNumber)`
+- Diagnostic event: `nested:childrenMaterialized`
+
+### 3. Contracts
+- A `SliverList` virtualizes only its direct items. Recursive `Column` descendants inside one root item must not all materialize merely because the root was built.
+- Automatic child materialization/loading requires the parent post to be logically expanded, actually visible, scroll-idle, and below max depth. Each visible level may reveal its direct children after the current frame; deeper levels wait until their own parent becomes visible.
+- Manual expand/load-more bypasses the automatic gate and applies immediately. Already materialized children stay mounted when they leave the viewport so scroll extent and user state do not collapse.
+- An automatic child response that finishes during scrolling or after the card leaves the viewport is buffered and applied only when the same node generation becomes eligible again. A recycled node must never accept an old response.
+- Scroll indices are stable for a post number across local card rebuilds. Publish one snapshot after the frame, not one copied map per built post.
+- A repaint boundary may isolate the current post body, image, or media, but must not wrap an entire recursive descendant subtree.
+
+### 4. Validation & Error Matrix
+- Initial visible root with small preloaded replies -> root paints first; direct children materialize after layout; offscreen grandchildren remain unbuilt.
+- Active drag/fling -> no new automatic child widgets or completed auto-response insertion under the user's finger.
+- Auto response completes while paused/offscreen -> keep it buffered; resume/apply only after visible idle state returns.
+- User taps expand while paused -> show cached children or apply buffered response immediately; otherwise start the explicit request immediately.
+- Card identity/topic changes with an old request in flight -> generation mismatch discards the old completion.
+- Child card rebuilds after like/read/footer state changes -> reuse its existing scroll index and publish at most one mapping snapshot for the frame.
+
+### 5. Good/Base/Bad Cases
+- Good: a deep image-heavy tree grows one visible level at a time and offscreen animated images have no widget listener yet.
+- Base: a shallow tree still appears automatically expanded within a few frames, with the same lines, spacing, order, and actions.
+- Bad: recursively build every auto-expanded descendant in the root item, copy the full post-index map for every child, or wrap the whole subtree in one `RepaintBoundary`.
+
+### 6. Tests Required
+- Unit-test automatic work for visible/idle, offscreen, paused, collapsed, and max-depth inputs.
+- Unit-test stable index reuse, reverse lookup, snapshot, and reset.
+- Keep nested provider race, load-more, jump-target, preview, flat materialization, render-identity, performance diagnostics, and full Flutter tests green.
+- On-device validation should compare live/pending image counts, worst build/raster time, slow-frame streak, and `nested:childrenMaterialized` events for the same complex topic path.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+Widget buildChildren(List<NestedNode> children) => Column(
+  children: children.map((node) => NestedPostCard(node: node)).toList(),
+);
+```
+
+#### Correct
+```dart
+if (shouldRunNestedAutoWork(
+  expanded: expanded,
+  isVisible: visiblePosts.contains(postNumber),
+  autoLoadPaused: scrolling,
+  atMaxDepth: atMaxDepth,
+)) {
+  scheduleDirectChildrenAfterFrame();
+}
+```
+
 ## Scenario: Home Topic Excerpt Background Prefetch While Detail Routes Are Visible
 
 ### 1. Scope / Trigger
