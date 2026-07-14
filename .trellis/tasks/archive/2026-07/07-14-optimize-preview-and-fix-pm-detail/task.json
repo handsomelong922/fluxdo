@@ -1,0 +1,30 @@
+{
+  "id": "optimize-preview-and-fix-pm-detail",
+  "name": "optimize-preview-and-fix-pm-detail",
+  "title": "优化话题预览并修复私信详情空白",
+  "description": "统筹预览弹窗自适应高度与样式优化，以及私信通知进入详情后正文消失修复；两个改动分别提交并统一推送。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "handsomelong922",
+  "assignee": "handsomelong922",
+  "createdAt": "2026-07-14",
+  "completedAt": "2026-07-14",
+  "branch": null,
+  "base_branch": "codex/rollback-to-v0.3.1",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-14-optimize-preview-dialog-sizing",
+    "07-14-fix-pm-notification-detail-body",
+    "07-14-fix-search-preview-keyboard-focus"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
