@@ -118,3 +118,36 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: 优化话题预览触发与窗口体验
+
+**Date**: 2026-07-14
+**Task**: 优化话题预览触发与窗口体验
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+新增长按/右侧点击二选一预览设置，统一首页书签历史搜索预览，固定弹窗布局并复用首帖 preview seed。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2a4fd2c5` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
