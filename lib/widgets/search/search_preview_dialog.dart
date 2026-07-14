@@ -15,6 +15,10 @@ class SearchPreviewDialog {
     VoidCallback? onOpen,
     TopicPreviewTrigger trigger = TopicPreviewTrigger.longPress,
   }) {
+    // 弹层关闭时不能把焦点还给搜索框，否则系统会重新拉起输入法。
+    FocusManager.instance.primaryFocus?.unfocus(
+      disposition: UnfocusDisposition.scope,
+    );
     return TopicPreviewDialog.show(
       context,
       topic: searchPostToTopicPreview(post, allowBlurbFallback: false),

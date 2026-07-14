@@ -10,6 +10,7 @@ import 'package:fluxdo/providers/theme_provider.dart';
 import 'package:fluxdo/services/local_notification_service.dart';
 import 'package:fluxdo/utils/time_utils.dart';
 import 'package:fluxdo/widgets/search/search_post_card.dart';
+import 'package:fluxdo/widgets/search/search_preview_dialog.dart';
 import 'package:fluxdo/widgets/topic/topic_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -301,6 +302,73 @@ void main() {
     await tester.pump();
     expect(previewCount, 1);
     expect(tapCount, 0);
+  });
+
+  testWidgets('搜索预览关闭后不恢复输入框焦点', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+    late BuildContext pageContext;
+    final loader = HomeTopicExcerptLoader(
+      fetchPreview: (topicId) async =>
+          _previewDetail(topicId, html: '<p>主帖正文</p>'),
+    );
+    addTearDown(loader.dispose);
+    final post = SearchPost(
+      id: 1,
+      username: 'tester',
+      avatarTemplate: '/user_avatar/example/{size}/1.png',
+      createdAt: DateTime.now(),
+      likeCount: 0,
+      blurb: '<p>摘要</p>',
+      postNumber: 1,
+      topic: SearchTopic(
+        id: 9,
+        title: '搜索结果标题',
+        slug: 'search-topic',
+        tags: const [],
+        postsCount: 1,
+        views: 1,
+        closed: false,
+        archived: false,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          categoryMapProvider.overrideWithValue(const AsyncValue.data({})),
+          homeTopicExcerptLoaderProvider.overrideWithValue(loader),
+        ],
+        child: MaterialApp(
+          navigatorKey: navigatorKey,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) {
+              pageContext = context;
+              return Scaffold(body: TextField(focusNode: focusNode));
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    expect(focusNode.hasFocus, isTrue);
+    expect(tester.testTextInput.isVisible, isTrue);
+
+    SearchPreviewDialog.show(pageContext, post: post);
+    await tester.pumpAndSettle();
+    expect(focusNode.hasFocus, isFalse);
+
+    Navigator.of(pageContext, rootNavigator: true).pop();
+    await tester.pumpAndSettle();
+    expect(focusNode.hasFocus, isFalse);
+    expect(tester.testTextInput.isVisible, isFalse);
   });
 }
 
