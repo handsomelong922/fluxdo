@@ -225,3 +225,38 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: Fix nested feed scroll jank from performance trace
+
+**Date**: 2026-07-14
+**Task**: Fix nested feed scroll jank from performance trace
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+分析 2019 条性能追踪记录，定位树形评论递归子树绕过 Sliver 虚拟化、索引映射 O(n²) 与递归重绘边界问题；实现视口驱动物化、滚动期响应缓冲和稳定索引，通过全量分析与 515 项测试。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bab74dad` | (see git log) |
+| `9892255f` | (see git log) |
+| `349b4d62` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
