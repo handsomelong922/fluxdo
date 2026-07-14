@@ -41,7 +41,14 @@ class PreviewAction {
 /// 话题预览弹窗。
 class TopicPreviewDialog extends ConsumerStatefulWidget {
   static const previewWindowKey = ValueKey<String>('topic-preview-window');
+  static const metadataDividerKey = ValueKey<String>(
+    'topic-preview-metadata-divider',
+  );
   static const double viewportHeightFactor = 0.85;
+  static const double minViewportHeightFactor = 0.46;
+  static const double minDialogHeight = 320;
+  static const double maxMinDialogHeight = 420;
+  static const Duration resizeDuration = Duration(milliseconds: 220);
 
   final Topic topic;
   final VoidCallback? onOpen;
@@ -159,7 +166,17 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
     final theme = Theme.of(context);
     final media = MediaQuery.of(context);
     final safeHeight = media.size.height - media.padding.vertical;
-    final dialogHeight = safeHeight * TopicPreviewDialog.viewportHeightFactor;
+    final maxDialogHeight =
+        safeHeight * TopicPreviewDialog.viewportHeightFactor;
+    final preferredMinDialogHeight =
+        (safeHeight * TopicPreviewDialog.minViewportHeightFactor).clamp(
+          TopicPreviewDialog.minDialogHeight,
+          TopicPreviewDialog.maxMinDialogHeight,
+        );
+    final minDialogHeight = preferredMinDialogHeight.clamp(
+      0.0,
+      maxDialogHeight,
+    );
     final dialogWidth = (media.size.width * 0.9).clamp(0.0, 500.0);
 
     final categoryMap = ref.watch(categoryMapProvider).value;
@@ -177,74 +194,115 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
     }
 
     final hasActions = widget.actions != null && widget.actions!.isNotEmpty;
+    final maxCardHeight = hasActions ? maxDialogHeight * 0.69 : maxDialogHeight;
+    final minCardHeight = hasActions
+        ? (minDialogHeight * 0.64).clamp(0.0, maxCardHeight)
+        : minDialogHeight.clamp(0.0, maxCardHeight);
 
     return SafeArea(
       child: Center(
-        child: SizedBox(
+        child: AnimatedSize(
           key: TopicPreviewDialog.previewWindowKey,
-          width: dialogWidth,
-          height: dialogHeight,
-          child: Column(
-            children: [
-              Expanded(
-                child: Material(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  clipBehavior: Clip.antiAlias,
-                  elevation: 8,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 4,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              theme.colorScheme.primaryContainer,
-                              theme.colorScheme.tertiaryContainer,
-                            ],
+          duration: TopicPreviewDialog.resizeDuration,
+          reverseDuration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.center,
+          child: SizedBox(
+            width: dialogWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: minCardHeight,
+                    maxHeight: maxCardHeight,
+                  ),
+                  child: Material(
+                    color: theme.colorScheme.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      side: BorderSide(
+                        color: theme.colorScheme.outlineVariant.withValues(
+                          alpha: 0.55,
+                        ),
+                        width: 0.7,
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    elevation: 8,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Flexible(
+                          fit: FlexFit.loose,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: (minCardHeight - 52).clamp(
+                                0.0,
+                                maxCardHeight,
+                              ),
+                            ),
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                12,
+                                16,
+                                10,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildTitle(context, theme),
+                                  const SizedBox(height: 8),
+                                  _buildAuthorInfo(context, theme),
+                                  if (category != null ||
+                                      topic.tags.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    _buildCategoryAndTags(
+                                      context,
+                                      theme,
+                                      category,
+                                      faIcon,
+                                      logoUrl,
+                                    ),
+                                  ],
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: 9,
+                                      bottom: 10,
+                                    ),
+                                    child: Divider(
+                                      key:
+                                          TopicPreviewDialog.metadataDividerKey,
+                                      height: 0.5,
+                                      thickness: 0.5,
+                                      color: theme.colorScheme.outlineVariant
+                                          .withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                  _buildPostContent(context, theme),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildTitle(context, theme),
-                              const SizedBox(height: 8),
-                              _buildAuthorInfo(context, theme),
-                              if (category != null ||
-                                  topic.tags.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                _buildCategoryAndTags(
-                                  context,
-                                  theme,
-                                  category,
-                                  faIcon,
-                                  logoUrl,
-                                ),
-                              ],
-                              const SizedBox(height: 10),
-                              _buildPostContent(context, theme),
-                            ],
-                          ),
-                        ),
-                      ),
-                      _buildFooter(context, theme),
-                    ],
+                        _buildFooter(context, theme),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              if (hasActions) ...[
-                const SizedBox(height: 8),
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: dialogHeight * 0.28),
-                  child: _buildCustomActions(context, theme),
-                ),
+                if (hasActions) ...[
+                  const SizedBox(height: 8),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: maxDialogHeight * 0.28,
+                    ),
+                    child: _buildCustomActions(context, theme),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

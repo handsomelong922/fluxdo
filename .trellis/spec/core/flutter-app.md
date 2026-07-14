@@ -710,6 +710,7 @@ return _buildInteractiveLoadingPreview(
 ### 2. Signatures
 - `buildTopicDetailRoute(topicId, initialTitle?, scrollToPostNumber?, initialTopicPreview?, initialFirstPostHtml?)`
 - `TopicPreviewDialog` keeps the loaded first-post `TopicDetail` and writes it through `TopicDetailCacheService.writePreviewSeed(...)` before invoking its detail callback.
+- Preview geometry uses `minViewportHeightFactor = 0.46` (clamped to 320..420 logical pixels) and `viewportHeightFactor = 0.85` as the safe-viewport maximum, with `AnimatedSize` handling async content arrival.
 - `TopicDetailPage.initialTopicPreview` and `initialFirstPostHtml` are first-paint preview data only.
 - `scrollToPostNumber` is an explicit navigation target and must remain stronger than preview/restored state.
 
@@ -722,6 +723,8 @@ return _buildInteractiveLoadingPreview(
 - A preview seed is never a complete topic response: opening detail must still revalidate in the background to load replies and volatile metadata.
 - Restored reading state is a fallback only. Do not apply it when first-post preview is available and no explicit target was requested.
 - Loading replies, post windows, boosts, likes, or metadata must not replace the visible first-post preview with a global skeleton.
+- The preview dialog must size from real rendered content between its minimum and maximum bounds. Keep long content scrollable inside the dialog; do not estimate complex HTML height from character count or use `IntrinsicHeight` around the HTML renderer.
+- Keep preview chrome lightweight: use a uniform four-side outline instead of a one-edge color strip, and separate title/author/category/tags from the post body with a low-alpha `outlineVariant` divider.
 
 ### 4. Validation & Error Matrix
 - Preview + no explicit target -> render first post immediately; fetch the normal first page/window for replies.
@@ -729,18 +732,23 @@ return _buildInteractiveLoadingPreview(
 - Preview dialog loads first post, then opens detail -> first post renders from the runtime seed; full detail/replies revalidate in the background.
 - No preview + explicit target -> existing jump-target skeleton behavior is allowed.
 - Target post missing after load -> use the existing unreachable-target fallback; do not silently jump to the wrong floor.
+- Short first post -> dialog remains at or above the minimum but below the 85% maximum; unused space must not expand to the maximum.
+- Long/complex first post -> dialog stops at the 85% maximum and the content area scrolls without overflow.
+- Async first-post arrival -> size changes through the configured ease-out `AnimatedSize`; no abrupt fixed-height swap.
 
 ### 5. Good/Base/Bad Cases
 - Good: home card preview opens with `scrollToPostNumber: null`, then replies append/load below.
 - Good: bookmark/history preview writes the displayed first post to the username-scoped runtime cache before running the existing navigation callback.
+- Good: constrained loose-flex content lets a two-line post stay compact and a code/image-heavy post grow only to the maximum.
 - Base: search result preview opens with `scrollToPostNumber: post.postNumber` and uses the search blurb as first paint.
 - Bad: treating every preview as permission to ignore `scrollToPostNumber`, or passing home `lastReadPostNumber` together with first-post preview.
+- Bad: forcing every preview to 85% height, measuring complex HTML intrinsically, or restoring a decorative strip on only one edge.
 
 ### 6. Tests Required
 - Assert preview without explicit target resolves to first-post loading, not restored reading position.
 - Assert preview with explicit target preserves that target for search/notification-style navigation.
 - Assert search post cards expose preview topic data and blank blurbs do not create fake preview HTML.
-- Widget-test preview dialog fixed geometry and its single detail action; unit-test preview seeds always revalidate and may bootstrap explicit target routes until the target loads.
+- Widget-test preview dialog minimum/maximum adaptive geometry, resize animation, metadata divider, and its single detail action; unit-test preview seeds always revalidate and may bootstrap explicit target routes until the target loads.
 - Keep render identity tests stable across preview-to-real `post.id` handoff.
 
 ### 7. Wrong vs Correct

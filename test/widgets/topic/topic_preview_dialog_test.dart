@@ -14,7 +14,7 @@ import 'package:fluxdo/widgets/topic/topic_preview_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('话题预览保持固定高度并使用精简的单一详情操作栏', (tester) async {
+  testWidgets('短正文预览在最低与最高高度之间自适应并分隔元信息', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -47,14 +47,77 @@ void main() {
 
     final window = find.byKey(TopicPreviewDialog.previewWindowKey);
     expect(window, findsOneWidget);
+    final windowHeight = tester.getSize(window).height;
     expect(
-      tester.getSize(window).height,
-      closeTo(844 * TopicPreviewDialog.viewportHeightFactor, 0.01),
+      windowHeight,
+      greaterThanOrEqualTo(844 * TopicPreviewDialog.minViewportHeightFactor),
+    );
+    expect(
+      windowHeight,
+      lessThan(844 * TopicPreviewDialog.viewportHeightFactor),
+    );
+    expect(find.byType(AnimatedSize), findsOneWidget);
+    expect(
+      tester.widget<AnimatedSize>(find.byType(AnimatedSize)).duration,
+      TopicPreviewDialog.resizeDuration,
+    );
+    expect(find.byKey(TopicPreviewDialog.metadataDividerKey), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Container &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration! as BoxDecoration).gradient != null,
+      ),
+      findsNothing,
     );
     expect(find.text('查看详情'), findsOneWidget);
     expect(find.text('关闭'), findsNothing);
     expect(find.byIcon(Icons.share_outlined), findsNothing);
     expect(find.text('参与者'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('长正文预览不超过现有最高高度', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final longHtml = List.generate(
+      80,
+      (index) => '<p>这是用于验证最大高度限制的正文第 $index 行。</p>',
+    ).join();
+    final loader = HomeTopicExcerptLoader(
+      fetchPreview: (topicId) async =>
+          _previewDetail(topicId, cooked: longHtml),
+    );
+    addTearDown(loader.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          categoryMapProvider.overrideWithValue(const AsyncValue.data({})),
+          homeTopicExcerptLoaderProvider.overrideWithValue(loader),
+        ],
+        child: MaterialApp(
+          navigatorKey: navigatorKey,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: TopicPreviewDialog(topic: _topicWithManyTags())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(TopicPreviewDialog.previewWindowKey)).height,
+      lessThanOrEqualTo(844 * TopicPreviewDialog.viewportHeightFactor),
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -132,7 +195,10 @@ Topic _topicWithManyTags() {
   );
 }
 
-TopicDetail _previewDetail(int topicId) {
+TopicDetail _previewDetail(
+  int topicId, {
+  String cooked = '<p>正文</p><pre><code>final value = 1;</code></pre>',
+}) {
   final now = DateTime(2026, 7, 14, 12);
   return TopicDetail(
     id: topicId,
@@ -146,7 +212,7 @@ TopicDetail _previewDetail(int topicId) {
           topicId: topicId,
           username: 'tester',
           avatarTemplate: '',
-          cooked: '<p>正文</p><pre><code>final value = 1;</code></pre>',
+          cooked: cooked,
           postNumber: 1,
           postType: 1,
           updatedAt: now,
