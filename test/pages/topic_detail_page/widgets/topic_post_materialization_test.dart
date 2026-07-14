@@ -76,6 +76,18 @@ void main() {
     expect(cap, 10); // center 的 6 段 + 4 个近邻段
   });
 
+  test('中心切换后的初始 cap 保持有界并完整包含新中心长帖', () {
+    final plan = initialTopicPostMaterialization(
+      segmentPostIds: const [1, 2, 20, 20, 20, 20, 3, 4, 5, 6, 7, 8],
+      centerScrollIndex: 2,
+    );
+
+    expect(plan.beforeCap, 4);
+    expect(plan.afterCap, 8); // center 的 4 段 + 4 个近邻段
+    expect(plan.beforeCap, lessThan(12));
+    expect(plan.afterCap, lessThan(12));
+  });
+
   test('materialized count 不超过总数且不接受负 cap', () {
     expect(materializedSegmentCount(total: 20, cap: null), 20);
     expect(materializedSegmentCount(total: 20, cap: 8), 8);

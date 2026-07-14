@@ -257,11 +257,12 @@ class _TopicPostListState extends State<TopicPostList> {
           .toList(growable: false),
       newCenterPostIndex: widget.centerPostIndex,
     )) {
-      // 同话题显式更换中心点时放开当前已加载段，避免旧 cap 围绕新中心
-      // 重新解释后卸载已经物化的 element。prepend 仅平移索引，postNumber
-      // 不变，因此不会触发该分支。
+      // 同话题显式更换中心点时，下一次 build 会先围绕新中心重建索引，
+      // 再重新建立有界 cap。不能直接放开全部 segment，否则大帖跳转会在
+      // 一帧内构建大量楼层和图片。prepend 仅平移索引，不会触发该分支。
       _materializeCapBefore = null;
       _materializeCapAfter = null;
+      _initialMaterializationInitialized = false;
     }
   }
 
@@ -866,14 +867,15 @@ class _TopicPostListState extends State<TopicPostList> {
   void _initializeMaterialization(int centerScrollIndex) {
     if (_initialMaterializationInitialized) return;
     _initialMaterializationInitialized = true;
-    _materializeCapBefore = _materializeStep;
-    _materializeCapAfter = initialAfterMaterializationCap(
+    final initial = initialTopicPostMaterialization(
       segmentPostIds: _renderSegments
           .map((segment) => segment.post.id)
           .toList(growable: false),
       centerScrollIndex: centerScrollIndex,
       step: _materializeStep,
     );
+    _materializeCapBefore = initial.beforeCap;
+    _materializeCapAfter = initial.afterCap;
     _scheduleMaterializeStep();
   }
 

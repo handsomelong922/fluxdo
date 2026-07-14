@@ -12,6 +12,16 @@ class TopicPostMaterializationPlan {
   });
 }
 
+class TopicPostInitialMaterialization {
+  final int beforeCap;
+  final int afterCap;
+
+  const TopicPostInitialMaterialization({
+    required this.beforeCap,
+    required this.afterCap,
+  });
+}
+
 TopicPostGrowth? detectTopicPostGrowth({
   required List<int>? oldPostIds,
   required List<int> newPostIds,
@@ -79,6 +89,21 @@ int initialAfterMaterializationCap({
     cursor++;
   }
   return cursor - centerScrollIndex + step;
+}
+
+TopicPostInitialMaterialization initialTopicPostMaterialization({
+  required List<int> segmentPostIds,
+  required int centerScrollIndex,
+  int step = 4,
+}) {
+  return TopicPostInitialMaterialization(
+    beforeCap: step,
+    afterCap: initialAfterMaterializationCap(
+      segmentPostIds: segmentPostIds,
+      centerScrollIndex: centerScrollIndex,
+      step: step,
+    ),
+  );
 }
 
 int materializedSegmentCount({required int total, required int? cap}) {
