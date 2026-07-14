@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:collection';
 
-import 'package:flutter/foundation.dart' show ValueNotifier, setEquals;
+import 'package:flutter/foundation.dart'
+    show ValueNotifier, setEquals, visibleForTesting;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,33 @@ import '../../../widgets/post/post_item/post_item.dart';
 import 'nested_load_more_trigger.dart';
 import 'topic_detail_header.dart';
 import 'topic_linear_loading_indicator.dart';
+
+@visibleForTesting
+class NestedScrollIndexRegistry {
+  final Map<int, int> _postNumberToIndex = <int, int>{};
+  final Map<int, int> _indexToPostNumber = <int, int>{};
+  int _nextIndex = 0;
+
+  int indexFor(int postNumber) {
+    final existing = _postNumberToIndex[postNumber];
+    if (existing != null) return existing;
+
+    final index = _nextIndex++;
+    _postNumberToIndex[postNumber] = index;
+    _indexToPostNumber[index] = postNumber;
+    return index;
+  }
+
+  int? postNumberFor(int index) => _indexToPostNumber[index];
+
+  Map<int, int> snapshot() => Map<int, int>.from(_postNumberToIndex);
+
+  void reset() {
+    _postNumberToIndex.clear();
+    _indexToPostNumber.clear();
+    _nextIndex = 0;
+  }
+}
 
 /// 嵌套视图帖子列表 — 在现有 TopicDetailPage 内替换平铺帖子流
 class NestedPostList extends ConsumerStatefulWidget {
@@ -103,14 +131,17 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
   final Map<int, bool> _expansionState = {};
   final LinkedHashMap<int, NestedRepliesState> _repliesStateByPostNumber =
       LinkedHashMap<int, NestedRepliesState>();
-  final Map<int, int> _postNumberToScrollIndex = {};
-  final Map<int, int> _scrollIndexToPostNumber = {};
+  final NestedScrollIndexRegistry _scrollIndexRegistry =
+      NestedScrollIndexRegistry();
   final NestedLoadMoreTrigger _loadMoreTrigger = NestedLoadMoreTrigger();
   final ValueNotifier<bool> _autoLoadChildrenPausedNotifier =
       ValueNotifier<bool>(false);
-  int _nextScrollIndex = 0;
+  final ValueNotifier<Set<int>> _visiblePostNumbersNotifier =
+      ValueNotifier<Set<int>>(const <int>{});
   Timer? _visibilityUpdateTimer;
   Timer? _autoChildLoadResumeTimer;
+  bool _visiblePostLayoutUpdateScheduled = false;
+  bool _scrollIndexMappingUpdateScheduled = false;
   int? _lastReportedPostNumber;
   Set<int> _lastVisiblePostNumbers = const <int>{};
 
@@ -131,6 +162,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
     _visibilityUpdateTimer?.cancel();
     _autoChildLoadResumeTimer?.cancel();
     _autoLoadChildrenPausedNotifier.dispose();
+    _visiblePostNumbersNotifier.dispose();
     super.dispose();
   }
 
@@ -161,6 +193,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
       _repliesStateByPostNumber.clear();
       _loadMoreTrigger.reset();
       _lastVisiblePostNumbers = const <int>{};
+      _visiblePostNumbersNotifier.value = const <int>{};
     }
     if (widget.expandedPostNumbers.isNotEmpty &&
         oldWidget.expandedPostNumbers != widget.expandedPostNumbers) {
@@ -174,6 +207,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
             page: repliesState.page,
             expanded: true,
             collapsed: false,
+            childrenMaterialized: true,
           );
         }
       }
@@ -181,13 +215,34 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
   }
 
   int _nextIndexForPost(int postNumber) {
-    final index = _nextScrollIndex++;
-    _postNumberToScrollIndex[postNumber] = index;
-    _scrollIndexToPostNumber[index] = postNumber;
-    widget.onPostNumberScrollIndexMappingChanged?.call(
-      Map<int, int>.from(_postNumberToScrollIndex),
-    );
+    final index = _scrollIndexRegistry.indexFor(postNumber);
+    _scheduleScrollIndexMappingUpdate();
     return index;
+  }
+
+  void _scheduleScrollIndexMappingUpdate() {
+    if (_scrollIndexMappingUpdateScheduled ||
+        widget.onPostNumberScrollIndexMappingChanged == null) {
+      return;
+    }
+    _scrollIndexMappingUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollIndexMappingUpdateScheduled = false;
+      if (!mounted) return;
+      widget.onPostNumberScrollIndexMappingChanged?.call(
+        _scrollIndexRegistry.snapshot(),
+      );
+    });
+  }
+
+  void _scheduleVisiblePostsUpdateAfterLayout() {
+    if (_visiblePostLayoutUpdateScheduled) return;
+    _visiblePostLayoutUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _visiblePostLayoutUpdateScheduled = false;
+      if (!mounted) return;
+      _updateVisiblePostsFromViewport();
+    });
   }
 
   void _scheduleVisiblePostsUpdate({bool immediate = false}) {
@@ -211,7 +266,13 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
   void _updateVisiblePostsFromViewport() {
     if (!widget.scrollController.hasClients) return;
     final tagMap = widget.scrollController.tagMap;
-    if (tagMap.isEmpty) return;
+    if (tagMap.isEmpty) {
+      if (_visiblePostNumbersNotifier.value.isNotEmpty) {
+        _visiblePostNumbersNotifier.value = const <int>{};
+      }
+      _lastVisiblePostNumbers = const <int>{};
+      return;
+    }
 
     final position = widget.scrollController.position;
     final viewportHeight = position.viewportDimension;
@@ -225,7 +286,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
     final staleTagKeys = <int>[];
 
     for (final entry in tagMap.entries) {
-      final postNumber = _scrollIndexToPostNumber[entry.key];
+      final postNumber = _scrollIndexRegistry.postNumberFor(entry.key);
       if (postNumber == null) {
         staleTagKeys.add(entry.key);
         continue;
@@ -274,13 +335,19 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
       }
     }
 
-    if (visiblePostNumbers.isNotEmpty &&
-        !setEquals(_lastVisiblePostNumbers, visiblePostNumbers)) {
-      _lastVisiblePostNumbers = Set<int>.unmodifiable(visiblePostNumbers);
-      widget.onVisiblePostsChanged?.call(visiblePostNumbers);
-    } else if (visiblePostNumbers.isEmpty &&
-        _lastVisiblePostNumbers.isNotEmpty) {
-      _lastVisiblePostNumbers = const <int>{};
+    if (!setEquals(_visiblePostNumbersNotifier.value, visiblePostNumbers)) {
+      _visiblePostNumbersNotifier.value = visiblePostNumbers.isEmpty
+          ? const <int>{}
+          : Set<int>.unmodifiable(visiblePostNumbers);
+    }
+
+    if (!setEquals(_lastVisiblePostNumbers, visiblePostNumbers)) {
+      _lastVisiblePostNumbers = visiblePostNumbers.isEmpty
+          ? const <int>{}
+          : Set<int>.unmodifiable(visiblePostNumbers);
+      if (visiblePostNumbers.isNotEmpty) {
+        widget.onVisiblePostsChanged?.call(visiblePostNumbers);
+      }
     }
 
     final currentPostNumber = eyelinePostNumber ?? closestPostNumber;
@@ -336,9 +403,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
 
   @override
   Widget build(BuildContext context) {
-    _postNumberToScrollIndex.clear();
-    _scrollIndexToPostNumber.clear();
-    _nextScrollIndex = 0;
+    _scrollIndexRegistry.reset();
     final maxDepth = _getMaxDepth(context);
 
     final ns = widget.nestedState;
@@ -528,9 +593,12 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
                   repliesStateByPostNumber: _repliesStateByPostNumber,
                   onRepliesStateChanged: (postNumber, state) {
                     _rememberRepliesState(postNumber, state);
+                    _scheduleVisiblePostsUpdateAfterLayout();
                   },
                   autoLoadChildrenPausedListenable:
                       _autoLoadChildrenPausedNotifier,
+                  autoWorkVisiblePostNumbersListenable:
+                      _visiblePostNumbersNotifier,
                   searchHighlightQuery: widget.searchHighlightQuery,
                   buildScrollTag: (postNumber, child) => AutoScrollTag(
                     key: ValueKey('nested-post-$postNumber'),

@@ -63,6 +63,67 @@ void main() {
     });
   });
 
+  group('shouldRunNestedAutoWork', () {
+    test('allows visible expanded nodes while the list is idle', () {
+      expect(
+        shouldRunNestedAutoWork(
+          expanded: true,
+          isVisible: true,
+          autoLoadPaused: false,
+          atMaxDepth: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('blocks offscreen scrolling collapsed and max-depth nodes', () {
+      for (final blocked
+          in <
+            ({
+              bool expanded,
+              bool isVisible,
+              bool autoLoadPaused,
+              bool atMaxDepth,
+            })
+          >[
+            (
+              expanded: true,
+              isVisible: false,
+              autoLoadPaused: false,
+              atMaxDepth: false,
+            ),
+            (
+              expanded: true,
+              isVisible: true,
+              autoLoadPaused: true,
+              atMaxDepth: false,
+            ),
+            (
+              expanded: false,
+              isVisible: true,
+              autoLoadPaused: false,
+              atMaxDepth: false,
+            ),
+            (
+              expanded: true,
+              isVisible: true,
+              autoLoadPaused: false,
+              atMaxDepth: true,
+            ),
+          ]) {
+        expect(
+          shouldRunNestedAutoWork(
+            expanded: blocked.expanded,
+            isVisible: blocked.isVisible,
+            autoLoadPaused: blocked.autoLoadPaused,
+            atMaxDepth: blocked.atMaxDepth,
+          ),
+          isFalse,
+        );
+      }
+    });
+  });
+
   setUp(() async {
     AutoReplyPrefetchQueue.instance.clearPending();
     await AutoReplyPrefetchQueue.instance.debugIdle;

@@ -7,6 +7,7 @@ import '../../models/topic.dart';
 import '../../providers/nested_topic_provider.dart';
 import '../../providers/preferences_provider.dart';
 import '../../providers/topic_session_provider.dart';
+import '../../services/performance_diagnostics_service.dart';
 import '../../pages/user_profile_page.dart';
 import '../../utils/blocked_user_filter.dart';
 import '../../utils/responsive.dart';
@@ -37,6 +38,7 @@ class NestedRepliesState {
     required this.page,
     required this.expanded,
     required this.collapsed,
+    required this.childrenMaterialized,
   });
 
   final List<NestedNode> children;
@@ -44,6 +46,7 @@ class NestedRepliesState {
   final int page;
   final bool expanded;
   final bool collapsed;
+  final bool childrenMaterialized;
 }
 
 /// 嵌套帖子卡片
@@ -85,6 +88,7 @@ class NestedPostCard extends ConsumerStatefulWidget {
   final void Function(int postNumber, NestedRepliesState state)?
   onRepliesStateChanged;
   final ValueListenable<bool>? autoLoadChildrenPausedListenable;
+  final ValueListenable<Set<int>>? autoWorkVisiblePostNumbersListenable;
 
   final Widget Function(int postNumber, Widget child)? buildScrollTag;
   final String? searchHighlightQuery;
@@ -111,6 +115,7 @@ class NestedPostCard extends ConsumerStatefulWidget {
     this.repliesStateByPostNumber,
     this.onRepliesStateChanged,
     this.autoLoadChildrenPausedListenable,
+    this.autoWorkVisiblePostNumbersListenable,
     this.buildScrollTag,
     this.searchHighlightQuery,
   });
@@ -129,12 +134,30 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   int _page = 0;
   bool _depthLineHovered = false;
   bool _autoLoadScheduled = false;
+  bool _autoMaterializationScheduled = false;
+  bool _childrenMaterialized = false;
+  bool _reportAutoMaterializationOnNextBuild = false;
+  int _nodeGeneration = 0;
+  NestedChildrenResponse? _pendingAutoLoadResponse;
   List<NestedNode>? _visibleChildrenSourceChildren;
   Set<String>? _visibleChildrenSourceBlockedUsernames;
   List<NestedNode> _visibleChildrenCache = const [];
 
   bool get _autoLoadChildrenPaused =>
       widget.autoLoadChildrenPausedListenable?.value ?? false;
+
+  bool get _isVisibleForAutoWork =>
+      widget.autoWorkVisiblePostNumbersListenable?.value.contains(
+        widget.node.post.postNumber,
+      ) ??
+      true;
+
+  bool get _canRunAutoWork => shouldRunNestedAutoWork(
+    expanded: _expanded,
+    isVisible: _isVisibleForAutoWork,
+    autoLoadPaused: _autoLoadChildrenPaused,
+    atMaxDepth: _atMaxDepth,
+  );
 
   String get _autoChildLoadQueueKey => _autoChildLoadQueueKeyFor(
     topicId: widget.params.topicId,
@@ -147,8 +170,13 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     widget.autoLoadChildrenPausedListenable?.addListener(
       _handleAutoLoadPauseChanged,
     );
+    widget.autoWorkVisiblePostNumbersListenable?.addListener(
+      _handleAutoWorkVisibilityChanged,
+    );
     _resetNodeState();
     _listenChildCreated();
+    _scheduleAutoMaterializeChildren();
+    _applyPendingAutoLoadResponseIfReady();
     _scheduleAutoLoadChildren();
   }
 
@@ -171,11 +199,21 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         _handleAutoLoadPauseChanged,
       );
     }
+    if (oldWidget.autoWorkVisiblePostNumbersListenable !=
+        widget.autoWorkVisiblePostNumbersListenable) {
+      oldWidget.autoWorkVisiblePostNumbersListenable?.removeListener(
+        _handleAutoWorkVisibilityChanged,
+      );
+      widget.autoWorkVisiblePostNumbersListenable?.addListener(
+        _handleAutoWorkVisibilityChanged,
+      );
+    }
     if (oldWidget.node.post.id != widget.node.post.id ||
         oldWidget.params != widget.params) {
       _childCreatedSubscription?.close();
       _resetNodeState();
       _listenChildCreated();
+      _scheduleAutoMaterializeChildren();
       _scheduleAutoLoadChildren();
     }
   }
@@ -186,6 +224,9 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     widget.autoLoadChildrenPausedListenable?.removeListener(
       _handleAutoLoadPauseChanged,
     );
+    widget.autoWorkVisiblePostNumbersListenable?.removeListener(
+      _handleAutoWorkVisibilityChanged,
+    );
     _childCreatedSubscription?.close();
     super.dispose();
   }
@@ -195,9 +236,19 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       AutoReplyPrefetchQueue.instance.cancel(_autoChildLoadQueueKey);
       return;
     }
-    if (!_autoLoadChildrenPaused) {
-      _scheduleAutoLoadChildren();
+    _scheduleAutoMaterializeChildren();
+    _applyPendingAutoLoadResponseIfReady();
+    _scheduleAutoLoadChildren();
+  }
+
+  void _handleAutoWorkVisibilityChanged() {
+    if (!_isVisibleForAutoWork) {
+      AutoReplyPrefetchQueue.instance.cancel(_autoChildLoadQueueKey);
+      return;
     }
+    _scheduleAutoMaterializeChildren();
+    _applyPendingAutoLoadResponseIfReady();
+    _scheduleAutoLoadChildren();
   }
 
   static String _autoChildLoadQueueKeyFor({
@@ -208,9 +259,13 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   }
 
   void _resetNodeState() {
+    _nodeGeneration++;
     _isLoadingMore = false;
     _depthLineHovered = false;
     _autoLoadScheduled = false;
+    _autoMaterializationScheduled = false;
+    _reportAutoMaterializationOnNextBuild = false;
+    _pendingAutoLoadResponse = null;
     _visibleChildrenSourceChildren = null;
     _visibleChildrenSourceBlockedUsernames = null;
     _visibleChildrenCache = const [];
@@ -223,6 +278,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       _page = cachedReplies.page;
       _expanded = cachedReplies.expanded;
       _collapsed = cachedReplies.collapsed;
+      _childrenMaterialized = cachedReplies.childrenMaterialized;
       widget.expansionState?[widget.node.post.postNumber] = _expanded;
       return;
     }
@@ -237,6 +293,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         shouldAutoExpandReplyCount(widget.node.directReplyCount)) {
       _expanded = cached;
       _collapsed = false;
+      _childrenMaterialized = !_expanded || _children.isEmpty;
     } else {
       _expanded =
           _hasReplies &&
@@ -247,6 +304,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         widget.expansionState?[widget.node.post.postNumber] = true;
       }
     }
+    _childrenMaterialized = !_expanded || _children.isEmpty;
     _emitRepliesState();
   }
 
@@ -259,6 +317,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         page: _page,
         expanded: _expanded,
         collapsed: _collapsed,
+        childrenMaterialized: _childrenMaterialized,
       ),
     );
   }
@@ -282,6 +341,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           _children.insert(0, NestedNode(post: next.post));
           _expanded = true;
           _collapsed = false;
+          _childrenMaterialized = true;
           widget.expansionState?[widget.node.post.postNumber] = true;
           _emitRepliesState();
         });
@@ -311,6 +371,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   }
 
   void _toggleExpanded() {
+    var shouldLoadChildren = false;
     setState(() {
       if (_expanded) {
         AutoReplyPrefetchQueue.instance.cancel(_autoChildLoadQueueKey);
@@ -320,19 +381,29 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
       } else {
         _expanded = true;
         _collapsed = false;
+        _childrenMaterialized = true;
         if (_children.isEmpty && widget.node.directReplyCount > 0) {
           AutoReplyPrefetchQueue.instance.cancel(_autoChildLoadQueueKey);
-          _loadChildren();
+          shouldLoadChildren = true;
         }
       }
       // 持久化到状态存储
       widget.expansionState?[widget.node.post.postNumber] = _expanded;
       _emitRepliesState();
     });
+    if (shouldLoadChildren) {
+      _loadChildren();
+    }
   }
 
-  Future<void> _loadChildren() async {
+  Future<void> _loadChildren({bool automatic = false}) async {
+    final pendingResponse = _pendingAutoLoadResponse;
+    if (!automatic && pendingResponse != null) {
+      _applyChildrenResponse(pendingResponse);
+      return;
+    }
     if (_isLoadingMore) return;
+    final generation = _nodeGeneration;
     setState(() => _isLoadingMore = true);
     try {
       final notifier = ref.read(nestedTopicProvider(widget.params).notifier);
@@ -341,23 +412,38 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         page: _page,
         depth: widget.depth + 1,
       );
-      if (!mounted) return;
-      setState(() {
-        final existingIds = _children.map((node) => node.post.id).toSet();
-        _children.addAll(
-          response.children.where(
-            (node) => !existingIds.contains(node.post.id),
-          ),
-        );
-        _hasMore = response.hasMore;
-        _page = response.page + 1;
-        _isLoadingMore = false;
-        _emitRepliesState();
-      });
+      if (!mounted || generation != _nodeGeneration) return;
+      if (automatic && !_canRunAutoWork) {
+        _pendingAutoLoadResponse = response;
+        return;
+      }
+      _applyChildrenResponse(response);
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || generation != _nodeGeneration) return;
       setState(() => _isLoadingMore = false);
     }
+  }
+
+  void _applyPendingAutoLoadResponseIfReady() {
+    final response = _pendingAutoLoadResponse;
+    if (response == null || !_canRunAutoWork) return;
+    _applyChildrenResponse(response);
+  }
+
+  void _applyChildrenResponse(NestedChildrenResponse response) {
+    if (!mounted) return;
+    setState(() {
+      _pendingAutoLoadResponse = null;
+      final existingIds = _children.map((node) => node.post.id).toSet();
+      _children.addAll(
+        response.children.where((node) => !existingIds.contains(node.post.id)),
+      );
+      _hasMore = response.hasMore;
+      _page = response.page + 1;
+      _isLoadingMore = false;
+      _childrenMaterialized = true;
+      _emitRepliesState();
+    });
   }
 
   void _scheduleAutoLoadChildren() {
@@ -367,7 +453,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         widget.node.directReplyCount <= 0 ||
         _isLoadingMore ||
         _autoLoadScheduled ||
-        _autoLoadChildrenPaused) {
+        !_canRunAutoWork) {
       return;
     }
 
@@ -380,7 +466,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           _children.isNotEmpty ||
           widget.node.directReplyCount <= 0 ||
           _isLoadingMore ||
-          _autoLoadChildrenPaused) {
+          !_canRunAutoWork) {
         return;
       }
       AutoReplyPrefetchQueue.instance.enqueue(_autoChildLoadQueueKey, () async {
@@ -390,10 +476,37 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
             _children.isNotEmpty ||
             widget.node.directReplyCount <= 0 ||
             _isLoadingMore ||
-            _autoLoadChildrenPaused) {
+            !_canRunAutoWork) {
           return;
         }
-        await _loadChildren();
+        await _loadChildren(automatic: true);
+      });
+    });
+  }
+
+  void _scheduleAutoMaterializeChildren() {
+    if (_childrenMaterialized ||
+        _children.isEmpty ||
+        _autoMaterializationScheduled ||
+        !_canRunAutoWork) {
+      return;
+    }
+
+    _autoMaterializationScheduled = true;
+    final generation = _nodeGeneration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (generation != _nodeGeneration) return;
+      _autoMaterializationScheduled = false;
+      if (!mounted ||
+          _childrenMaterialized ||
+          _children.isEmpty ||
+          !_canRunAutoWork) {
+        return;
+      }
+      setState(() {
+        _childrenMaterialized = true;
+        _reportAutoMaterializationOnNextBuild = true;
+        _emitRepliesState();
       });
     });
   }
@@ -420,6 +533,20 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final post = widget.node.post;
+    final diagnostics = PerformanceDiagnosticsService.instance;
+    diagnostics.noteBuild('nested:card', id: post.postNumber);
+    if (_reportAutoMaterializationOnNextBuild) {
+      _reportAutoMaterializationOnNextBuild = false;
+      diagnostics.noteFrameEvent(
+        'nested:childrenMaterialized',
+        data: <String, Object?>{
+          'postNumber': post.postNumber,
+          'depth': widget.depth,
+          'childCount': _children.length,
+          'source': 'viewport',
+        },
+      );
+    }
     final isRoot = widget.depth == 0;
     final visibleChildren = _visibleChildren();
 
@@ -516,13 +643,13 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
         ],
       );
     }
-
     // 子节点
     final bool showContinueThread = _atMaxDepth && _hasReplies;
     final bool showChildren =
         !_atMaxDepth &&
         _expanded &&
         !_collapsed &&
+        _childrenMaterialized &&
         (visibleChildren.isNotEmpty || _isLoadingMore || _hasMore);
     final bool showExpandBtn =
         !_atMaxDepth && !_expanded && !_collapsed && _hasReplies;
@@ -879,6 +1006,8 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
             onRepliesStateChanged: widget.onRepliesStateChanged,
             autoLoadChildrenPausedListenable:
                 widget.autoLoadChildrenPausedListenable,
+            autoWorkVisiblePostNumbersListenable:
+                widget.autoWorkVisiblePostNumbersListenable,
             buildScrollTag: widget.buildScrollTag,
             searchHighlightQuery: widget.searchHighlightQuery,
           ),

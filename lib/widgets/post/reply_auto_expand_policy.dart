@@ -22,6 +22,18 @@ bool shouldAutoExpandRepliesNow({
       shouldAutoExpandReplyCount(replyCount);
 }
 
+/// 树形评论的自动工作只允许在当前帖子可见且列表空闲时执行。
+///
+/// 手动展开不走这个门禁，避免为了性能牺牲显式交互。
+bool shouldRunNestedAutoWork({
+  required bool expanded,
+  required bool isVisible,
+  required bool autoLoadPaused,
+  required bool atMaxDepth,
+}) {
+  return expanded && isVisible && !autoLoadPaused && !atMaxDepth;
+}
+
 class AutoReplyPrefetchQueue {
   AutoReplyPrefetchQueue._();
 
