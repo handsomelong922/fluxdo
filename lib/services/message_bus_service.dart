@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math';
@@ -6,7 +7,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../constants.dart';
 import '../utils/client_id_generator.dart';
+import '../utils/scroll_busy_signal.dart';
 import 'network/discourse_dio.dart';
+
+part 'message_bus_delivery_queue.dart';
 
 dynamic _decodeMessageBusJson(String source) => jsonDecode(source);
 
@@ -95,11 +99,18 @@ class MessageBusService {
   final _messageController = StreamController<MessageBusMessage>.broadcast();
   Stream<MessageBusMessage> get messageStream => _messageController.stream;
 
+  late final MessageBusDeliveryQueue _deliveryQueue;
+
   String get clientId => _clientId;
 
   MessageBusService._internal()
     : _clientId = ClientIdGenerator.generate(),
-      _dio = _createPollingDio();
+      _dio = _createPollingDio() {
+    _deliveryQueue = MessageBusDeliveryQueue(
+      isBusy: () => ScrollBusySignal.isBusy,
+      deliver: _deliverMessage,
+    );
+  }
 
   /// 配置 MessageBus 独立域名（登录后从预加载数据获取）
   void configure({String? baseUrl, String? sharedSessionKey}) {
@@ -470,13 +481,18 @@ class MessageBusService {
       return; // __status 消息不需要通知订阅者
     }
 
-    // 更新 lastMessageId
-    if (_subscriptions.containsKey(message.channel)) {
-      final sub = _subscriptions[message.channel]!;
-      if (message.messageId > sub.lastMessageId) {
-        sub.lastMessageId = message.messageId;
-      }
+    // 协议进度立即推进，不受 UI 投递延迟影响，避免重拉。
+    final sub = _subscriptions[message.channel];
+    if (sub != null && message.messageId > sub.lastMessageId) {
+      sub.lastMessageId = message.messageId;
+    }
 
+    _deliveryQueue.add(message);
+  }
+
+  void _deliverMessage(MessageBusMessage message) {
+    final sub = _subscriptions[message.channel];
+    if (sub != null) {
       // 通知订阅者
       for (final callback in sub.callbacks) {
         try {
@@ -522,6 +538,7 @@ class MessageBusService {
   /// 停止轮询并清除所有订阅（登出时直接调用，不依赖 provider 链）
   void stopAll() {
     _stopPolling();
+    _deliveryQueue.cancelPending();
     _subscriptions.clear();
   }
 
@@ -529,6 +546,7 @@ class MessageBusService {
   void dispose() {
     _stopPolling();
     _restartPollTimer?.cancel();
+    _deliveryQueue.cancelPending();
     _messageController.close();
   }
 }
