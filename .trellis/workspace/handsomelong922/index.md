@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
+- **Total Sessions**: 6
 - **Last Active**: 2026-07-14
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~192 | Active |
+| `journal-1.md` | ~227 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-07-14 | 优化预览体验并修复私信与搜索焦点 | `da0ab0bd`, `7ae8ddef`, `07981e68` | `codex/rollback-to-v0.3.1` |
 | 5 | 2026-07-14 | Port performance fixes and audit home requests | `2da58f36`, `b92442db`, `784c0d5a`, `bf348b20`, `dc4faff0`, `7e84fc94`, `f34a21d7` | `codex/rollback-to-v0.3.1` |
 | 4 | 2026-07-14 | 优化话题预览触发与窗口体验 | `2a4fd2c5` | `codex/rollback-to-v0.3.1` |
 | 3 | 2026-07-11 | Verify release build and port upstream P2 request safeguards | `f45f0fc9`, `833e0cd2`, `f6368a02`, `a2d93334` | `codex/rollback-to-v0.3.1` |

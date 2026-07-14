@@ -190,3 +190,38 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: 优化预览体验并修复私信与搜索焦点
+
+**Date**: 2026-07-14
+**Task**: 优化预览体验并修复私信与搜索焦点
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+预览弹窗改为有上下限的平滑自适应布局，统一四边样式并增加元信息分隔线；搜索预览关闭后不再恢复输入法焦点；私信详情强制平铺，避免树形响应导致正文消失。全量 analyze、19 项相关回归及本地化检查通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `da0ab0bd` | (see git log) |
+| `7ae8ddef` | (see git log) |
+| `07981e68` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
