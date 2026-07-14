@@ -760,6 +760,15 @@ LinkedHashSet<String> rememberMountedBottomPageIds({
   return nextMountedPageIds;
 }
 
+@visibleForTesting
+bool shouldPruneMountedBottomPages({
+  required Iterable<String> mountedPageIds,
+  required String activePageId,
+}) {
+  final mounted = mountedPageIds.toList(growable: false);
+  return mounted.length != 1 || mounted.single != activePageId;
+}
+
 class _MainPageState extends ConsumerState<MainPage>
     with WidgetsBindingObserver {
   static const int _maxMountedBottomPagesMobile = 4;
@@ -1106,11 +1115,11 @@ class _MainPageState extends ConsumerState<MainPage>
   void didHaveMemoryPressure() {
     super.didHaveMemoryPressure();
     PerformanceDiagnosticsService.instance.recordMemoryPressure(
-      stage: 'before_cache_clear',
+      stage: 'after_framework_image_cache_clear',
     );
-    // 系统已经发出内存压力信号时，优先释放运行期缓存，减轻后续滚动中的 GC 抖动。
-    PaintingBinding.instance.imageCache.clear();
-    PaintingBinding.instance.imageCache.clearLiveImages();
+    // Flutter 在通知 WidgetsBindingObserver 前已经清理 keep-alive 图片缓存。
+    // 不要再 clearLiveImages：live completer 仍被屏幕中的 listener 持有，
+    // 强制移除追踪既不能释放它们，反而会导致后续重复挂接和解码。
     HtmlChunkCache.instance.clear();
     DiscourseHtmlContent.clearRuntimeCaches();
     LongPostRenderData.clearCache();
@@ -1123,11 +1132,16 @@ class _MainPageState extends ConsumerState<MainPage>
     if (pageEntries.isNotEmpty) {
       final safePageIndex = _currentIndex.clamp(0, pageEntries.length - 1);
       final activePageId = pageEntries[safePageIndex].id;
-      setState(() {
-        _mountedPageIds
-          ..clear()
-          ..add(activePageId);
-      });
+      if (shouldPruneMountedBottomPages(
+        mountedPageIds: _mountedPageIds,
+        activePageId: activePageId,
+      )) {
+        setState(() {
+          _mountedPageIds
+            ..clear()
+            ..add(activePageId);
+        });
+      }
     }
     PerformanceDiagnosticsService.instance.recordCacheMaintenance(
       event: 'runtime_cache_cleared',

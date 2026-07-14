@@ -44,4 +44,33 @@ void main() {
       expect(next.toList(), ['home']);
     });
   });
+
+  group('shouldPruneMountedBottomPages', () {
+    test('已经只保留当前页时不触发主树重建', () {
+      expect(
+        shouldPruneMountedBottomPages(
+          mountedPageIds: const ['home'],
+          activePageId: 'home',
+        ),
+        isFalse,
+      );
+    });
+
+    test('仍有后台页或当前页不匹配时需要收缩', () {
+      expect(
+        shouldPruneMountedBottomPages(
+          mountedPageIds: const ['home', 'bookmarks'],
+          activePageId: 'bookmarks',
+        ),
+        isTrue,
+      );
+      expect(
+        shouldPruneMountedBottomPages(
+          mountedPageIds: const ['home'],
+          activePageId: 'bookmarks',
+        ),
+        isTrue,
+      );
+    });
+  });
 }
