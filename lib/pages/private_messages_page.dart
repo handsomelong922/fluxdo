@@ -262,15 +262,15 @@ class _PrivateMessageTabViewState extends ConsumerState<_PrivateMessageTabView>
               }
 
               final topic = topics[index];
-              final enableLongPress = ref
+              final previewTrigger = ref
                   .watch(preferencesProvider)
-                  .longPressPreview;
+                  .topicPreviewTrigger;
               return buildTopicItem(
                 context: context,
                 topic: topic,
                 isSelected: false,
                 onTap: () => _onItemTap(topic),
-                enableLongPress: enableLongPress,
+                previewTrigger: previewTrigger,
               );
             },
           );

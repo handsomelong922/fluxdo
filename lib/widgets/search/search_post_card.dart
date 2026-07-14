@@ -38,7 +38,9 @@ Topic searchPostToTopicPreview(
     replyCount: (postsCount - 1).clamp(0, 999999).toInt(),
     views: searchTopic?.views ?? 0,
     likeCount: post.likeCount,
-    excerpt: excerptHtml ?? (allowBlurbFallback ? searchPostPreviewHtml(post) : null),
+    excerpt:
+        excerptHtml ??
+        (allowBlurbFallback ? searchPostPreviewHtml(post) : null),
     createdAt: createdAt,
     lastPostedAt: createdAt,
     lastPosterUsername: post.username,
@@ -82,10 +84,9 @@ Future<SearchTopicDetailPreview> resolveSearchTopicDetailPreview({
     firstPostHtml = loader.peekCached(searchTopic.id);
     final needsFetch = firstPostHtml == null || firstPostHtml.trim().isEmpty;
     if (needsFetch) {
-      firstPostHtml = await loader.load(searchTopic.id).timeout(
-        waitForFirstPost,
-        onTimeout: () => null,
-      );
+      firstPostHtml = await loader
+          .load(searchTopic.id)
+          .timeout(waitForFirstPost, onTimeout: () => null);
     }
   }
 
@@ -109,12 +110,14 @@ class SearchPostCard extends ConsumerWidget {
   final SearchPost post;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onPreviewTap;
 
   const SearchPostCard({
     super.key,
     required this.post,
     this.onTap,
     this.onLongPress,
+    this.onPreviewTap,
   });
 
   @override
@@ -127,6 +130,7 @@ class SearchPostCard extends ConsumerWidget {
       topic: searchPostToTopicPreview(post),
       onTap: onTap,
       onLongPress: onLongPress,
+      onPreviewTap: onPreviewTap,
       bottomWidget: post.blurb.isEmpty
           ? null
           : _buildBlurb(Theme.of(context), contentFontScale),

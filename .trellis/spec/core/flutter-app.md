@@ -653,10 +653,11 @@ return _buildInteractiveLoadingPreview(
 ## Scenario: Topic Detail Preview Handoff
 
 ### 1. Scope / Trigger
-- Trigger: changing home/search topic-card navigation, `TopicDetailPage` initial preview fields, restored reading position, or topic-detail initial post-window loading.
+- Trigger: changing home/search/bookmark/history topic-card navigation, `TopicPreviewDialog`, `TopicDetailPage` initial preview fields, restored reading position, or topic-detail initial post-window loading.
 
 ### 2. Signatures
 - `buildTopicDetailRoute(topicId, initialTitle?, scrollToPostNumber?, initialTopicPreview?, initialFirstPostHtml?)`
+- `TopicPreviewDialog` keeps the loaded first-post `TopicDetail` and writes it through `TopicDetailCacheService.writePreviewSeed(...)` before invoking its detail callback.
 - `TopicDetailPage.initialTopicPreview` and `initialFirstPostHtml` are first-paint preview data only.
 - `scrollToPostNumber` is an explicit navigation target and must remain stronger than preview/restored state.
 
@@ -665,17 +666,21 @@ return _buildInteractiveLoadingPreview(
 - For home entry with no explicit target, seed the topic-detail runtime cache/provider with that preview first post and let the full detail arrive through background refresh. Do not render preview through a one-off page branch that is immediately replaced by a second full-page load path.
 - Preview-driven entry from home/search may preserve the user's nested-view preference, but nested-view loading must continue rendering the preview first post while replies load below. Do not switch from preview paint to a full-page nested skeleton.
 - Search result cards may pass preview data and `scrollToPostNumber`; the preview accelerates first paint but must not cancel the search hit jump.
+- Any unified topic preview entry (home, bookmark, browsing history, or search) that actually rendered first-post HTML may seed that same first post before opening detail. Do not issue a second first-post-only request merely to hand off data already displayed in the preview.
+- A preview seed is never a complete topic response: opening detail must still revalidate in the background to load replies and volatile metadata.
 - Restored reading state is a fallback only. Do not apply it when first-post preview is available and no explicit target was requested.
 - Loading replies, post windows, boosts, likes, or metadata must not replace the visible first-post preview with a global skeleton.
 
 ### 4. Validation & Error Matrix
 - Preview + no explicit target -> render first post immediately; fetch the normal first page/window for replies.
 - Preview + explicit target -> render preview immediately; preserve the target post number and position when loaded, and do not swap back to a global skeleton while waiting for the target window.
+- Preview dialog loads first post, then opens detail -> first post renders from the runtime seed; full detail/replies revalidate in the background.
 - No preview + explicit target -> existing jump-target skeleton behavior is allowed.
 - Target post missing after load -> use the existing unreachable-target fallback; do not silently jump to the wrong floor.
 
 ### 5. Good/Base/Bad Cases
 - Good: home card preview opens with `scrollToPostNumber: null`, then replies append/load below.
+- Good: bookmark/history preview writes the displayed first post to the username-scoped runtime cache before running the existing navigation callback.
 - Base: search result preview opens with `scrollToPostNumber: post.postNumber` and uses the search blurb as first paint.
 - Bad: treating every preview as permission to ignore `scrollToPostNumber`, or passing home `lastReadPostNumber` together with first-post preview.
 
@@ -683,6 +688,7 @@ return _buildInteractiveLoadingPreview(
 - Assert preview without explicit target resolves to first-post loading, not restored reading position.
 - Assert preview with explicit target preserves that target for search/notification-style navigation.
 - Assert search post cards expose preview topic data and blank blurbs do not create fake preview HTML.
+- Widget-test preview dialog fixed geometry and its single detail action; unit-test preview seeds always revalidate and may bootstrap explicit target routes until the target loads.
 - Keep render identity tests stable across preview-to-real `post.id` handoff.
 
 ### 7. Wrong vs Correct
@@ -698,6 +704,7 @@ buildTopicDetailRoute(
 
 #### Correct
 ```dart
+cache.writePreviewSeed(previewDetail, username: currentUsername);
 buildTopicDetailRoute(
   topicId: topic.id,
   scrollToPostNumber: firstPostHtml == null ? topic.lastReadPostNumber : null,
@@ -725,7 +732,7 @@ buildTopicDetailRoute(
 - Cache complete `TopicDetail` snapshots, including the currently loaded `postStream.posts` and `postStream.stream`, so reopen can render the same visible detail immediately.
 - Use a hard TTL of 1 day for snapshot validity and a shorter soft TTL for background refresh.
 - A snapshot may render immediately only when the requested `targetPostNumber` is null or already present in `postStream.posts`.
-- Preview-seed snapshots are allowed only for first-post home preview handoff and must always trigger background revalidation.
+- Preview-seed snapshots are allowed only for first-post handoff from a preview-capable topic list/dialog and must always trigger background revalidation. The seed may accelerate an explicit bookmark/search target, but it must not cancel or weaken that target.
 - Filtered views (`summary`, author-only, top-level-only) must not overwrite the normal unfiltered topic cache.
 - New replies and volatile action state must be reconciled by background refresh or MessageBus/local mutation updates; cached data is a fast first paint, not an authority for 24 hours.
 
@@ -733,7 +740,7 @@ buildTopicDetailRoute(
 - Cache miss -> load via normal `getTopicDetail` path.
 - Hard-expired cache -> discard and load via normal path.
 - Soft-stale cache -> render snapshot, then refresh in the background.
-- Target post missing from snapshot -> treat as cache miss to avoid opening the wrong scroll window.
+- Target post missing from a complete snapshot -> treat as cache miss; a first-post preview seed may render while the explicit target loads, but the target remains authoritative.
 - Background refresh failure -> keep the rendered cached detail and log/debug only; do not replace the page with a global error.
 - User changes -> use a different username cache bucket; do not leak action/bookmark state between users.
 
@@ -745,7 +752,7 @@ buildTopicDetailRoute(
 ### 6. Tests Required
 - Unit-test cache hit/miss, user isolation, hard TTL, soft revalidation, target-post miss, and LRU eviction.
 - Provider tests should assert cached detail renders before a stale background refresh result when a fake service is available.
-- Regression-test that target-post routes do not use snapshots missing that post number.
+- Regression-test that target-post routes reject complete snapshots missing that post number, while preview seeds may bootstrap the OP without weakening the target.
 
 ### 7. Wrong vs Correct
 

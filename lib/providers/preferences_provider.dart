@@ -13,13 +13,15 @@ import 'theme_provider.dart';
 
 const Object _preferencesUnset = Object();
 
+enum TopicPreviewTrigger { longPress, rightSideTap }
+
 class AppPreferences {
   final bool autoPanguSpacing;
 
   /// 阅读时自动优化中英文混排间距
   final bool displayPanguSpacing;
   final bool anonymousShare;
-  final bool longPressPreview;
+  final TopicPreviewTrigger topicPreviewTrigger;
   final bool openExternalLinksInAppBrowser;
   final bool skipExternalLinkConfirmation;
   final String? externalBrowserPackageName;
@@ -127,7 +129,7 @@ class AppPreferences {
     required this.autoPanguSpacing,
     required this.displayPanguSpacing,
     required this.anonymousShare,
-    required this.longPressPreview,
+    required this.topicPreviewTrigger,
     required this.openExternalLinksInAppBrowser,
     required this.skipExternalLinkConfirmation,
     required this.externalBrowserPackageName,
@@ -170,7 +172,7 @@ class AppPreferences {
     bool? autoPanguSpacing,
     bool? displayPanguSpacing,
     bool? anonymousShare,
-    bool? longPressPreview,
+    TopicPreviewTrigger? topicPreviewTrigger,
     bool? openExternalLinksInAppBrowser,
     bool? skipExternalLinkConfirmation,
     Object? externalBrowserPackageName = _preferencesUnset,
@@ -212,7 +214,7 @@ class AppPreferences {
       autoPanguSpacing: autoPanguSpacing ?? this.autoPanguSpacing,
       displayPanguSpacing: displayPanguSpacing ?? this.displayPanguSpacing,
       anonymousShare: anonymousShare ?? this.anonymousShare,
-      longPressPreview: longPressPreview ?? this.longPressPreview,
+      topicPreviewTrigger: topicPreviewTrigger ?? this.topicPreviewTrigger,
       openExternalLinksInAppBrowser:
           openExternalLinksInAppBrowser ?? this.openExternalLinksInAppBrowser,
       skipExternalLinkConfirmation:
@@ -274,6 +276,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _displayPanguSpacingKey = 'pref_display_pangu_spacing';
   static const String _anonymousShareKey = 'pref_anonymous_share';
   static const String _longPressPreviewKey = 'pref_long_press_preview';
+  static const String _topicPreviewTriggerKey = 'pref_topic_preview_trigger';
   static const String _openExternalLinksInAppBrowserKey =
       'pref_open_external_links_in_app_browser';
   static const String _skipExternalLinkConfirmationKey =
@@ -335,7 +338,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           autoPanguSpacing: _prefs.getBool(_autoPanguSpacingKey) ?? false,
           displayPanguSpacing: _prefs.getBool(_displayPanguSpacingKey) ?? false,
           anonymousShare: _prefs.getBool(_anonymousShareKey) ?? false,
-          longPressPreview: _prefs.getBool(_longPressPreviewKey) ?? true,
+          topicPreviewTrigger: _loadTopicPreviewTrigger(_prefs),
           openExternalLinksInAppBrowser:
               _prefs.getBool(_openExternalLinksInAppBrowserKey) ?? false,
           skipExternalLinkConfirmation:
@@ -424,9 +427,21 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     await _prefs.setBool(_anonymousShareKey, enabled);
   }
 
-  Future<void> setLongPressPreview(bool enabled) async {
-    state = state.copyWith(longPressPreview: enabled);
-    await _prefs.setBool(_longPressPreviewKey, enabled);
+  static TopicPreviewTrigger _loadTopicPreviewTrigger(SharedPreferences prefs) {
+    final stored = prefs.getString(_topicPreviewTriggerKey);
+    for (final trigger in TopicPreviewTrigger.values) {
+      if (trigger.name == stored) return trigger;
+    }
+
+    final legacyLongPress = prefs.getBool(_longPressPreviewKey);
+    return legacyLongPress == false
+        ? TopicPreviewTrigger.rightSideTap
+        : TopicPreviewTrigger.longPress;
+  }
+
+  Future<void> setTopicPreviewTrigger(TopicPreviewTrigger trigger) async {
+    state = state.copyWith(topicPreviewTrigger: trigger);
+    await _prefs.setString(_topicPreviewTriggerKey, trigger.name);
   }
 
   Future<void> setOpenExternalLinksInAppBrowser(bool enabled) async {

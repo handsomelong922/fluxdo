@@ -93,11 +93,47 @@ Widget _buildTopicCardSurface({
   );
 }
 
+Widget _buildTopicCardInteraction({
+  required VoidCallback? onTap,
+  required VoidCallback? onLongPress,
+  required VoidCallback? onPreviewTap,
+  required Widget child,
+}) {
+  return Stack(
+    children: [
+      InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        onSecondaryTap: PlatformUtils.isDesktop ? onLongPress : null,
+        child: child,
+      ),
+      if (onPreviewTap != null)
+        Positioned(
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: TopicCard.previewTapZoneWidth,
+          child: GestureDetector(
+            key: TopicCard.previewTapZoneKey,
+            behavior: HitTestBehavior.opaque,
+            onTap: onPreviewTap,
+          ),
+        ),
+    ],
+  );
+}
+
 /// 话题卡片组件 — 紧凑横向布局
 class TopicCard extends ConsumerWidget {
+  static const previewTapZoneKey = ValueKey<String>(
+    'topic-card-preview-tap-zone',
+  );
+  static const double previewTapZoneWidth = 112;
+
   final Topic topic;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onPreviewTap;
   final bool isSelected;
   final Color? highlightColor;
   final Color? titleColor;
@@ -111,6 +147,7 @@ class TopicCard extends ConsumerWidget {
     required this.topic,
     this.onTap,
     this.onLongPress,
+    this.onPreviewTap,
     this.isSelected = false,
     this.highlightColor,
     this.titleColor,
@@ -188,10 +225,10 @@ class TopicCard extends ConsumerWidget {
                 color: theme.colorScheme.primary.withValues(alpha: 0.5),
               )
             : BorderSide.none,
-        child: InkWell(
+        child: _buildTopicCardInteraction(
           onTap: onTap,
           onLongPress: onLongPress,
-          onSecondaryTap: PlatformUtils.isDesktop ? onLongPress : null,
+          onPreviewTap: onPreviewTap,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -657,6 +694,7 @@ class CompactTopicCard extends ConsumerWidget {
   final Topic topic;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onPreviewTap;
   final bool isSelected;
   final Color? highlightColor;
 
@@ -665,6 +703,7 @@ class CompactTopicCard extends ConsumerWidget {
     required this.topic,
     this.onTap,
     this.onLongPress,
+    this.onPreviewTap,
     this.isSelected = false,
     this.highlightColor,
   });
@@ -712,10 +751,10 @@ class CompactTopicCard extends ConsumerWidget {
                 color: theme.colorScheme.primary.withValues(alpha: 0.5),
               )
             : BorderSide.none,
-        child: InkWell(
+        child: _buildTopicCardInteraction(
           onTap: onTap,
           onLongPress: onLongPress,
-          onSecondaryTap: PlatformUtils.isDesktop ? onLongPress : null,
+          onPreviewTap: onPreviewTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(

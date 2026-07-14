@@ -1559,7 +1559,7 @@ class _TopicListState extends ConsumerState<_TopicList> {
 
     final selectedTopicId = ref.watch(selectedTopicProvider).topicId;
     final preferences = ref.watch(preferencesProvider);
-    final enableLongPress = preferences.longPressPreview;
+    final previewTrigger = preferences.topicPreviewTrigger;
     final isHomeTopicList = widget.categoryId == null;
     final showHomeExcerpt =
         isHomeTopicList && preferences.homeDetailedTopicList;
@@ -1699,7 +1699,7 @@ class _TopicListState extends ConsumerState<_TopicList> {
                           topic: topic,
                           isSelected: topic.id == selectedTopicId,
                           onTap: () => _openTopic(topic),
-                          enableLongPress: enableLongPress,
+                          previewTrigger: previewTrigger,
                           highlightColor: color,
                           titleColor: homeTitleColor,
                           denseMetadata: showHomeExcerpt,
@@ -1715,7 +1715,7 @@ class _TopicListState extends ConsumerState<_TopicList> {
                     topic: topic,
                     isSelected: topic.id == selectedTopicId,
                     onTap: () => _openTopic(topic),
-                    enableLongPress: enableLongPress,
+                    previewTrigger: previewTrigger,
                     titleColor: homeTitleColor,
                     denseMetadata: showHomeExcerpt,
                     maxVisibleTags: isHomeTopicList ? 4 : null,

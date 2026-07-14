@@ -196,15 +196,15 @@ class _BrowsingHistoryPageState extends ConsumerState<BrowsingHistoryPage> {
               }
 
               final topic = visibleTopics[index];
-              final enableLongPress = ref
+              final previewTrigger = ref
                   .watch(preferencesProvider)
-                  .longPressPreview;
+                  .topicPreviewTrigger;
               return buildTopicItem(
                 context: context,
                 topic: topic,
                 isSelected: false,
                 onTap: () => _onItemTap(topic),
-                enableLongPress: enableLongPress,
+                previewTrigger: previewTrigger,
               );
             },
           );

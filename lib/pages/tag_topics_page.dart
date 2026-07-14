@@ -377,16 +377,16 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage> {
           }
 
           final topic = visibleTopics[index];
-          final enableLongPress = ref
+          final previewTrigger = ref
               .watch(preferencesProvider)
-              .longPressPreview;
+              .topicPreviewTrigger;
 
           return buildTopicItem(
             context: context,
             topic: topic,
             isSelected: topic.id == selectedTopicId,
             onTap: () => _openTopic(topic),
-            enableLongPress: enableLongPress,
+            previewTrigger: previewTrigger,
           );
         },
       ),

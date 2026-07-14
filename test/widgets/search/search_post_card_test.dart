@@ -10,6 +10,7 @@ import 'package:fluxdo/providers/theme_provider.dart';
 import 'package:fluxdo/services/local_notification_service.dart';
 import 'package:fluxdo/utils/time_utils.dart';
 import 'package:fluxdo/widgets/search/search_post_card.dart';
+import 'package:fluxdo/widgets/topic/topic_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -85,72 +86,76 @@ void main() {
     expect(searchPostDetailFallbackHtml(replyHit), isNull);
   });
 
-  test('searchPostToTopicPreview accepts explicit first-post html override', () {
-    final createdAt = DateTime.now();
-    final post = SearchPost(
-      id: 1,
-      username: 'tester',
-      avatarTemplate: '/user_avatar/example/{size}/1.png',
-      createdAt: createdAt,
-      likeCount: 5,
-      blurb: '<p>搜索命中片段</p>',
-      postNumber: 3,
-      topic: SearchTopic(
-        id: 9,
-        title: '搜索结果标题',
-        slug: 'search-topic',
-        tags: const [Tag(id: 1, name: 'flutter')],
-        postsCount: 12,
-        views: 99,
-        closed: false,
-        archived: false,
-      ),
-    );
+  test(
+    'searchPostToTopicPreview accepts explicit first-post html override',
+    () {
+      final createdAt = DateTime.now();
+      final post = SearchPost(
+        id: 1,
+        username: 'tester',
+        avatarTemplate: '/user_avatar/example/{size}/1.png',
+        createdAt: createdAt,
+        likeCount: 5,
+        blurb: '<p>搜索命中片段</p>',
+        postNumber: 3,
+        topic: SearchTopic(
+          id: 9,
+          title: '搜索结果标题',
+          slug: 'search-topic',
+          tags: const [Tag(id: 1, name: 'flutter')],
+          postsCount: 12,
+          views: 99,
+          closed: false,
+          archived: false,
+        ),
+      );
 
-    final topic = searchPostToTopicPreview(
-      post,
-      excerptHtml: '<p>真实主帖正文</p>',
-    );
+      final topic = searchPostToTopicPreview(
+        post,
+        excerptHtml: '<p>真实主帖正文</p>',
+      );
 
-    expect(topic.excerpt, '<p>真实主帖正文</p>');
-  });
+      expect(topic.excerpt, '<p>真实主帖正文</p>');
+    },
+  );
 
-  test('resolveSearchTopicDetailPreview prefers fetched first-post html', () async {
-    final createdAt = DateTime.now();
-    final post = SearchPost(
-      id: 1,
-      username: 'tester',
-      avatarTemplate: '/user_avatar/example/{size}/1.png',
-      createdAt: createdAt,
-      likeCount: 5,
-      blurb: '<p>搜索命中片段</p>',
-      postNumber: 8,
-      topic: SearchTopic(
-        id: 9,
-        title: '搜索结果标题',
-        slug: 'search-topic',
-        tags: const [Tag(id: 1, name: 'flutter')],
-        postsCount: 12,
-        views: 99,
-        closed: false,
-        archived: false,
-      ),
-    );
-    final loader = HomeTopicExcerptLoader(
-      fetchPreview: (topicId) async => _previewDetail(
-        topicId,
-        html: '<p>真实主帖正文</p>',
-      ),
-    );
+  test(
+    'resolveSearchTopicDetailPreview prefers fetched first-post html',
+    () async {
+      final createdAt = DateTime.now();
+      final post = SearchPost(
+        id: 1,
+        username: 'tester',
+        avatarTemplate: '/user_avatar/example/{size}/1.png',
+        createdAt: createdAt,
+        likeCount: 5,
+        blurb: '<p>搜索命中片段</p>',
+        postNumber: 8,
+        topic: SearchTopic(
+          id: 9,
+          title: '搜索结果标题',
+          slug: 'search-topic',
+          tags: const [Tag(id: 1, name: 'flutter')],
+          postsCount: 12,
+          views: 99,
+          closed: false,
+          archived: false,
+        ),
+      );
+      final loader = HomeTopicExcerptLoader(
+        fetchPreview: (topicId) async =>
+            _previewDetail(topicId, html: '<p>真实主帖正文</p>'),
+      );
 
-    final preview = await resolveSearchTopicDetailPreview(
-      loader: loader,
-      post: post,
-    );
+      final preview = await resolveSearchTopicDetailPreview(
+        loader: loader,
+        post: post,
+      );
 
-    expect(preview.firstPostHtml, '<p>真实主帖正文</p>');
-    expect(preview.topic.excerpt, '<p>真实主帖正文</p>');
-  });
+      expect(preview.firstPostHtml, '<p>真实主帖正文</p>');
+      expect(preview.topic.excerpt, '<p>真实主帖正文</p>');
+    },
+  );
 
   test(
     'resolveSearchTopicDetailPreview does not fall back to reply blurb for non-first-post hits',
@@ -241,6 +246,61 @@ void main() {
     expect(find.text('11'), findsOneWidget);
     expect(find.text('5'), findsOneWidget);
     expect(find.text(TimeUtils.formatRelativeTime(createdAt)), findsOneWidget);
+  });
+
+  testWidgets('SearchPostCard forwards the right-side preview tap separately', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    var tapCount = 0;
+    var previewCount = 0;
+    final createdAt = DateTime.now();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          categoryMapProvider.overrideWithValue(const AsyncValue.data({})),
+        ],
+        child: MaterialApp(
+          navigatorKey: navigatorKey,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SearchPostCard(
+              post: SearchPost(
+                id: 1,
+                username: 'tester',
+                avatarTemplate: '/user_avatar/example/{size}/1.png',
+                createdAt: createdAt,
+                likeCount: 0,
+                blurb: '<p>摘要</p>',
+                postNumber: 1,
+                topic: SearchTopic(
+                  id: 9,
+                  title: '搜索结果标题',
+                  slug: 'search-topic',
+                  tags: [],
+                  postsCount: 1,
+                  views: 1,
+                  closed: false,
+                  archived: false,
+                ),
+              ),
+              onTap: () => tapCount++,
+              onPreviewTap: () => previewCount++,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(TopicCard.previewTapZoneKey));
+    await tester.pump();
+    expect(previewCount, 1);
+    expect(tapCount, 0);
   });
 }
 

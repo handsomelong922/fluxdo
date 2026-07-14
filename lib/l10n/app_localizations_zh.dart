@@ -4947,10 +4947,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pageTransition_none => '无动画';
 
   @override
-  String get preferences_longPressPreview => '长按预览';
+  String get preferences_topicPreviewTrigger => '话题预览触发方式';
 
   @override
-  String get preferences_longPressPreviewDesc => '长按话题卡片快速预览内容';
+  String get preferences_topicPreviewTriggerDesc => '选择通过长按卡片或点击卡片右侧信息区预览主帖';
+
+  @override
+  String get topicPreviewTrigger_longPress => '长按预览';
+
+  @override
+  String get topicPreviewTrigger_rightSideTap => '点击右侧预览';
 
   @override
   String get preferences_openLinksInApp => '外部链接使用内置浏览器';

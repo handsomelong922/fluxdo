@@ -98,8 +98,46 @@ void main() {
       expect(notifier.state.minRequestIntervalMs, 250);
       expect(notifier.state.pageTransition, AppPageTransition.platform);
       expect(notifier.state.clipboardTopicLinkDetection, isFalse);
+      expect(notifier.state.topicPreviewTrigger, TopicPreviewTrigger.longPress);
       expect(AvatarUrlPolicy.preferStaticAvatars, isFalse);
       expect(RequestSchedulerConfig.minIntervalMs, 250);
+    });
+
+    test(
+      'migrates the legacy preview switch into a required trigger',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'pref_long_press_preview': false,
+        });
+        final prefs = await SharedPreferences.getInstance();
+        final notifier = PreferencesNotifier(prefs);
+
+        expect(
+          notifier.state.topicPreviewTrigger,
+          TopicPreviewTrigger.rightSideTap,
+        );
+      },
+    );
+
+    test('persists topic preview trigger selection', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final notifier = PreferencesNotifier(prefs);
+
+      await notifier.setTopicPreviewTrigger(TopicPreviewTrigger.rightSideTap);
+
+      expect(
+        notifier.state.topicPreviewTrigger,
+        TopicPreviewTrigger.rightSideTap,
+      );
+      expect(
+        prefs.getString('pref_topic_preview_trigger'),
+        TopicPreviewTrigger.rightSideTap.name,
+      );
+      expect(
+        PreferencesNotifier(prefs).state.topicPreviewTrigger,
+        TopicPreviewTrigger.rightSideTap,
+      );
     });
 
     test('persists switch and clamps minimum replies', () async {

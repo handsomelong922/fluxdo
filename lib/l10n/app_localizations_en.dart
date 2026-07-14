@@ -5088,11 +5088,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pageTransition_none => 'No animation';
 
   @override
-  String get preferences_longPressPreview => 'Long press preview';
+  String get preferences_topicPreviewTrigger => 'Topic preview trigger';
 
   @override
-  String get preferences_longPressPreviewDesc =>
-      'Long press topic card to preview content';
+  String get preferences_topicPreviewTriggerDesc =>
+      'Preview the first post by long pressing a card or tapping its right-side info area';
+
+  @override
+  String get topicPreviewTrigger_longPress => 'Long press preview';
+
+  @override
+  String get topicPreviewTrigger_rightSideTap => 'Tap right side to preview';
 
   @override
   String get preferences_openLinksInApp => 'Open links in app browser';

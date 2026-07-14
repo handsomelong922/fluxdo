@@ -376,15 +376,15 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
               }
 
               final topic = visibleTopics[index];
-              final enableLongPress = ref
+              final previewTrigger = ref
                   .watch(preferencesProvider)
-                  .longPressPreview;
+                  .topicPreviewTrigger;
               return buildTopicItem(
                 context: context,
                 topic: topic,
                 isSelected: false,
                 onTap: () => _onItemTap(topic),
-                enableLongPress: enableLongPress,
+                previewTrigger: previewTrigger,
                 topWidget: _buildBookmarkTopBar(context, topic),
                 bottomWidget: _buildBookmarkExcerpt(context, topic),
                 previewActions: topic.bookmarkId != null

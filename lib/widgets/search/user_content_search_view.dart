@@ -284,64 +284,48 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
               }
 
               final post = visibleResults[index];
-              final enableLongPress = ref
+              final previewTrigger = ref
                   .watch(preferencesProvider)
-                  .longPressPreview;
+                  .topicPreviewTrigger;
+              void openPost() {
+                final topic = post.topic;
+                if (topic == null) return;
+                unawaited(() async {
+                  final detailPreview = await resolveSearchTopicDetailPreview(
+                    loader: ref.read(homeTopicExcerptLoaderProvider),
+                    post: post,
+                  );
+                  if (!context.mounted) return;
+                  await Navigator.push(
+                    context,
+                    buildTopicDetailRoute<void>(
+                      topicId: topic.id,
+                      initialTitle: topic.title,
+                      scrollToPostNumber: post.postNumber,
+                      initialTopicPreview: detailPreview.topic,
+                      initialFirstPostHtml: detailPreview.firstPostHtml,
+                    ),
+                  );
+                }());
+              }
+
+              void showPreview() {
+                SearchPreviewDialog.show(
+                  context,
+                  post: post,
+                  onOpen: openPost,
+                  trigger: previewTrigger,
+                );
+              }
+
               return SearchPostCard(
                 post: post,
-                onTap: () {
-                  final topic = post.topic;
-                  if (topic != null) {
-                    unawaited(() async {
-                      final detailPreview = await resolveSearchTopicDetailPreview(
-                        loader: ref.read(homeTopicExcerptLoaderProvider),
-                        post: post,
-                      );
-                      if (!context.mounted) return;
-                      await Navigator.push(
-                        context,
-                        buildTopicDetailRoute<void>(
-                          topicId: topic.id,
-                          initialTitle: topic.title,
-                          scrollToPostNumber: post.postNumber,
-                          initialTopicPreview: detailPreview.topic,
-                          initialFirstPostHtml: detailPreview.firstPostHtml,
-                        ),
-                      );
-                    }());
-                  }
-                },
-                onLongPress: enableLongPress
-                    ? () => SearchPreviewDialog.show(
-                        context,
-                        post: post,
-                        onOpen: () {
-                          final topic = post.topic;
-                          if (topic != null) {
-                            unawaited(() async {
-                              final detailPreview =
-                                  await resolveSearchTopicDetailPreview(
-                                    loader: ref.read(
-                                      homeTopicExcerptLoaderProvider,
-                                    ),
-                                    post: post,
-                                  );
-                              if (!context.mounted) return;
-                              await Navigator.push(
-                                context,
-                                buildTopicDetailRoute<void>(
-                                  topicId: topic.id,
-                                  initialTitle: topic.title,
-                                  scrollToPostNumber: post.postNumber,
-                                  initialTopicPreview: detailPreview.topic,
-                                  initialFirstPostHtml:
-                                      detailPreview.firstPostHtml,
-                                ),
-                              );
-                            }());
-                          }
-                        },
-                      )
+                onTap: openPost,
+                onLongPress: previewTrigger == TopicPreviewTrigger.longPress
+                    ? showPreview
+                    : null,
+                onPreviewTap: previewTrigger == TopicPreviewTrigger.rightSideTap
+                    ? showPreview
                     : null,
               );
             },

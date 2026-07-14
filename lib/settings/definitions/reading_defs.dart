@@ -54,14 +54,16 @@ List<SettingsGroup> buildReadingGroups(BuildContext context) {
       title: l10n.preferences_basic,
       icon: Icons.touch_app_outlined,
       items: [
-        SwitchModel(
-          id: 'longPressPreview',
-          title: l10n.preferences_longPressPreview,
-          subtitle: l10n.preferences_longPressPreviewDesc,
+        ActionModel(
+          id: 'topicPreviewTrigger',
+          title: l10n.preferences_topicPreviewTrigger,
+          subtitle: l10n.preferences_topicPreviewTriggerDesc,
           icon: Icons.touch_app_rounded,
-          getValue: (ref) => ref.watch(preferencesProvider).longPressPreview,
-          onChanged: (ref, v) =>
-              ref.read(preferencesProvider.notifier).setLongPressPreview(v),
+          getDynamicSubtitle: (ref) => _topicPreviewTriggerLabel(
+            context,
+            ref.watch(preferencesProvider).topicPreviewTrigger,
+          ),
+          onTap: (context, ref) => _showTopicPreviewTriggerPicker(context, ref),
         ),
         SwitchModel(
           id: 'hideBarOnScroll',
@@ -227,6 +229,48 @@ String _pageTransitionLabel(
     AppPageTransition.flip => l10n.pageTransition_flip,
     AppPageTransition.none => l10n.pageTransition_none,
   };
+}
+
+String _topicPreviewTriggerLabel(
+  BuildContext context,
+  TopicPreviewTrigger trigger,
+) {
+  return switch (trigger) {
+    TopicPreviewTrigger.longPress => context.l10n.topicPreviewTrigger_longPress,
+    TopicPreviewTrigger.rightSideTap =>
+      context.l10n.topicPreviewTrigger_rightSideTap,
+  };
+}
+
+Future<void> _showTopicPreviewTriggerPicker(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final current = ref.read(preferencesProvider).topicPreviewTrigger;
+  final selected = await showAppDialog<TopicPreviewTrigger>(
+    context: context,
+    builder: (dialogContext) => SimpleDialog(
+      title: Text(context.l10n.preferences_topicPreviewTrigger),
+      children: [
+        RadioGroup<TopicPreviewTrigger>(
+          groupValue: current,
+          onChanged: (value) => Navigator.of(dialogContext).pop(value),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final trigger in TopicPreviewTrigger.values)
+                RadioListTile<TopicPreviewTrigger>(
+                  title: Text(_topicPreviewTriggerLabel(context, trigger)),
+                  value: trigger,
+                ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+  if (selected == null) return;
+  await ref.read(preferencesProvider.notifier).setTopicPreviewTrigger(selected);
 }
 
 Future<void> _showPageTransitionPicker(

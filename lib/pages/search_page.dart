@@ -913,19 +913,28 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     // 帖子结果（标准 + AI 混合）
                     if (resultIndex < posts.length) {
                       final searchPost = posts[resultIndex];
-                      final enableLongPress = ref
+                      final previewTrigger = ref
                           .watch(preferencesProvider)
-                          .longPressPreview;
+                          .topicPreviewTrigger;
+                      void showPreview() {
+                        SearchPreviewDialog.show(
+                          context,
+                          post: searchPost,
+                          onOpen: () => unawaited(_openTopicResult(searchPost)),
+                          trigger: previewTrigger,
+                        );
+                      }
+
                       return SearchPostCard(
                         post: searchPost,
                         onTap: () => unawaited(_openTopicResult(searchPost)),
-                        onLongPress: enableLongPress
-                            ? () => SearchPreviewDialog.show(
-                                context,
-                                post: searchPost,
-                                onOpen: () =>
-                                    unawaited(_openTopicResult(searchPost)),
-                              )
+                        onLongPress:
+                            previewTrigger == TopicPreviewTrigger.longPress
+                            ? showPreview
+                            : null,
+                        onPreviewTap:
+                            previewTrigger == TopicPreviewTrigger.rightSideTap
+                            ? showPreview
                             : null,
                       );
                     }

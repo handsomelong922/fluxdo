@@ -9230,17 +9230,29 @@ abstract class AppLocalizations {
   /// **'无动画'**
   String get pageTransition_none;
 
-  /// No description provided for @preferences_longPressPreview.
+  /// No description provided for @preferences_topicPreviewTrigger.
+  ///
+  /// In zh, this message translates to:
+  /// **'话题预览触发方式'**
+  String get preferences_topicPreviewTrigger;
+
+  /// No description provided for @preferences_topicPreviewTriggerDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择通过长按卡片或点击卡片右侧信息区预览主帖'**
+  String get preferences_topicPreviewTriggerDesc;
+
+  /// No description provided for @topicPreviewTrigger_longPress.
   ///
   /// In zh, this message translates to:
   /// **'长按预览'**
-  String get preferences_longPressPreview;
+  String get topicPreviewTrigger_longPress;
 
-  /// No description provided for @preferences_longPressPreviewDesc.
+  /// No description provided for @topicPreviewTrigger_rightSideTap.
   ///
   /// In zh, this message translates to:
-  /// **'长按话题卡片快速预览内容'**
-  String get preferences_longPressPreviewDesc;
+  /// **'点击右侧预览'**
+  String get topicPreviewTrigger_rightSideTap;
 
   /// No description provided for @preferences_openLinksInApp.
   ///

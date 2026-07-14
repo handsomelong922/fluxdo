@@ -1,30 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:share_plus/share_plus.dart';
-import '../../models/topic.dart';
+
+import '../../l10n/s.dart';
 import '../../models/category.dart';
+import '../../models/topic.dart';
+import '../../pages/category_topics_page.dart';
+import '../../pages/tag_topics_page.dart';
 import '../../providers/discourse_providers.dart';
+import '../../providers/home_topic_excerpt_provider.dart';
 import '../../providers/preferences_provider.dart';
-import '../../utils/font_awesome_helper.dart';
-import '../../utils/share_utils.dart';
-import '../../utils/url_helper.dart';
-import '../../services/discourse_cache_manager.dart';
 import '../../services/navigation/topic_detail_route.dart';
-import '../common/loading_spinner.dart';
-import '../common/relative_time_text.dart';
 import '../../utils/dialog_utils.dart';
+import '../../utils/font_awesome_helper.dart';
 import '../../utils/number_utils.dart';
+import '../../utils/tag_icon_list.dart';
+import '../../utils/time_utils.dart';
+import '../../utils/topic_detail_preview.dart';
 import '../common/emoji_text.dart';
+import '../common/loading_spinner.dart';
 import '../common/smart_avatar.dart';
 import '../common/topic_badges.dart';
 import '../content/discourse_html_content/discourse_html_content.dart';
-import '../../pages/category_topics_page.dart';
-import '../../pages/tag_topics_page.dart';
-import '../../../../../l10n/s.dart';
 
-/// 预览弹窗中的操作项
+/// 预览弹窗中的操作项。
 class PreviewAction {
   final IconData icon;
   final String label;
@@ -39,8 +38,11 @@ class PreviewAction {
   });
 }
 
-/// 话题预览弹窗 - 长按卡片时显示
+/// 话题预览弹窗。
 class TopicPreviewDialog extends ConsumerStatefulWidget {
+  static const previewWindowKey = ValueKey<String>('topic-preview-window');
+  static const double viewportHeightFactor = 0.85;
+
   final Topic topic;
   final VoidCallback? onOpen;
   final List<PreviewAction>? actions;
@@ -55,22 +57,26 @@ class TopicPreviewDialog extends ConsumerStatefulWidget {
   @override
   ConsumerState<TopicPreviewDialog> createState() => _TopicPreviewDialogState();
 
-  /// 显示预览弹窗
   static Future<void> show(
     BuildContext context, {
     required Topic topic,
     VoidCallback? onOpen,
     List<PreviewAction>? actions,
+    TopicPreviewTrigger trigger = TopicPreviewTrigger.longPress,
   }) {
-    // 触觉反馈
-    HapticFeedback.mediumImpact();
+    if (trigger == TopicPreviewTrigger.longPress) {
+      HapticFeedback.mediumImpact();
+    } else {
+      HapticFeedback.selectionClick();
+    }
 
     return showAppGeneralDialog(
       context: context,
       barrierDismissible: true,
       barrierLabel: S.current.common_closePreview,
-      barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds: 200),
+      barrierColor: const Color(0x80000000),
+      transitionDuration: const Duration(milliseconds: 150),
+      blur: false,
       pageBuilder: (context, animation, secondaryAnimation) {
         return TopicPreviewDialog(
           topic: topic,
@@ -79,13 +85,17 @@ class TopicPreviewDialog extends ConsumerStatefulWidget {
         );
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curvedAnimation = CurvedAnimation(
+        final curved = CurvedAnimation(
           parent: animation,
-          curve: Curves.easeOutBack,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
         );
-        return ScaleTransition(
-          scale: curvedAnimation,
-          child: FadeTransition(opacity: animation, child: child),
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.97, end: 1).animate(curved),
+            child: child,
+          ),
         );
       },
     );
@@ -93,6 +103,7 @@ class TopicPreviewDialog extends ConsumerStatefulWidget {
 }
 
 class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
+  TopicDetail? _previewDetail;
   String? _firstPostCooked;
   bool _isLoading = true;
   bool _loadFailed = false;
@@ -106,14 +117,33 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
   }
 
   Future<void> _loadFirstPost() async {
+    final loader = ref.read(homeTopicExcerptLoaderProvider);
     try {
-      final cooked = await ref
-          .read(discourseServiceProvider)
-          .getTopicFirstPostCooked(topic.id);
+      var detail = loader.peekCachedPreview(topic.id);
+      var cooked = detail?.postStream.posts.firstOrNull?.cooked;
+
+      if (cooked == null || cooked.trim().isEmpty) {
+        try {
+          cooked = await loader.load(topic.id);
+        } finally {
+          loader.release(topic.id);
+        }
+        detail = loader.peekCachedPreview(topic.id);
+      }
+
+      final normalized = cooked?.trim();
+      if (detail == null && normalized != null && normalized.isNotEmpty) {
+        detail = buildTopicDetailPreview(topic: topic, previewHtml: cooked!);
+      }
+
       if (!mounted) return;
       setState(() {
-        _firstPostCooked = cooked;
+        _previewDetail = detail;
+        _firstPostCooked = normalized == null || normalized.isEmpty
+            ? null
+            : cooked;
         _isLoading = false;
+        _loadFailed = _firstPostCooked == null;
       });
     } catch (_) {
       if (!mounted) return;
@@ -127,16 +157,14 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final screenSize = MediaQuery.of(context).size;
-    final maxWidth = screenSize.width * 0.9;
-    final maxHeight = screenSize.height * 0.7;
+    final media = MediaQuery.of(context);
+    final safeHeight = media.size.height - media.padding.vertical;
+    final dialogHeight = safeHeight * TopicPreviewDialog.viewportHeightFactor;
+    final dialogWidth = (media.size.width * 0.9).clamp(0.0, 500.0);
 
-    // 获取分类信息
     final categoryMap = ref.watch(categoryMapProvider).value;
     final categoryId = int.tryParse(topic.categoryId);
     final category = categoryMap?[categoryId];
-
-    // 图标逻辑
     IconData? faIcon = FontAwesomeHelper.getIcon(category?.icon);
     String? logoUrl = category?.uploadedLogo;
 
@@ -150,96 +178,74 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
 
     final hasActions = widget.actions != null && widget.actions!.isNotEmpty;
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: maxWidth.clamp(300, 500),
-          maxHeight: maxHeight,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 预览卡片
-            Flexible(
-              child: Material(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(20),
-                clipBehavior: Clip.antiAlias,
-                elevation: 8,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 顶部装饰条
-                    Container(
-                      height: 4,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            theme.colorScheme.primaryContainer,
-                            theme.colorScheme.tertiaryContainer,
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // 内容区域
-                    Flexible(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // 标题
-                            _buildTitle(context, theme),
-
-                            const SizedBox(height: 12),
-
-                            // 楼主信息
-                            _buildAuthorInfo(context, theme),
-
-                            // 分类和标签
-                            if (category != null || topic.tags.isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              _buildCategoryAndTags(
-                                context,
-                                theme,
-                                category,
-                                faIcon,
-                                logoUrl,
-                              ),
+    return SafeArea(
+      child: Center(
+        child: SizedBox(
+          key: TopicPreviewDialog.previewWindowKey,
+          width: dialogWidth,
+          height: dialogHeight,
+          child: Column(
+            children: [
+              Expanded(
+                child: Material(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  clipBehavior: Clip.antiAlias,
+                  elevation: 8,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 4,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              theme.colorScheme.primaryContainer,
+                              theme.colorScheme.tertiaryContainer,
                             ],
-
-                            // 主贴内容
-                            const SizedBox(height: 16),
-                            _buildPostContent(context, theme),
-
-                            const SizedBox(height: 16),
-
-                            // 参与者头像
-                            if (topic.posters.length > 1)
-                              _buildParticipants(context, theme),
-
-                            // 统计信息
-                            _buildStats(context, theme),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-
-                    // 底部操作栏
-                    _buildActions(context, theme),
-                  ],
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildTitle(context, theme),
+                              const SizedBox(height: 8),
+                              _buildAuthorInfo(context, theme),
+                              if (category != null ||
+                                  topic.tags.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                _buildCategoryAndTags(
+                                  context,
+                                  theme,
+                                  category,
+                                  faIcon,
+                                  logoUrl,
+                                ),
+                              ],
+                              const SizedBox(height: 10),
+                              _buildPostContent(context, theme),
+                            ],
+                          ),
+                        ),
+                      ),
+                      _buildFooter(context, theme),
+                    ],
+                  ),
                 ),
               ),
-            ),
-
-            // 卡片外的操作菜单
-            if (hasActions) ...[
-              const SizedBox(height: 8),
-              _buildCustomActions(context, theme),
+              if (hasActions) ...[
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: dialogHeight * 0.28),
+                  child: _buildCustomActions(context, theme),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -249,22 +255,22 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
     if (_isLoading) {
       return const Center(
         child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 20),
+          padding: EdgeInsets.symmetric(vertical: 28),
           child: LoadingSpinner(size: 24),
         ),
       );
     }
 
-    if (_firstPostCooked != null &&
-        _firstPostCooked!.isNotEmpty &&
-        !_loadFailed) {
-      // 加载成功：渲染主贴 HTML
-      final contentFontScale = ref.watch(preferencesProvider).contentFontScale;
+    if (_firstPostCooked case final cooked?
+        when cooked.isNotEmpty && !_loadFailed) {
+      final contentFontScale = ref.watch(
+        preferencesProvider.select((p) => p.contentFontScale),
+      );
       return DiscourseHtmlContent(
-        html: _firstPostCooked!,
+        html: cooked,
         compact: true,
         textStyle: theme.textTheme.bodyMedium?.copyWith(
-          height: 1.5,
+          height: 1.45,
           fontSize:
               (theme.textTheme.bodyMedium?.fontSize ?? 14) * contentFontScale,
         ),
@@ -283,16 +289,26 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
       );
     }
 
-    // 加载失败：降级展示 excerpt
-    if (topic.excerpt != null && topic.excerpt!.isNotEmpty) {
-      return _buildExcerptFallback(theme);
+    final excerpt = topic.excerpt;
+    if (excerpt != null && excerpt.trim().isNotEmpty) {
+      return _buildExcerptFallback(theme, excerpt);
     }
 
-    return const SizedBox.shrink();
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Text(
+          S.current.common_loadFailed,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
   }
 
-  Widget _buildExcerptFallback(ThemeData theme) {
-    final cleanExcerpt = topic.excerpt!
+  Widget _buildExcerptFallback(ThemeData theme, String excerpt) {
+    final cleanExcerpt = excerpt
         .replaceAll(RegExp(r'<[^>]*>'), '')
         .replaceAll('&hellip;', '...')
         .replaceAll('&amp;', '&')
@@ -301,46 +317,46 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
         .replaceAll('&quot;', '"')
         .replaceAll('&#39;', "'")
         .trim();
-
     if (cleanExcerpt.isEmpty) return const SizedBox.shrink();
 
-    final contentFontScale = ref.watch(preferencesProvider).contentFontScale;
+    final contentFontScale = ref.watch(
+      preferencesProvider.select((p) => p.contentFontScale),
+    );
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         cleanExcerpt,
         style: theme.textTheme.bodyMedium?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
-          height: 1.6,
+          height: 1.5,
           fontSize:
               (theme.textTheme.bodyMedium?.fontSize ?? 14) * contentFontScale,
         ),
-        maxLines: 8,
-        overflow: TextOverflow.ellipsis,
       ),
     );
   }
 
   Widget _buildTitle(BuildContext context, ThemeData theme) {
+    final style = theme.textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+      height: 1.25,
+    );
     return Text.rich(
       TextSpan(
-        style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w600,
-          height: 1.3,
-        ),
+        style: style,
         children: [
           if (topic.closed)
             WidgetSpan(
               alignment: PlaceholderAlignment.middle,
               child: Padding(
-                padding: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.only(right: 5),
                 child: Icon(
                   Icons.lock_outline,
-                  size: 20,
+                  size: 17,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -349,77 +365,66 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
             WidgetSpan(
               alignment: PlaceholderAlignment.middle,
               child: Padding(
-                padding: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.only(right: 5),
                 child: Icon(
                   Icons.push_pin_rounded,
-                  size: 20,
+                  size: 17,
                   color: theme.colorScheme.primary,
                 ),
               ),
             ),
           if (topic.hasAcceptedAnswer)
-            WidgetSpan(
+            const WidgetSpan(
               alignment: PlaceholderAlignment.middle,
               child: Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: Icon(Icons.check_box, size: 20, color: Colors.green),
+                padding: EdgeInsets.only(right: 5),
+                child: Icon(Icons.check_box, size: 17, color: Colors.green),
               ),
             ),
-          ...EmojiText.buildEmojiSpans(
-            context,
-            topic.title,
-            theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w600,
-              height: 1.3,
-            ),
-          ),
+          ...EmojiText.buildEmojiSpans(context, topic.title, style),
         ],
       ),
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
     );
   }
 
   Widget _buildAuthorInfo(BuildContext context, ThemeData theme) {
-    String? avatarUrl;
-    String username;
-
-    if (topic.posters.isNotEmpty && topic.posters.first.user != null) {
-      final op = topic.posters.first.user!;
-      avatarUrl = op.getAvatarUrl(size: 56);
-      username = op.username;
-    } else {
-      username = topic.lastPosterUsername ?? '';
-    }
+    final detailAuthor = _previewDetail?.createdBy;
+    final listAuthor = topic.posters.firstOrNull?.user;
+    final author = detailAuthor ?? listAuthor;
+    final username = author?.username ?? topic.lastPosterUsername ?? '';
+    final avatarUrl = author?.getAvatarUrl(size: 48);
+    final createdAt = _previewDetail?.createdAt ?? topic.createdAt;
 
     return Row(
       children: [
-        SmartAvatar(imageUrl: avatarUrl, radius: 14, fallbackText: username),
-        const SizedBox(width: 8),
+        SmartAvatar(imageUrl: avatarUrl, radius: 12, fallbackText: username),
+        const SizedBox(width: 7),
         Flexible(
           child: Text(
             username,
-            style: theme.textTheme.bodyMedium?.copyWith(
+            style: theme.textTheme.bodySmall?.copyWith(
               fontWeight: FontWeight.w500,
-              color: theme.colorScheme.onSurface,
             ),
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (topic.createdAt != null) ...[
+        if (createdAt != null) ...[
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 5),
             child: Text(
               '·',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
             ),
           ),
-          RelativeTimeText(
-            dateTime: topic.createdAt,
-            displayStyle: TimeDisplayStyle.prefixed,
-            prefix: S.current.topic_createdAt,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+          Flexible(
+            child: Text(
+              '${S.current.topic_createdAt} ${TimeUtils.formatRelativeTime(createdAt)}',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -434,288 +439,260 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
     IconData? faIcon,
     String? logoUrl,
   ) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        // 分类
-        if (category != null)
-          GestureDetector(
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => CategoryTopicsPage(category: category),
-                ),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: _parseColor(category.color).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: _parseColor(category.color).withValues(alpha: 0.3),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (faIcon != null)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: FaIcon(
-                        faIcon,
-                        size: 12,
-                        color: _parseColor(category.color),
-                      ),
-                    )
-                  else if (logoUrl != null && logoUrl.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: Image(
-                        image: discourseImageProvider(
-                          UrlHelper.resolveUrlWithCdn(logoUrl),
-                        ),
-                        width: 12,
-                        height: 12,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          return _buildCategoryDot(category);
-                        },
-                      ),
-                    )
-                  else
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: _buildCategoryDot(category),
-                    ),
-                  Text(
-                    category.name,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+    const badgeSize = BadgeSize.dense;
+    final textStyle = theme.textTheme.labelSmall?.copyWith(fontSize: 9);
+    final candidates = <({Widget child, double width})>[];
 
-        // 标签
-        ...topic.tags.map(
-          (tag) => TagBadge(
-            name: tag.name,
-            size: const BadgeSize(
-              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              radius: 8,
-              iconSize: 12,
-              fontSize: 13,
-            ),
-            textStyle: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => TagTopicsPage(tagName: tag.name),
-                ),
-              );
-            },
-          ),
+    if (category != null) {
+      candidates.add((
+        child: CategoryBadge(
+          category: category,
+          faIcon: faIcon,
+          logoUrl: logoUrl,
+          size: badgeSize,
+          textStyle: textStyle?.copyWith(fontWeight: FontWeight.w500),
+          onTap: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => CategoryTopicsPage(category: category),
+              ),
+            );
+          },
         ),
-      ],
-    );
-  }
+        width: _measureBadgeText(context, category.name, textStyle) + 31,
+      ));
+    }
 
-  Widget _buildParticipants(BuildContext context, ThemeData theme) {
-    final participants = topic.posters.take(5).toList();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        children: [
-          Text(
-            S.current.topic_participants,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: SizedBox(
-              height: 28,
-              child: Stack(
-                children: List.generate(participants.length, (index) {
-                  final poster = participants[index];
-                  String? avatarUrl;
-                  String fallback = '';
-
-                  if (poster.user != null) {
-                    avatarUrl = poster.user!.getAvatarUrl(size: 56);
-                    fallback = poster.user!.username;
-                  }
-
-                  return Positioned(
-                    left: index * 20.0,
-                    child: SmartAvatar(
-                      imageUrl: avatarUrl,
-                      radius: 14,
-                      fallbackText: fallback,
-                      border: Border.all(
-                        color: theme.colorScheme.surface,
-                        width: 2,
-                      ),
-                    ),
-                  );
-                }),
+    for (final tag in topic.tags) {
+      candidates.add((
+        child: TagBadge(
+          name: tag.name,
+          size: badgeSize,
+          textStyle: textStyle,
+          onTap: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => TagTopicsPage(tagName: tag.name),
               ),
-            ),
-          ),
-        ],
+            );
+          },
+        ),
+        width:
+            _measureBadgeText(context, tag.name, textStyle) +
+            (TagIconList.get(tag.name) == null ? 12 : 25),
+      ));
+    }
+
+    return SizedBox(
+      height: 22,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const gap = 5.0;
+          const ellipsisWidth = 12.0;
+          final visible = <Widget>[];
+          var usedWidth = 0.0;
+          var omitted = false;
+
+          for (var index = 0; index < candidates.length; index++) {
+            final candidate = candidates[index];
+            final leadingGap = visible.isEmpty ? 0.0 : gap;
+            final hasMore = index < candidates.length - 1;
+            final reserved = hasMore ? gap + ellipsisWidth : 0.0;
+            if (usedWidth + leadingGap + candidate.width + reserved >
+                constraints.maxWidth) {
+              omitted = true;
+              break;
+            }
+            if (visible.isNotEmpty) visible.add(const SizedBox(width: gap));
+            visible.add(candidate.child);
+            usedWidth += leadingGap + candidate.width;
+          }
+
+          if (omitted &&
+              usedWidth + gap + ellipsisWidth <= constraints.maxWidth) {
+            if (visible.isNotEmpty) visible.add(const SizedBox(width: gap));
+            visible.add(
+              Text(
+                '…',
+                style: textStyle?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            );
+          }
+
+          return ClipRect(child: Row(children: visible));
+        },
       ),
     );
   }
 
-  Widget _buildStats(BuildContext context, ThemeData theme) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatItem(
-                context,
-                Icons.chat_bubble_outline_rounded,
-                S.current.topic_replyCount(
-                  (topic.postsCount - 1).clamp(0, 999999),
-                ),
-              ),
-            ),
-            Expanded(
-              child: _buildStatItem(
-                context,
-                Icons.favorite_border_rounded,
-                S.current.topic_likeCount(
-                  NumberUtils.formatCount(topic.likeCount),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatItem(
-                context,
-                Icons.visibility_outlined,
-                S.current.topic_viewCount(NumberUtils.formatCount(topic.views)),
-              ),
-            ),
-            Expanded(
-              child: _buildStatWidgetItem(
-                context,
-                Icons.access_time,
-                RelativeTimeText(
-                  dateTime: topic.lastPostedAt,
-                  displayStyle: TimeDisplayStyle.prefixed,
-                  prefix: S.current.topic_lastReply,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatWidgetItem(
+  double _measureBadgeText(
     BuildContext context,
-    IconData icon,
-    Widget child,
+    String text,
+    TextStyle? style,
   ) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
-        const SizedBox(width: 4),
-        child,
-      ],
-    );
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    return painter.width;
   }
 
-  Widget _buildStatItem(BuildContext context, IconData icon, String text) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
-    );
-  }
+  Widget _buildFooter(BuildContext context, ThemeData theme) {
+    final detail = _previewDetail;
+    final replyCount = ((detail?.postsCount ?? topic.postsCount) - 1)
+        .clamp(0, 999999)
+        .toInt();
+    final views = detail?.views ?? topic.views;
+    final likes = detail?.likeCount ?? topic.likeCount;
+    final lastReply = TimeUtils.formatRelativeTime(topic.lastPostedAt);
 
-  Widget _buildActions(BuildContext context, ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
         border: Border(
           top: BorderSide(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
           ),
         ),
       ),
       child: Row(
         children: [
-          // 关闭按钮
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(S.current.common_close),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildCompactStat(
+                  context,
+                  icon: Icons.chat_bubble_outline_rounded,
+                  value: NumberUtils.formatCount(replyCount),
+                  tooltip: S.current.topic_replyCount(replyCount),
+                  alignment: Alignment.centerLeft,
+                ),
+                const SizedBox(height: 3),
+                _buildCompactStat(
+                  context,
+                  icon: Icons.visibility_outlined,
+                  value: NumberUtils.formatCount(views),
+                  tooltip: S.current.topic_viewCount(
+                    NumberUtils.formatCount(views),
+                  ),
+                  alignment: Alignment.centerLeft,
+                ),
+              ],
+            ),
           ),
-
-          const Spacer(),
-
-          // 分享按钮
-          IconButton(
-            onPressed: () {
-              final user = ref.read(currentUserProvider).value;
-              final prefs = ref.read(preferencesProvider);
-              final url = ShareUtils.buildShareUrl(
-                path: '/t/topic/${topic.id}',
-                username: user?.username,
-                anonymousShare: prefs.anonymousShare,
-              );
-              SharePlus.instance.share(ShareParams(text: url));
-            },
-            icon: const Icon(Icons.share_outlined, size: 20),
-            tooltip: S.current.common_share,
+          const SizedBox(width: 6),
+          FilledButton(
+            onPressed: _openDetails,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 38),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(S.current.common_viewDetails),
           ),
-
-          const SizedBox(width: 8),
-
-          // 打开按钮
-          FilledButton.icon(
-            onPressed: () {
-              Navigator.of(context).pop();
-              widget.onOpen?.call();
-            },
-            icon: const Icon(Icons.open_in_new, size: 18),
-            label: Text(S.current.common_viewDetails),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _buildCompactStat(
+                  context,
+                  icon: Icons.favorite_border_rounded,
+                  value: NumberUtils.formatCount(likes),
+                  tooltip: S.current.topic_likeCount(
+                    NumberUtils.formatCount(likes),
+                  ),
+                  alignment: Alignment.centerRight,
+                ),
+                const SizedBox(height: 3),
+                _buildCompactStat(
+                  context,
+                  icon: Icons.access_time_rounded,
+                  value: lastReply,
+                  tooltip: '${S.current.topic_lastReply} $lastReply',
+                  alignment: Alignment.centerRight,
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCompactStat(
+    BuildContext context, {
+    required IconData icon,
+    required String value,
+    required String tooltip,
+    required Alignment alignment,
+  }) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        height: 16,
+        width: double.infinity,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: alignment,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(width: 3),
+              Text(
+                value,
+                maxLines: 1,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openDetails() {
+    var detail = _previewDetail;
+    final cooked = _firstPostCooked;
+    if (detail == null && cooked != null && cooked.trim().isNotEmpty) {
+      detail = buildTopicDetailPreview(topic: topic, previewHtml: cooked);
+    }
+    if (detail != null) {
+      final username = ref.read(currentUserProvider).value?.username;
+      ref
+          .read(topicDetailCacheServiceProvider)
+          .writePreviewSeed(detail, username: username);
+    }
+
+    final navigator = Navigator.of(context);
+    navigator.pop();
+    final onOpen = widget.onOpen;
+    if (onOpen != null) {
+      onOpen();
+      return;
+    }
+    navigator.push(
+      buildTopicDetailRoute<void>(
+        topicId: topic.id,
+        initialTitle: topic.title,
+        scrollToPostNumber: cooked == null ? topic.lastReadPostNumber : null,
+        initialTopicPreview: topic,
+        initialFirstPostHtml: cooked,
       ),
     );
   }
@@ -726,70 +703,53 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
       borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       elevation: 8,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: widget.actions!.asMap().entries.map((entry) {
-          final index = entry.key;
-          final action = entry.value;
-          final color = action.color ?? theme.colorScheme.onSurface;
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (index > 0)
-                Divider(
-                  height: 0.5,
-                  thickness: 0.5,
-                  color: theme.colorScheme.outlineVariant.withValues(
-                    alpha: 0.4,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: widget.actions!.asMap().entries.map((entry) {
+            final index = entry.key;
+            final action = entry.value;
+            final color = action.color ?? theme.colorScheme.onSurface;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (index > 0)
+                  Divider(
+                    height: 0.5,
+                    thickness: 0.5,
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.4,
+                    ),
                   ),
-                ),
-              InkWell(
-                onTap: () {
-                  Navigator.of(context).pop();
-                  action.onTap();
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(action.icon, size: 20, color: color),
-                      const SizedBox(width: 12),
-                      Text(
-                        action.label,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: color,
+                InkWell(
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    action.onTap();
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(action.icon, size: 19, color: color),
+                        const SizedBox(width: 10),
+                        Text(
+                          action.label,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: color,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          );
-        }).toList(),
+              ],
+            );
+          }).toList(),
+        ),
       ),
     );
-  }
-
-  Widget _buildCategoryDot(Category category) {
-    return Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(
-        color: _parseColor(category.color),
-        shape: BoxShape.circle,
-      ),
-    );
-  }
-
-  Color _parseColor(String hex) {
-    hex = hex.replaceAll('#', '');
-    if (hex.length == 6) {
-      return Color(int.parse('0xFF$hex'));
-    }
-    return Colors.grey;
   }
 }

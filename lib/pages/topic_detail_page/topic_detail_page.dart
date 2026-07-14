@@ -20,6 +20,7 @@ import '../../models/draft.dart';
 import '../../models/nested_topic.dart';
 import '../../models/topic.dart';
 import '../../utils/responsive.dart';
+import '../../utils/topic_detail_preview.dart';
 import '../../utils/share_utils.dart';
 import '../../providers/preferences_provider.dart';
 import '../../providers/theme_provider.dart';
@@ -162,52 +163,10 @@ TopicDetail buildTopicDetailPreviewFromTopic({
   required String previewHtml,
   String? initialTitle,
 }) {
-  final createdBy = topic.posters.firstOrNull?.user;
-  final previewTime = topic.createdAt ?? topic.lastPostedAt ?? DateTime.now();
-  final previewPost = Post(
-    id: topic.id * 1000000 + 1,
-    topicId: topic.id,
-    username: createdBy?.username ?? topic.lastPosterUsername ?? '',
-    avatarTemplate: createdBy?.avatarTemplate ?? '',
-    animatedAvatar: createdBy?.animatedAvatar,
-    cooked: previewHtml,
-    postNumber: 1,
-    postType: 1,
-    updatedAt: previewTime,
-    createdAt: previewTime,
-    likeCount: 0,
-    // 预览帖使用的是临时 id，不能拿它请求 /posts/{id}/replies。
-    replyCount: 0,
-    read: true,
-    userId: createdBy?.id,
-  );
-
-  return TopicDetail(
-    id: topic.id,
-    title: initialTitle ?? topic.title,
-    slug: topic.slug,
-    postsCount: topic.postsCount,
-    postStream: PostStream(
-      posts: [previewPost],
-      stream: [previewPost.id],
-      gaps: const PostStreamGaps(),
-    ),
-    categoryId: int.tryParse(topic.categoryId) ?? 0,
-    closed: topic.closed,
-    archived: topic.archived,
-    tags: topic.tags,
-    views: topic.views,
-    likeCount: topic.likeCount,
-    createdAt: topic.createdAt ?? previewTime,
-    lastReadPostNumber: topic.lastReadPostNumber,
-    createdBy: createdBy,
-    bookmarked: topic.bookmarkableType == 'Topic' && topic.bookmarkId != null,
-    bookmarkId: topic.bookmarkableType == 'Topic' ? topic.bookmarkId : null,
-    bookmarkName: topic.bookmarkableType == 'Topic' ? topic.bookmarkName : null,
-    bookmarkReminderAt: topic.bookmarkableType == 'Topic'
-        ? topic.bookmarkReminderAt
-        : null,
-    hasAcceptedAnswer: topic.hasAcceptedAnswer,
+  return buildTopicDetailPreview(
+    topic: topic,
+    previewHtml: previewHtml,
+    initialTitle: initialTitle,
   );
 }
 

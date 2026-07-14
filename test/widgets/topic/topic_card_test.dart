@@ -123,6 +123,60 @@ void main() {
     );
   });
 
+  testWidgets('TopicCard 右侧全高热区只触发预览且不触发详情', (tester) async {
+    await _setSurfaceSize(tester, const Size(390, 844));
+    var tapCount = 0;
+    var previewCount = 0;
+
+    await _pumpCard(
+      tester,
+      child: TopicCard(
+        topic: _topic(),
+        onTap: () => tapCount++,
+        onPreviewTap: () => previewCount++,
+        bottomWidget: const Text('跨越卡片宽度的摘要正文'),
+      ),
+    );
+
+    final zone = find.byKey(TopicCard.previewTapZoneKey);
+    expect(zone, findsOneWidget);
+    final zoneRect = tester.getRect(zone);
+    final cardRect = tester.getRect(find.byType(TopicCard));
+    expect(zoneRect.top, cardRect.top);
+    expect(zoneRect.bottom, cardRect.bottom - 8);
+
+    await tester.tapAt(zoneRect.center);
+    await tester.pump();
+    expect(previewCount, 1);
+    expect(tapCount, 0);
+
+    await tester.tap(find.text('测试话题'));
+    await tester.pump();
+    expect(previewCount, 1);
+    expect(tapCount, 1);
+  });
+
+  testWidgets('CompactTopicCard 复用右侧全高预览热区', (tester) async {
+    await _setSurfaceSize(tester, const Size(390, 844));
+    var tapCount = 0;
+    var previewCount = 0;
+
+    await _pumpCard(
+      tester,
+      child: CompactTopicCard(
+        topic: _topic(pinned: true),
+        onTap: () => tapCount++,
+        onPreviewTap: () => previewCount++,
+      ),
+    );
+
+    final zone = find.byKey(TopicCard.previewTapZoneKey);
+    await tester.tap(zone);
+    await tester.pump();
+    expect(previewCount, 1);
+    expect(tapCount, 0);
+  });
+
   testWidgets('移动端 CompactTopicCard 使用轻量外壳', (tester) async {
     await _setSurfaceSize(tester, const Size(390, 844));
     final theme = ThemeData(
