@@ -76,6 +76,7 @@ import 'constants.dart';
 import 'providers/connectivity_provider.dart';
 import 'providers/cdk_providers.dart';
 import 'utils/dialog_utils.dart';
+import 'utils/image_decode_gate.dart';
 import 'utils/time_utils.dart';
 import 'utils/blocked_user_filter.dart';
 import 'utils/scroll_busy_signal.dart';
@@ -372,7 +373,9 @@ void _launchApp(SharedPreferences prefs) {
 }
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // 全局标准图片首帧解码限流，避免图密页面多张图同时
+  // 解码/上传纹理与 raster 帧争抢 GPU 队列。
+  FluxdoWidgetsBinding.ensureInitialized();
   StartupRequestRecorder.ensureInitialized();
 
   // Flutter ImageCache 默认 100 MB / 1000 项。两个上限任一超过就 LRU evict。
