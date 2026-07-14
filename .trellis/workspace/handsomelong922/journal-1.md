@@ -151,3 +151,42 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Port performance fixes and audit home requests
+
+**Date**: 2026-07-14
+**Task**: Port performance fixes and audit home requests
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+手工适配 MessageBus、图片解码、首页卡片与详情头像性能优化；移除重复首页首帖预热，审计关闭首页详细展示后的请求行为，并通过全量分析与 508 项测试。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2da58f36` | (see git log) |
+| `b92442db` | (see git log) |
+| `784c0d5a` | (see git log) |
+| `bf348b20` | (see git log) |
+| `dc4faff0` | (see git log) |
+| `7e84fc94` | (see git log) |
+| `f34a21d7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

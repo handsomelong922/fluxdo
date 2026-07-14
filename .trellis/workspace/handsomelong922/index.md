@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 4
+- **Total Sessions**: 5
 - **Last Active**: 2026-07-14
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~153 | Active |
+| `journal-1.md` | ~192 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 5 | 2026-07-14 | Port performance fixes and audit home requests | `2da58f36`, `b92442db`, `784c0d5a`, `bf348b20`, `dc4faff0`, `7e84fc94`, `f34a21d7` | `codex/rollback-to-v0.3.1` |
 | 4 | 2026-07-14 | 优化话题预览触发与窗口体验 | `2a4fd2c5` | `codex/rollback-to-v0.3.1` |
 | 3 | 2026-07-11 | Verify release build and port upstream P2 request safeguards | `f45f0fc9`, `833e0cd2`, `f6368a02`, `a2d93334` | `codex/rollback-to-v0.3.1` |
 | 2 | 2026-07-10 | Optimize profile loading and port upstream P1 scroll performance | `2c8ed16a`, `800417bc`, `172bda0c`, `1dc76df1`, `2dd02db1`, `fffd87b4`, `6ab9b2ed` | `codex/rollback-to-v0.3.1` |
