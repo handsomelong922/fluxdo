@@ -71,6 +71,7 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
   String? _cachedAvatarIdentity;
   String? _cachedAvatarSource;
   bool? _cachedPreferStaticAvatars;
+  ThemeData? _cachedAvatarTheme;
 
   @override
   void dispose() {
@@ -87,11 +88,12 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
     );
     final avatarIdentity = _avatarIdentity(widget.post, preferStaticAvatars);
     final avatarSource = _avatarSource(widget.post);
+    final theme = Theme.of(context);
     if (_cachedAvatarWidget == null ||
         _cachedAvatarIdentity != avatarIdentity ||
         _cachedAvatarSource != avatarSource ||
-        _cachedPreferStaticAvatars != preferStaticAvatars) {
-      final theme = Theme.of(context);
+        _cachedPreferStaticAvatars != preferStaticAvatars ||
+        !identical(_cachedAvatarTheme, theme)) {
       _cachedAvatarWidget = PostAvatar(
         key: ValueKey(avatarIdentity),
         post: widget.post,
@@ -100,6 +102,7 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
       _cachedAvatarIdentity = avatarIdentity;
       _cachedAvatarSource = avatarSource;
       _cachedPreferStaticAvatars = preferStaticAvatars;
+      _cachedAvatarTheme = theme;
     }
   }
 
@@ -184,7 +187,8 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
     if (_cachedAvatarWidget == null ||
         _cachedAvatarIdentity != avatarIdentity ||
         _cachedAvatarSource != avatarSource ||
-        _cachedPreferStaticAvatars != preferStaticAvatars) {
+        _cachedPreferStaticAvatars != preferStaticAvatars ||
+        !identical(_cachedAvatarTheme, theme)) {
       _cachedAvatarWidget = PostAvatar(
         key: ValueKey(avatarIdentity),
         post: post,
@@ -193,6 +197,7 @@ class _PostHeaderSectionState extends ConsumerState<PostHeaderSection> {
       _cachedAvatarIdentity = avatarIdentity;
       _cachedAvatarSource = avatarSource;
       _cachedPreferStaticAvatars = preferStaticAvatars;
+      _cachedAvatarTheme = theme;
     }
     final currentUser = ref.read(currentUserProvider).value;
     final isOwnPost =
