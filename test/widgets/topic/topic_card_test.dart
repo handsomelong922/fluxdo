@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/l10n/app_localizations.dart';
+import 'package:fluxdo/models/category.dart';
 import 'package:fluxdo/models/topic.dart';
 import 'package:fluxdo/providers/category_provider.dart';
 import 'package:fluxdo/providers/theme_provider.dart';
@@ -218,6 +219,31 @@ void main() {
     );
 
     expect(find.byType(Card), findsNWidgets(2));
+  });
+
+  testWidgets('TopicCard 优先使用列表传入的分类快照', (tester) async {
+    final category = Category(
+      id: 1,
+      name: '列表快照分类',
+      color: '336699',
+      textColor: 'FFFFFF',
+      slug: 'snapshot',
+    );
+
+    await _pumpCard(
+      tester,
+      child: Column(
+        children: [
+          TopicCard(topic: _topic(), categoryMap: {1: category}),
+          CompactTopicCard(
+            topic: _topic(pinned: true),
+            categoryMap: {1: category},
+          ),
+        ],
+      ),
+    );
+
+    expect(find.text('列表快照分类'), findsOneWidget);
   });
 }
 

@@ -141,6 +141,7 @@ class TopicCard extends ConsumerWidget {
   final int? maxVisibleTags;
   final Widget? topWidget;
   final Widget? bottomWidget;
+  final Map<int, Category>? categoryMap;
 
   const TopicCard({
     super.key,
@@ -155,6 +156,7 @@ class TopicCard extends ConsumerWidget {
     this.maxVisibleTags,
     this.topWidget,
     this.bottomWidget,
+    this.categoryMap,
   });
 
   @override
@@ -192,9 +194,10 @@ class TopicCard extends ConsumerWidget {
     final readOpacity = isMobile ? 1.0 : (isFullyRead ? 0.5 : 1.0);
 
     // 获取分类信息
-    final categoryMap = ref.watch(categoryMapProvider).value;
+    final effectiveCategoryMap =
+        categoryMap ?? ref.watch(categoryMapProvider).value;
     final categoryId = int.tryParse(topic.categoryId);
-    final category = categoryMap?[categoryId];
+    final category = effectiveCategoryMap?[categoryId];
 
     // 图标逻辑优先级：
     // 1. 本级 FA Icon
@@ -207,7 +210,7 @@ class TopicCard extends ConsumerWidget {
     if (faIcon == null &&
         (logoUrl == null || logoUrl.isEmpty) &&
         category?.parentCategoryId != null) {
-      final parent = categoryMap?[category!.parentCategoryId];
+      final parent = effectiveCategoryMap?[category!.parentCategoryId];
       faIcon = FontAwesomeHelper.getIcon(parent?.icon);
       logoUrl = parent?.uploadedLogo;
     }
@@ -697,6 +700,7 @@ class CompactTopicCard extends ConsumerWidget {
   final VoidCallback? onPreviewTap;
   final bool isSelected;
   final Color? highlightColor;
+  final Map<int, Category>? categoryMap;
 
   const CompactTopicCard({
     super.key,
@@ -706,6 +710,7 @@ class CompactTopicCard extends ConsumerWidget {
     this.onPreviewTap,
     this.isSelected = false,
     this.highlightColor,
+    this.categoryMap,
   });
 
   @override
@@ -721,9 +726,10 @@ class CompactTopicCard extends ConsumerWidget {
         : theme.colorScheme.onSurface;
 
     // 获取分类信息
-    final categoryMap = ref.watch(categoryMapProvider).value;
+    final effectiveCategoryMap =
+        categoryMap ?? ref.watch(categoryMapProvider).value;
     final categoryId = int.tryParse(topic.categoryId);
-    final category = categoryMap?[categoryId];
+    final category = effectiveCategoryMap?[categoryId];
 
     // 图标逻辑
     IconData? faIcon = FontAwesomeHelper.getIcon(category?.icon);
@@ -732,7 +738,7 @@ class CompactTopicCard extends ConsumerWidget {
     if (faIcon == null &&
         (logoUrl == null || logoUrl.isEmpty) &&
         category?.parentCategoryId != null) {
-      final parent = categoryMap?[category!.parentCategoryId];
+      final parent = effectiveCategoryMap?[category!.parentCategoryId];
       faIcon = FontAwesomeHelper.getIcon(parent?.icon);
       logoUrl = parent?.uploadedLogo;
     }

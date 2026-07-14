@@ -599,6 +599,7 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
     final allPinnedIds = ref.watch(pinnedCategoriesProvider);
     final categoryMapAsync = ref.watch(categoryMapProvider);
     final categoryMap = categoryMapAsync.value;
+    final topicCategoryMap = categoryMap ?? const <int, Category>{};
     // 过滤掉当前用户无权限访问的分类（不在可见分类集合中的）
     final visibleIds = ref.watch(visibleCategoryIdsProvider);
     final pinnedIds = visibleIds != null
@@ -762,14 +763,14 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
                       ExtendedVisibilityDetector(
                         uniqueKey: const Key('tab_all'),
                         child: _mountedCategoryTabIds.contains(null)
-                            ? _buildTabPage(null)
+                            ? _buildTabPage(null, topicCategoryMap)
                             : const SizedBox.shrink(),
                       ),
                       for (int i = 0; i < pinnedIds.length; i++)
                         ExtendedVisibilityDetector(
                           uniqueKey: Key('tab_${pinnedIds[i]}'),
                           child: _mountedCategoryTabIds.contains(pinnedIds[i])
-                              ? _buildTabPage(pinnedIds[i])
+                              ? _buildTabPage(pinnedIds[i], topicCategoryMap)
                               : const SizedBox.shrink(),
                         ),
                     ],
@@ -987,12 +988,13 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   }
 
   /// 构建单个 tab 页面（带水平间距，圆角裁剪在列表内部处理）
-  Widget _buildTabPage(int? categoryId) {
+  Widget _buildTabPage(int? categoryId, Map<int, Category> categoryMap) {
     return Padding(
       padding: const EdgeInsets.only(left: 12, right: 12),
       child: _TopicList(
         key: ValueKey(categoryId),
         categoryId: categoryId,
+        categoryMap: categoryMap,
         onLoginRequired: _goToLogin,
       ),
     );
@@ -1301,8 +1303,14 @@ class _TopicsHeaderDelegate extends SliverPersistentHeaderDelegate {
 class _TopicList extends ConsumerStatefulWidget {
   final VoidCallback onLoginRequired;
   final int? categoryId;
+  final Map<int, Category> categoryMap;
 
-  const _TopicList({super.key, required this.onLoginRequired, this.categoryId});
+  const _TopicList({
+    super.key,
+    required this.onLoginRequired,
+    required this.categoryMap,
+    this.categoryId,
+  });
 
   @override
   ConsumerState<_TopicList> createState() => _TopicListState();
@@ -1705,6 +1713,7 @@ class _TopicListState extends ConsumerState<_TopicList> {
                           denseMetadata: showHomeExcerpt,
                           maxVisibleTags: isHomeTopicList ? 4 : null,
                           bottomWidget: bottomWidget,
+                          categoryMap: widget.categoryMap,
                         );
                       },
                     );
@@ -1720,6 +1729,7 @@ class _TopicListState extends ConsumerState<_TopicList> {
                     denseMetadata: showHomeExcerpt,
                     maxVisibleTags: isHomeTopicList ? 4 : null,
                     bottomWidget: bottomWidget,
+                    categoryMap: widget.categoryMap,
                   );
                 },
               ),

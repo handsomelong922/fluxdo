@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../models/category.dart';
 import '../../models/topic.dart';
 import '../../providers/preferences_provider.dart';
 import '../../utils/responsive.dart';
@@ -20,6 +21,7 @@ Widget buildTopicItem({
   int? maxVisibleTags,
   Widget? topWidget,
   Widget? bottomWidget,
+  Map<int, Category>? categoryMap,
   List<PreviewAction>? previewActions,
 }) {
   void showPreview() {
@@ -48,6 +50,7 @@ Widget buildTopicItem({
       onPreviewTap: onPreviewTap,
       isSelected: isSelected,
       highlightColor: highlightColor,
+      categoryMap: categoryMap,
     );
   } else {
     child = TopicCard(
@@ -62,6 +65,7 @@ Widget buildTopicItem({
       titleColor: titleColor,
       denseMetadata: denseMetadata,
       maxVisibleTags: maxVisibleTags,
+      categoryMap: categoryMap,
     );
   }
 
