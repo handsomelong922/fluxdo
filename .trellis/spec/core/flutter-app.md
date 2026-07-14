@@ -558,6 +558,58 @@ pauseController.acquire(routeToken);
 pauseController.release(routeToken);
 ```
 
+## Scenario: Home Detailed Topic Excerpt Request Governance
+
+### 1. Scope / Trigger
+- Trigger: changing `PreheatGate`, `TopicsPage`, `homeDetailedTopicList`, `HomeTopicExcerptLoader`, or first-post preview handoff.
+
+### 2. Signatures
+- Preference gate: `PreferencesState.homeDetailedTopicList`
+- Visible-card loader: `homeTopicExcerptProvider(topic.id)`
+- First-post endpoint: `GET /t/{topicId}/1.json`
+- Preview handoff: `TopicDetailCacheService.writePreviewSeed(...)`
+
+### 3. Contracts
+- `PreheatGate` must not independently warm first-post excerpts. Startup and visible cards must never use separate loaders that can request the same topic without shared in-flight deduplication.
+- When `homeDetailedTopicList == false`, building or scrolling the home list must not create excerpt providers or send background `/t/{topicId}/1.json` requests.
+- When enabled, only mounted visible-card excerpt consumers may progressively request uncached first posts through the shared loader and global request scheduler. Disposing a queued card must cancel its unstarted work.
+- Cached first-post HTML may remain after the preference is disabled. Reading that cache is local-only and may still accelerate an explicit user navigation; it must not itself start a request.
+- A cached preview seed accelerates the OP only. Topic detail must still revalidate in the background and progressively load replies and volatile metadata.
+
+### 4. Validation & Error Matrix
+- Preference disabled at startup -> zero automatic first-post excerpt requests; normal HTML bootstrap, topic-list reads, and MessageBus polling remain allowed.
+- Preference disabled while old excerpts exist -> no background fetch; an explicit card/detail action may reuse the cache and then follow the normal interactive detail refresh path.
+- Preference enabled with an uncached visible card -> one scheduler-governed first-post request shared by concurrent consumers of that topic.
+- Preference enabled during continuous scrolling -> requests are limited to mounted consumers and loader scheduling; no separate startup batch may amplify them.
+- Excerpt request fails or is rate-limited -> keep the card usable, apply existing cooldown/cancellation behavior, and do not retry from a second loader.
+
+### 5. Good/Base/Bad Cases
+- Good: detailed display is off, home scrolling sends no `/t/:id/1.json`; opening a topic remains an explicit interactive request.
+- Base: detailed display is on, visible cards fill summaries gradually and the displayed OP is reused immediately in detail while replies revalidate.
+- Bad: `PreheatGate.warmupTopics(...)` fetches the first eight OPs while visible cards independently request the same topics.
+
+### 6. Tests Required
+- Widget-test that the disabled preference does not build/call the home excerpt provider during home-card construction and scrolling.
+- Test concurrent same-topic consumers share one in-flight request and released queued topics do not fetch.
+- Keep topic preview and topic-detail preview-seed tests green to prove immediate OP paint plus background revalidation.
+- Review startup request traces for automatic `/t/:id/1.json` entries separately from normal `/message-bus/:clientId/poll` long polling.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+// A startup loader competes with the visible-card loader.
+await ref.read(homeTopicExcerptLoaderProvider).warmupTopics(topicIds);
+```
+
+#### Correct
+```dart
+final showExcerpt =
+    isHomeTopicList && preferences.homeDetailedTopicList;
+final excerpt = showExcerpt
+    ? ref.watch(homeTopicExcerptProvider(topic.id))
+    : null;
+```
+
 ## Scenario: Topic Post Author Header Labels
 
 ### 1. Scope / Trigger
