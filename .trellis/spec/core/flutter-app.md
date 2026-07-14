@@ -332,6 +332,7 @@ RepaintBoundary(
 - `detectTopicPostGrowth(oldPostIds, newPostIds) -> TopicPostGrowth?`
 - `planTopicPostPagingMaterialization(...) -> TopicPostMaterializationPlan?`
 - `initialAfterMaterializationCap(segmentPostIds, centerScrollIndex)`
+- `initialTopicPostMaterialization(segmentPostIds, centerScrollIndex) -> TopicPostInitialMaterialization`
 - `didTopicPostCenterChange(...) -> bool`
 - `materializedSegmentCount(total, cap) -> int`
 - `shouldAdvanceTopicPostMaterialization(isScrollActive, hasPendingMaterialization) -> bool`
@@ -341,7 +342,7 @@ RepaintBoundary(
 - This complete-center rule protects the home-detail preview handoff: `initialTopicPreview`, `_initialPreviewDetail`, and `mergeTopicDetailWithInitialPreview` must still show the full OP immediately while replies continue loading.
 - Restart a cap only for a pure append or pure prepend with at least eight new segments. Gap fill, replacement, and small growth keep the previous all-at-once behavior.
 - A paging cap starts no lower than the previously loaded side plus four, so already materialized elements are never removed.
-- Prepend index shifts that retain the same center `postNumber` do not count as a center change. An explicit same-topic center change releases current caps so old materialized elements are not reinterpreted around the new center.
+- Prepend index shifts that retain the same center `postNumber` do not count as a center change. An explicit same-topic center change must reset initialization and rebuild finite caps around the new center; never release caps to `null`, because a large loaded topic can then build dozens of distant floors and images in one frame.
 - New-page parse warm-up is generation-scoped and scheduled at idle priority. Long posts reuse `HtmlChunkCache`/`LongPostRenderData`; short posts may warm `GalleryInfo`. Warm-up failure must not affect normal rendering fallback.
 - Active drag/ballistic scrolling pauses cap advancement. An already scheduled post-frame callback must return without `setState`; `ScrollEndNotification` resumes from the existing cap rather than resetting it.
 - Do not apply this cap to nested/tree lists or replace the existing jump, search, MessageBus, gap, and load-more provider semantics.
@@ -351,7 +352,7 @@ RepaintBoundary(
 - Tail append -> only the after cap restarts; old visible elements keep identity.
 - Head prepend -> only the before cap restarts and the logical center remains the same post.
 - Middle gap fill or whole-window replacement -> no paging plan is created.
-- Explicit local jump while caps are active -> caps open rather than unloading old elements around the new center.
+- Explicit local jump while caps are active -> the new target's complete segment run and nearby segments render immediately, while distant elements rematerialize progressively.
 - A second page arrives during warm-up -> the previous generation exits without writing stale work.
 - Scroll starts while caps remain -> visible/materialized segments stay unchanged and no expansion rebuild runs until scroll end.
 - Scroll ends with a pending cap -> progressive growth resumes from the prior cap automatically.
@@ -361,9 +362,10 @@ RepaintBoundary(
 - Base: a small page or gap fill uses normal sliver virtualization without an extra materialization cap.
 - Bad: a fixed four-segment after cap truncates a long OP, or prepend index movement is mistaken for a new center target.
 - Bad: cap advancement calls `setState` every frame while the user's finger or fling is moving the list.
+- Bad: setting both caps to `null` on a center change, which turns a target jump into an all-loaded-floor build burst.
 
 ### 6. Tests Required
-- Unit-test append, prepend, gap, replacement, small-growth, complete-center, cap clamp, prepend center shift, and explicit center change.
+- Unit-test append, prepend, gap, replacement, small-growth, complete-center, cap clamp, prepend center shift, explicit center change, and finite initial caps around the new center.
 - Unit-test the scroll-active materialization gate for paused, resumed, and no-pending states.
 - Keep topic preview, jump-target, render-identity, scroll-performance, long-post cache, and MessageBus batching tests green.
 - Verify tree view and explicit search targets still use their existing navigation semantics.
@@ -394,6 +396,63 @@ if (shouldAdvanceTopicPostMaterialization(
   hasPendingMaterialization: hasPendingCap,
 )) {
   setState(_growCap);
+}
+```
+
+## Scenario: Runtime Memory Pressure Cache Handling
+
+### 1. Scope / Trigger
+- Trigger: changing `MainPage.didHaveMemoryPressure`, Flutter `ImageCache`, decoded HTML/render caches, or mounted bottom-page eviction.
+
+### 2. Signatures
+- `WidgetsBinding.handleMemoryPressure()` calls `PaintingBinding.handleMemoryPressure()` before notifying `WidgetsBindingObserver.didHaveMemoryPressure()`.
+- `shouldPruneMountedBottomPages(mountedPageIds, activePageId) -> bool`
+- Diagnostic stage after the framework callback: `after_framework_image_cache_clear`.
+
+### 3. Contracts
+- Flutter's painting binding already calls `imageCache.clear()` before app observers run. The app observer must not repeat that operation.
+- Never call `imageCache.clearLiveImages()` for memory pressure. Live entries still have widget listeners; removing their cache tracking does not free those images and can cause duplicate resolve/decode work after resume.
+- Project-owned HTML, long-post, emoji, blocked-user, and syntax caches may be cleared after the framework image-cache step.
+- Bottom-page retention may shrink to the active page, but call `setState` only when the mounted-id set is not already exactly that page.
+- Background `hidden` handling may continue clearing non-live keep-alive images independently; it must not be changed into live-image eviction.
+
+### 4. Validation & Error Matrix
+- Memory pressure with two live visible images -> framework keep-alive cache is empty, live tracking remains intact after the app observer.
+- Repeated pressure after pages already shrink to the active page -> runtime caches may clear again, but the main widget tree is not rebuilt solely to write the same mounted-id set.
+- Multiple mounted bottom pages -> retain only the active page and rebuild once.
+- No resolved bottom pages -> skip page-pruning state changes without throwing.
+
+### 5. Good/Base/Bad Cases
+- Good: rely on the framework image-cache clear, clear only project caches, and conditionally prune inactive pages.
+- Base: a visible live image remains referenced until its normal listener lifecycle reaches zero.
+- Bad: call `clear()` and then `clearLiveImages()` from `didHaveMemoryPressure`, producing image reattachment/decode storms without freeing listener-owned images.
+
+### 6. Tests Required
+- Unit-test `shouldPruneMountedBottomPages` for exact-active, multiple-page, and wrong-active sets.
+- Keep LazyImage, topic preview, long-post render cache, performance diagnostics, and mounted-page retention tests green.
+- When diagnosing devices, compare `memory_pressure` and `runtime_cache_cleared` image snapshots: live count must no longer be forced to zero by the app observer.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+void didHaveMemoryPressure() {
+  PaintingBinding.instance.imageCache.clear();
+  PaintingBinding.instance.imageCache.clearLiveImages();
+  setState(() => mountedPages = {activePage});
+}
+```
+
+#### Correct
+```dart
+void didHaveMemoryPressure() {
+  // Flutter has already cleared non-live keep-alive images.
+  clearProjectRuntimeCaches();
+  if (shouldPruneMountedBottomPages(
+    mountedPageIds: mountedPages,
+    activePageId: activePage,
+  )) {
+    setState(() => mountedPages = {activePage});
+  }
 }
 ```
 
