@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/providers/message_bus/topic_tracking_providers.dart';
+import 'package:fluxdo/services/message_bus_service.dart';
 import 'package:fluxdo/services/preloaded_data_service.dart';
 
 void main() {
@@ -43,6 +44,43 @@ void main() {
     expect(isTrackedTopicNew(unreadTopic), isFalse);
     expect(isTrackedTopicNew(mutedTopic), isFalse);
     expect(isTrackedTopicUnread(mutedTopic), isFalse);
+  });
+
+  test('latest channel only derives incoming state and keeps filters', () {
+    const initial = TopicListIncomingState();
+    final message = MessageBusMessage(
+      channel: '/latest',
+      messageId: 10,
+      data: {
+        'topic_id': 42,
+        'message_type': 'latest',
+        'payload': {'category_id': 3},
+      },
+    );
+
+    final next = applyTopicListIncomingMessage(
+      current: initial,
+      message: message,
+      mutedCategoryIds: const {},
+    );
+    expect(next.incomingTopics, {42: 3});
+
+    expect(
+      applyTopicListIncomingMessage(
+        current: next,
+        message: message,
+        mutedCategoryIds: const {},
+      ),
+      same(next),
+    );
+    expect(
+      applyTopicListIncomingMessage(
+        current: initial,
+        message: message,
+        mutedCategoryIds: const {3},
+      ),
+      same(initial),
+    );
   });
 
   setUp(() {

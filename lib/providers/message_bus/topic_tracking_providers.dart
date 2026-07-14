@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/message_bus_service.dart';
 import '../../services/preloaded_data_service.dart';
@@ -473,6 +474,34 @@ class TopicListIncomingState {
   }
 }
 
+@visibleForTesting
+TopicListIncomingState applyTopicListIncomingMessage({
+  required TopicListIncomingState current,
+  required MessageBusMessage message,
+  required Set<int> mutedCategoryIds,
+}) {
+  final data = message.data;
+  if (data is! Map<String, dynamic>) return current;
+
+  final topicId = data['topic_id'] as int?;
+  if (topicId == null || current.incomingTopics.containsKey(topicId)) {
+    return current;
+  }
+
+  final messageType = data['message_type'] as String?;
+  if (messageType != 'latest' && messageType != 'new_topic') return current;
+
+  final payload = data['payload'] as Map<String, dynamic>?;
+  final topicCategoryId = payload?['category_id'] as int?;
+  if (topicCategoryId != null && mutedCategoryIds.contains(topicCategoryId)) {
+    return current;
+  }
+
+  return TopicListIncomingState(
+    incomingTopics: {...current.incomingTopics, topicId: topicCategoryId},
+  );
+}
+
 /// 话题列表频道监听器（对齐 Discourse 网页版 TopicTrackingState）
 ///
 /// 同时订阅 /latest 和 /new 两个频道：
@@ -504,42 +533,22 @@ class LatestChannelNotifier extends Notifier<TopicListIncomingState> {
 
     // 处理 /latest 和 /new 频道消息的统一回调
     void onMessage(MessageBusMessage message) {
-      final data = message.data;
-      if (data is! Map<String, dynamic>) return;
-
-      final topicId = data['topic_id'] as int?;
-      if (topicId == null) return;
-
-      final messageType = data['message_type'] as String?;
-      // 仅处理 latest（话题更新）和 new_topic（新话题创建）两种类型
-      if (messageType != 'latest' && messageType != 'new_topic') return;
-
-      // 同一 topic_id 去重（与网页版 _addIncoming 一致）
-      if (state.incomingTopics.containsKey(topicId)) return;
-
-      // 提取话题分类 ID（用于按 tab 隔离和静音过滤）
-      final payload = data['payload'] as Map<String, dynamic>?;
-      final topicCategoryId = payload?['category_id'] as int?;
-
-      // 过滤静音分类（对齐网页版 _processChannelPayload 的 muted_category_ids 检查）
-      if (topicCategoryId != null &&
-          mutedCategoryIds.contains(topicCategoryId)) {
-        return;
-      }
+      final next = applyTopicListIncomingMessage(
+        current: state,
+        message: message,
+        mutedCategoryIds: mutedCategoryIds,
+      );
+      if (identical(next, state)) return;
 
       runtimeDebugPrint(
-        '[LatestChannel] incoming +1: type=$messageType, topicId=$topicId, category=$topicCategoryId',
+        '[LatestChannel] incoming +1: channel=${message.channel}, '
+        'messageId=${message.messageId}',
       );
 
-      // 同步转发给 TopicTrackingStateNotifier 更新 new/unread 计数
-      ref
-          .read(topicTrackingStateProvider.notifier)
-          .processChannelPayload(message);
-
-      // 即时更新（与网页版一致，无防抖）
-      state = TopicListIncomingState(
-        incomingTopics: {...state.incomingTopics, topicId: topicCategoryId},
-      );
+      // 追踪状态只由 MessageBusInitNotifier 的统一频道订阅更新。
+      // 这里仅维护列表 incoming 提示，避免 /latest 同一消息
+      // 重复解析、重复通知和下游重复重建。
+      state = next;
     }
 
     // 订阅 /latest 频道（话题更新）
