@@ -111,6 +111,7 @@ class CfChallengeInterceptor extends Interceptor {
       );
 
       final cfService = CfChallengeService();
+      cfService.markChallengeDetected();
       final isSilent = err.requestOptions.extra['isSilent'] == true;
 
       // 检查是否在冷却期
@@ -202,7 +203,7 @@ class CfChallengeInterceptor extends Interceptor {
             success: true,
             statusCode: response.statusCode,
           );
-          cfService.clearanceResolvedAt.value = DateTime.now();
+          cfService.markClearanceResolved();
           return handler.resolve(response);
         } catch (e) {
           // 诊断：记录完整的重试失败信息

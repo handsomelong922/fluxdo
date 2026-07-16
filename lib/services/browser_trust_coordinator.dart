@@ -384,6 +384,7 @@ class BrowserTrustCoordinator {
     );
 
     final cf = CfChallengeService();
+    cf.markChallengeDetected();
     var gotClearance = false;
     final resolvedAt = cf.clearanceResolvedAt.value;
     if (resolvedAt != null && resolvedAt.isAfter(cycleStartAt)) {

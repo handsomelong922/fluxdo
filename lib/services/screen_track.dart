@@ -1,5 +1,10 @@
 import 'dart:async';
 import 'discourse/discourse_service.dart';
+import 'cf_challenge_service.dart';
+
+bool shouldDeferScreenTrackSend({required bool isBusinessTrafficBlocked}) {
+  return isBusinessTrafficBlocked;
+}
 
 /// 阅读时间上报成功后的回调
 /// [topicId] 话题 ID
@@ -202,6 +207,11 @@ class ScreenTrack {
     if (_consolidatedTimings.isEmpty) return;
     if (_inProgress) return;
     if (!_service.isAuthenticated) return;
+    if (shouldDeferScreenTrackSend(
+      isBusinessTrafficBlocked: CfChallengeService().isBusinessTrafficBlocked,
+    )) {
+      return;
+    }
     if (_blockSendingUntil != null &&
         _blockSendingUntil!.isAfter(DateTime.now())) {
       return;

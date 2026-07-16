@@ -64,6 +64,40 @@ class CfChallengeService {
     null,
   );
 
+  /// CF 明确拒绝当前浏览器态后，暂停非关键后台业务上报。
+  ///
+  /// 成功拿到 fresh clearance 时会立即解除；若用户暂时不验证，五分钟后仅允许
+  /// 一次探测请求，仍被挡下则拦截器会重新续期，避免 `/topics/timings` 等请求
+  /// 持续触发挑战与日志/调度开销。
+  final ValueNotifier<DateTime?> businessTrafficBlockedUntil =
+      ValueNotifier<DateTime?>(null);
+  static const _businessTrafficBlockDuration = Duration(minutes: 5);
+
+  bool get isBusinessTrafficBlocked {
+    final until = businessTrafficBlockedUntil.value;
+    if (until == null) return false;
+    if (DateTime.now().isBefore(until)) return true;
+    businessTrafficBlockedUntil.value = null;
+    return false;
+  }
+
+  void markChallengeDetected() {
+    businessTrafficBlockedUntil.value = DateTime.now().add(
+      _businessTrafficBlockDuration,
+    );
+  }
+
+  void markClearanceResolved() {
+    clearanceResolvedAt.value = DateTime.now();
+    businessTrafficBlockedUntil.value = null;
+  }
+
+  @visibleForTesting
+  void debugResetBusinessTrafficBlock() {
+    businessTrafficBlockedUntil.value = null;
+    clearanceResolvedAt.value = null;
+  }
+
   void _setVerifying(bool value) {
     if (_isVerifying == value) return;
     _isVerifying = value;
@@ -484,7 +518,7 @@ class CfChallengeService {
     // 验证成功后重置冷却期
     if (result == true) {
       resetCooldown();
-      clearanceResolvedAt.value = DateTime.now();
+      markClearanceResolved();
       CfChallengeLogger.logVerifyResult(
         success: true,
         reason: 'user completed',

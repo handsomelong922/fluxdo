@@ -3,6 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/services/cf_challenge_service.dart';
 
 void main() {
+  final service = CfChallengeService();
+
+  setUp(service.debugResetBusinessTrafficBlock);
+  tearDown(service.debugResetBusinessTrafficBlock);
+
   group('CfChallengeService.isOriginNotFound', () {
     test('识别 Discourse 404 的稳定标记且不区分大小写', () {
       expect(
@@ -63,6 +68,22 @@ void main() {
         ),
         isFalse,
       );
+    });
+  });
+
+  group('business traffic block', () {
+    test('authoritative challenge blocks background business traffic', () {
+      service.markChallengeDetected();
+
+      expect(service.isBusinessTrafficBlocked, isTrue);
+    });
+
+    test('fresh verified clearance immediately releases traffic', () {
+      service.markChallengeDetected();
+      service.markClearanceResolved();
+
+      expect(service.isBusinessTrafficBlocked, isFalse);
+      expect(service.clearanceResolvedAt.value, isNotNull);
     });
   });
 }
