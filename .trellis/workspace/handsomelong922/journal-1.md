@@ -299,3 +299,39 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: 配置 Android Emulator 并修复 FluxDO 模拟器闪退
+
+**Date**: 2026-07-16
+**Task**: 配置 Android Emulator 并修复 FluxDO 模拟器闪退
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+定位官方 v0.6.112 arm64 APK 在 API 30 x86_64 AVD 上经 ndk_translation 触发 SIGILL；保留并校验官方资产，安装同版本同签名 x86_64 direct 兼容包；将 AVD 从 SwiftShader 改为 AMD host GPU 渲染，完成冷启动、真实滚动、日志归因和 crash buffer 验证。仓库源码未修改，用户已有工作区内容保持隔离。
+
+### Main Changes
+
+- 将 Android Emulator 36.6.11 安装目录加入用户级 PATH，并广播环境变量更新。
+- 下载、校验并保留 v0.6.112 官方 arm64-v8a APK；为 x86_64 AVD 安装同版本、同签名兼容包。
+- 将 ctf_api30 从 SwiftShader 软件渲染改为 AMD host GPU 渲染，保留 AVD 用户数据和应用配置。
+
+### Git Commits
+
+(No product-code commits; task lifecycle only)
+
+### Testing
+
+- [OK] emulator 与 adb 可从刷新后的用户 PATH 解析，用户 PATH 中各仅一条。
+- [OK] 冷启动、真实节奏首页滚动、帖子进入/返回后 PID 稳定，前台 Activity 正常。
+- [OK] crash buffer 为空，未发现 SIGILL、FATAL EXCEPTION 或 ANR。
+- [OK] 硬件加速后慢帧事件率 11.3% → 4.8%，最差帧 58 ms → 41 ms，severe/frozen 归零。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
