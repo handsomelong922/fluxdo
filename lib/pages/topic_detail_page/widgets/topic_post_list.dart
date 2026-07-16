@@ -18,6 +18,7 @@ import '../../../services/performance_diagnostics_service.dart';
 import '../../../utils/blocked_user_filter.dart';
 import '../../../utils/code_selection_context.dart';
 import '../../../utils/responsive.dart';
+import '../../../utils/scroll_busy_signal.dart';
 import '../../../utils/time_utils.dart';
 import '../../../widgets/content/lazy_load_scope.dart';
 import '../../../widgets/content/discourse_html_content/chunked/chunked_html_content.dart';
@@ -31,6 +32,7 @@ import '../../../widgets/post/post_item/widgets/post_footer_section/post_footer_
 import 'topic_linear_loading_indicator.dart';
 import 'topic_detail_header.dart';
 import 'topic_post_materialization.dart';
+import 'topic_post_parse_warm_up_queue.dart';
 import 'typing_indicator.dart';
 
 @visibleForTesting
@@ -208,7 +210,7 @@ class _TopicPostListState extends State<TopicPostList> {
   bool _initialMaterializationInitialized = false;
   bool _materializeTicking = false;
   bool _materializationPausedForScroll = false;
-  int _parseWarmUpGeneration = 0;
+  late final TopicPostParseWarmUpQueue<Post> _parseWarmUpQueue;
 
   /// postNumber → postIndex 反查表（避免 indexWhere 线性查找）
   Map<int, int> _postNumberToIndex = const {};
@@ -221,6 +223,13 @@ class _TopicPostListState extends State<TopicPostList> {
   @override
   void initState() {
     super.initState();
+    _parseWarmUpQueue = TopicPostParseWarmUpQueue<Post>(
+      isBusy: () => ScrollBusySignal.isBusy,
+      scheduleTask: (task) {
+        SchedulerBinding.instance.scheduleTask<void>(task, Priority.idle);
+      },
+      warmUp: _warmUpPost,
+    );
     // 首帧渲染后触发一次可见性检测，确保进入页面时即上报阅读状态
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -246,7 +255,7 @@ class _TopicPostListState extends State<TopicPostList> {
       _materializeCapAfter = null;
       _initialMaterializationInitialized = false;
       _materializationPausedForScroll = false;
-      _parseWarmUpGeneration++;
+      _parseWarmUpQueue.cancel();
     } else if (didTopicPostCenterChange(
       oldPostNumbers: oldWidget.detail.postStream.posts
           .map((post) => post.postNumber)
@@ -271,7 +280,7 @@ class _TopicPostListState extends State<TopicPostList> {
     _visiblePostUpdateTimer?.cancel();
     _autoReplyResumeTimer?.cancel();
     _autoLoadRepliesPausedNotifier.dispose();
-    _parseWarmUpGeneration++;
+    _parseWarmUpQueue.cancel();
     super.dispose();
   }
 
@@ -932,34 +941,17 @@ class _TopicPostListState extends State<TopicPostList> {
   }
 
   void _schedulePostParseWarmUp(List<Post> posts) {
-    if (posts.isEmpty) return;
-    final generation = ++_parseWarmUpGeneration;
-    var index = 0;
+    _parseWarmUpQueue.start(posts);
+  }
 
-    void step() {
-      SchedulerBinding.instance.scheduleTask<void>(() async {
-        if (!mounted || generation != _parseWarmUpGeneration) return;
-        final post = posts[index++];
-        try {
-          if (post.cooked.length > ChunkedHtmlContent.chunkThreshold) {
-            await HtmlChunkCache.instance.parseAsync(post.cooked);
-            if (!mounted || generation != _parseWarmUpGeneration) return;
-            LongPostRenderData.fromHtml(post.cooked);
-          } else {
-            GalleryInfo.fromHtml(post.cooked);
-          }
-        } catch (_) {
-          // 预热失败不影响正式渲染，进入视口时仍走现有同步兜底。
-        }
-        if (mounted &&
-            generation == _parseWarmUpGeneration &&
-            index < posts.length) {
-          step();
-        }
-      }, Priority.idle);
+  Future<void> _warmUpPost(Post post, bool Function() isCurrent) async {
+    if (post.cooked.length > ChunkedHtmlContent.chunkThreshold) {
+      await HtmlChunkCache.instance.parseAsync(post.cooked);
+      if (!mounted || !isCurrent()) return;
+      LongPostRenderData.fromHtml(post.cooked);
+    } else {
+      GalleryInfo.fromHtml(post.cooked);
     }
-
-    step();
   }
 
   void _rememberLongSelectionPost(Post post) {
