@@ -1205,3 +1205,110 @@ if (next.postUpdatesGeneration != previous?.postUpdatesGeneration) {
   _handlePostUpdateBatch(notifier, next.postUpdates);
 }
 ```
+
+## Scenario: Stable Topic Refresh And Diagnostic Retention
+
+### 1. Scope / Trigger
+
+- Trigger: changing topic-list refresh, list item identity, pagination bookkeeping,
+  performance trace counting, or JSONL retention.
+
+### 2. Signatures
+
+- `TopicListNotifier.refresh({bool preserveLoadedTail = false})`
+- `mergeRefreshedTopicHead<T, K>({refreshed, existing, idOf}) -> List<T>`
+- `preserveRefreshedPagination(...) -> ({int page, bool hasMore})`
+- `topicChildIndexForKey(Key, Map<int, int>) -> int?`
+- `PerformanceDiagnosticsService.countTraceEntriesInBackground(String)`
+- `PerformanceDiagnosticsService.buildRetainedTraceContentInBackground(String, ...)`
+
+### 3. Contracts
+
+- User-initiated refresh of an already loaded home list must let the new response define
+  the head order and data, then append the previously loaded tail after topic-id dedupe.
+- Preserving the tail also preserves the furthest loaded page and combines `hasMore` so
+  the next load-more request never repeats an already loaded page.
+- Refresh network work computes pagination locally. `_page`, `_hasMore`, list state, and
+  background backfill may only be committed after the request generation is still current.
+- Every topic row uses `ValueKey<int>(topic.id)`, and lazy builders that can reorder the
+  head provide topic-id to child-index lookup. Index is never the topic identity.
+- Counting or retaining a whole trace file must run outside the UI isolate. The serialized
+  write chain still owns file append/rewrite order, the 2000-entry and 3 MiB limits, and
+  the exported JSONL format.
+
+### 4. Validation & Error Matrix
+
+- Refreshed head overlaps old pages -> newest item wins; every topic id appears once.
+- Refresh at deep scroll position -> loaded tail and page number remain available.
+- Older refresh completes after a newer refresh -> discard all older state/pagination commits.
+- Non-topic or missing list key -> return `null` from child-index lookup.
+- Trace contains blank lines -> exclude them from entry count.
+- UTF-8 trace exceeds count or byte budget -> retain newest complete lines in original order.
+- Background maintenance fails -> preserve the existing diagnostic failure isolation; browsing
+  must not throw or block.
+
+### 5. Good/Base/Bad Cases
+
+- Good: refresh page 5 in place, update the first page, reuse keyed rows, and continue with
+  page 6 without a scroll-extent collapse.
+- Base: first load or query/filter change uses full replacement because no same-query tail
+  should be preserved.
+- Bad: replace a multi-page list with page 0, reset `_page` before an async request completes,
+  key rows by index, or split/count a multi-megabyte trace on the UI isolate.
+
+### 6. Tests Required
+
+- Unit-test refreshed-head ordering, bidirectional dedupe, empty head, page monotonicity, and
+  `hasMore` preservation.
+- Unit-test topic key lookup for current, missing, and non-topic keys.
+- Unit-test trace entry counting, trailing newline, ordering, UTF-8 byte limit, and actual
+  `Isolate.run` execution.
+- Keep home summary, mobile topic card, preview handoff, topic identity, lazy image, and topic
+  detail regression suites green; performance work must not change those behaviors or styles.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```dart
+_page = 0;
+final refreshed = await fetchFirstPage();
+state = AsyncData(refreshed);
+```
+
+```dart
+final content = await file.readAsString();
+final retained = retainedTraceLines(content.split('\n'));
+```
+
+#### Correct
+
+```dart
+final result = await fetchFirstPage();
+if (generation != _refreshGeneration) return;
+final pagination = preserveRefreshedPagination(
+  previousPage: previousPage,
+  previousHasMore: previousHasMore,
+  refreshedPage: result.lastLoadedPage,
+  refreshedHasMore: result.state.hasMore,
+);
+state = AsyncData(mergeRefreshedTopicHead(
+  refreshed: result.state.items,
+  existing: currentTopics,
+  idOf: (topic) => topic.id,
+));
+```
+
+```dart
+final content = await file.readAsString();
+final retained = await buildRetainedTraceContentInBackground(content);
+```
+
+Evidence:
+- `lib/providers/topic_list/topic_list_provider.dart`
+- `lib/pages/topics_page.dart`
+- `lib/widgets/topic/topic_item_builder.dart`
+- `lib/services/performance_diagnostics_service.dart`
+- `test/providers/topic_list/topic_list_refresh_merge_test.dart`
+- `test/widgets/topic/topic_item_builder_test.dart`
+- `test/services/performance_diagnostics_service_test.dart`
