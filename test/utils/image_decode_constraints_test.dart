@@ -27,4 +27,26 @@ void main() {
     expect(provider.width, 1);
     expect(provider.height, 1);
   });
+
+  test('正文声明宽度超过屏幕时按可见屏幕宽度解码', () {
+    expect(
+      targetImageDecodeWidth(
+        declaredLogicalWidth: 690,
+        viewportLogicalWidth: 392,
+        devicePixelRatio: 2.75,
+      ),
+      1078,
+    );
+  });
+
+  test('正文声明宽度小于屏幕时保留声明宽度', () {
+    expect(
+      targetImageDecodeWidth(
+        declaredLogicalWidth: 120,
+        viewportLogicalWidth: 392,
+        devicePixelRatio: 2.75,
+      ),
+      330,
+    );
+  });
 }

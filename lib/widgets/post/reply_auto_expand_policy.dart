@@ -99,3 +99,14 @@ class AutoReplyPrefetchQueue {
     completer?.complete();
   }
 }
+
+/// 树形回复子组件物化使用独立串行队列。
+///
+/// 它复用预取队列的去重和取消语义，但与网络请求分开，避免一个慢请求阻塞
+/// 当前视口的轻量 UI 物化，也避免多个可见节点在同一帧同时展开子树。
+class AutoReplyMaterializationQueue extends AutoReplyPrefetchQueue {
+  AutoReplyMaterializationQueue._() : super._();
+
+  static final AutoReplyMaterializationQueue instance =
+      AutoReplyMaterializationQueue._();
+}

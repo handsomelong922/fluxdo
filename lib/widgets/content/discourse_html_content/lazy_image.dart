@@ -107,9 +107,11 @@ class _LazyImageState extends State<LazyImage> {
   }
 
   int _targetDecodeWidth(BuildContext context) {
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    final logicalWidth = widget.width ?? MediaQuery.sizeOf(context).width;
-    return (logicalWidth * dpr).round().clamp(1, 1 << 16);
+    return targetImageDecodeWidth(
+      declaredLogicalWidth: widget.width,
+      viewportLogicalWidth: MediaQuery.sizeOf(context).width,
+      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+    );
   }
 
   ImageProvider _buildProvider(BuildContext context) {

@@ -126,12 +126,16 @@ void main() {
 
   setUp(() async {
     AutoReplyPrefetchQueue.instance.clearPending();
+    AutoReplyMaterializationQueue.instance.clearPending();
     await AutoReplyPrefetchQueue.instance.debugIdle;
+    await AutoReplyMaterializationQueue.instance.debugIdle;
   });
 
   tearDown(() async {
     AutoReplyPrefetchQueue.instance.clearPending();
+    AutoReplyMaterializationQueue.instance.clearPending();
     await AutoReplyPrefetchQueue.instance.debugIdle;
+    await AutoReplyMaterializationQueue.instance.debugIdle;
   });
 
   test('cancel removes pending task before execution', () async {
@@ -172,5 +176,25 @@ void main() {
 
     await queue.debugIdle;
     expect(runCount, 1);
+  });
+
+  test('materialization queue is independent from network prefetch', () async {
+    final prefetchStarted = Completer<void>();
+    final releasePrefetch = Completer<void>();
+    var materialized = false;
+
+    AutoReplyPrefetchQueue.instance.enqueue('network', () async {
+      prefetchStarted.complete();
+      await releasePrefetch.future;
+    });
+    await prefetchStarted.future;
+
+    AutoReplyMaterializationQueue.instance.enqueue('materialize', () async {
+      materialized = true;
+    });
+    await AutoReplyMaterializationQueue.instance.debugIdle;
+
+    expect(materialized, isTrue);
+    releasePrefetch.complete();
   });
 }

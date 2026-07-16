@@ -164,6 +164,9 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     postNumber: widget.node.post.postNumber,
   );
 
+  String get _autoMaterializationQueueKey =>
+      'nested-auto-materialize:${widget.params.topicId}:${widget.node.post.postNumber}';
+
   @override
   void initState() {
     super.initState();
@@ -189,6 +192,9 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     );
     if (oldQueueKey != _autoChildLoadQueueKey) {
       AutoReplyPrefetchQueue.instance.cancel(oldQueueKey);
+      AutoReplyMaterializationQueue.instance.cancel(
+        'nested-auto-materialize:${oldWidget.params.topicId}:${oldWidget.node.post.postNumber}',
+      );
     }
     if (oldWidget.autoLoadChildrenPausedListenable !=
         widget.autoLoadChildrenPausedListenable) {
@@ -221,6 +227,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   @override
   void dispose() {
     AutoReplyPrefetchQueue.instance.cancel(_autoChildLoadQueueKey);
+    AutoReplyMaterializationQueue.instance.cancel(_autoMaterializationQueueKey);
     widget.autoLoadChildrenPausedListenable?.removeListener(
       _handleAutoLoadPauseChanged,
     );
@@ -234,6 +241,9 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   void _handleAutoLoadPauseChanged() {
     if (_autoLoadChildrenPaused) {
       AutoReplyPrefetchQueue.instance.cancel(_autoChildLoadQueueKey);
+      AutoReplyMaterializationQueue.instance.cancel(
+        _autoMaterializationQueueKey,
+      );
       return;
     }
     _scheduleAutoMaterializeChildren();
@@ -244,6 +254,9 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
   void _handleAutoWorkVisibilityChanged() {
     if (!_isVisibleForAutoWork) {
       AutoReplyPrefetchQueue.instance.cancel(_autoChildLoadQueueKey);
+      AutoReplyMaterializationQueue.instance.cancel(
+        _autoMaterializationQueueKey,
+      );
       return;
     }
     _scheduleAutoMaterializeChildren();
@@ -372,6 +385,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
 
   void _toggleExpanded() {
     var shouldLoadChildren = false;
+    AutoReplyMaterializationQueue.instance.cancel(_autoMaterializationQueueKey);
     setState(() {
       if (_expanded) {
         AutoReplyPrefetchQueue.instance.cancel(_autoChildLoadQueueKey);
@@ -495,19 +509,36 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
     _autoMaterializationScheduled = true;
     final generation = _nodeGeneration;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (generation != _nodeGeneration) return;
       _autoMaterializationScheduled = false;
-      if (!mounted ||
+      if (generation != _nodeGeneration ||
+          !mounted ||
           _childrenMaterialized ||
           _children.isEmpty ||
           !_canRunAutoWork) {
         return;
       }
-      setState(() {
-        _childrenMaterialized = true;
-        _reportAutoMaterializationOnNextBuild = true;
-        _emitRepliesState();
-      });
+
+      AutoReplyMaterializationQueue.instance.enqueue(
+        _autoMaterializationQueueKey,
+        () async {
+          if (generation != _nodeGeneration ||
+              !mounted ||
+              _childrenMaterialized ||
+              _children.isEmpty ||
+              !_canRunAutoWork) {
+            return;
+          }
+          setState(() {
+            _childrenMaterialized = true;
+            _reportAutoMaterializationOnNextBuild = true;
+            _emitRepliesState();
+          });
+
+          // 等当前物化触发的布局/绘制完成后再放行下一个节点，保证每帧至多
+          // 增长一棵直接子树，避免复杂帖子出现 2–4 次同步 Column 扩张。
+          await WidgetsBinding.instance.endOfFrame;
+        },
+      );
     });
   }
 
