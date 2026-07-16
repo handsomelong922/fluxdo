@@ -335,3 +335,37 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: 手工移植滚动期间解析预热让路
+
+**Date**: 2026-07-16
+**Task**: 手工移植滚动期间解析预热让路
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+手工适配上游 348f5fa9 的滚动让路思路：详情页解析预热在 ScrollBusySignal 繁忙期间暂停，空闲后按原索引恢复；补齐代际、取消、异常和在途失效测试，保留首页预览首帖即时承接及目标楼层语义。完整 analyze 与 532 项测试通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f8d6d343` | (see git log) |
+| `efd1a832` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

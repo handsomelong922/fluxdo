@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 9
+- **Total Sessions**: 10
 - **Last Active**: 2026-07-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~332 | Active |
+| `journal-1.md` | ~371 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 10 | 2026-07-16 | 手工移植滚动期间解析预热让路 | `f8d6d343`, `efd1a832` | `codex/rollback-to-v0.3.1` |
 | 9 | 2026-07-16 | 配置 Android Emulator 并修复 FluxDO 模拟器闪退 | - | `codex/rollback-to-v0.3.1` |
 | 8 | 2026-07-16 | 修复复杂场景卡顿与异步页面突变 | `f0b1800d`, `83aad059`, `7f00c8e6`, `06835c67`, `673a94bd`, `524a76e7`, `2843a35e` | `codex/rollback-to-v0.3.1` |
 | 7 | 2026-07-14 | Fix nested feed scroll jank from performance trace | `bab74dad`, `9892255f`, `349b4d62` | `codex/rollback-to-v0.3.1` |
