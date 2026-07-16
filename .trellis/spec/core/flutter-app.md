@@ -90,6 +90,60 @@ UserProfileStatsArea(
 ),
 ```
 
+## Scenario: Stable Async Settings Scroll Geometry
+
+### 1. Scope / Trigger
+- Trigger: changing a scrollable settings page whose cards conditionally insert controls from preferences or replace loading/error/data content after the first frame.
+
+### 2. Signatures
+- `sharedPreferencesProvider -> SharedPreferences`
+- `DebugToolsCard` reads `developer_mode` during `initState`.
+- `LoginCookieDiagnosticsCard.stableMinHeight`
+
+### 3. Contracts
+- Preferences already initialized during app startup must be read synchronously for first-frame structural decisions. Do not start an async preference read that later inserts or removes an entire settings section while the user may be dragging the list.
+- An async diagnostics/status card must reserve a stable minimum geometry shared by loading, error, and ordinary data states. The loaded state may grow for genuinely longer content, but the common transition must not add hundreds of logical pixels above the active viewport.
+- Keep setting values, persistence keys, slider ranges, control callbacks, and established card styling unchanged when fixing scroll geometry.
+- Do not compensate for late layout insertion by programmatically jumping, clamping, or animating the `ScrollController`; prevent the avoidable extent change at its source.
+
+### 4. Validation & Error Matrix
+- `developer_mode == true` before route build -> developer rows exist on the first layout pass; `maxScrollExtent` does not jump when an async preference future completes.
+- `developer_mode == false` -> developer-only rows stay absent without a later removal pass.
+- Cookie diagnostics loading -> loaded/error -> the card keeps at least `stableMinHeight`, and content below does not jump upward during the common transition.
+- User drags across the rate-limit controls during async diagnostics completion -> scroll offset changes only from the gesture/normal physics.
+
+### 5. Good/Base/Bad Cases
+- Good: `initState` reads the injected `SharedPreferences` value and all async branches share a constrained outer card.
+- Base: a loaded diagnostic with unusually long text may become taller; the stable minimum prevents the normal loading-to-result collapse.
+- Bad: `FutureBuilder` first omits developer controls and inserts them after the user starts scrolling, or a listener counteracts the resulting jump with `jumpTo`.
+
+### 6. Tests Required
+- Widget-test both developer-mode values with `sharedPreferencesProvider` overrides and assert the expected controls exist on first pump.
+- Assert no delayed preference future is required to reveal developer controls.
+- Widget-test the diagnostics loading/data geometry or at minimum assert every async branch is inside the shared minimum-height constraint.
+- Keep rate-limit slider value and persistence tests green.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+FutureBuilder<bool>(
+  future: loadDeveloperMode(),
+  builder: (_, snapshot) => snapshot.data == true
+      ? const DeveloperControls()
+      : const SizedBox.shrink(),
+)
+```
+
+#### Correct
+```dart
+@override
+void initState() {
+  super.initState();
+  _isDeveloperMode =
+      ref.read(sharedPreferencesProvider).getBool('developer_mode') ?? false;
+}
+```
+
 ## Scenario: Async Sorted List Provider Requests
 
 ### 1. Scope / Trigger
@@ -269,6 +323,7 @@ if (PerformanceDiagnosticsService.shouldSampleFrame(
 
 ### 2. Signatures
 - `ScrollBusySignal.touch()` / `ScrollBusySignal.isBusy`
+- `targetImageDecodeWidth(declaredLogicalWidth, viewportLogicalWidth, devicePixelRatio) -> int`
 - `constrainImageDecodeSize(...) -> ImageDecodeSize`
 - `ResizeImage(..., policy: ResizeImagePolicy.fit)`
 - `decideCfWebViewScrollPauseAction(...) -> CfWebViewScrollPauseAction`
@@ -277,7 +332,7 @@ if (PerformanceDiagnosticsService.shouldSampleFrame(
 ### 3. Contracts
 - The app root may call `ScrollBusySignal.touch()` on scroll start/update, but the signal must remain timestamp-only: no listeners, provider writes, or widget rebuilds on the hot path.
 - Standalone topic images must mount a normal Flutter `Image` without a per-image `VisibilityDetector`; rely on sliver virtualization and Flutter's scroll-aware image provider behavior.
-- Decode constraints use the rendered logical size times DPR and cap both width and height/long edge. The full-screen image viewer keeps the original provider path.
+- Decode constraints use the rendered logical size times DPR and cap both width and height/long edge. An HTML-declared width must first be clamped to the current viewport logical width before DPR conversion; a desktop-sized `width` attribute is not evidence that the mobile decoder needs that many pixels. The full-screen image viewer keeps the original provider path.
 - Standalone images, gallery tiles, and animated media own an image-local `RepaintBoundary`; an unknown-size image may remember its decoded aspect ratio to stabilize recycle/rebuild geometry.
 - AVIF animation freezes the current frame while `ScrollBusySignal.isBusy` and resumes decoding after the busy window; do not replace the current frame with a placeholder.
 - The CF WebView ticker runs only on Android after the initial Turnstile request has appeared. Pause only while scrolling is busy, `_initialTimer == null`, and no RC request is active; an active RC request or scroll idle must resume it.
@@ -287,6 +342,7 @@ if (PerformanceDiagnosticsService.shouldSampleFrame(
 
 ### 4. Validation & Error Matrix
 - Fast scroll through large standalone images -> no detector callback churn; decode size stays within both caps.
+- Declared image width exceeds the mobile viewport -> decode width equals viewport logical width × DPR, not declared width × DPR.
 - Open the image viewer -> original/full-resolution provider remains available.
 - Scroll starts during AVIF playback -> current frame remains painted and no new animation frame is decoded until idle.
 - Non-Android CF service -> no WebView pause/resume platform call.
@@ -301,6 +357,7 @@ if (PerformanceDiagnosticsService.shouldSampleFrame(
 ### 6. Tests Required
 - Widget-test that `LazyImage` mounts an `Image` without a `VisibilityDetector` and remembers decoded aspect ratio.
 - Unit-test decode width/height caps and `ScrollBusySignal` busy/idle windows.
+- Unit-test declared widths both above and below the viewport, including the exact DPR-rounded physical width.
 - Keep image-viewer tests proving the original-image path and interactive preview behavior.
 - Unit-test CF decisions for non-Android, initial challenge, active RC, busy pause, idle resume, and already-matching states.
 - Run CF challenge, WebView session, and cookie-boundary regressions after changing the ticker lifecycle.
@@ -518,6 +575,7 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
 
 ### 2. Signatures
 - `shouldRunNestedAutoWork(expanded, isVisible, autoLoadPaused, atMaxDepth)`
+- `AutoReplyMaterializationQueue.instance.enqueue(key, action)` / `cancel(key)`
 - `ValueListenable<Set<int>>? autoWorkVisiblePostNumbersListenable`
 - `NestedRepliesState.childrenMaterialized`
 - `NestedScrollIndexRegistry.indexFor(postNumber)`
@@ -526,6 +584,7 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
 ### 3. Contracts
 - A `SliverList` virtualizes only its direct items. Recursive `Column` descendants inside one root item must not all materialize merely because the root was built.
 - Automatic child materialization/loading requires the parent post to be logically expanded, actually visible, scroll-idle, and below max depth. Each visible level may reveal its direct children after the current frame; deeper levels wait until their own parent becomes visible.
+- All eligible nodes share one UI-only serial materialization queue. Automatic materialization may commit at most one node per rendered frame across the whole tree; do not give every visible card its own post-frame callback. Keep this queue independent from the network prefetch queue so a slow child request cannot block lightweight UI materialization.
 - Manual expand/load-more bypasses the automatic gate and applies immediately. Already materialized children stay mounted when they leave the viewport so scroll extent and user state do not collapse.
 - An automatic child response that finishes during scrolling or after the card leaves the viewport is buffered and applied only when the same node generation becomes eligible again. A recycled node must never accept an old response.
 - Scroll indices are stable for a post number across local card rebuilds. Publish one snapshot after the frame, not one copied map per built post.
@@ -533,6 +592,7 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
 
 ### 4. Validation & Error Matrix
 - Initial visible root with small preloaded replies -> root paints first; direct children materialize after layout; offscreen grandchildren remain unbuilt.
+- Several visible eligible parents in one frame -> one parent materializes now and the others advance on later frames in queue order.
 - Active drag/fling -> no new automatic child widgets or completed auto-response insertion under the user's finger.
 - Auto response completes while paused/offscreen -> keep it buffered; resume/apply only after visible idle state returns.
 - User taps expand while paused -> show cached children or apply buffered response immediately; otherwise start the explicit request immediately.
@@ -546,6 +606,7 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
 
 ### 6. Tests Required
 - Unit-test automatic work for visible/idle, offscreen, paused, collapsed, and max-depth inputs.
+- Unit-test that two queued materializations do not execute in the same frame and that canceling a card removes its pending UI work without canceling unrelated network prefetch.
 - Unit-test stable index reuse, reverse lookup, snapshot, and reset.
 - Keep nested provider race, load-more, jump-target, preview, flat materialization, render-identity, performance diagnostics, and full Flutter tests green.
 - On-device validation should compare live/pending image counts, worst build/raster time, slow-frame streak, and `nested:childrenMaterialized` events for the same complex topic path.
@@ -779,6 +840,7 @@ return _buildInteractiveLoadingPreview(
 - For home entry with no explicit target, seed the topic-detail runtime cache/provider with that preview first post and let the full detail arrive through background refresh. Do not render preview through a one-off page branch that is immediately replaced by a second full-page load path.
 - Preview-driven entry from home/search may preserve the user's nested-view preference, but nested-view loading must continue rendering the preview first post while replies load below. Do not switch from preview paint to a full-page nested skeleton.
 - Search result cards may pass preview data and `scrollToPostNumber`; the preview accelerates first paint but must not cancel the search hit jump.
+- When an explicit search/bookmark target loads a post window that does not contain post 1, nested loading must keep using the independent initial-preview OP through `buildNestedLoadingPreviewState(...)`. Do not synthesize post 1 into the authoritative target `PostStream`, and do not replace the preview with a full-page skeleton while the nested provider is pending.
 - Any unified topic preview entry (home, bookmark, browsing history, or search) that actually rendered first-post HTML may seed that same first post before opening detail. Do not issue a second first-post-only request merely to hand off data already displayed in the preview.
 - A preview seed is never a complete topic response: opening detail must still revalidate in the background to load replies and volatile metadata.
 - Restored reading state is a fallback only. Do not apply it when first-post preview is available and no explicit target was requested.
@@ -790,6 +852,7 @@ return _buildInteractiveLoadingPreview(
 ### 4. Validation & Error Matrix
 - Preview + no explicit target -> render first post immediately; fetch the normal first page/window for replies.
 - Preview + explicit target -> render preview immediately; preserve the target post number and position when loaded, and do not swap back to a global skeleton while waiting for the target window.
+- Explicit target response excludes post 1 -> keep the initial preview OP visible until nested data is ready; the target window and jump semantics remain unchanged.
 - Preview dialog loads first post, then opens detail -> first post renders from the runtime seed; full detail/replies revalidate in the background.
 - No preview + explicit target -> existing jump-target skeleton behavior is allowed.
 - Target post missing after load -> use the existing unreachable-target fallback; do not silently jump to the wrong floor.
@@ -811,6 +874,7 @@ return _buildInteractiveLoadingPreview(
 ### 6. Tests Required
 - Assert preview without explicit target resolves to first-post loading, not restored reading position.
 - Assert preview with explicit target preserves that target for search/notification-style navigation.
+- Assert `buildNestedLoadingPreviewState(...)` falls back to the initial preview when the current target window lacks post 1, without mutating the current `PostStream`.
 - Assert search post cards expose preview topic data and blank blurbs do not create fake preview HTML.
 - Widget-test preview dialog minimum/maximum adaptive geometry, resize animation, metadata divider, and its single detail action; unit-test preview seeds always revalidate and may bootstrap explicit target routes until the target loads.
 - Widget-test a focused search `TextField` with visible test input, then open and close `SearchPreviewDialog`; assert focus and keyboard stay dismissed after pop.

@@ -21,6 +21,65 @@ Evidence:
 - Preserve platform-specific adapter boundaries under `lib/services/network/adapters/` and `lib/services/network/cookie/strategy/`.
 - Startup first-screen read requests may set `skipWebViewSessionSyncExtraKey` only when they are safe idempotent reads such as the visible topic-list first page or silent home first-post previews. This skips waiting for `WebViewSessionCookieRefreshService.ensureSynced()` but still lets the session sync continue in the background. Do not apply it to login/session recovery, CSRF, CF challenge, mutations, or requests that require a freshly bootstrapped WebView runtime session cookie.
 
+## Scenario: CF Challenge Background Recovery And Reading-Telemetry Fuse
+
+### 1. Scope / Trigger
+- Trigger: changing CF challenge detection/recovery, browser-trust startup repair, `cf_clearance` synchronization, or `ScreenTrack` `/topics/timings` sends.
+
+### 2. Signatures
+- `CfChallengeService.markChallengeDetected()`
+- `CfChallengeService.markClearanceResolved()`
+- `CfChallengeService.isBusinessTrafficBlocked -> bool`
+- `CfChallengeService.businessTrafficBlockedUntil -> ValueNotifier<DateTime?>`
+- `CfChallengeService.showManualVerify(BuildContext? context, [bool forceForeground = true])`
+- `shouldDeferScreenTrackSend(isBusinessTrafficBlocked) -> bool`
+- `forceForegroundForAutomaticBrowserTrustRecovery == false`
+
+### 3. Contracts
+- An authoritative CF challenge response must call `markChallengeDetected()` before recovery. This opens a five-minute fuse for non-critical reading telemetry; pending local timing data remains buffered, but `ScreenTrack` must not send `/topics/timings` while the fuse is active.
+- A verified fresh clearance stored through the existing CookieJar/WebView boundary must call `markClearanceResolved()` and clear the fuse immediately. A timeout alone is not success. After the five-minute fuse expires, at most the normal next telemetry send may probe; another authoritative challenge reopens the fuse.
+- Startup/resume browser-trust self-recovery must call the existing verification flow with `forceForeground=false`. It retains the Headless WebView, Cookie synchronization, bootstrap retry, success detection, timeout, and cleanup behavior without mounting a visible route/barrier.
+- Explicit user actions from login or Network Settings must pass `forceForeground=true`; they remain the supported fallback for a challenge that genuinely needs interaction.
+- Do not bypass Cloudflare, forge clearance, drop accumulated reading time, or disable authenticated first-screen requests through this fuse.
+
+### 4. Validation & Error Matrix
+- `/topics/timings` receives an authoritative CF 403 -> mark blocked and keep later timing batches buffered without repeated sends during five minutes.
+- Fresh clearance succeeds before expiry -> clear the block immediately and allow the next consolidated timing send.
+- Background automatic verification succeeds -> no visible dialog/white route appears; cookies synchronize and bootstrap retry continues.
+- Background verification requires interaction or times out -> do not report false success; retain the explicit foreground verification entry.
+- User taps manual verification -> foreground UI remains visible and behaves as before.
+
+### 5. Good/Base/Bad Cases
+- Good: one CF rejection pauses reading telemetry, background trust recovery obtains clearance invisibly, and the next timing batch resumes after verified synchronization.
+- Base: without a challenge, `ScreenTrack` keeps its existing batching, authentication, and retry behavior.
+- Bad: retry `/topics/timings` every few seconds while CF is active, clear the block merely because a timer elapsed, or force a visible WebView during automatic startup recovery.
+
+### 6. Tests Required
+- Unit-test challenge detection, active block, expiry probe, and verified-clearance reset.
+- Unit-test `ScreenTrack` defers sends while blocked without deleting consolidated timings.
+- Assert automatic browser-trust recovery uses background presentation and explicit login/settings callers still request foreground presentation.
+- Keep CF interceptor retry, Cookie boundary synchronization, browser-trust bootstrap, login, and logout regressions green.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+await CfChallengeService().showManualVerify(context, true);
+await service.topicsTimings(...); // keeps probing during the challenge
+```
+
+#### Correct
+```dart
+final cf = CfChallengeService();
+cf.markChallengeDetected();
+await cf.showManualVerify(context, false);
+
+if (!shouldDeferScreenTrackSend(
+  isBusinessTrafficBlocked: cf.isBusinessTrafficBlocked,
+)) {
+  await service.topicsTimings(...);
+}
+```
+
 ## Scenario: Visible User Profile Read Bootstrap
 
 ### 1. Scope / Trigger
