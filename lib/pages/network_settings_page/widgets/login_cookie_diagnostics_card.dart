@@ -18,6 +18,8 @@ final _loginCookieDiagnosticsProvider =
 class LoginCookieDiagnosticsCard extends ConsumerWidget {
   const LoginCookieDiagnosticsCard({super.key});
 
+  static const double stableMinHeight = 132;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -26,25 +28,28 @@ class LoginCookieDiagnosticsCard extends ConsumerWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: diagnostics.when(
-        data: (data) => _buildContent(context, ref, theme, data),
-        loading: () => const ListTile(
-          leading: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: stableMinHeight),
+        child: diagnostics.when(
+          data: (data) => _buildContent(context, ref, theme, data),
+          loading: () => const ListTile(
+            leading: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            title: Text('登录状态诊断'),
+            subtitle: Text('正在检查本地登录 Cookie 状态'),
           ),
-          title: Text('登录状态诊断'),
-          subtitle: Text('正在检查本地登录 Cookie 状态'),
-        ),
-        error: (error, _) => ListTile(
-          leading: Icon(Icons.error_outline, color: theme.colorScheme.error),
-          title: const Text('登录状态诊断'),
-          subtitle: Text('读取诊断失败：$error'),
-          trailing: IconButton(
-            tooltip: '重新检查',
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(_loginCookieDiagnosticsProvider),
+          error: (error, _) => ListTile(
+            leading: Icon(Icons.error_outline, color: theme.colorScheme.error),
+            title: const Text('登录状态诊断'),
+            subtitle: Text('读取诊断失败：$error'),
+            trailing: IconButton(
+              tooltip: '重新检查',
+              icon: const Icon(Icons.refresh),
+              onPressed: () => ref.invalidate(_loginCookieDiagnosticsProvider),
+            ),
           ),
         ),
       ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../l10n/s.dart';
 import '../../../utils/share_utils.dart';
@@ -13,31 +13,26 @@ import '../../../services/cf_challenge_service.dart';
 import '../../../services/cf_challenge_logger.dart';
 import '../../../services/toast_service.dart';
 import '../../../widgets/log/app_log_settings_sheet.dart';
+import '../../../providers/theme_provider.dart';
 
 /// 调试工具卡片
-class DebugToolsCard extends StatefulWidget {
+class DebugToolsCard extends ConsumerStatefulWidget {
   const DebugToolsCard({super.key});
 
   @override
-  State<DebugToolsCard> createState() => _DebugToolsCardState();
+  ConsumerState<DebugToolsCard> createState() => _DebugToolsCardState();
 }
 
-class _DebugToolsCardState extends State<DebugToolsCard> {
-  bool _isDeveloperMode = false;
+class _DebugToolsCardState extends ConsumerState<DebugToolsCard> {
+  late final bool _isDeveloperMode;
 
   @override
   void initState() {
     super.initState();
-    _loadDeveloperMode();
-  }
-
-  Future<void> _loadDeveloperMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _isDeveloperMode = prefs.getBool('developer_mode') ?? false;
-      });
-    }
+    // SharedPreferences 已在应用启动时完成初始化，首帧直接读取，避免用户滚动
+    // 网络设置时调试区异步插入多行控件并改变 maxScrollExtent。
+    _isDeveloperMode =
+        ref.read(sharedPreferencesProvider).getBool('developer_mode') ?? false;
   }
 
   @override
