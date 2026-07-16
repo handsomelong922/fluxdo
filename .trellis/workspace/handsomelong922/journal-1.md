@@ -260,3 +260,42 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: 修复复杂场景卡顿与异步页面突变
+
+**Date**: 2026-07-16
+**Task**: 修复复杂场景卡顿与异步页面突变
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+根据性能与应用日志限制树形回复每帧物化和图片解码，熔断 CF 期间阅读遥测并后台恢复验证，保持搜索/书签首帖预览连续，稳定网络设置滚动几何；全量 analyze 与 527 项测试通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f0b1800d` | (see git log) |
+| `83aad059` | (see git log) |
+| `7f00c8e6` | (see git log) |
+| `06835c67` | (see git log) |
+| `673a94bd` | (see git log) |
+| `524a76e7` | (see git log) |
+| `2843a35e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
