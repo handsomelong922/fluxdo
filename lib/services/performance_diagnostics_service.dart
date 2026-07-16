@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -11,6 +12,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum PerformanceFrameSeverity { good, slow, jank, severe, frozen }
+
+typedef PerformanceTraceRetentionResult = ({String content, int entryCount});
 
 extension PerformanceFrameSeverityLabel on PerformanceFrameSeverity {
   String get label {
@@ -467,6 +470,53 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
     return retained.reversed.toList(growable: false);
   }
 
+  @visibleForTesting
+  static int countTraceEntries(String content) {
+    return content.split('\n').where((line) => line.trim().isNotEmpty).length;
+  }
+
+  @visibleForTesting
+  static PerformanceTraceRetentionResult buildRetainedTraceContent(
+    String content, {
+    int maxEntries = maxTraceEntries,
+    int maxBytes = maxTraceBytes,
+  }) {
+    final retained = retainedTraceLines(
+      content.split('\n'),
+      maxEntries: maxEntries,
+      maxBytes: maxBytes,
+    );
+    return (
+      content: retained.isEmpty ? '' : '${retained.join('\n')}\n',
+      entryCount: retained.length,
+    );
+  }
+
+  @visibleForTesting
+  static Future<int> countTraceEntriesInBackground(String content) {
+    return Isolate.run(
+      () => countTraceEntries(content),
+      debugName: 'performance_trace_count',
+    );
+  }
+
+  @visibleForTesting
+  static Future<PerformanceTraceRetentionResult>
+  buildRetainedTraceContentInBackground(
+    String content, {
+    int maxEntries = maxTraceEntries,
+    int maxBytes = maxTraceBytes,
+  }) {
+    return Isolate.run(
+      () => buildRetainedTraceContent(
+        content,
+        maxEntries: maxEntries,
+        maxBytes: maxBytes,
+      ),
+      debugName: 'performance_trace_retention',
+    );
+  }
+
   Future<String?> readLogs() async {
     await _flushPendingWrites();
     final file = await _getLogFile();
@@ -798,10 +848,7 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
       return;
     }
     final content = await file.readAsString();
-    _cachedEntryCount = content
-        .split('\n')
-        .where((line) => line.trim().isNotEmpty)
-        .length;
+    _cachedEntryCount = await countTraceEntriesInBackground(content);
   }
 
   Future<void> _enforceRetentionIfNeeded(File file) async {
@@ -813,11 +860,9 @@ class PerformanceDiagnosticsService extends ChangeNotifier {
       return;
     }
     final content = await file.readAsString();
-    final retained = retainedTraceLines(content.split('\n'));
-    await file.writeAsString(
-      retained.isEmpty ? '' : '${retained.join('\n')}\n',
-    );
-    _cachedEntryCount = retained.length;
+    final retained = await buildRetainedTraceContentInBackground(content);
+    await file.writeAsString(retained.content);
+    _cachedEntryCount = retained.entryCount;
   }
 
   int? _sessionAgeMs(DateTime now) {

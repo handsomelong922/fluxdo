@@ -105,6 +105,56 @@ void main() {
     });
   });
 
+  group('PerformanceDiagnosticsService trace maintenance', () {
+    test('counts only non-empty JSONL entries', () {
+      expect(
+        PerformanceDiagnosticsService.countTraceEntries(
+          '{"event":"a"}\n\n  \n{"event":"b"}\n',
+        ),
+        2,
+      );
+    });
+
+    test('builds retained content with exact order and trailing newline', () {
+      final result = PerformanceDiagnosticsService.buildRetainedTraceContent(
+        '{"event":"a"}\n{"event":"b"}\n{"event":"c"}\n',
+        maxEntries: 2,
+        maxBytes: 1024,
+      );
+
+      expect(result.entryCount, 2);
+      expect(result.content, '{"event":"b"}\n{"event":"c"}\n');
+    });
+
+    test('applies UTF-8 byte limits before returning retained content', () {
+      final result = PerformanceDiagnosticsService.buildRetainedTraceContent(
+        '{"event":"短"}\n{"event":"longer"}\n',
+        maxEntries: 10,
+        maxBytes: 20,
+      );
+
+      expect(result.entryCount, 1);
+      expect(result.content, '{"event":"longer"}\n');
+    });
+
+    test('runs entry counting and retention in background isolates', () async {
+      final count =
+          await PerformanceDiagnosticsService.countTraceEntriesInBackground(
+            '{"event":"a"}\n{"event":"b"}\n',
+          );
+      final retained =
+          await PerformanceDiagnosticsService.buildRetainedTraceContentInBackground(
+            '{"event":"a"}\n{"event":"b"}\n',
+            maxEntries: 1,
+            maxBytes: 1024,
+          );
+
+      expect(count, 2);
+      expect(retained.entryCount, 1);
+      expect(retained.content, '{"event":"b"}\n');
+    });
+  });
+
   group('PerformanceDiagnosticsService frame sampling', () {
     final now = DateTime(2026, 7, 13, 0, 30);
 
