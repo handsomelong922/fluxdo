@@ -393,6 +393,7 @@ RepaintBoundary(
 - `didTopicPostCenterChange(...) -> bool`
 - `materializedSegmentCount(total, cap) -> int`
 - `shouldAdvanceTopicPostMaterialization(isScrollActive, hasPendingMaterialization) -> bool`
+- `TopicPostParseWarmUpQueue<T>.start(items)` / `cancel()`
 
 ### 3. Contracts
 - First mount may cap both remote sides and grow by four segments per frame, but the center post's complete segment run plus four nearby after-segments must be present on the first frame.
@@ -400,7 +401,8 @@ RepaintBoundary(
 - Restart a cap only for a pure append or pure prepend with at least eight new segments. Gap fill, replacement, and small growth keep the previous all-at-once behavior.
 - A paging cap starts no lower than the previously loaded side plus four, so already materialized elements are never removed.
 - Prepend index shifts that retain the same center `postNumber` do not count as a center change. An explicit same-topic center change must reset initialization and rebuild finite caps around the new center; never release caps to `null`, because a large loaded topic can then build dozens of distant floors and images in one frame.
-- New-page parse warm-up is generation-scoped and scheduled at idle priority. Long posts reuse `HtmlChunkCache`/`LongPostRenderData`; short posts may warm `GalleryInfo`. Warm-up failure must not affect normal rendering fallback.
+- New-page parse warm-up is generation-scoped and scheduled at idle priority. `Priority.idle` only orders work behind frame tasks; it does not make an atomic parse safe to start between active scroll frames. Before consuming each queued post, check `ScrollBusySignal.isBusy`; while busy, keep the index unchanged and retain only one bounded retry Timer.
+- A new warm-up generation, topic replacement, or page disposal must cancel the pending retry and invalidate callbacks already queued in the scheduler. After an async long-post parse completes, re-check the generation before starting dependent synchronous render-data work. Long posts reuse `HtmlChunkCache`/`LongPostRenderData`; short posts may warm `GalleryInfo`. Warm-up failure must not affect normal rendering fallback or stop later items.
 - Active drag/ballistic scrolling pauses cap advancement. An already scheduled post-frame callback must return without `setState`; `ScrollEndNotification` resumes from the existing cap rather than resetting it.
 - Do not apply this cap to nested/tree lists or replace the existing jump, search, MessageBus, gap, and load-more provider semantics.
 
@@ -411,6 +413,10 @@ RepaintBoundary(
 - Middle gap fill or whole-window replacement -> no paging plan is created.
 - Explicit local jump while caps are active -> the new target's complete segment run and nearby segments render immediately, while distant elements rematerialize progressively.
 - A second page arrives during warm-up -> the previous generation exits without writing stale work.
+- Scroll is busy before the next parse starts -> no queue index is consumed and no parser is invoked; after the busy window, the same item resumes exactly once.
+- A replacement generation or disposal occurs while a busy retry is pending -> the old Timer produces no new scheduled task.
+- An async long-post parse finishes after its generation was replaced -> its cache result may complete, but generation-dependent follow-up parsing and further queue scheduling are skipped.
+- One post throws during warm-up -> later queued posts still run and viewport rendering keeps its existing fallback.
 - Scroll starts while caps remain -> visible/materialized segments stay unchanged and no expansion rebuild runs until scroll end.
 - Scroll ends with a pending cap -> progressive growth resumes from the prior cap automatically.
 
@@ -424,6 +430,7 @@ RepaintBoundary(
 ### 6. Tests Required
 - Unit-test append, prepend, gap, replacement, small-growth, complete-center, cap clamp, prepend center shift, explicit center change, and finite initial caps around the new center.
 - Unit-test the scroll-active materialization gate for paused, resumed, and no-pending states.
+- Unit-test parse warm-up busy deferral, idle continuation, generation replacement, cancellation, in-flight generation checks, and exception continuation.
 - Keep topic preview, jump-target, render-identity, scroll-performance, long-post cache, and MessageBus batching tests green.
 - Verify tree view and explicit search targets still use their existing navigation semantics.
 
@@ -454,6 +461,20 @@ if (shouldAdvanceTopicPostMaterialization(
 )) {
   setState(_growCap);
 }
+```
+
+#### Wrong
+```dart
+SchedulerBinding.instance.scheduleTask(parseNextPost, Priority.idle);
+```
+
+#### Correct
+```dart
+TopicPostParseWarmUpQueue<Post>(
+  isBusy: () => ScrollBusySignal.isBusy,
+  scheduleTask: scheduleAtIdlePriority,
+  warmUp: warmUpPost,
+).start(addedPosts);
 ```
 
 ## Scenario: Runtime Memory Pressure Cache Handling
