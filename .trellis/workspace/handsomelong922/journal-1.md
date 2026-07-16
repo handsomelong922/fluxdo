@@ -369,3 +369,38 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 11: 修复日志定位的持续滚动卡顿
+
+**Date**: 2026-07-17
+**Task**: 修复日志定位的持续滚动卡顿
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+保留首页刷新时已加载尾部和稳定话题身份，避免深滚动列表塌缩；将性能追踪 retention 整文件处理迁移到后台 isolate，并补齐回归测试和性能合同。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8a18090a` | (see git log) |
+| `0191db8a` | (see git log) |
+| `8e799b44` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
