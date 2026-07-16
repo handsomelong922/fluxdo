@@ -184,6 +184,17 @@ NestedTopicState? buildInitialNestedPreviewState(TopicDetail detail) {
 }
 
 @visibleForTesting
+NestedTopicState? buildNestedLoadingPreviewState({
+  required TopicDetail detail,
+  required TopicDetail? initialPreviewDetail,
+}) {
+  return buildInitialNestedPreviewState(detail) ??
+      (initialPreviewDetail == null
+          ? null
+          : buildInitialNestedPreviewState(initialPreviewDetail));
+}
+
+@visibleForTesting
 bool shouldUseNestedTopicView({
   required bool requestedNestedView,
   required TopicDetail? detail,
@@ -1879,6 +1890,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       topContentInset: topContentInset,
       searchHighlightQuery: searchQuery,
       primedNestedAsync: primedNestedAsync,
+      nestedLoadingPreviewDetail: previewDetail,
     );
   }
 
@@ -1890,6 +1902,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     double topContentInset = 0,
     String? searchHighlightQuery,
     AsyncValue<NestedTopicState>? primedNestedAsync,
+    TopicDetail? nestedLoadingPreviewDetail,
     bool forceFlatView = false,
     bool forceLoadMoreIndicator = false,
     bool showTopicOverlay = true,
@@ -1909,6 +1922,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       topContentInset: topContentInset,
       searchHighlightQuery: searchHighlightQuery,
       primedNestedAsync: primedNestedAsync,
+      nestedLoadingPreviewDetail: nestedLoadingPreviewDetail,
       forceFlatView: forceFlatView,
       forceLoadMoreIndicator: forceLoadMoreIndicator,
     );
@@ -2034,6 +2048,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     double topContentInset = 0,
     String? searchHighlightQuery,
     AsyncValue<NestedTopicState>? primedNestedAsync,
+    TopicDetail? nestedLoadingPreviewDetail,
     bool forceFlatView = false,
     bool forceLoadMoreIndicator = false,
   }) {
@@ -2184,7 +2199,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
       Widget nestedView = nestedAsync.when(
         loading: () {
-          final previewNestedState = buildInitialNestedPreviewState(detail);
+          final previewNestedState = buildNestedLoadingPreviewState(
+            detail: detail,
+            initialPreviewDetail: nestedLoadingPreviewDetail,
+          );
           if (previewNestedState != null) {
             return buildNestedView(previewNestedState);
           }

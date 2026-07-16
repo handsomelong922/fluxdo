@@ -5,6 +5,7 @@ import '../models/search_filter.dart';
 import '../models/topic.dart';
 import '../navigation/nav_action_bus.dart';
 import '../providers/discourse_providers.dart';
+import '../providers/home_topic_excerpt_provider.dart';
 import '../providers/preferences_provider.dart';
 import '../providers/user_content_search_provider.dart';
 import '../services/app_error_handler.dart';
@@ -26,6 +27,16 @@ import '../l10n/s.dart';
 import '../widgets/desktop_refresh_indicator.dart';
 import '../services/navigation/topic_detail_route.dart';
 import 'topic_detail_page/widgets/topic_linear_loading_indicator.dart';
+
+@visibleForTesting
+int? resolveBookmarkDetailScrollTarget({
+  required int? bookmarkedPostNumber,
+  required int? lastReadPostNumber,
+  required bool hasFirstPostPreview,
+}) {
+  if (bookmarkedPostNumber != null) return bookmarkedPostNumber;
+  return hasFirstPostPreview ? null : lastReadPostNumber;
+}
 
 /// 我的书签页面
 class BookmarksPage extends ConsumerStatefulWidget {
@@ -79,13 +90,24 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> {
   }
 
   void _onItemTap(Topic topic) {
+    final cachedFirstPostHtml = ref
+        .read(homeTopicExcerptLoaderProvider)
+        .peekCached(topic.id)
+        ?.trim();
+    final hasFirstPostPreview = cachedFirstPostHtml?.isNotEmpty ?? false;
     Navigator.push(
       context,
       buildTopicDetailRoute(
         topicId: topic.id,
+        initialTitle: topic.title,
         // 帖子书签跳转到被书签的帖子，话题书签使用最后阅读位置
-        scrollToPostNumber:
-            topic.bookmarkedPostNumber ?? topic.lastReadPostNumber,
+        scrollToPostNumber: resolveBookmarkDetailScrollTarget(
+          bookmarkedPostNumber: topic.bookmarkedPostNumber,
+          lastReadPostNumber: topic.lastReadPostNumber,
+          hasFirstPostPreview: hasFirstPostPreview,
+        ),
+        initialTopicPreview: hasFirstPostPreview ? topic : null,
+        initialFirstPostHtml: hasFirstPostPreview ? cachedFirstPostHtml : null,
       ),
     );
   }

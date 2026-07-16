@@ -153,6 +153,53 @@ void main() {
     },
   );
 
+  test('target window without OP keeps preview OP while nested data loads', () {
+    final now = DateTime(2026, 7, 16, 10);
+    final preview = TopicDetail(
+      id: 42,
+      title: '标题',
+      slug: 'sample-topic',
+      postsCount: 130,
+      postStream: PostStream(
+        posts: [
+          _post(id: 101, postNumber: 1, cooked: '<p>已加载首帖</p>', createdAt: now),
+        ],
+        stream: const [101],
+      ),
+      categoryId: 9,
+      closed: false,
+      archived: false,
+    );
+    final targetWindow = TopicDetail(
+      id: 42,
+      title: '标题',
+      slug: 'sample-topic',
+      postsCount: 130,
+      postStream: PostStream(
+        posts: [
+          _post(
+            id: 211,
+            postNumber: 111,
+            cooked: '<p>搜索命中楼层</p>',
+            createdAt: now,
+          ),
+        ],
+        stream: const [101, 211],
+      ),
+      categoryId: 9,
+      closed: false,
+      archived: false,
+    );
+
+    final nestedPreview = buildNestedLoadingPreviewState(
+      detail: targetWindow,
+      initialPreviewDetail: preview,
+    );
+
+    expect(nestedPreview?.opPost?.postNumber, 1);
+    expect(nestedPreview?.opPost?.cooked, '<p>已加载首帖</p>');
+  });
+
   test('preview entry without explicit target starts from first post', () {
     expect(
       resolveInitialFlatPostNumber(
