@@ -1394,7 +1394,9 @@ class _TopicListState extends ConsumerState<_TopicList> {
 
   Future<void> _refreshCurrentTopicList() async {
     try {
-      await ref.read(topicListProvider(widget.categoryId).notifier).refresh();
+      await ref
+          .read(topicListProvider(widget.categoryId).notifier)
+          .refresh(preserveLoadedTail: true);
       if (ref.read(topicFilterProvider) == TopicListFilter.latest) {
         _clearIncomingState();
       }
@@ -1619,6 +1621,10 @@ class _TopicListState extends ConsumerState<_TopicList> {
         final incomingSlotCount = currentFilter == TopicListFilter.latest
             ? 1
             : 0;
+        final childIndexByTopicId = <int, int>{
+          for (var index = 0; index < topics.length; index++)
+            topics[index].id: index + incomingSlotCount,
+        };
 
         return DesktopRefreshIndicator(
           refreshIndicatorKey: _refreshIndicatorKey,
@@ -1658,6 +1664,8 @@ class _TopicListState extends ConsumerState<_TopicList> {
                 key: PageStorageKey<String>(
                   'topics-tab-${providerKey?.toString() ?? 'all'}',
                 ),
+                findChildIndexCallback: (key) =>
+                    topicChildIndexForKey(key, childIndexByTopicId),
                 addAutomaticKeepAlives: false,
                 cacheExtent: Responsive.isMobile(context) ? 120.0 : null,
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -1693,7 +1701,7 @@ class _TopicListState extends ConsumerState<_TopicList> {
                     final highlightColor = theme.colorScheme.primaryContainer
                         .withValues(alpha: 0.3);
                     return TweenAnimationBuilder<Color?>(
-                      key: ValueKey('highlight_${topic.id}'),
+                      key: ValueKey<int>(topic.id),
                       tween: ColorTween(
                         begin: highlightColor,
                         end: normalColor,

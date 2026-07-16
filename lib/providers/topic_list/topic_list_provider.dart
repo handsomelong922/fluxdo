@@ -26,6 +26,35 @@ final topicListRefreshingProvider = StateProvider.family<bool, int?>(
 const Duration _topicListProviderRetention = Duration(seconds: 20);
 const Duration _topicListProviderRetentionMobile = Duration(seconds: 5);
 
+@visibleForTesting
+List<T> mergeRefreshedTopicHead<T, K>({
+  required Iterable<T> refreshed,
+  required Iterable<T> existing,
+  required K Function(T item) idOf,
+}) {
+  final seen = <K>{};
+  final merged = <T>[];
+  for (final item in refreshed.followedBy(existing)) {
+    if (seen.add(idOf(item))) {
+      merged.add(item);
+    }
+  }
+  return merged;
+}
+
+@visibleForTesting
+({int page, bool hasMore}) preserveRefreshedPagination({
+  required int previousPage,
+  required bool previousHasMore,
+  required int refreshedPage,
+  required bool refreshedHasMore,
+}) {
+  return (
+    page: previousPage > refreshedPage ? previousPage : refreshedPage,
+    hasMore: previousHasMore || refreshedHasMore,
+  );
+}
+
 void _retainTopicListProvider(Ref ref, Duration duration) {
   final link = ref.keepAlive();
   Timer? disposeTimer;
@@ -116,7 +145,10 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
           response: preloadedData,
           backfill: false,
         );
-        _hasMore = result.state.hasMore;
+        if (generation == _refreshGeneration) {
+          _page = result.lastLoadedPage;
+          _hasMore = result.state.hasMore;
+        }
         _scheduleInitialBackfill(
           generation: generation,
           service: ref.read(discourseServiceProvider),
@@ -153,7 +185,10 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       response: response,
       backfill: false,
     );
-    _hasMore = result.state.hasMore;
+    if (generation == _refreshGeneration) {
+      _page = result.lastLoadedPage;
+      _hasMore = result.state.hasMore;
+    }
     _scheduleInitialBackfill(
       generation: generation,
       service: service,
@@ -232,7 +267,6 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       visibleTopics = _dedupeTopics([...visibleTopics, ...nextVisible]);
     }
 
-    _page = lastLoadedPage;
     final paginationState = _paginationHelper.processRefresh(
       PaginationResult(items: visibleTopics, moreUrl: moreTopicsUrl),
     );
@@ -454,10 +488,17 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
   }
 
   /// 刷新列表
-  Future<void> refresh() async {
+  Future<void> refresh({bool preserveLoadedTail = false}) async {
     final generation = ++_refreshGeneration;
     final refreshingState = topicListRefreshingProvider(_categoryId);
     final currentTopics = state.value;
+    final previousPage = _page;
+    final previousHasMore = _hasMore;
+    final service = ref.read(discourseServiceProvider);
+    final filterParams = _currentFilterParams();
+    final (order, ascending) = _currentSortParams();
+    final currentFilter = _currentFilter;
+    final subset = _subsetForFilter(currentFilter);
     if (currentTopics == null) {
       state = const AsyncValue.loading();
     } else {
@@ -465,13 +506,7 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     }
 
     final result = await AsyncValue.guard(() async {
-      _page = 0;
-      _hasMore = true;
       _isLoadMoreFailed = false;
-      final service = ref.read(discourseServiceProvider);
-      final filterParams = _currentFilterParams();
-      final (order, ascending) = _currentSortParams();
-      final currentFilter = _currentFilter;
       final response = await _fetchTopics(
         service,
         currentFilter,
@@ -479,44 +514,68 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         filterParams,
         order: order,
         ascending: ascending,
-        subset: _subsetForFilter(currentFilter),
+        subset: subset,
       );
 
-      final result = await _processFilteredRefresh(
+      return _processFilteredRefresh(
         service: service,
         currentFilter: currentFilter,
         filterParams: filterParams,
         order: order,
         ascending: ascending,
-        subset: _subsetForFilter(currentFilter),
+        subset: subset,
         response: response,
         backfill: false,
       );
-      _hasMore = result.state.hasMore;
-      _scheduleInitialBackfill(
-        generation: generation,
-        service: service,
-        currentFilter: currentFilter,
-        filterParams: filterParams,
-        order: order,
-        ascending: ascending,
-        subset: _subsetForFilter(currentFilter),
-        initialResult: result,
-      );
-      return result.state.items;
     });
+
+    if (generation != _refreshGeneration) return;
 
     if (currentTopics != null) {
       ref.read(refreshingState.notifier).state = false;
       if (result.hasError) {
+        _page = previousPage;
+        _hasMore = previousHasMore;
         state = AsyncValue.data(currentTopics);
-      } else {
-        state = result;
+        return;
       }
+    } else if (result.hasError) {
+      state = AsyncValue.error(result.error!, result.stackTrace!);
       return;
     }
 
-    state = result;
+    final refreshResult = result.requireValue;
+    if (preserveLoadedTail && currentTopics != null) {
+      final pagination = preserveRefreshedPagination(
+        previousPage: previousPage,
+        previousHasMore: previousHasMore,
+        refreshedPage: refreshResult.lastLoadedPage,
+        refreshedHasMore: refreshResult.state.hasMore,
+      );
+      _page = pagination.page;
+      _hasMore = pagination.hasMore;
+      state = AsyncValue.data(
+        mergeRefreshedTopicHead<Topic, int>(
+          refreshed: refreshResult.state.items,
+          existing: currentTopics,
+          idOf: (topic) => topic.id,
+        ),
+      );
+    } else {
+      _page = refreshResult.lastLoadedPage;
+      _hasMore = refreshResult.state.hasMore;
+      state = AsyncValue.data(refreshResult.state.items);
+    }
+    _scheduleInitialBackfill(
+      generation: generation,
+      service: service,
+      currentFilter: currentFilter,
+      filterParams: filterParams,
+      order: order,
+      ascending: ascending,
+      subset: subset,
+      initialResult: refreshResult,
+    );
   }
 
   /// 静默刷新
@@ -536,8 +595,6 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         ascending: ascending,
         subset: _subsetForFilter(currentFilter),
       );
-      _page = 0;
-      _isLoadMoreFailed = false;
 
       final result = await _processFilteredRefresh(
         service: service,
@@ -549,6 +606,9 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
         response: response,
         backfill: false,
       );
+      if (generation != _refreshGeneration) return;
+      _isLoadMoreFailed = false;
+      _page = result.lastLoadedPage;
       _hasMore = result.state.hasMore;
       state = AsyncValue.data(result.state.items);
       _scheduleInitialBackfill(
@@ -822,10 +882,8 @@ class _TopicRefreshResult {
   final int lastLoadedPage;
 }
 
-final topicListProvider =
-    AsyncNotifierProvider.family.autoDispose<TopicListNotifier, List<Topic>, int?>(
-      TopicListNotifier.new,
-    );
+final topicListProvider = AsyncNotifierProvider.family
+    .autoDispose<TopicListNotifier, List<Topic>, int?>(TopicListNotifier.new);
 
 /// 热门话题 Provider
 final topTopicsProvider = FutureProvider<TopicListResponse>((ref) async {

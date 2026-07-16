@@ -6,6 +6,13 @@ import '../../utils/responsive.dart';
 import 'topic_card.dart';
 import 'topic_preview_dialog.dart';
 
+int? topicChildIndexForKey(Key key, Map<int, int> childIndexByTopicId) {
+  if (key case ValueKey<int>(value: final topicId)) {
+    return childIndexByTopicId[topicId];
+  }
+  return null;
+}
+
 /// 话题卡片渲染公共函数
 ///
 /// 处理 pinned/normal 卡片选择、预览触发方式、响应式宽度包装。
@@ -70,7 +77,7 @@ Widget buildTopicItem({
   }
 
   if (!Responsive.isMobile(context)) {
-    return Center(
+    child = Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(
           maxWidth: Breakpoints.maxContentWidth,
@@ -79,5 +86,5 @@ Widget buildTopicItem({
       ),
     );
   }
-  return child;
+  return KeyedSubtree(key: ValueKey<int>(topic.id), child: child);
 }
