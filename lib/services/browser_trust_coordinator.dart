@@ -23,6 +23,12 @@ import 'windows_webview_environment_service.dart';
 
 enum BrowserTrustPreloadPath { native, webView }
 
+/// 启动/恢复期自动修复浏览器态时只运行后台 WebView。
+///
+/// 登录页、网络设置中的用户主动验证仍各自显式传入 `true`，不受此策略影响。
+@visibleForTesting
+const bool forceForegroundForAutomaticBrowserTrustRecovery = false;
+
 /// 浏览器信任编排器。
 ///
 /// 负责启动/恢复阶段的浏览器态准备，避免 WebView priming、session bootstrap、
@@ -392,7 +398,10 @@ class BrowserTrustCoordinator {
     } else if (cf.inProgressNotifier.value) {
       gotClearance = await _awaitClearanceResolved(cf, after: cycleStartAt);
     } else if (cf.autoVerifyEnabled && !cf.isInCooldown) {
-      final ok = await cf.showManualVerify(_navigatorContext, true);
+      final ok = await cf.showManualVerify(
+        _navigatorContext,
+        forceForegroundForAutomaticBrowserTrustRecovery,
+      );
       gotClearance = ok == true;
     }
 
