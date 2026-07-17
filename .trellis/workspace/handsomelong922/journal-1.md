@@ -438,3 +438,38 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 13: 修复复杂帖子退出后持续卡顿
+
+**Date**: 2026-07-17
+**Task**: 修复复杂帖子退出后持续卡顿
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+根据真机日志释放图片查看器全尺寸原图缓存，并为复杂话题详情快照增加正文规模与总预算限制；551 项测试和全量 analyze 通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `36a13f8c` | (see git log) |
+| `e6c3d9c9` | (see git log) |
+| `a692504b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
