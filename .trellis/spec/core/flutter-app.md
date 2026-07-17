@@ -1377,3 +1377,112 @@ Evidence:
 - `test/providers/topic_list/topic_list_refresh_merge_test.dart`
 - `test/widgets/topic/topic_item_builder_test.dart`
 - `test/services/performance_diagnostics_service_test.dart`
+
+## Scenario: Route-Scoped Image Memory And Complex Topic Snapshot Budgets
+
+### 1. Scope / Trigger
+
+- Trigger: changing full-screen image viewers, unbounded/full-resolution `ImageProvider`
+  usage, topic-detail runtime snapshot caching, or any optimization intended to prevent
+  "the app stays slow after leaving a complex topic".
+
+### 2. Signatures
+
+- `releaseImageViewerOriginalProviders(Iterable<ImageProvider>, {evict})`
+- `TopicDetailCacheService(maxCacheablePosts, maxCacheableContentChars,
+  maxTotalContentChars, ...)`
+- `TopicDetailCacheEntry.contentChars`
+
+### 3. Contracts
+
+- A route that creates unbounded/full-resolution image providers only for its own viewer
+  must keep stable provider instances by original URL and release those providers after
+  the route widget tree is disposed.
+- Route cleanup must evict only providers owned by that route. Do not call global
+  `imageCache.clear()` on topic/image-viewer exit, because home avatars, topic-card images,
+  and resized post images use separate useful cache entries.
+- Provider eviction runs asynchronously after synchronous widget finalization. Each
+  provider failure is isolated; one malformed image must not block route pop or remaining
+  cleanup. Disk files remain in `DiscourseCacheManager` for fast re-decode.
+- Topic-detail runtime snapshots are bounded by both post count and loaded content size.
+  A few very long HTML/code/image posts can exceed memory budgets even when the loaded
+  post count is small.
+- A complete runtime snapshot that exceeds either per-entry limit is not cached. This
+  never changes the current notifier state or visible detail page.
+- Preview seeds are the first-post handoff contract for home/search/bookmark preview flows.
+  The current seed may exceed ordinary snapshot limits and must remain usable; inserting it
+  evicts older entries first. A later oversized full snapshot may remove that seed instead
+  of retaining the whole complex detail after exit.
+- Cache eviction order remains LRU, and total content budget is enforced independently of
+  the maximum entry count.
+
+### 4. Validation & Error Matrix
+
+- Close a viewer after opening several originals -> only viewer-original providers are
+  evicted; resized post images and disk cache remain available.
+- One provider `evict()` throws -> cleanup continues for the rest; route pop succeeds.
+- Full detail has few posts but oversized `cooked` content -> skip runtime snapshot cache;
+  current page and progressive replies remain unchanged.
+- Several medium snapshots exceed total budget -> evict least recently used entries until
+  within budget.
+- Preview seed alone exceeds total budget -> keep the current seed and evict older entries;
+  immediate first-post display still works.
+- Oversized full response replaces a seed -> discard the cached seed/full snapshot after
+  loading; a later preview entry can seed again from its route data.
+
+### 5. Good/Base/Bad Cases
+
+- Good: image viewer reuses one provider per original URL, then asynchronously evicts those
+  originals on close; topic cache keeps ordinary recent topics but rejects a 600 KiB loaded
+  HTML snapshot on mobile.
+- Base: reopening an evicted original decodes again from the existing disk cache; normal
+  recent topic snapshots still provide fast reopen behavior.
+- Bad: globally clear Flutter's image cache whenever any topic closes, retain every topic
+  with fewer than 96 posts regardless of HTML size, or reject the preview seed and reintroduce
+  a blank first-post transition.
+
+### 6. Tests Required
+
+- Unit-test provider deduplication, successful eviction count, absent-cache results, and
+  per-provider exception isolation.
+- Unit-test content-size rejection, total-budget LRU eviction, oversized preview-seed
+  preservation, and oversized full-detail replacement behavior.
+- Keep image viewer gestures/loading preview, lazy post images, topic preview handoff,
+  explicit target navigation, search/bookmark preview, and progressive materialization tests
+  green.
+- Run full Flutter tests and analyze because these caches cross route, service, provider, and
+  rendering boundaries.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```dart
+void dispose() {
+  PaintingBinding.instance.imageCache.clear();
+  super.dispose();
+}
+
+if (detail.postStream.posts.length <= maxCacheablePosts) {
+  cache.write(detail);
+}
+```
+
+#### Correct
+
+```dart
+final providers = viewerProviders.values.toList(growable: false);
+unawaited(Future<void>(() async {
+  await releaseImageViewerOriginalProviders(providers);
+}));
+
+cache.write(detail); // service enforces post, per-entry content, and total budgets
+```
+
+Evidence:
+- `lib/pages/image_viewer_page.dart`
+- `lib/services/discourse_cache_manager.dart`
+- `lib/services/topic_detail_cache_service.dart`
+- `lib/providers/topic_detail_provider.dart`
+- `test/pages/image_viewer_page_test.dart`
+- `test/services/topic_detail_cache_service_test.dart`
