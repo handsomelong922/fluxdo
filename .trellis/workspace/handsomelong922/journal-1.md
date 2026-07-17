@@ -404,3 +404,37 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: 修复 CDK 返回帖子后 429
+
+**Date**: 2026-07-17
+**Task**: 修复 CDK 返回帖子后 429
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+归档并停止虚拟机浏览模拟；移除帖子子路由返回的无条件完整刷新和 CDK 页面进入时的静默 OAuth，补充回归测试、code-spec 与根因复盘；全仓 analyze 和 545 项测试通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `868d274f` | (see git log) |
+| `a22cd98a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
