@@ -59,14 +59,17 @@ void main() {
       expect(cache.shouldRevalidate(seeded), isTrue);
     });
 
-    test('preview seed can bootstrap explicit target routes before target loads', () {
-      cache.writePreviewSeed(_detail(topicId: 42, postNumbers: [1]));
+    test(
+      'preview seed can bootstrap explicit target routes before target loads',
+      () {
+        cache.writePreviewSeed(_detail(topicId: 42, postNumbers: [1]));
 
-      final seeded = cache.read(42, targetPostNumber: 9);
-      expect(seeded, isNotNull);
-      expect(seeded?.isPreviewSeed, isTrue);
-      expect(seeded?.detail.postStream.posts.single.postNumber, 1);
-    });
+        final seeded = cache.read(42, targetPostNumber: 9);
+        expect(seeded, isNotNull);
+        expect(seeded?.isPreviewSeed, isTrue);
+        expect(seeded?.detail.postStream.posts.single.postNumber, 1);
+      },
+    );
 
     test('expires entries after the hard ttl', () {
       cache.write(_detail(topicId: 42, postNumbers: [1]));
@@ -99,6 +102,86 @@ void main() {
 
       expect(oversizedCache.read(42), isNull);
     });
+
+    test('skips caching snapshots with oversized cooked content', () {
+      final oversizedCache = TopicDetailCacheService(
+        maxEntries: 2,
+        maxCacheableContentChars: 20,
+        now: () => now,
+      );
+
+      oversizedCache.write(
+        _detail(topicId: 42, postNumbers: [1], cookedLength: 21),
+      );
+
+      expect(oversizedCache.read(42), isNull);
+    });
+
+    test(
+      'evicts least recently used snapshots to stay within total budget',
+      () {
+        final boundedCache = TopicDetailCacheService(
+          maxEntries: 4,
+          maxCacheableContentChars: 20,
+          maxTotalContentChars: 25,
+          now: () => now,
+        );
+
+        boundedCache.write(
+          _detail(topicId: 1, postNumbers: [1], cookedLength: 12),
+        );
+        boundedCache.write(
+          _detail(topicId: 2, postNumbers: [1], cookedLength: 12),
+        );
+        boundedCache.read(1);
+        boundedCache.write(
+          _detail(topicId: 3, postNumbers: [1], cookedLength: 12),
+        );
+
+        expect(boundedCache.read(1), isNotNull);
+        expect(boundedCache.read(2), isNull);
+        expect(boundedCache.read(3), isNotNull);
+      },
+    );
+
+    test('keeps the current preview seed even when it exceeds budgets', () {
+      final boundedCache = TopicDetailCacheService(
+        maxEntries: 4,
+        maxCacheableContentChars: 20,
+        maxTotalContentChars: 20,
+        now: () => now,
+      );
+      boundedCache.write(
+        _detail(topicId: 1, postNumbers: [1], cookedLength: 12),
+      );
+
+      boundedCache.writePreviewSeed(
+        _detail(topicId: 2, postNumbers: [1], cookedLength: 30),
+      );
+
+      expect(boundedCache.read(1), isNull);
+      final seed = boundedCache.read(2);
+      expect(seed, isNotNull);
+      expect(seed?.isPreviewSeed, isTrue);
+    });
+
+    test('oversized full detail removes its old preview seed', () {
+      final boundedCache = TopicDetailCacheService(
+        maxEntries: 4,
+        maxCacheableContentChars: 20,
+        maxTotalContentChars: 40,
+        now: () => now,
+      );
+      boundedCache.writePreviewSeed(
+        _detail(topicId: 42, postNumbers: [1], cookedLength: 12),
+      );
+
+      boundedCache.write(
+        _detail(topicId: 42, postNumbers: [1, 2], cookedLength: 30),
+      );
+
+      expect(boundedCache.read(42), isNull);
+    });
   });
 }
 
@@ -106,10 +189,15 @@ TopicDetail _detail({
   required int topicId,
   required List<int> postNumbers,
   String title = 'Topic',
+  int cookedLength = 11,
 }) {
   final posts = [
     for (final postNumber in postNumbers)
-      _post(id: topicId * 100 + postNumber, postNumber: postNumber),
+      _post(
+        id: topicId * 100 + postNumber,
+        postNumber: postNumber,
+        cookedLength: cookedLength,
+      ),
   ];
   return TopicDetail(
     id: topicId,
@@ -126,13 +214,17 @@ TopicDetail _detail({
   );
 }
 
-Post _post({required int id, required int postNumber}) {
+Post _post({
+  required int id,
+  required int postNumber,
+  required int cookedLength,
+}) {
   final now = DateTime.utc(2026, 6, 13);
   return Post(
     id: id,
     username: 'alice',
     avatarTemplate: '/avatar/{size}.png',
-    cooked: '<p>post</p>',
+    cooked: List<String>.filled(cookedLength, 'x').join(),
     postNumber: postNumber,
     postType: 1,
     updatedAt: now,

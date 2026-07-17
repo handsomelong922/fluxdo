@@ -8,11 +8,19 @@ class TopicDetailCacheService {
   TopicDetailCacheService({
     int maxEntries = 20,
     int maxCacheablePosts = 160,
+    int maxCacheableContentChars = 4 * 1024 * 1024,
+    int maxTotalContentChars = 16 * 1024 * 1024,
     Duration hardTtl = defaultHardTtl,
     Duration softTtl = defaultSoftTtl,
     DateTime Function()? now,
   }) : _maxEntries = maxEntries < 1 ? 1 : maxEntries,
        _maxCacheablePosts = maxCacheablePosts < 1 ? 1 : maxCacheablePosts,
+       _maxCacheableContentChars = maxCacheableContentChars < 1
+           ? 1
+           : maxCacheableContentChars,
+       _maxTotalContentChars = maxTotalContentChars < 1
+           ? 1
+           : maxTotalContentChars,
        _hardTtl = hardTtl,
        _softTtl = softTtl,
        _now = now ?? DateTime.now;
@@ -22,6 +30,8 @@ class TopicDetailCacheService {
 
   final int _maxEntries;
   final int _maxCacheablePosts;
+  final int _maxCacheableContentChars;
+  final int _maxTotalContentChars;
   final Duration _hardTtl;
   final Duration _softTtl;
   final DateTime Function() _now;
@@ -70,7 +80,10 @@ class TopicDetailCacheService {
 
     final key = _key(detail.id, username);
     _entries.remove(key);
-    if (!isPreviewSeed && detail.postStream.posts.length > _maxCacheablePosts) {
+    final contentChars = _estimateContentChars(detail);
+    if (!isPreviewSeed &&
+        (detail.postStream.posts.length > _maxCacheablePosts ||
+            contentChars > _maxCacheableContentChars)) {
       _pruneExpired();
       return;
     }
@@ -83,12 +96,11 @@ class TopicDetailCacheService {
       loadedAt: now,
       lastAccessedAt: now,
       isPreviewSeed: isPreviewSeed,
+      contentChars: contentChars,
     );
 
     _pruneExpired();
-    while (_entries.length > _maxEntries) {
-      _entries.remove(_entries.keys.first);
-    }
+    _pruneToBudget(preserveKey: key);
   }
 
   void invalidate(int topicId, {String? username}) {
@@ -99,10 +111,7 @@ class TopicDetailCacheService {
     _entries.clear();
   }
 
-  bool shouldRevalidate(
-    TopicDetailCacheEntry entry, {
-    int? targetPostNumber,
-  }) {
+  bool shouldRevalidate(TopicDetailCacheEntry entry, {int? targetPostNumber}) {
     if (entry.isPreviewSeed) return true;
     if (targetPostNumber != null) return true;
     return _now().difference(entry.loadedAt) >= _softTtl;
@@ -123,6 +132,35 @@ class TopicDetailCacheService {
       }
     }
   }
+
+  int _estimateContentChars(TopicDetail detail) {
+    var total = 0;
+    for (final post in detail.postStream.posts) {
+      total += post.cooked.length;
+      total += post.signatureCooked?.length ?? 0;
+    }
+    return total;
+  }
+
+  int get _totalContentChars => _entries.values.fold<int>(
+    0,
+    (total, entry) => total + entry.contentChars,
+  );
+
+  void _pruneToBudget({required String preserveKey}) {
+    while (_entries.length > _maxEntries ||
+        _totalContentChars > _maxTotalContentChars) {
+      String? evictionKey;
+      for (final key in _entries.keys) {
+        if (key != preserveKey) {
+          evictionKey = key;
+          break;
+        }
+      }
+      if (evictionKey == null) return;
+      _entries.remove(evictionKey);
+    }
+  }
 }
 
 class TopicDetailCacheEntry {
@@ -133,6 +171,7 @@ class TopicDetailCacheEntry {
     required this.loadedAt,
     required this.lastAccessedAt,
     this.isPreviewSeed = false,
+    required this.contentChars,
   });
 
   final int topicId;
@@ -141,6 +180,7 @@ class TopicDetailCacheEntry {
   final DateTime loadedAt;
   final DateTime lastAccessedAt;
   final bool isPreviewSeed;
+  final int contentChars;
 
   bool containsPostNumber(int? postNumber) {
     if (postNumber == null) return true;
@@ -159,6 +199,7 @@ class TopicDetailCacheEntry {
       loadedAt: loadedAt ?? this.loadedAt,
       lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
       isPreviewSeed: isPreviewSeed ?? this.isPreviewSeed,
+      contentChars: contentChars,
     );
   }
 }

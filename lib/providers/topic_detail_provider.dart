@@ -340,6 +340,9 @@ final topicDetailCacheServiceProvider = Provider<TopicDetailCacheService>((
   final service = TopicDetailCacheService(
     maxEntries: isMobilePlatform ? 8 : 20,
     maxCacheablePosts: isMobilePlatform ? 96 : 160,
+    // 少量超长代码/图片帖也可能比大量短回复更占内存，不能只按楼层数限额。
+    maxCacheableContentChars: isMobilePlatform ? 512 * 1024 : 2 * 1024 * 1024,
+    maxTotalContentChars: isMobilePlatform ? 1536 * 1024 : 8 * 1024 * 1024,
   );
   ref.onDispose(service.clear);
   return service;
