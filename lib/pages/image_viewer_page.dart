@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:extended_image_lite/extended_image_lite.dart';
@@ -27,6 +29,30 @@ bool shouldUseInteractiveLoadingPreview({
 }) {
   final preview = thumbnailUrl?.trim();
   return preview != null && preview.isNotEmpty && preview != imageUrl;
+}
+
+typedef ImageViewerProviderEvictor =
+    Future<bool> Function(ImageProvider provider);
+
+/// 释放图片查看器独占的全尺寸解码缓存。
+///
+/// 每个 provider 独立失败隔离，避免一张异常图片阻断其余原图释放。
+@visibleForTesting
+Future<int> releaseImageViewerOriginalProviders(
+  Iterable<ImageProvider> providers, {
+  ImageViewerProviderEvictor? evict,
+}) async {
+  final uniqueProviders = <ImageProvider>{...providers};
+  var released = 0;
+  for (final provider in uniqueProviders) {
+    try {
+      final removed = await (evict?.call(provider) ?? provider.evict());
+      if (removed) released++;
+    } catch (_) {
+      // 图片缓存清理失败不能影响页面退出或其他图片。
+    }
+  }
+  return released;
 }
 
 class ImageViewerPage extends StatefulWidget {
@@ -170,6 +196,8 @@ class _ImageViewerPageState extends State<ImageViewerPage>
   late final List<GlobalKey<ExtendedImageGestureState>> _galleryGestureKeys;
   final Map<int, GestureDetails> _savedGestureDetailsBySlot =
       <int, GestureDetails>{};
+  final Map<String, ImageProvider> _originalImageProviders =
+      <String, ImageProvider>{};
 
   /// 通知所有缓存页面当前活跃的 Hero 页码变化，确保只有当前页有 Hero
   late final ValueNotifier<int> _activeHeroPage;
@@ -206,11 +234,30 @@ class _ImageViewerPageState extends State<ImageViewerPage>
 
   @override
   void dispose() {
+    final originalProviders = _originalImageProviders.values.toList(
+      growable: false,
+    );
+    _originalImageProviders.clear();
     HeroVisibilityController.instance.clear();
     _activeHeroPage.dispose();
     _restoreSystemUI();
     disposeDoubleTapZoom();
+
+    // 等当前 element 销毁流程结束后再解析 key 并 evict，避免把工作塞进
+    // 路由 pop 动画和 widget finalization 的同步热路径。
+    unawaited(
+      Future<void>(() async {
+        await releaseImageViewerOriginalProviders(originalProviders);
+      }),
+    );
     super.dispose();
+  }
+
+  ImageProvider _originalImageProvider(String url) {
+    return _originalImageProviders.putIfAbsent(
+      url,
+      () => discourseImageProvider(url),
+    );
   }
 
   void _toggleUI() {
@@ -704,7 +751,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                       position: details.globalPosition,
                     ),
                     child: ExtendedImage(
-                      image: discourseImageProvider(widget.imageUrl!),
+                      image: _originalImageProvider(widget.imageUrl!),
                       width: double.infinity,
                       height: double.infinity,
                       fit: BoxFit.contain,
@@ -815,7 +862,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                             }
 
                             return ExtendedImage(
-                              image: discourseImageProvider(url),
+                              image: _originalImageProvider(url),
                               mode: ExtendedImageMode.gesture,
                               enableSlideOutPage: true,
                               extendedImageGestureKey: _gestureKeyForIndex(
