@@ -414,7 +414,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   int? _initialReadPostNumbersSourceKey;
   Set<int> _cachedInitialReadPostNumbers = const <int>{};
   ProviderSubscription<TopicChannelState>? _topicChannelSubscription;
-  bool _topicChannelNeedsCatchUp = false;
   bool _privateMessageFlatViewScheduled = false;
   Timer? _pendingTopicListSeenUpdateTimer;
   int? _pendingSeenUpdateTopicId;
@@ -884,22 +883,14 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         topicChannelProvider(widget.topicId),
         _handleTopicChannelState,
       );
-      if (_topicChannelNeedsCatchUp) {
-        _topicChannelNeedsCatchUp = false;
-        final postNumber = _controller.currentPostNumber ?? 1;
-        unawaited(
-          ref
-              .read(topicDetailProvider(_params).notifier)
-              .refreshWithPostNumber(postNumber),
-        );
-      }
+      // 返回子路由时只恢复实时频道。完整话题刷新必须由用户显式触发，
+      // 否则返回后的自动刷新会与下拉刷新叠加，形成突发请求。
       return;
     }
 
     if (_topicChannelSubscription != null) {
       _topicChannelSubscription?.close();
       _topicChannelSubscription = null;
-      _topicChannelNeedsCatchUp = true;
     }
   }
 

@@ -7,7 +7,6 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/network/cookie/webview_cookie_priming.dart';
-import '../services/cdk_oauth_service.dart';
 import '../services/toast_service.dart';
 import '../services/webview_settings.dart';
 import '../services/windows_webview_environment_service.dart';
@@ -284,14 +283,8 @@ class _CdkPageState extends State<CdkPage> {
     if (widget.url.isEmpty) return;
 
     try {
-      final uri = Uri.tryParse(widget.url);
       var shouldReload = false;
-
-      if (uri != null && isTrustedCdkWebViewHost(uri.host)) {
-        shouldReload = await CdkOAuthService().authorizeSilently();
-      }
-
-      if (!WebViewCookiePriming.instance.isPrimed || shouldReload) {
+      if (!WebViewCookiePriming.instance.isPrimed) {
         await WebViewCookiePriming.instance.prime(widget.url);
         shouldReload = true;
       }

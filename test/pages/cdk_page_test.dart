@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/pages/cdk_page.dart';
 
@@ -15,6 +17,11 @@ void main() {
       expect(isTrustedCdkWebViewHost('example.com'), isFalse);
       expect(isTrustedCdkWebViewHost('credit.linux.do.example.com'), isFalse);
       expect(isTrustedCdkWebViewHost('evil-linux.do'), isFalse);
+    });
+
+    test('does not reintroduce silent OAuth on page entry', () {
+      final source = File('lib/pages/cdk_page.dart').readAsStringSync();
+      expect(source, isNot(contains('authorizeSilently')));
     });
   });
 }

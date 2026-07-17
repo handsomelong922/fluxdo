@@ -1206,6 +1206,71 @@ if (next.postUpdatesGeneration != previous?.postUpdatesGeneration) {
 }
 ```
 
+## Scenario: Topic Route Return Request Governance
+
+### 1. Scope / Trigger
+
+- Trigger: changing `TopicDetailPage` route visibility, `RouteAware.didPopNext`, hidden topic-channel subscriptions, CDK/WebView child routes, or topic-detail refresh behavior.
+
+### 2. Signatures
+
+- `TopicDetailPage._syncTopicChannelSubscription()`
+- `RouteAware.didPushNext()` / `didPopNext()`
+- `TopicDetailNotifier.refreshWithPostNumber(int postNumber)`
+- CDK page bootstrap: `WebViewCookiePriming.instance.prime(url)`
+
+### 3. Contracts
+
+- Pushing a child route may suspend the topic MessageBus subscription, but suspension alone is not evidence that topic data changed.
+- Returning from an ordinary child route must restore the subscription without automatically calling `refreshWithPostNumber()`.
+- A user-initiated pull/toolbar refresh remains one explicit topic-detail request and continues through the normal scheduler, 429 cooldown, auth, and CF interceptors.
+- Opening `CdkPage` may prime cookies and reload the WebView when priming actually ran; it must not silently start CDK OAuth authorization on every page entry.
+- Explicit CDK/LDC enable, refresh, and reauthorization flows remain the only places allowed to start their OAuth/user-info requests.
+
+### 4. Validation & Error Matrix
+
+- Topic -> CDK/credit WebView -> back -> user refresh: exactly the explicit topic refresh path; no route-return full refresh is scheduled first.
+- Topic -> ordinary child route -> back: restore live updates without an unconditional topic GET.
+- First CDK WebView use with unprimed cookies: prime once, then reload once if needed.
+- Primed CDK WebView entry: load the requested page without silent OAuth or a priming-triggered reload.
+- Server returns 429 to the explicit refresh: preserve existing no-retry/cooldown/error presentation behavior.
+
+### 5. Good/Base/Bad Cases
+
+- Good: `didPopNext()` marks the route visible and resubscribes; the next network refresh comes only from a real event or user action.
+- Base: MessageBus resumes and later real-time events update the visible topic normally.
+- Bad: setting a catch-up flag whenever any child route is pushed, then firing a full topic refresh on every pop; or calling `authorizeSilently()` from `CdkPage.initState()`.
+
+### 6. Tests Required
+
+- Guard that `CdkPage` entry does not reference or invoke `authorizeSilently()`.
+- Guard that the topic child-route return path has no unconditional `refreshWithPostNumber()` call.
+- Keep CDK trusted-host/link routing, topic 429 no-retry, topic route, and MessageBus batch tests green.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```dart
+void didPopNext() {
+  notifier.refreshWithPostNumber(currentPostNumber);
+}
+
+await CdkOAuthService().authorizeSilently();
+```
+
+#### Correct
+
+```dart
+void didPopNext() {
+  _setRouteVisible(true, 'did_pop_next'); // 只恢复订阅和可见状态
+}
+
+if (!WebViewCookiePriming.instance.isPrimed) {
+  await WebViewCookiePriming.instance.prime(widget.url);
+}
+```
+
 ## Scenario: Stable Topic Refresh And Diagnostic Retention
 
 ### 1. Scope / Trigger
