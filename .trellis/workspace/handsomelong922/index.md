@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
-- **Last Active**: 2026-07-17
+- **Total Sessions**: 14
+- **Last Active**: 2026-07-22
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~475 | Active |
+| `journal-1.md` | ~512 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-07-22 | 修复持续卡顿并优化主页预览与搜索体验 | `7030a7cd`, `37dc3114`, `5e5c4564`, `1051d3fa`, `db43fec8` | `codex/rollback-to-v0.3.1` |
 | 13 | 2026-07-17 | 修复复杂帖子退出后持续卡顿 | `36a13f8c`, `e6c3d9c9`, `a692504b` | `codex/rollback-to-v0.3.1` |
 | 12 | 2026-07-17 | 修复 CDK 返回帖子后 429 | `868d274f`, `a22cd98a` | `codex/rollback-to-v0.3.1` |
 | 11 | 2026-07-17 | 修复日志定位的持续滚动卡顿 | `8a18090a`, `0191db8a`, `8e799b44` | `codex/rollback-to-v0.3.1` |

@@ -473,3 +473,40 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 14: 修复持续卡顿并优化主页预览与搜索体验
+
+**Date**: 2026-07-22
+**Task**: 修复持续卡顿并优化主页预览与搜索体验
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+依据真机性能追踪修复首页变高长列表远距离回顶的线性构建成本，并完成用户主页默认话题、预览回复数强化、搜索即时输入与本地历史；全量 analyze 和 561 项测试通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7030a7cd` | (see git log) |
+| `37dc3114` | (see git log) |
+| `5e5c4564` | (see git log) |
+| `1051d3fa` | (see git log) |
+| `db43fec8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
