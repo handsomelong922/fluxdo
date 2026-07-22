@@ -314,6 +314,63 @@ Evidence:
 - `lib/widgets/content/discourse_html_content/`
 - `lib/pages/topic_detail_page/`
 
+## Scenario: Web-Equivalent Related Topics
+
+### 1. Scope / Trigger
+- Trigger: adding or changing the topic-detail related-topic list, final-page pagination, or the
+  Discourse response fields consumed by that list.
+
+### 2. Signatures
+- `TopicDetail.relatedTopics: List<Topic>?`
+- `GET /t/{topicId}/{postNumber}.json`
+- `DiscourseService.getRelatedTopics(topicId, {required postNumber})`
+- `selectRelatedTopics(topics, currentTopicId: ...) -> List<Topic>`
+
+### 3. Contracts
+- Consume `related_topics` only; never substitute `suggested_topics`.
+- `TopicDetail.fromJson` uses `null` when the response omits `related_topics` and an empty list when
+  the server explicitly returns an empty list.
+- Pagination `copyWith` operations preserve an existing related list when a later page omits the
+  field. Once the post stream reaches its end and the list is still null, request the final-page
+  endpoint once and merge its list without making comment loading fail.
+- The UI filters the current topic and blank titles, sorts by `created_at` descending, takes at most
+  five entries, starts expanded, and navigates through `buildTopicDetailRoute(...)`.
+- API `created_at` values are parsed with `TimeUtils.parseUtcTime()`; no direct `DateTime.parse`.
+
+### 4. Validation & Error Matrix
+- Missing field -> preserve existing data during merges; hide the related section if no data exists.
+- Explicit empty list -> store empty and hide the section without retrying.
+- Final-page request failure -> keep loaded posts and hide only the related section.
+- Duplicate/current/blank items -> filter before sorting and truncating.
+- Equal or missing dates -> deterministic ID tie-breaker; null dates sort last.
+
+### 5. Good/Base/Bad Cases
+- Good: initial topic data carries related topics, or the provider fills them after the final page,
+  while the footer remains a pure rendering consumer.
+- Base: a short topic reaches the end in its initial response and already has an explicit empty list.
+- Bad: display `suggested_topics`, request a cloud search endpoint, or replace a known list with null
+  from an intermediate `/posts.json` response.
+
+### 6. Tests Required
+- Model tests for omitted/empty/valid fields and `copyWith` preservation.
+- Service test for the exact final-page URL and `related_topics`/`suggested_topics` separation.
+- Provider integration test for initial data -> final page -> related merge and failure isolation.
+- Widget tests for filtering, order, five-item cap, default expansion, empty hiding, and route tap.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+final suggestions = data['suggested_topics'] ?? data['related_topics'];
+detail = TopicDetail.fromJson(data); // later page can erase old related data
+```
+
+#### Correct
+```dart
+if (data.containsKey('related_topics')) {
+  detail = detail.copyWith(relatedTopics: parseRelatedTopics(data));
+}
+```
+
 ## Scenario: Notion Attachment File Uploads
 
 ### 1. Scope / Trigger

@@ -751,47 +751,48 @@ final excerpt = showExcerpt
     : null;
 ```
 
-## Scenario: Viewport-Bounded Home Scroll-To-Top
+## Scenario: Generation-Bounded Home Scroll-To-Top
 
 ### 1. Scope / Trigger
 - Trigger: changing a return-to-top action for the variable-height lazy home topic list,
   including bottom-navigation reselect, incoming-topic actions, and tab-level refresh flows.
 
 ### 2. Signatures
-- `homeScrollToTopStagingOffset(currentOffset, minScrollExtent, maxScrollExtent, viewportDimension) -> double?`
+- `homeScrollToTopStagingOffset(...) -> double?` (near-distance compatibility helper)
 - `_scrollControllerToTopWithStaging(ScrollController, {duration, curve})`
+- `_TopicListState._scrollToTopGeneration`
 
 ### 3. Contracts
-- A return-to-top animation may traverse at most two viewport heights in the variable-height
-  home list. When the current offset is farther away, jump first to
-  `minScrollExtent + 2 * viewportDimension`, then animate the bounded remainder.
-- Short-distance return-to-top keeps the existing smooth animation without a staging jump.
+- A far-distance return-to-top on the variable-height home list must increment the current tab's
+  PageStorage generation and rebuild the `ListView` so a fresh `ScrollPosition` starts at
+  `minScrollExtent`; it must not `jumpTo` through the old variable-height extent.
+- A short-distance return-to-top (at most about 100 logical pixels) keeps the existing smooth
+  animation without remounting the list.
 - All semantic home return-to-top entry points use the same helper. Do not leave one path
-  calling an unbounded `animateTo(minScrollExtent)` directly.
-- Staging preserves the loaded topic tail, pagination, card content, route stack, and cache
-  state. Do not truncate the list or clear global image/detail caches to make return-to-top
-  cheaper.
+  calling an unbounded `animateTo(minScrollExtent)` directly for a far offset.
+- Generation remount preserves the loaded topic list, provider/cache state, route stack, and
+  pagination; it only replaces the scroll position. Do not truncate list data or clear global
+  image/detail caches to make return-to-top cheaper.
 - Invalid geometry, no attached position, or multiple attached positions must fail closed
   without guessing which scroll position to move.
 
 ### 4. Validation & Error Matrix
-- Current offset is more than two viewports from the top -> jump to the staging offset, then
-  animate only the final two viewports.
-- Current offset is within two viewports -> return `null` from the staging calculation and
-  keep one short animation.
-- Non-zero `minScrollExtent` -> calculate the staging offset relative to that minimum.
-- Non-finite values, zero/negative viewport, or collapsed extent -> do not stage.
+- Current offset is far from the top -> increment generation and let the new list position settle
+  at `minScrollExtent` without traversing intermediate cards.
+- Current offset is within the short-distance threshold -> animate directly to the minimum.
+- No attached position or a collapsed extent -> keep the existing no-op/fail-closed behavior.
 - Long session with hundreds of loaded topics -> return-to-top work remains bounded by the
-  viewport rather than growing with the total loaded item count.
+  newly materialized top window rather than growing with the total loaded item count.
 
 ### 5. Good/Base/Bad Cases
-- Good: at 5000 px with an 800 px viewport, jump to 1600 px and animate to 0.
-- Base: at 1500 px with an 800 px viewport, animate directly to 0.
-- Bad: animate from 5000 px to 0 in a variable-height `ListView.builder`, forcing Flutter to
-  materialize many intermediate topic cards in one interaction.
+- Good: at 40000 px, increment generation and build only the top window of the fresh list.
+- Base: at 60 px, animate directly to the minimum for the existing short interaction.
+- Bad: animate or jump from a deep offset through a variable-height `ListView.builder`, forcing
+  Flutter to materialize many intermediate topic cards in one interaction.
 
 ### 6. Tests Required
-- Unit-test far, near, non-zero-minimum, and invalid-viewport staging calculations.
+- Widget-test far and near paths, asserting far remounts the list while near keeps animation.
+- Unit-test the generation/scroll-position reset helper and its fail-closed cases.
 - Keep all home return-to-top call sites covered by a source or widget regression guard.
 - Keep topic identity, loaded-tail refresh, load-more, preview handoff, and full Flutter tests
   green because staging must not change list data semantics.
@@ -799,16 +800,63 @@ final excerpt = showExcerpt
 ### 7. Wrong vs Correct
 #### Wrong
 ```dart
-await controller.animateTo(
-  controller.position.minScrollExtent,
-  duration: const Duration(milliseconds: 320),
-  curve: Curves.easeOutCubic,
-);
+await controller.animateTo(controller.position.minScrollExtent, ...);
 ```
 
 #### Correct
 ```dart
-_scrollControllerToTopWithStaging(controller);
+_scrollControllerToTopWithStaging(controller); // remounts for far offsets
+```
+
+## Scenario: Topic Detail Horizontal Gesture Coordination
+
+### 1. Scope / Trigger
+- Trigger: changing detail-page swipe-back/AI gestures, text selection, code blocks, iframe/WebView
+  content, or any nested horizontal scrollable.
+
+### 2. Signatures
+- `PopPassthroughMaterialPageRoute` delayed pointer activation
+- `HorizontalPopGestureBlockerRegion`
+- `QuoteSelectionHelper.selectionActiveListenable`
+
+### 3. Contracts
+- The route's right-swipe candidate is activated in a microtask after the current pointer event,
+  allowing Flutter descendants to claim ordinary horizontal drags first.
+- A descendant `ScrollStartNotification` from a horizontal scrollable cancels the route candidate.
+  Code/iframe/platform-view regions must expose `HorizontalPopGestureBlockerRegion`.
+- Text selection state is tracked by source and remains a blocker until every source releases it;
+  disposing a post must release only that source.
+- Ordinary right-swipe back and left-swipe AI behavior, thresholds, animation, and route wiring stay
+  unchanged when no descendant horizontal interaction wins.
+
+### 4. Validation & Error Matrix
+- Selecting text and extending either direction -> selection remains active; route does not pop.
+- Scrolling a long code block or iframe horizontally -> route animation remains at zero.
+- Ordinary content right drag -> route completes as before.
+- Descendant horizontal scroll start after a candidate -> candidate is canceled, not merely ignored.
+
+### 5. Good/Base/Bad Cases
+- Good: route waits for the pointer dispatch boundary and a nested scroll notification cancels it.
+- Base: a plain content drag still participates in the existing route threshold/settle animation.
+- Bad: a global raw `Listener` consumes every rightward move before selection/code recognizers.
+
+### 6. Tests Required
+- Route regression tests for ordinary back, AI swipe, selection blockers, descendant horizontal scroll,
+  and platform-view blocker regions.
+- Source-count tests proving one post disposal cannot clear another post's selection blocker.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+onPointerMove: (event) {
+  if (event.delta.dx > 0) startPopImmediately();
+}
+```
+
+#### Correct
+```dart
+scheduleMicrotask(() => activateRouteCandidate(pointer));
+// Cancel when a descendant ScrollStartNotification wins.
 ```
 
 ## Scenario: Immediate Local-Only Search Entry
