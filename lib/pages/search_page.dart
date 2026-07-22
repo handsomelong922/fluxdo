@@ -7,6 +7,7 @@ import '../providers/home_topic_excerpt_provider.dart';
 import '../models/search_filter.dart';
 import '../models/search_result.dart';
 import '../services/preloaded_data_service.dart';
+import '../services/local_search_history_service.dart';
 import '../widgets/common/smart_avatar.dart';
 import '../widgets/common/loading_spinner.dart';
 import '../widgets/search/search_filter_panel.dart';
@@ -14,9 +15,8 @@ import '../widgets/search/search_ai_chat_card.dart';
 import '../widgets/search/search_post_card.dart';
 import '../widgets/search/search_preview_dialog.dart';
 import '../providers/preferences_provider.dart';
+import '../providers/theme_provider.dart';
 import '../services/settings/content_filter_service.dart';
-import 'package:dio/dio.dart';
-import '../services/app_error_handler.dart';
 import '../services/navigation/topic_detail_route.dart';
 import '../l10n/s.dart';
 import 'user_profile_page.dart';
@@ -38,6 +38,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   final _searchController = TextEditingController();
   final _focusNode = FocusNode();
   final _scrollController = ScrollController();
+  late final LocalSearchHistoryService _searchHistoryService;
 
   String _currentQuery = '';
   int _currentPage = 1;
@@ -55,7 +56,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   // 最近搜索记录
   List<String> _recentSearches = [];
-  bool _isLoadingRecentSearches = true;
   bool _isClearingRecentSearches = false;
 
   // 高级过滤器
@@ -70,9 +70,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void initState() {
     super.initState();
     _filter = widget.initialFilter ?? const SearchFilter();
-    PreloadedDataService().isAiSemanticSearchEnabled().then((enabled) {
-      if (mounted) setState(() => _siteAiSearchAvailable = enabled);
-    });
+    _searchHistoryService = LocalSearchHistoryService(
+      ref.read(sharedPreferencesProvider),
+    );
+    _recentSearches = _searchHistoryService.load();
+    _siteAiSearchAvailable =
+        PreloadedDataService()
+            .siteSettingsSync?['ai_embeddings_semantic_search_enabled'] ==
+        true;
     if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
       _searchController.text = widget.initialQuery!;
       _currentQuery = widget.initialQuery!;
@@ -82,55 +87,24 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     } else {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _focusNode.requestFocus();
-        _loadRecentSearches();
       });
     }
     _scrollController.addListener(_onScroll);
   }
 
-  /// 加载最近搜索记录
-  Future<void> _loadRecentSearches() async {
-    try {
-      final service = ref.read(discourseServiceProvider);
-      final searches = await service.getRecentSearches();
-      if (mounted) {
-        setState(() {
-          _recentSearches = searches;
-          _isLoadingRecentSearches = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoadingRecentSearches = false;
-        });
-      }
-    }
-  }
-
   /// 清空最近搜索记录
   Future<void> _clearRecentSearches() async {
     if (_isClearingRecentSearches) return;
-    setState(() => _isClearingRecentSearches = true);
+    setState(() {
+      _recentSearches = [];
+      _isClearingRecentSearches = true;
+    });
     try {
-      final service = ref.read(discourseServiceProvider);
-      await service.clearRecentSearches();
-      if (mounted) {
-        setState(() {
-          _recentSearches = [];
-          _isClearingRecentSearches = false;
-        });
-      }
-    } on DioException catch (_) {
-      // 网络错误已由 ErrorInterceptor 处理
-      if (mounted) {
-        setState(() => _isClearingRecentSearches = false);
-      }
-    } catch (e, s) {
-      AppErrorHandler.handleUnexpected(e, s);
-      if (mounted) {
-        setState(() => _isClearingRecentSearches = false);
-      }
+      await _searchHistoryService.clear();
+    } catch (_) {
+      // 本地清理失败不恢复已从当前会话移除的历史记录。
+    } finally {
+      if (mounted) setState(() => _isClearingRecentSearches = false);
     }
   }
 
@@ -154,6 +128,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void _onSearch(String query) {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return;
+    final recentSearches = mergeLocalSearchHistory(
+      existing: _recentSearches,
+      query: trimmed,
+      maxEntries: _searchHistoryService.maxEntries,
+    );
+    setState(() => _recentSearches = recentSearches);
+    unawaited(_searchHistoryService.save(recentSearches).catchError((_) {}));
     if (trimmed != _currentQuery || _allPosts.isEmpty) {
       setState(() {
         _currentQuery = trimmed;
@@ -643,11 +624,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   Widget _buildEmptyState(ThemeData theme) {
-    // 正在加载最近搜索记录
-    if (_isLoadingRecentSearches) {
-      return const Center(child: LoadingSpinner());
-    }
-
     // 有最近搜索记录时显示记录列表
     if (_recentSearches.isNotEmpty) {
       return ListView(

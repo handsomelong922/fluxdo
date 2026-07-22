@@ -32,22 +32,6 @@ mixin _SearchMixin on _DiscourseServiceBase {
     return SearchResult.fromJson(response.data);
   }
 
-  /// 获取最近搜索记录
-  Future<List<String>> getRecentSearches() async {
-    try {
-      final response = await _dio.get('/u/recent-searches.json');
-      final List<dynamic> searches = response.data['recent_searches'] ?? [];
-      return searches.cast<String>();
-    } catch (e) {
-      return [];
-    }
-  }
-
-  /// 清空最近搜索记录
-  Future<void> clearRecentSearches() async {
-    await _dio.delete('/u/recent-searches.json');
-  }
-
   /// 搜索标签
   ///
   /// [filterForInput] 为 true 时只返回当前分类允许的标签（创建话题用），
