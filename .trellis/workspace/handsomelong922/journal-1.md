@@ -546,3 +546,37 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 16: 修复相关帖子空值回归并统一详情入口
+
+**Date**: 2026-07-23
+**Task**: 修复相关帖子空值回归并统一详情入口
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+定位并修复 related_topics 单条 id=null 导致首页首帖预取、预览弹窗和详情加载失败的问题；新增共享逐条容错解析、首页预取/末页补取/统一入口回归测试，固化相关帖子和五类详情入口规范。完整 flutter analyze --no-pub 与 flutter test --no-pub（580 项）通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `13093115` | (see git log) |
+| `64ecc18b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
