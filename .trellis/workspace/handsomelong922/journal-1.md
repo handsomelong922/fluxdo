@@ -510,3 +510,39 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 15: 修复剩余卡顿 手势冲突并添加相关帖子
+
+**Date**: 2026-07-22
+**Task**: 修复剩余卡顿 手势冲突并添加相关帖子
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+根据新性能日志将首页深层回顶改为列表重建；协调详情右滑与文本选择、代码横向滚动及平台视图；接入网页端 related_topics 并按创建时间展示最多五条，完成全量 analyze 与 575 项测试。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9dd2732b` | (see git log) |
+| `c3ea63c7` | (see git log) |
+| `dc4e995b` | (see git log) |
+| `f543d6e0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
