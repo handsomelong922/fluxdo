@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/navigation/page_transition_preferences.dart';
+import 'package:fluxdo/services/navigation/horizontal_pop_gesture_blocker.dart';
 import 'package:fluxdo/services/navigation/pop_passthrough_material_page_route.dart';
 
 void main() {
@@ -547,6 +548,84 @@ void main() {
 
     expect(route.animation!.value, 1.0);
     expect(find.text('detail'), findsOneWidget);
+    expect(find.text('home'), findsNothing);
+  });
+
+  testWidgets('嵌套横向滚动获得手势时不会并行触发返回', (tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    final horizontalController = ScrollController(initialScrollOffset: 240);
+    addTearDown(horizontalController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const Text('home')),
+    );
+
+    final route = PopPassthroughMaterialPageRoute<void>(
+      enableHorizontalPopGesture: true,
+      builder: (_) => Scaffold(
+        body: ListView(
+          children: [
+            const SizedBox(height: 200),
+            SizedBox(
+              height: 120,
+              child: SingleChildScrollView(
+                key: const ValueKey('code-scroll'),
+                controller: horizontalController,
+                scrollDirection: Axis.horizontal,
+                child: const SizedBox(
+                  width: 1200,
+                  child: Text('long code line'),
+                ),
+              ),
+            ),
+            const SizedBox(height: 1000),
+          ],
+        ),
+      ),
+    );
+    navigatorKey.currentState!.push(route);
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('code-scroll'))),
+    );
+    await gesture.moveBy(const Offset(80, 0));
+    await tester.pump();
+    await gesture.moveBy(const Offset(80, 0));
+    await tester.pump();
+
+    expect(horizontalController.offset, lessThan(240));
+    expect(route.animation!.value, 1.0);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(find.text('long code line'), findsOneWidget);
+    expect(find.text('home'), findsNothing);
+  });
+
+  testWidgets('显式水平交互区会把整段 pointer 序列留给子内容', (tester) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const Text('home')),
+    );
+
+    final route = PopPassthroughMaterialPageRoute<void>(
+      enableHorizontalPopGesture: true,
+      additionalHorizontalPopGestureBlocker:
+          HorizontalPopGestureBlocker.activeListenable,
+      builder: (_) => const HorizontalPopGestureBlockerRegion(
+        child: SizedBox.expand(child: Text('interactive content')),
+      ),
+    );
+    navigatorKey.currentState!.push(route);
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.text('interactive content'), const Offset(520, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.text('interactive content'), findsOneWidget);
     expect(find.text('home'), findsNothing);
   });
 }

@@ -277,6 +277,7 @@ class _TopicPostListState extends State<TopicPostList> {
 
   @override
   void dispose() {
+    QuoteSelectionHelper.clearSelectionSource(this);
     _visiblePostUpdateTimer?.cancel();
     _autoReplyResumeTimer?.cancel();
     _autoLoadRepliesPausedNotifier.dispose();
@@ -986,7 +987,7 @@ class _TopicPostListState extends State<TopicPostList> {
       child: SelectionArea(
         onSelectionChanged: (content) {
           _lastLongPostSelectedContent = content;
-          QuoteSelectionHelper.updateSelectionActive(content?.plainText);
+          QuoteSelectionHelper.updateSelectionActive(this, content?.plainText);
           _lastLongCodeSelectionContext =
               CodeSelectionContextTracker.instance.current;
           if (content == null) {

@@ -16,12 +16,31 @@ class QuoteSelectionHelper {
 
   static final ValueNotifier<bool> selectionActiveListenable =
       ValueNotifier<bool>(false);
+  static final Set<Object> _activeSelectionSources = Set<Object>.identity();
 
   static bool get isSelectionActive => selectionActiveListenable.value;
 
-  static void updateSelectionActive(String? plainText) {
-    selectionActiveListenable.value =
-        plainText != null && plainText.trim().isNotEmpty;
+  static void updateSelectionActive(Object source, String? plainText) {
+    if (plainText != null && plainText.trim().isNotEmpty) {
+      _activeSelectionSources.add(source);
+    } else {
+      _activeSelectionSources.remove(source);
+    }
+    _syncSelectionActivity();
+  }
+
+  static void clearSelectionSource(Object source) {
+    _activeSelectionSources.remove(source);
+    _syncSelectionActivity();
+  }
+
+  static void resetSelectionActivity() {
+    _activeSelectionSources.clear();
+    _syncSelectionActivity();
+  }
+
+  static void _syncSelectionActivity() {
+    selectionActiveListenable.value = _activeSelectionSources.isNotEmpty;
   }
 
   static String buildQuoteSelectionText(

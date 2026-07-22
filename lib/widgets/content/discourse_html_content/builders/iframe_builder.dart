@@ -10,6 +10,7 @@ import '../../../../utils/url_helper.dart';
 import '../../../../pages/webview_page.dart';
 import '../../../../l10n/s.dart';
 import '../../../../services/navigation/app_route_observer.dart';
+import '../../../../services/navigation/horizontal_pop_gesture_blocker.dart';
 import '../../../../services/webview_settings.dart';
 import '../../../../services/windows_webview_environment_service.dart';
 
@@ -425,7 +426,7 @@ class _IframeWidgetState extends State<IframeWidget> with RouteAware {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: sizedContent,
+      child: HorizontalPopGestureBlockerRegion(child: sizedContent),
     );
   }
 

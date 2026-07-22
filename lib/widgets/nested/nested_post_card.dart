@@ -226,6 +226,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
 
   @override
   void dispose() {
+    QuoteSelectionHelper.clearSelectionSource(this);
     AutoReplyPrefetchQueue.instance.cancel(_autoChildLoadQueueKey);
     AutoReplyMaterializationQueue.instance.cancel(_autoMaterializationQueueKey);
     widget.autoLoadChildrenPausedListenable?.removeListener(
@@ -821,7 +822,10 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           topicId: widget.topicId,
           searchHighlightQuery: widget.searchHighlightQuery,
           onSelectionChanged: (content) {
-            QuoteSelectionHelper.updateSelectionActive(content?.plainText);
+            QuoteSelectionHelper.updateSelectionActive(
+              this,
+              content?.plainText,
+            );
           },
           onInternalLinkTap:
               (targetTopicId, topicSlug, postNumber, {initialNestedView}) {

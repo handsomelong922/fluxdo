@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/topic.dart';
 import '../../pages/topic_detail_page/topic_detail_page.dart';
 import '../../widgets/post/post_item/quote_selection_helper.dart';
+import 'horizontal_pop_gesture_blocker.dart';
 import 'pop_passthrough_material_page_route.dart';
 
 Route<T> buildTopicDetailRoute<T>({
@@ -43,6 +44,8 @@ Route<T> buildTopicDetailRoute<T>({
     settings: RouteSettings(name: 'topic_detail', arguments: routeArguments),
     enableHorizontalPopGesture: true,
     horizontalPopGestureBlocker: QuoteSelectionHelper.selectionActiveListenable,
+    additionalHorizontalPopGestureBlocker:
+        HorizontalPopGestureBlocker.activeListenable,
     builder: (_) => TopicDetailPage(
       topicId: topicId,
       initialTitle: initialTitle,

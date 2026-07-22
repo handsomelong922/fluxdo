@@ -463,6 +463,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   @override
   void initState() {
     super.initState();
+    QuoteSelectionHelper.resetSelectionActivity();
     WidgetsBinding.instance.addObserver(this);
     _seedTopicDetailPreviewCache();
     _isParentActive = widget.parentActive;
@@ -718,7 +719,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   void dispose() {
     _flushPendingTopicListSeenUpdate();
     _pendingTopicListSeenUpdateTimer?.cancel();
-    QuoteSelectionHelper.updateSelectionActive(null);
+    QuoteSelectionHelper.resetSelectionActivity();
     if (_route != null) {
       appRouteObserver.unsubscribe(this);
     }

@@ -121,6 +121,12 @@ class _PostItemState extends ConsumerState<PostItem> {
     }
   }
 
+  @override
+  void dispose() {
+    QuoteSelectionHelper.clearSelectionSource(this);
+    super.dispose();
+  }
+
   bool _isAcceptedAnswer(PostItem candidate) {
     return candidate.post.acceptedAnswer ||
         candidate.acceptedAnswers.any(
@@ -225,6 +231,7 @@ class _PostItemState extends ConsumerState<PostItem> {
                   onSelectionChanged: (content) {
                     _lastSelectedContent = content;
                     QuoteSelectionHelper.updateSelectionActive(
+                      this,
                       content?.plainText,
                     );
                     _lastCodeSelectionContext = content == null

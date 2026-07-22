@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -17,10 +19,12 @@ class PopPassthroughMaterialPageRoute<T> extends MaterialPageRoute<T> {
     super.directionalTraversalEdgeBehavior,
     this.enableHorizontalPopGesture = false,
     this.horizontalPopGestureBlocker,
+    this.additionalHorizontalPopGestureBlocker,
   });
 
   final bool enableHorizontalPopGesture;
   final ValueListenable<bool>? horizontalPopGestureBlocker;
+  final ValueListenable<bool>? additionalHorizontalPopGestureBlocker;
   final ValueNotifier<bool> _ignorePointersAfterPop = ValueNotifier(false);
   final ValueNotifier<bool> _horizontalPopGestureActive = ValueNotifier(false);
 
@@ -115,6 +119,10 @@ class PopPassthroughMaterialPageRoute<T> extends MaterialPageRoute<T> {
 
   AnimationController? get _horizontalPopAnimationController => controller;
 
+  bool get _horizontalPopGestureBlocked =>
+      horizontalPopGestureBlocker?.value == true ||
+      additionalHorizontalPopGestureBlocker?.value == true;
+
   Widget _buildHorizontalPageTransition(
     BuildContext context,
     Animation<double> animation,
@@ -166,32 +174,38 @@ class _HorizontalPopGestureDetectorState<T>
   int? _pointer;
   Offset? _initialPosition;
   Offset? _lastPosition;
+  Offset? _pendingActivationPosition;
   bool _active = false;
+  bool _activationScheduled = false;
+  bool _descendantHorizontalScrollActive = false;
   _HorizontalPopGestureController<T>? _popController;
 
   @override
   Widget build(BuildContext context) {
     final animation =
         widget.route.animation ?? const AlwaysStoppedAnimation<double>(1);
-    return AnimatedBuilder(
-      animation: Listenable.merge([
-        animation,
-        widget.route._ignorePointersAfterPop,
-      ]),
-      child: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: _handlePointerDown,
-        onPointerMove: _handlePointerMove,
-        onPointerUp: _handlePointerUp,
-        onPointerCancel: _handlePointerCancel,
-        child: widget.child,
+    return NotificationListener<ScrollNotification>(
+      onNotification: _handleDescendantScrollNotification,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([
+          animation,
+          widget.route._ignorePointersAfterPop,
+        ]),
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: _handlePointerDown,
+          onPointerMove: _handlePointerMove,
+          onPointerUp: _handlePointerUp,
+          onPointerCancel: _handlePointerCancel,
+          child: widget.child,
+        ),
+        builder: (context, child) {
+          final ignorePointers =
+              widget.route._ignorePointersAfterPop.value ||
+              animation.status == AnimationStatus.reverse;
+          return IgnorePointer(ignoring: ignorePointers, child: child);
+        },
       ),
-      builder: (context, child) {
-        final ignorePointers =
-            widget.route._ignorePointersAfterPop.value ||
-            animation.status == AnimationStatus.reverse;
-        return IgnorePointer(ignoring: ignorePointers, child: child);
-      },
     );
   }
 
@@ -199,12 +213,14 @@ class _HorizontalPopGestureDetectorState<T>
     if (!widget.route.popGestureEnabled || _pointer != null) {
       return;
     }
-    if (widget.route.horizontalPopGestureBlocker?.value == true) return;
+    if (widget.route._horizontalPopGestureBlocked) return;
 
     _pointer = event.pointer;
     _initialPosition = event.position;
     _lastPosition = event.position;
     _active = false;
+    _activationScheduled = false;
+    _descendantHorizontalScrollActive = false;
     _velocityTrackers[event.pointer] = VelocityTracker.withKind(event.kind)
       ..addPosition(event.timeStamp, event.position);
   }
@@ -217,10 +233,14 @@ class _HorizontalPopGestureDetectorState<T>
       event.position,
     );
 
-    if (widget.route.horizontalPopGestureBlocker?.value == true) {
+    if (widget.route._horizontalPopGestureBlocked) {
       if (_active) {
         _popController?.cancel();
       }
+      _resetPointer(event.pointer);
+      return;
+    }
+    if (_descendantHorizontalScrollActive) {
       _resetPointer(event.pointer);
       return;
     }
@@ -236,8 +256,8 @@ class _HorizontalPopGestureDetectorState<T>
       }
 
       if (!_shouldAccept(offset)) return;
-      _active = true;
-      _popController = _HorizontalPopGestureController<T>(route: widget.route);
+      _scheduleActivation(event.pointer, event.position);
+      return;
     }
 
     final previousPosition = _lastPosition ?? event.position;
@@ -272,6 +292,56 @@ class _HorizontalPopGestureDetectorState<T>
     _resetPointer(event.pointer);
   }
 
+  bool _handleDescendantScrollNotification(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.horizontal ||
+        notification.depth == 0) {
+      return false;
+    }
+
+    if (notification is ScrollStartNotification) {
+      final pointer = _pointer;
+      if (_active) {
+        _popController?.cancel();
+      }
+      if (pointer != null) {
+        _resetPointer(pointer);
+      }
+      _descendantHorizontalScrollActive = true;
+    } else if (notification is ScrollEndNotification) {
+      _descendantHorizontalScrollActive = false;
+    }
+    return false;
+  }
+
+  void _scheduleActivation(int pointer, Offset position) {
+    _pendingActivationPosition = position;
+    if (_activationScheduled) return;
+
+    _activationScheduled = true;
+    scheduleMicrotask(() {
+      _activationScheduled = false;
+      if (_pointer != pointer ||
+          _descendantHorizontalScrollActive ||
+          widget.route._horizontalPopGestureBlocked) {
+        return;
+      }
+
+      final initialPosition = _initialPosition;
+      final activationPosition = _pendingActivationPosition;
+      if (initialPosition == null || activationPosition == null) return;
+
+      _active = true;
+      _lastPosition = activationPosition;
+      _popController = _HorizontalPopGestureController<T>(route: widget.route);
+      final width = _screenWidth;
+      if (width > 0) {
+        _popController?.dragUpdate(
+          (activationPosition.dx - initialPosition.dx) / width,
+        );
+      }
+    });
+  }
+
   bool _shouldReject(Offset offset) {
     final dx = offset.dx;
     final dy = offset.dy.abs();
@@ -302,7 +372,9 @@ class _HorizontalPopGestureDetectorState<T>
     _pointer = null;
     _initialPosition = null;
     _lastPosition = null;
+    _pendingActivationPosition = null;
     _active = false;
+    _activationScheduled = false;
     _popController = null;
   }
 }
