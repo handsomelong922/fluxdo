@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/pages/topics_page.dart';
 
@@ -18,53 +19,116 @@ void main() {
     },
   );
 
-  group('homeScrollToTopStagingOffset', () {
-    test('把远距离回顶限制在两个 viewport 内', () {
+  group('homeScrollToTopAction', () {
+    test('远距离回顶重建滚动位置而不是跨越变高列表', () {
       expect(
-        homeScrollToTopStagingOffset(
+        homeScrollToTopAction(
           currentOffset: 5000,
           minScrollExtent: 0,
           maxScrollExtent: 6000,
           viewportDimension: 800,
         ),
-        1600,
+        HomeScrollToTopAction.remount,
       );
     });
 
-    test('距离顶部不超过两个 viewport 时保持单段动画', () {
+    test('距离顶部不超过两个 viewport 时保持短动画', () {
       expect(
-        homeScrollToTopStagingOffset(
+        homeScrollToTopAction(
           currentOffset: 1500,
           minScrollExtent: 0,
           maxScrollExtent: 6000,
           viewportDimension: 800,
         ),
-        isNull,
+        HomeScrollToTopAction.animate,
       );
     });
 
-    test('以实际最小滚动范围计算 staging offset', () {
+    test('以实际最小滚动范围计算远距离阈值', () {
       expect(
-        homeScrollToTopStagingOffset(
-          currentOffset: 5000,
+        homeScrollToTopAction(
+          currentOffset: 1701,
           minScrollExtent: 100,
           maxScrollExtent: 6000,
           viewportDimension: 800,
         ),
-        1700,
+        HomeScrollToTopAction.remount,
       );
     });
 
-    test('viewport 无效时不执行 staging', () {
+    test('无效几何不执行滚动', () {
       expect(
-        homeScrollToTopStagingOffset(
+        homeScrollToTopAction(
           currentOffset: 5000,
           minScrollExtent: 0,
           maxScrollExtent: 6000,
           viewportDimension: 0,
         ),
-        isNull,
+        HomeScrollToTopAction.none,
       );
     });
   });
+
+  testWidgets('remount 深层变高列表时只构建顶部有限项', (tester) async {
+    final controller = ScrollController();
+    final listKey = GlobalKey<_ResettableVariableListState>();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          height: 600,
+          child: _ResettableVariableList(key: listKey, controller: controller),
+        ),
+      ),
+    );
+
+    controller.jumpTo(controller.position.maxScrollExtent);
+    await tester.pump();
+    listKey.currentState!.resetBuildCount();
+
+    listKey.currentState!.remountAtTop();
+    await tester.pump();
+
+    expect(controller.offset, 0);
+    expect(listKey.currentState!.buildCount, lessThan(30));
+    expect(find.text('item-0'), findsOneWidget);
+  });
+}
+
+class _ResettableVariableList extends StatefulWidget {
+  const _ResettableVariableList({super.key, required this.controller});
+
+  final ScrollController controller;
+
+  @override
+  State<_ResettableVariableList> createState() =>
+      _ResettableVariableListState();
+}
+
+class _ResettableVariableListState extends State<_ResettableVariableList> {
+  int generation = 0;
+  int buildCount = 0;
+
+  void resetBuildCount() => buildCount = 0;
+
+  void remountAtTop() {
+    setState(() => generation++);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      key: homeTopicListPageStorageKey('test', generation),
+      controller: widget.controller,
+      itemCount: 400,
+      itemBuilder: (context, index) {
+        buildCount++;
+        return SizedBox(
+          height: 48 + (index % 5) * 13,
+          child: Text('item-$index'),
+        );
+      },
+    );
+  }
 }

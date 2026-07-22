@@ -89,10 +89,11 @@ const _collapsibleHeight = _searchBarHeight + _sortBarHeight; // 100
 const Duration _barSnapAnimationDuration = Duration(milliseconds: 220);
 const Curve _barSnapAnimationCurve = Curves.easeOutCubic;
 
-/// 计算长距离回顶时的 staging offset，避免变高列表沿途逐项物化。
-/// 返回 null 表示当前位置已经足够接近顶部，应直接执行短动画。
+enum HomeScrollToTopAction { none, animate, remount }
+
+/// 远距离变高列表不能通过 offset 跳转，否则 Sliver 会沿途物化 child。
 @visibleForTesting
-double? homeScrollToTopStagingOffset({
+HomeScrollToTopAction homeScrollToTopAction({
   required double currentOffset,
   required double minScrollExtent,
   required double maxScrollExtent,
@@ -105,38 +106,53 @@ double? homeScrollToTopStagingOffset({
       viewportDimension <= 0 ||
       maxScrollExtent <= minScrollExtent ||
       currentOffset <= minScrollExtent) {
-    return null;
+    return HomeScrollToTopAction.none;
   }
 
-  final stagingOffset = (minScrollExtent + viewportDimension * 2)
-      .clamp(minScrollExtent, maxScrollExtent)
-      .toDouble();
-  return currentOffset > stagingOffset ? stagingOffset : null;
+  final boundedAnimationEnd = minScrollExtent + viewportDimension * 2;
+  return currentOffset > boundedAnimationEnd
+      ? HomeScrollToTopAction.remount
+      : HomeScrollToTopAction.animate;
 }
 
-void _scrollControllerToTopWithStaging(
+@visibleForTesting
+PageStorageKey<String> homeTopicListPageStorageKey(
+  Object? providerKey,
+  int generation,
+) {
+  return PageStorageKey<String>(
+    'topics-tab-${providerKey?.toString() ?? 'all'}-$generation',
+  );
+}
+
+void _scrollControllerToTop(
   ScrollController controller, {
+  required VoidCallback remountAtTop,
   Duration duration = const Duration(milliseconds: 320),
   Curve curve = Curves.easeOutCubic,
 }) {
   if (!controller.hasClients || controller.positions.length != 1) return;
 
   final position = controller.position;
-  final stagingOffset = homeScrollToTopStagingOffset(
+  final action = homeScrollToTopAction(
     currentOffset: position.pixels,
     minScrollExtent: position.minScrollExtent,
     maxScrollExtent: position.maxScrollExtent,
     viewportDimension: position.viewportDimension,
   );
-  if (stagingOffset != null) {
-    position.jumpTo(stagingOffset);
+  switch (action) {
+    case HomeScrollToTopAction.none:
+      return;
+    case HomeScrollToTopAction.remount:
+      remountAtTop();
+      return;
+    case HomeScrollToTopAction.animate:
+      controller.animateTo(
+        position.minScrollExtent,
+        duration: duration,
+        curve: curve,
+      );
   }
-
-  controller.animateTo(
-    position.minScrollExtent,
-    duration: duration,
-    curve: curve,
-  );
 }
 
 @visibleForTesting
@@ -967,18 +983,10 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
   }
 
   void _scrollCurrentHomeListToTop() {
-    final primaryController = PrimaryScrollController.maybeOf(context);
-    if (primaryController != null &&
-        primaryController.hasClients &&
-        primaryController.positions.length == 1) {
-      _scrollControllerToTopWithStaging(primaryController);
-      return;
-    }
-
     if (_outerScrollController.hasClients &&
         _outerScrollController.positions.length == 1) {
       _outerScrollController.animateTo(
-        _outerScrollController.offset,
+        _outerScrollController.position.minScrollExtent,
         duration: const Duration(milliseconds: 320),
         curve: Curves.easeOutCubic,
       );
@@ -1367,6 +1375,7 @@ class _TopicList extends ConsumerStatefulWidget {
 class _TopicListState extends ConsumerState<_TopicList> {
   final _refreshIndicatorKey = GlobalKey<RefreshIndicatorState>();
   bool _isLoadingNewTopics = false;
+  int _scrollResetGeneration = 0;
   Timer? _resumeExcerptLoadingTimer;
   Timer? _pendingFabRefreshTimer;
 
@@ -1451,12 +1460,23 @@ class _TopicListState extends ConsumerState<_TopicList> {
     } catch (_) {}
   }
 
-  void _scrollActiveTopicListToTop() {
+  void _scrollActiveTopicListToTop({
+    Duration duration = const Duration(milliseconds: 320),
+    Curve curve = Curves.easeOutCubic,
+  }) {
     final controller = PrimaryScrollController.maybeOf(context);
     if (controller != null &&
         controller.hasClients &&
         controller.positions.length == 1) {
-      _scrollControllerToTopWithStaging(controller);
+      _scrollControllerToTop(
+        controller,
+        duration: duration,
+        curve: curve,
+        remountAtTop: () {
+          if (!mounted) return;
+          setState(() => _scrollResetGeneration++);
+        },
+      );
     }
   }
 
@@ -1605,6 +1625,12 @@ class _TopicListState extends ConsumerState<_TopicList> {
       ref.listen(topicListGlobalParamsSignal, (_, _) {
         _clearIncomingState();
       });
+      ref.listen(scrollToTopProvider, (_, _) {
+        _scrollActiveTopicListToTop();
+      });
+      ref.listen(refreshScrollToTopProvider, (_, _) {
+        _scrollActiveTopicListToTop();
+      });
     } else {
       // stale 时直接显示 loading，滑动动画中就能看到骨架屏
       final isStale = ref.watch(staleTabsProvider).contains(widget.categoryId);
@@ -1707,8 +1733,9 @@ class _TopicListState extends ConsumerState<_TopicList> {
                 return false;
               },
               child: ListView.builder(
-                key: PageStorageKey<String>(
-                  'topics-tab-${providerKey?.toString() ?? 'all'}',
+                key: homeTopicListPageStorageKey(
+                  providerKey,
+                  _scrollResetGeneration,
                 ),
                 findChildIndexCallback: (key) =>
                     topicChildIndexForKey(key, childIndexByTopicId),
@@ -1827,7 +1854,6 @@ class _TopicListState extends ConsumerState<_TopicList> {
     int count,
     int? providerKey,
   ) {
-    final scrollController = PrimaryScrollController.maybeOf(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: Material(
@@ -1869,13 +1895,10 @@ class _TopicListState extends ConsumerState<_TopicList> {
                         _highlightedTopicIds.removeAll(idsToRemove);
                         if (hadHighlights) setState(() {});
                       });
-                      if (scrollController != null) {
-                        _scrollControllerToTopWithStaging(
-                          scrollController,
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeOut,
-                        );
-                      }
+                      _scrollActiveTopicListToTop(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOut,
+                      );
                     }
                   } finally {
                     if (mounted) {
