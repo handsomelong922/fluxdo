@@ -1,0 +1,30 @@
+{
+  "id": "fix-residual-jank-gestures-related-topics",
+  "name": "fix-residual-jank-gestures-related-topics",
+  "title": "修复剩余卡顿 手势冲突并添加相关帖子",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "handsomelong922",
+  "assignee": "handsomelong922",
+  "createdAt": "2026-07-22",
+  "completedAt": "2026-07-22",
+  "branch": null,
+  "base_branch": "codex/rollback-to-v0.3.1",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-22-fix-residual-topic-jank",
+    "07-22-fix-topic-swipe-conflicts",
+    "07-22-add-related-topics"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
