@@ -322,6 +322,7 @@ Evidence:
 
 ### 2. Signatures
 - `TopicDetail.relatedTopics: List<Topic>?`
+- `parseRelatedTopics(Object? value) -> List<Topic>`
 - `GET /t/{topicId}/{postNumber}.json`
 - `DiscourseService.getRelatedTopics(topicId, {required postNumber})`
 - `selectRelatedTopics(topics, currentTopicId: ...) -> List<Topic>`
@@ -329,7 +330,12 @@ Evidence:
 ### 3. Contracts
 - Consume `related_topics` only; never substitute `suggested_topics`.
 - `TopicDetail.fromJson` uses `null` when the response omits `related_topics` and an empty list when
-  the server explicitly returns an empty list.
+  the server explicitly returns null, an empty list, or a non-list value.
+- Treat `related_topics` as optional external data. Parse each row independently: require a positive
+  integer `id` and a non-blank string `title`, skip non-map rows and rows with invalid field types,
+  and never let one malformed row fail the containing `TopicDetail`.
+- `TopicDetail.fromJson` and `DiscourseService.getRelatedTopics` must share
+  `parseRelatedTopics(...)`; do not duplicate strict `.map(Topic.fromJson)` pipelines.
 - Pagination `copyWith` operations preserve an existing related list when a later page omits the
   field. Once the post stream reaches its end and the list is still null, request the final-page
   endpoint once and merge its list without making comment loading fail.
@@ -340,6 +346,11 @@ Evidence:
 ### 4. Validation & Error Matrix
 - Missing field -> preserve existing data during merges; hide the related section if no data exists.
 - Explicit empty list -> store empty and hide the section without retrying.
+- Explicit null/non-list -> store empty and keep the topic body usable.
+- Mixed valid and malformed rows -> keep valid rows, skip malformed rows, and keep the topic body,
+  first-post preview, and preview dialog usable.
+- Row with null/missing/non-positive `id`, blank `title`, or an incompatible optional field type ->
+  skip that row; do not throw a type-cast error from the topic-detail request.
 - Final-page request failure -> keep loaded posts and hide only the related section.
 - Duplicate/current/blank items -> filter before sorting and truncating.
 - Equal or missing dates -> deterministic ID tie-breaker; null dates sort last.
@@ -347,27 +358,37 @@ Evidence:
 ### 5. Good/Base/Bad Cases
 - Good: initial topic data carries related topics, or the provider fills them after the final page,
   while the footer remains a pure rendering consumer.
+- Good: a response with one `{ "id": null }` row and one valid row still loads the post and displays
+  only the valid related title.
 - Base: a short topic reaches the end in its initial response and already has an explicit empty list.
 - Bad: display `suggested_topics`, request a cloud search endpoint, or replace a known list with null
   from an intermediate `/posts.json` response.
+- Bad: call `.map(Topic.fromJson)` directly on an optional related list, because one malformed row
+  then turns a non-critical footer into a fatal topic-detail error.
 
 ### 6. Tests Required
-- Model tests for omitted/empty/valid fields and `copyWith` preservation.
-- Service test for the exact final-page URL and `related_topics`/`suggested_topics` separation.
+- Model tests for omitted/null/non-list/empty/mixed/valid fields and `copyWith` preservation. The
+  mixed fixture must include the production failure shape `{ "id": null }` and assert the main post
+  remains available.
+- Service tests for the exact final-page URL, `related_topics`/`suggested_topics` separation, mixed
+  malformed rows, and `/t/{id}/1.json` first-post preview isolation.
 - Provider integration test for initial data -> final page -> related merge and failure isolation.
 - Widget tests for filtering, order, five-item cap, default expansion, empty hiding, and route tap.
 
 ### 7. Wrong vs Correct
 #### Wrong
 ```dart
-final suggestions = data['suggested_topics'] ?? data['related_topics'];
-detail = TopicDetail.fromJson(data); // later page can erase old related data
+final topics = (data['related_topics'] as List<dynamic>)
+    .map((item) => Topic.fromJson(item as Map<String, dynamic>))
+    .toList(); // one null id fails the whole detail
 ```
 
 #### Correct
 ```dart
 if (data.containsKey('related_topics')) {
-  detail = detail.copyWith(relatedTopics: parseRelatedTopics(data));
+  detail = detail.copyWith(
+    relatedTopics: parseRelatedTopics(data['related_topics']),
+  );
 }
 ```
 

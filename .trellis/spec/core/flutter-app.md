@@ -1043,6 +1043,11 @@ return _buildInteractiveLoadingPreview(
 - Search result cards may pass preview data and `scrollToPostNumber`; the preview accelerates first paint but must not cancel the search hit jump.
 - When an explicit search/bookmark target loads a post window that does not contain post 1, nested loading must keep using the independent initial-preview OP through `buildNestedLoadingPreviewState(...)`. Do not synthesize post 1 into the authoritative target `PostStream`, and do not replace the preview with a full-page skeleton while the nested provider is pending.
 - Any unified topic preview entry (home, bookmark, browsing history, or search) that actually rendered first-post HTML may seed that same first post before opening detail. Do not issue a second first-post-only request merely to hand off data already displayed in the preview.
+- Cross-cutting topic-detail features (including related topics, accepted answers, topic actions, and
+  footer metadata) belong to the shared `TopicDetailPage`/provider/widget path. Do not add them only
+  to a home/search/bookmark/history caller branch. A change is incomplete until home tap, preview
+  detail handoff, search, bookmarks, and browsing history have all been checked against the same
+  detail contract.
 - A preview seed is never a complete topic response: opening detail must still revalidate in the background to load replies and volatile metadata.
 - Restored reading state is a fallback only. Do not apply it when first-post preview is available and no explicit target was requested.
 - Loading replies, post windows, boosts, likes, or metadata must not replace the visible first-post preview with a global skeleton.
@@ -1061,6 +1066,10 @@ return _buildInteractiveLoadingPreview(
 - Long/complex first post -> dialog stops at the 85% maximum and the content area scrolls without overflow.
 - Async first-post arrival -> size changes through the configured ease-out `AnimatedSize`; no abrupt fixed-height swap.
 - Focused search field + preview open/close -> the field stays unfocused after pop and the software keyboard remains hidden.
+- Home `/t/{id}/1.json` preview contains malformed optional footer data -> keep the preview and main
+  post usable; opening detail still revalidates through the shared provider.
+- Home tap, preview detail handoff, search result, bookmark, and browsing-history entry -> preserve
+  each entry's explicit target/preview semantics while rendering the same loaded detail features.
 
 ### 5. Good/Base/Bad Cases
 - Good: home card preview opens with `scrollToPostNumber: null`, then replies append/load below.
@@ -1071,6 +1080,8 @@ return _buildInteractiveLoadingPreview(
 - Bad: treating every preview as permission to ignore `scrollToPostNumber`, or passing home `lastReadPostNumber` together with first-post preview.
 - Bad: forcing every preview to 85% height, measuring complex HTML intrinsically, or restoring a decorative strip on only one edge.
 - Bad: only calling `unfocus()` after the preview pops, or changing the global dialog route so unrelated editors can no longer restore focus.
+- Bad: validate a new detail feature from search only, or mount it in one caller page instead of the
+  shared detail rendering path.
 
 ### 6. Tests Required
 - Assert preview without explicit target resolves to first-post loading, not restored reading position.
@@ -1080,6 +1091,9 @@ return _buildInteractiveLoadingPreview(
 - Widget-test preview dialog minimum/maximum adaptive geometry, resize animation, metadata divider, and its single detail action; unit-test preview seeds always revalidate and may bootstrap explicit target routes until the target loads.
 - Widget-test a focused search `TextField` with visible test input, then open and close `SearchPreviewDialog`; assert focus and keyboard stay dismissed after pop.
 - Keep render identity tests stable across preview-to-real `post.id` handoff.
+- For every new cross-cutting detail feature, maintain an entry matrix covering home tap, preview
+  detail handoff, search, bookmarks, and browsing history. Pair the matrix with provider/widget
+  tests for the shared behavior; do not treat one successful entry as proof for the others.
 
 ### 7. Wrong vs Correct
 #### Wrong
