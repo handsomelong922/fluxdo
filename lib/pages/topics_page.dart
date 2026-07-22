@@ -89,6 +89,56 @@ const _collapsibleHeight = _searchBarHeight + _sortBarHeight; // 100
 const Duration _barSnapAnimationDuration = Duration(milliseconds: 220);
 const Curve _barSnapAnimationCurve = Curves.easeOutCubic;
 
+/// 计算长距离回顶时的 staging offset，避免变高列表沿途逐项物化。
+/// 返回 null 表示当前位置已经足够接近顶部，应直接执行短动画。
+@visibleForTesting
+double? homeScrollToTopStagingOffset({
+  required double currentOffset,
+  required double minScrollExtent,
+  required double maxScrollExtent,
+  required double viewportDimension,
+}) {
+  if (!currentOffset.isFinite ||
+      !minScrollExtent.isFinite ||
+      !maxScrollExtent.isFinite ||
+      !viewportDimension.isFinite ||
+      viewportDimension <= 0 ||
+      maxScrollExtent <= minScrollExtent ||
+      currentOffset <= minScrollExtent) {
+    return null;
+  }
+
+  final stagingOffset = (minScrollExtent + viewportDimension * 2)
+      .clamp(minScrollExtent, maxScrollExtent)
+      .toDouble();
+  return currentOffset > stagingOffset ? stagingOffset : null;
+}
+
+void _scrollControllerToTopWithStaging(
+  ScrollController controller, {
+  Duration duration = const Duration(milliseconds: 320),
+  Curve curve = Curves.easeOutCubic,
+}) {
+  if (!controller.hasClients || controller.positions.length != 1) return;
+
+  final position = controller.position;
+  final stagingOffset = homeScrollToTopStagingOffset(
+    currentOffset: position.pixels,
+    minScrollExtent: position.minScrollExtent,
+    maxScrollExtent: position.maxScrollExtent,
+    viewportDimension: position.viewportDimension,
+  );
+  if (stagingOffset != null) {
+    position.jumpTo(stagingOffset);
+  }
+
+  controller.animateTo(
+    position.minScrollExtent,
+    duration: duration,
+    curve: curve,
+  );
+}
+
 @visibleForTesting
 double homeLoadMoreTriggerDistance(double viewportDimension) {
   final base = viewportDimension * 1.75;
@@ -918,12 +968,10 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
 
   void _scrollCurrentHomeListToTop() {
     final primaryController = PrimaryScrollController.maybeOf(context);
-    if (primaryController != null && primaryController.hasClients) {
-      primaryController.animateTo(
-        0,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic,
-      );
+    if (primaryController != null &&
+        primaryController.hasClients &&
+        primaryController.positions.length == 1) {
+      _scrollControllerToTopWithStaging(primaryController);
       return;
     }
 
@@ -1405,12 +1453,10 @@ class _TopicListState extends ConsumerState<_TopicList> {
 
   void _scrollActiveTopicListToTop() {
     final controller = PrimaryScrollController.maybeOf(context);
-    if (controller != null && controller.hasClients) {
-      controller.animateTo(
-        0,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic,
-      );
+    if (controller != null &&
+        controller.hasClients &&
+        controller.positions.length == 1) {
+      _scrollControllerToTopWithStaging(controller);
     }
   }
 
@@ -1823,11 +1869,13 @@ class _TopicListState extends ConsumerState<_TopicList> {
                         _highlightedTopicIds.removeAll(idsToRemove);
                         if (hadHighlights) setState(() {});
                       });
-                      scrollController?.animateTo(
-                        0,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                      );
+                      if (scrollController != null) {
+                        _scrollControllerToTopWithStaging(
+                          scrollController,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                        );
+                      }
                     }
                   } finally {
                     if (mounted) {

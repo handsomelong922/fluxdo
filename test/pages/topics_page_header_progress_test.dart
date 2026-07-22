@@ -17,4 +17,54 @@ void main() {
       expect(homeLoadMoreTriggerDistance(1400), 1800);
     },
   );
+
+  group('homeScrollToTopStagingOffset', () {
+    test('把远距离回顶限制在两个 viewport 内', () {
+      expect(
+        homeScrollToTopStagingOffset(
+          currentOffset: 5000,
+          minScrollExtent: 0,
+          maxScrollExtent: 6000,
+          viewportDimension: 800,
+        ),
+        1600,
+      );
+    });
+
+    test('距离顶部不超过两个 viewport 时保持单段动画', () {
+      expect(
+        homeScrollToTopStagingOffset(
+          currentOffset: 1500,
+          minScrollExtent: 0,
+          maxScrollExtent: 6000,
+          viewportDimension: 800,
+        ),
+        isNull,
+      );
+    });
+
+    test('以实际最小滚动范围计算 staging offset', () {
+      expect(
+        homeScrollToTopStagingOffset(
+          currentOffset: 5000,
+          minScrollExtent: 100,
+          maxScrollExtent: 6000,
+          viewportDimension: 800,
+        ),
+        1700,
+      );
+    });
+
+    test('viewport 无效时不执行 staging', () {
+      expect(
+        homeScrollToTopStagingOffset(
+          currentOffset: 5000,
+          minScrollExtent: 0,
+          maxScrollExtent: 6000,
+          viewportDimension: 0,
+        ),
+        isNull,
+      );
+    });
+  });
 }
