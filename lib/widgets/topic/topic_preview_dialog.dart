@@ -633,6 +633,11 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
                   value: NumberUtils.formatCount(replyCount),
                   tooltip: S.current.topic_replyCount(replyCount),
                   alignment: Alignment.centerLeft,
+                  iconSize: 18,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  height: 22,
+                  foregroundColor: theme.colorScheme.primary,
                 ),
                 const SizedBox(height: 3),
                 _buildCompactStat(
@@ -694,12 +699,18 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
     required String value,
     required String tooltip,
     required Alignment alignment,
+    double iconSize = 13,
+    double fontSize = 10,
+    FontWeight? fontWeight,
+    double height = 16,
+    Color? foregroundColor,
   }) {
     final theme = Theme.of(context);
+    final color = foregroundColor ?? theme.colorScheme.onSurfaceVariant;
     return Tooltip(
       message: tooltip,
       child: SizedBox(
-        height: 16,
+        height: height,
         width: double.infinity,
         child: FittedBox(
           fit: BoxFit.scaleDown,
@@ -707,14 +718,15 @@ class _TopicPreviewDialogState extends ConsumerState<TopicPreviewDialog> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 13, color: theme.colorScheme.onSurfaceVariant),
+              Icon(icon, size: iconSize, color: color),
               const SizedBox(width: 3),
               Text(
                 value,
                 maxLines: 1,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 10,
+                  color: color,
+                  fontSize: fontSize,
+                  fontWeight: fontWeight,
                 ),
               ),
             ],

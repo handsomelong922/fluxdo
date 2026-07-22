@@ -75,6 +75,18 @@ void main() {
     expect(find.text('关闭'), findsNothing);
     expect(find.byIcon(Icons.share_outlined), findsNothing);
     expect(find.text('参与者'), findsNothing);
+
+    final replyText = tester.widget<Text>(find.text('7'));
+    final viewsText = tester.widget<Text>(find.text('321'));
+    final replyIcon = tester.widget<Icon>(
+      find.byIcon(Icons.chat_bubble_outline_rounded),
+    );
+    final viewsIcon = tester.widget<Icon>(
+      find.byIcon(Icons.visibility_outlined),
+    );
+    expect(replyText.style?.fontSize, greaterThan(viewsText.style!.fontSize!));
+    expect(replyText.style?.fontWeight, FontWeight.w700);
+    expect(replyIcon.size, greaterThan(viewsIcon.size!));
     expect(tester.takeException(), isNull);
   });
 
