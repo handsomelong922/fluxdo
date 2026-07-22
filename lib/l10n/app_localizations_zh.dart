@@ -3986,6 +3986,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sharedIssue_rateLimited => '操作太频繁，请稍后再试';
 
   @override
+  String get post_relatedTopics => '相关帖子';
+
+  @override
   String get preheat_logoutConfirm => '确定要退出当前账号吗？退出后将清除本地登录信息。';
 
   @override

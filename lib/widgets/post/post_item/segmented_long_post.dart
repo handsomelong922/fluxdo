@@ -216,6 +216,7 @@ class LongPostFooterSegment extends StatelessWidget {
   final bool highlight;
   final bool topicHasAcceptedAnswer;
   final List<AcceptedAnswer> acceptedAnswers;
+  final List<Topic>? relatedTopics;
   final String? bottomDateSeparatorLabel;
   final VoidCallback? onReply;
   final void Function(String initialContent)? onReplyWithInitialContent;
@@ -246,6 +247,7 @@ class LongPostFooterSegment extends StatelessWidget {
     this.highlightBoostUsername,
     required this.topicHasAcceptedAnswer,
     this.acceptedAnswers = const [],
+    this.relatedTopics,
     required this.bottomDateSeparatorLabel,
     required this.onReply,
     this.onReplyWithInitialContent,
@@ -298,6 +300,7 @@ class LongPostFooterSegment extends StatelessWidget {
               topicId: topicId,
               topicHasAcceptedAnswer: topicHasAcceptedAnswer,
               acceptedAnswers: acceptedAnswers,
+              relatedTopics: relatedTopics,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               highlightBoostUsername: highlightBoostUsername,
               onReply: onReply,

@@ -4084,6 +4084,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Too many actions, please try again later';
 
   @override
+  String get post_relatedTopics => 'Related topics';
+
+  @override
   String get preheat_logoutConfirm =>
       'Log out? This will clear local login data.';
 

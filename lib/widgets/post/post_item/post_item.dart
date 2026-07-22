@@ -34,6 +34,7 @@ class PostItem extends ConsumerStatefulWidget {
   final bool isTopicOwner;
   final bool topicHasAcceptedAnswer;
   final List<AcceptedAnswer> acceptedAnswers;
+  final List<Topic>? relatedTopics;
   final String? dateSeparatorLabel;
   final String? bottomDateSeparatorLabel;
   final void Function(String selectedText, Post post)? onQuoteSelection;
@@ -74,6 +75,7 @@ class PostItem extends ConsumerStatefulWidget {
     this.isTopicOwner = false,
     this.topicHasAcceptedAnswer = false,
     this.acceptedAnswers = const [],
+    this.relatedTopics,
     this.dateSeparatorLabel,
     this.bottomDateSeparatorLabel,
     this.onQuoteSelection,
@@ -310,6 +312,7 @@ class _PostItemState extends ConsumerState<PostItem> {
                 topicId: widget.topicId,
                 topicHasAcceptedAnswer: widget.topicHasAcceptedAnswer,
                 acceptedAnswers: widget.acceptedAnswers,
+                relatedTopics: widget.relatedTopics,
                 padding: const EdgeInsets.only(top: 12),
                 highlightBoostUsername: widget.highlightBoostUsername,
                 onReply: widget.onReply,

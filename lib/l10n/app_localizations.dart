@@ -7478,6 +7478,12 @@ abstract class AppLocalizations {
   /// **'操作太频繁，请稍后再试'**
   String get sharedIssue_rateLimited;
 
+  /// No description provided for @post_relatedTopics.
+  ///
+  /// In zh, this message translates to:
+  /// **'相关帖子'**
+  String get post_relatedTopics;
+
   /// No description provided for @preheat_logoutConfirm.
   ///
   /// In zh, this message translates to:

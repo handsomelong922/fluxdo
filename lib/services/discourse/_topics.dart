@@ -225,6 +225,26 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     return TopicDetail.fromJson(response.data);
   }
 
+  /// 获取网页端详情页的“相关”话题，不消费 `suggested_topics`。
+  Future<List<Topic>> getRelatedTopics(
+    int topicId, {
+    required int postNumber,
+  }) async {
+    final response = await _dio.get(
+      '/t/$topicId/$postNumber.json',
+      options: _backgroundReadOptions(background: true),
+    );
+    final data = response.data as Map<String, dynamic>;
+    final rawTopics = data['related_topics'];
+    if (rawTopics is! List<dynamic>) {
+      return const <Topic>[];
+    }
+    return rawTopics
+        .whereType<Map<String, dynamic>>()
+        .map(Topic.fromJson)
+        .toList(growable: false);
+  }
+
   /// 通过 slug 获取话题详情（返回真实的 topic ID）
   Future<TopicDetail> getTopicDetailBySlug(
     String slug, {

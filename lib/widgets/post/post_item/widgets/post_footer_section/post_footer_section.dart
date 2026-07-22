@@ -21,6 +21,7 @@ import '../../../../../services/network/exceptions/api_exception.dart';
 import '../../../../../services/notion/notion_bookmark_auto_sync.dart';
 import '../../../../../services/toast_service.dart';
 import '../../../post_links.dart';
+import '../../../related_topics.dart';
 import '../post_action_bar.dart';
 import '../../../../bookmark/bookmark_edit_sheet.dart';
 import '../../../../post/post_boost/boost_list.dart';
@@ -57,6 +58,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
   final int topicId;
   final bool topicHasAcceptedAnswer;
   final List<AcceptedAnswer> acceptedAnswers;
+  final List<Topic>? relatedTopics;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onReply;
   final void Function(String initialContent)? onReplyWithInitialContent;
@@ -101,6 +103,7 @@ class PostFooterSection extends ConsumerStatefulWidget {
     required this.topicId,
     required this.topicHasAcceptedAnswer,
     this.acceptedAnswers = const [],
+    this.relatedTopics,
     required this.padding,
     required this.onReply,
     this.onReplyWithInitialContent,
@@ -657,6 +660,11 @@ class _PostFooterSectionState extends ConsumerState<PostFooterSection> {
               preferencesProvider.select((p) => p.expandRelatedLinks),
             ),
           ),
+          if (widget.post.postNumber == 1)
+            RelatedTopics(
+              currentTopicId: widget.topicId,
+              topics: widget.relatedTopics,
+            ),
           if (widget.post.postNumber == 1 &&
               widget.topicHasAcceptedAnswer &&
               widget.acceptedAnswers.isNotEmpty)

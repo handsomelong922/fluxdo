@@ -156,5 +156,6 @@
   "sharedIssue_authorTitle": "You started this topic",
   "sharedIssue_marked": "Marked as me too",
   "sharedIssue_unmarked": "Removed me too",
-  "sharedIssue_rateLimited": "Too many actions, please try again later"
+  "sharedIssue_rateLimited": "Too many actions, please try again later",
+  "post_relatedTopics": "Related topics"
 }

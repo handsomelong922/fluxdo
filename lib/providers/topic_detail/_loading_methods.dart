@@ -153,6 +153,27 @@ extension LoadingMethods on TopicDetailNotifier {
     }
   }
 
+  Future<void> _loadRelatedTopicsAtEnd() async {
+    final currentDetail = state.value;
+    if (currentDetail == null || currentDetail.relatedTopics != null) {
+      return;
+    }
+    final posts = currentDetail.postStream.posts;
+    if (posts.isEmpty) return;
+
+    try {
+      final topics = await ref
+          .read(discourseServiceProvider)
+          .getRelatedTopics(arg.topicId, postNumber: posts.last.postNumber);
+      if (!ref.mounted) return;
+      final latest = state.value;
+      if (latest == null || latest.relatedTopics != null) return;
+      _setDataAndCache(latest.copyWith(relatedTopics: topics));
+    } catch (error) {
+      runtimeDebugPrint('[TopicDetail] 加载相关帖子失败: $error');
+    }
+  }
+
   /// 手动重试加载更早的帖子
   Future<void> retryLoadPrevious() async {
     _isLoadPreviousFailed = false;
@@ -242,6 +263,11 @@ extension LoadingMethods on TopicDetailNotifier {
         state = result;
         if (result.hasValue) {
           _cacheTopicDetail(result.requireValue);
+          if (!_hasMoreAfter &&
+              result.requireValue.relatedTopics == null &&
+              result.requireValue.postStream.posts.isNotEmpty) {
+            await _loadRelatedTopicsAtEnd();
+          }
         }
       }
     } finally {

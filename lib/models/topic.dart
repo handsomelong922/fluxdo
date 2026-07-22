@@ -1674,6 +1674,11 @@ class TopicDetail {
   final bool visible;
   final int? lastReadPostNumber; // 最后阅读的帖子编号（从 API 获取）
 
+  /// 网页端 `related_topics` 字段。
+  ///
+  /// null 表示当前响应没有携带该字段，空列表表示服务端明确无相关话题。
+  final List<Topic>? relatedTopics;
+
   // 投票相关字段
   final bool canVote; // 是否可以投票
   final int voteCount; // 投票数
@@ -1740,6 +1745,7 @@ class TopicDetail {
     this.createdAt,
     this.visible = true,
     this.lastReadPostNumber,
+    this.relatedTopics,
     this.canVote = false,
     this.voteCount = 0,
     this.userVoted = false,
@@ -1861,6 +1867,12 @@ class TopicDetail {
       createdAt: TimeUtils.parseUtcTime(json['created_at'] as String?),
       visible: json['visible'] as bool? ?? true,
       lastReadPostNumber: json['last_read_post_number'] as int?,
+      relatedTopics: json.containsKey('related_topics')
+          ? (json['related_topics'] as List<dynamic>? ?? const [])
+                .whereType<Map<String, dynamic>>()
+                .map(Topic.fromJson)
+                .toList(growable: false)
+          : null,
       canVote: json['can_vote'] as bool? ?? false,
       voteCount: json['vote_count'] as int? ?? 0,
       userVoted: json['user_voted'] as bool? ?? false,
@@ -1912,6 +1924,7 @@ class TopicDetail {
     DateTime? createdAt,
     bool? visible,
     int? lastReadPostNumber,
+    List<Topic>? relatedTopics,
     bool? canVote,
     int? voteCount,
     bool? userVoted,
@@ -1969,6 +1982,7 @@ class TopicDetail {
       createdAt: createdAt ?? this.createdAt,
       visible: visible ?? this.visible,
       lastReadPostNumber: lastReadPostNumber ?? this.lastReadPostNumber,
+      relatedTopics: relatedTopics ?? this.relatedTopics,
       canVote: canVote ?? this.canVote,
       voteCount: voteCount ?? this.voteCount,
       userVoted: userVoted ?? this.userVoted,
