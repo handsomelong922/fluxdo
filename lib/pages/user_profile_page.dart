@@ -38,6 +38,13 @@ import '../l10n/s.dart';
 import '../utils/dialog_utils.dart';
 import '../services/settings/content_filter_service.dart';
 
+const String _userProfileTopicsFilter = '4';
+
+int userProfileInitialTabIndex(List<String> tabFilters) {
+  final topicsIndex = tabFilters.indexOf(_userProfileTopicsFilter);
+  return topicsIndex < 0 ? 0 : topicsIndex;
+}
+
 /// 用户个人页
 class UserProfilePage extends ConsumerStatefulWidget {
   final String username;
@@ -90,7 +97,12 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    final initialTabIndex = userProfileInitialTabIndex(_tabFilters);
+    _tabController = TabController(
+      length: _tabFilters.length,
+      initialIndex: initialTabIndex,
+      vsync: this,
+    );
     _tabController.addListener(_onTabChanged);
     // 预先为所有 tab 设置 loading 状态，避免切换时闪现空状态
     for (final filter in _tabFilters) {
@@ -103,6 +115,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
       }
     }
     _loadUser();
+    _loadActions(_tabFilters[initialTabIndex]);
   }
 
   @override
