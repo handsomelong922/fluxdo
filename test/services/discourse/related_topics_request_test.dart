@@ -42,6 +42,15 @@ void main() {
       expect(topics.single.title, 'Related');
     },
   );
+
+  test('first-post preview ignores malformed related topics', () async {
+    final detail = await DiscourseService().getTopicFirstPostPreviewDetail(42);
+
+    expect(adapter.path, '/t/42/1.json');
+    expect(detail?.id, 42);
+    expect(detail?.postStream.posts.single.cooked, '<p>topic</p>');
+    expect(detail?.relatedTopics?.map((topic) => topic.id), [7]);
+  });
 }
 
 class _RelatedTopicsAdapter implements HttpClientAdapter {
@@ -54,20 +63,35 @@ class _RelatedTopicsAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     path = options.path;
+    if (options.path == '/t/42/1.json') {
+      return _jsonResponse({
+        'id': 42,
+        'title': 'Topic',
+        'slug': 'topic',
+        'posts_count': 1,
+        'category_id': 1,
+        'post_stream': {
+          'posts': [
+            {
+              'id': 101,
+              'post_number': 1,
+              'username': 'tester',
+              'cooked': '<p>topic</p>',
+            },
+          ],
+          'stream': [101],
+        },
+        'related_topics': [
+          {'id': null, 'title': 'Broken'},
+          _relatedTopicJson(),
+        ],
+      });
+    }
     return ResponseBody.fromString(
       jsonEncode({
         'related_topics': [
-          {
-            'id': 7,
-            'title': 'Related',
-            'slug': 'related',
-            'posts_count': 1,
-            'reply_count': 0,
-            'views': 0,
-            'like_count': 0,
-            'category_id': 1,
-            'created_at': '2026-07-01T00:00:00.000Z',
-          },
+          {'id': null, 'title': 'Broken'},
+          _relatedTopicJson(),
         ],
         'suggested_topics': [
           {
@@ -91,4 +115,28 @@ class _RelatedTopicsAdapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+
+  ResponseBody _jsonResponse(Map<String, dynamic> body) {
+    return ResponseBody.fromString(
+      jsonEncode(body),
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+}
+
+Map<String, dynamic> _relatedTopicJson() {
+  return {
+    'id': 7,
+    'title': 'Related',
+    'slug': 'related',
+    'posts_count': 1,
+    'reply_count': 0,
+    'views': 0,
+    'like_count': 0,
+    'category_id': 1,
+    'created_at': '2026-07-01T00:00:00.000Z',
+  };
 }

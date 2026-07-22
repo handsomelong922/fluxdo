@@ -17,6 +17,40 @@ void main() {
       expect(detail.relatedTopics, isEmpty);
     });
 
+    test('treats null and malformed related_topics as an empty list', () {
+      final nullDetail = TopicDetail.fromJson(_topicJson(relatedTopics: null));
+      final malformedDetail = TopicDetail.fromJson(
+        _topicJson(relatedTopics: const {'id': 7}),
+      );
+
+      expect(nullDetail.relatedTopics, isEmpty);
+      expect(malformedDetail.relatedTopics, isEmpty);
+    });
+
+    test('skips malformed related topics without failing the topic detail', () {
+      final detail = TopicDetail.fromJson(
+        _topicJson(
+          relatedTopics: [
+            {'id': null, 'title': 'Null id'},
+            {'title': 'Missing id'},
+            {'id': 0, 'title': 'Invalid id'},
+            {'id': 8, 'title': '   '},
+            {'id': 9, 'title': 'Invalid optional field', 'posts_count': '1'},
+            'not a topic',
+            _relatedTopicJson(
+              id: 7,
+              title: 'Related',
+              createdAt: '2026-07-01T00:00:00.000Z',
+            ),
+          ],
+        ),
+      );
+
+      expect(detail.id, 42);
+      expect(detail.postStream.posts.single.cooked, '<p>topic</p>');
+      expect(detail.relatedTopics?.map((topic) => topic.id), [7]);
+    });
+
     test('parses related_topics and ignores suggested_topics', () {
       final detail = TopicDetail.fromJson(
         _topicJson(
@@ -70,7 +104,7 @@ void main() {
 }
 
 Map<String, dynamic> _topicJson({
-  List<Map<String, dynamic>>? relatedTopics,
+  Object? relatedTopics = _missingField,
   List<Map<String, dynamic>>? suggestedTopics,
 }) {
   final json = <String, dynamic>{
@@ -91,7 +125,7 @@ Map<String, dynamic> _topicJson({
       'stream': [101],
     },
   };
-  if (relatedTopics != null) {
+  if (!identical(relatedTopics, _missingField)) {
     json['related_topics'] = relatedTopics;
   }
   if (suggestedTopics != null) {
@@ -99,6 +133,8 @@ Map<String, dynamic> _topicJson({
   }
   return json;
 }
+
+const Object _missingField = Object();
 
 Map<String, dynamic> _relatedTopicJson({
   required int id,

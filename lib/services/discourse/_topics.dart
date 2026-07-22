@@ -235,14 +235,7 @@ mixin _TopicsMixin on _DiscourseServiceBase {
       options: _backgroundReadOptions(background: true),
     );
     final data = response.data as Map<String, dynamic>;
-    final rawTopics = data['related_topics'];
-    if (rawTopics is! List<dynamic>) {
-      return const <Topic>[];
-    }
-    return rawTopics
-        .whereType<Map<String, dynamic>>()
-        .map(Topic.fromJson)
-        .toList(growable: false);
+    return parseRelatedTopics(data['related_topics']);
   }
 
   /// 通过 slug 获取话题详情（返回真实的 topic ID）

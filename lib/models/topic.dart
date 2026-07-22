@@ -396,6 +396,31 @@ class Topic {
   }
 }
 
+/// 容错解析详情响应中的官方 `related_topics` 列表。
+///
+/// 相关话题是详情页的附加数据，单条坏数据不应阻断主帖。
+List<Topic> parseRelatedTopics(Object? value) {
+  if (value is! List<dynamic>) return const <Topic>[];
+
+  final topics = <Topic>[];
+  for (final item in value) {
+    if (item is! Map<String, dynamic>) continue;
+
+    final id = item['id'];
+    final title = item['title'];
+    if (id is! int || id <= 0 || title is! String || title.trim().isEmpty) {
+      continue;
+    }
+
+    try {
+      topics.add(Topic.fromJson(item));
+    } on TypeError {
+      // 外部附加数据字段类型异常时只忽略当前条目。
+    }
+  }
+  return topics;
+}
+
 /// 链接点击统计
 class LinkCount {
   final String url;
@@ -1868,10 +1893,7 @@ class TopicDetail {
       visible: json['visible'] as bool? ?? true,
       lastReadPostNumber: json['last_read_post_number'] as int?,
       relatedTopics: json.containsKey('related_topics')
-          ? (json['related_topics'] as List<dynamic>? ?? const [])
-                .whereType<Map<String, dynamic>>()
-                .map(Topic.fromJson)
-                .toList(growable: false)
+          ? parseRelatedTopics(json['related_topics'])
           : null,
       canVote: json['can_vote'] as bool? ?? false,
       voteCount: json['vote_count'] as int? ?? 0,
