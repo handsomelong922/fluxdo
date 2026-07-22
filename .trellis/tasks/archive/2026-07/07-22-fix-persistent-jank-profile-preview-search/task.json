@@ -1,0 +1,31 @@
+{
+  "id": "fix-persistent-jank-profile-preview-search",
+  "name": "fix-persistent-jank-profile-preview-search",
+  "title": "修复持续卡顿并优化主页预览与搜索体验",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "handsomelong922",
+  "assignee": "handsomelong922",
+  "createdAt": "2026-07-22",
+  "completedAt": "2026-07-22",
+  "branch": null,
+  "base_branch": "codex/rollback-to-v0.3.1",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-22-fix-browse-session-jank",
+    "07-22-default-user-profile-topics",
+    "07-22-emphasize-preview-replies",
+    "07-22-instant-search-input"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
