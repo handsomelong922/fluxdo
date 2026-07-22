@@ -751,6 +751,138 @@ final excerpt = showExcerpt
     : null;
 ```
 
+## Scenario: Viewport-Bounded Home Scroll-To-Top
+
+### 1. Scope / Trigger
+- Trigger: changing a return-to-top action for the variable-height lazy home topic list,
+  including bottom-navigation reselect, incoming-topic actions, and tab-level refresh flows.
+
+### 2. Signatures
+- `homeScrollToTopStagingOffset(currentOffset, minScrollExtent, maxScrollExtent, viewportDimension) -> double?`
+- `_scrollControllerToTopWithStaging(ScrollController, {duration, curve})`
+
+### 3. Contracts
+- A return-to-top animation may traverse at most two viewport heights in the variable-height
+  home list. When the current offset is farther away, jump first to
+  `minScrollExtent + 2 * viewportDimension`, then animate the bounded remainder.
+- Short-distance return-to-top keeps the existing smooth animation without a staging jump.
+- All semantic home return-to-top entry points use the same helper. Do not leave one path
+  calling an unbounded `animateTo(minScrollExtent)` directly.
+- Staging preserves the loaded topic tail, pagination, card content, route stack, and cache
+  state. Do not truncate the list or clear global image/detail caches to make return-to-top
+  cheaper.
+- Invalid geometry, no attached position, or multiple attached positions must fail closed
+  without guessing which scroll position to move.
+
+### 4. Validation & Error Matrix
+- Current offset is more than two viewports from the top -> jump to the staging offset, then
+  animate only the final two viewports.
+- Current offset is within two viewports -> return `null` from the staging calculation and
+  keep one short animation.
+- Non-zero `minScrollExtent` -> calculate the staging offset relative to that minimum.
+- Non-finite values, zero/negative viewport, or collapsed extent -> do not stage.
+- Long session with hundreds of loaded topics -> return-to-top work remains bounded by the
+  viewport rather than growing with the total loaded item count.
+
+### 5. Good/Base/Bad Cases
+- Good: at 5000 px with an 800 px viewport, jump to 1600 px and animate to 0.
+- Base: at 1500 px with an 800 px viewport, animate directly to 0.
+- Bad: animate from 5000 px to 0 in a variable-height `ListView.builder`, forcing Flutter to
+  materialize many intermediate topic cards in one interaction.
+
+### 6. Tests Required
+- Unit-test far, near, non-zero-minimum, and invalid-viewport staging calculations.
+- Keep all home return-to-top call sites covered by a source or widget regression guard.
+- Keep topic identity, loaded-tail refresh, load-more, preview handoff, and full Flutter tests
+  green because staging must not change list data semantics.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+await controller.animateTo(
+  controller.position.minScrollExtent,
+  duration: const Duration(milliseconds: 320),
+  curve: Curves.easeOutCubic,
+);
+```
+
+#### Correct
+```dart
+_scrollControllerToTopWithStaging(controller);
+```
+
+## Scenario: Immediate Local-Only Search Entry
+
+### 1. Scope / Trigger
+- Trigger: changing `SearchPage.initState`, recent-search persistence, search-field focus, or
+  AI search capability discovery before the user submits a query.
+
+### 2. Signatures
+- `LocalSearchHistoryService(SharedPreferences, {maxEntries = 10})`
+- Storage key: `search_recent_queries_v1`
+- `LocalSearchHistoryService.load() -> List<String>`
+- `LocalSearchHistoryService.save(Iterable<String>) -> Future<void>`
+- `LocalSearchHistoryService.clear() -> Future<void>`
+
+### 3. Contracts
+- A search route opened without an initial query reads recent searches synchronously from
+  `SharedPreferences`, reads AI capability only from `PreloadedDataService.siteSettingsSync`,
+  and requests input focus in the first post-frame callback.
+- Opening an empty search page must not call forum recent-search, capability, or search
+  endpoints and must not replace the input surface with a history loading spinner.
+- Recent searches are device-local: trim whitespace, discard blanks, deduplicate
+  case-insensitively, keep newest first, and retain at most ten entries by default.
+- Clearing recent searches removes only the local storage key. Do not send a remote history
+  delete request.
+- A non-empty explicit initial query or user submit may run the normal forum search request.
+  Save the submitted query locally without delaying the field's initial readiness.
+
+### 4. Validation & Error Matrix
+- Empty search route + local history -> show the input and local entries immediately; zero
+  pre-input network requests.
+- Empty search route + no local history -> show the focused empty input immediately; no
+  spinner or empty-history request.
+- Duplicate query with different case or surrounding spaces -> keep one normalized newest
+  entry.
+- More than `maxEntries` local queries -> retain only the newest bounded list.
+- Local clear/save failure -> keep the current search UI usable; do not fall back to a cloud
+  history request.
+- Explicit initial query -> perform the real search after mount while preserving normal
+  result loading and error behavior.
+
+### 5. Good/Base/Bad Cases
+- Good: tap the home search field, type immediately, and contact the forum only after a query
+  is submitted.
+- Base: an explicit `initialQuery` starts the requested search after the route mounts.
+- Bad: enter search, await `/u/recent-searches.json` or an async capability request, and hide
+  the input state behind a full-page loading spinner.
+
+### 6. Tests Required
+- Unit-test synchronous load, trim, case-insensitive dedupe, newest-first ordering, maximum
+  size, persistence, and local clear.
+- Guard `SearchPage` entry against forum recent-search/clear calls, async capability lookup,
+  and history loading state; assert `siteSettingsSync` and first-frame focus remain.
+- Keep ordinary search, AI search, search preview, and full Flutter tests green.
+
+### 7. Wrong vs Correct
+#### Wrong
+```dart
+await discourseService.getRecentSearches();
+await discourseService.isAiSemanticSearchEnabled();
+```
+
+#### Correct
+```dart
+_recentSearches = LocalSearchHistoryService(prefs).load();
+_siteAiSearchAvailable =
+    PreloadedDataService()
+            .siteSettingsSync?['ai_embeddings_semantic_search_enabled'] ==
+        true;
+WidgetsBinding.instance.addPostFrameCallback((_) {
+  _focusNode.requestFocus();
+});
+```
+
 ## Scenario: Topic Post Author Header Labels
 
 ### 1. Scope / Trigger
