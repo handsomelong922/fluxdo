@@ -1680,3 +1680,153 @@ Evidence:
 - `lib/providers/topic_detail_provider.dart`
 - `test/pages/image_viewer_page_test.dart`
 - `test/services/topic_detail_cache_service_test.dart`
+
+## Scenario: Home Load-More Cursor Recovery
+
+### 1. Scope / Trigger
+
+- Trigger: changing home topic-list pagination, topic filtering/deduplication, load-more error
+  recovery, or the scroll/overscroll trigger that asks for another page.
+
+### 2. Signatures
+
+- `topicListPageAfterSuccessfulLoad(previousPage:, requestedPage:, mergedItemCount:, previousItemCount:) -> int`
+- `canRetryTopicListLoadMoreNow(failed:, requiresManualRetry:, retryAfter:, now:) -> bool`
+- `requiresManualTopicListLoadMoreRetry(Object error) -> bool`
+- `TopicListNotifier.loadMore()` / `retryLoadMore()`
+- `shouldTriggerHomeLoadMore(depth:, isScrollUpdate:, isOverscroll:, extentAfter:, viewportDimension:) -> bool`
+
+### 3. Contracts
+
+- A successful server response advances the remote page cursor to `requestedPage` even when local
+  filters or topic-id deduplication add zero visible rows. Visible growth is not proof of remote
+  cursor progress.
+- Cursor changes are monotonic within the active refresh generation; an invalid or stale requested
+  page cannot move the cursor backward.
+- Timeout, connection, and retryable 5xx failures enter a short timestamp-based cooldown. Do not
+  create a timer or send a request when the cooldown expires; a later user scroll/overscroll near
+  the bottom is the only automatic recovery trigger.
+- Authentication, permission, rate-limit, Cloudflare challenge, and deterministic parse failures
+  stay behind manual retry. Manual retry clears both cooldown and manual gates before awaiting the
+  same next-page request.
+- At an empty/short list boundary, `OverscrollNotification` is a valid user trigger because a normal
+  `ScrollUpdateNotification` may never occur.
+
+### 4. Validation & Error Matrix
+
+- Page 2 succeeds but every row is filtered/duplicate -> cursor becomes 2; next request is page 3.
+- Transient failure + user gesture before cooldown -> no request.
+- Transient failure + no user gesture after cooldown -> no background request.
+- Transient failure + new bottom gesture after cooldown -> one request.
+- 401/403/419/429 or Cloudflare challenge + repeated scrolling -> no request until manual retry.
+- Manual retry -> gate clears immediately and the current next page is awaited.
+- Nested scroll notification -> ignore; only depth 0 may trigger home pagination.
+
+### 5. Good/Base/Bad Cases
+
+- Good: an all-duplicate page advances the cursor, and a later overscroll loads the following page.
+- Base: a successful page appends visible topics and advances normally.
+- Bad: increment `_page` only when `merged.length > previous.length`, or use a timer to retry forum
+  access after a failure.
+
+### 6. Tests Required
+
+- Unit-test successful empty/duplicate-page cursor advancement and monotonic guards.
+- Unit-test transient/manual error classification and cooldown boundaries with injected time.
+- Test that cooldown expiry alone performs no request and a new scroll/overscroll does.
+- Test that manual retry is awaitable and clears every failure gate.
+- Keep refresh-generation and preserved-tail pagination regressions green.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```dart
+if (merged.length > previous.length) {
+  _page = requestedPage;
+}
+```
+
+#### Correct
+
+```dart
+_page = topicListPageAfterSuccessfulLoad(
+  previousPage: _page,
+  requestedPage: requestedPage,
+  mergedItemCount: merged.length,
+  previousItemCount: previous.length,
+);
+```
+
+## Scenario: High-Density Avatars And Heavy Picker Panels
+
+### 1. Scope / Trigger
+
+- Trigger: changing Boost reply rendering, grouped avatar stacks, animated-avatar policy, or emoji
+  panel mounting/cache extent on mobile and desktop.
+
+### 2. Signatures
+
+- `AvatarUrlPolicy.resolveStaticAvatarUrl(url, size:) -> String`
+- `shouldInitiallyShowBoostEmojiPanel(TargetPlatform platform) -> bool`
+- `emojiPickerCacheExtentForPlatform(TargetPlatform platform) -> double`
+- `SmartAvatar(imageUrl:, radius:, fallbackText:)`
+
+### 3. Contracts
+
+- High-density Boost avatar rows always pass a static avatar URL to `SmartAvatar`, for both single
+  Boost bubbles and grouped stacks. This local policy must not change the global avatar preference
+  semantics on ordinary profile/post surfaces.
+- Do not wrap each Boost avatar in a second avatar-policy `ValueListenableBuilder`; `SmartAvatar`
+  owns its normal image lifecycle, and duplicate listeners multiply rebuilds across dense lists.
+- Android/iOS Boost input initially mounts only the text controls. `EmojiPicker` enters the widget
+  tree only after the user explicitly opens it; desktop keeps the established initially-open panel.
+- Emoji grid offscreen construction is bounded by platform: about 160 logical pixels on mobile and
+  480 on desktop. A heavy panel may prefetch modestly, but must not decode hundreds of unseen images
+  during its first frame.
+
+### 4. Validation & Error Matrix
+
+- Dense Boost list with animated avatar templates -> rendered requests use static avatar URLs.
+- Grouped Boost stack -> every visible avatar uses the same static policy.
+- Mobile sheet opens -> no `EmojiPicker` or emoji image burst until the emoji action is tapped.
+- Desktop sheet opens -> picker remains present without an extra click.
+- Mobile user taps emoji action -> one picker mounts with the mobile cache extent.
+- Missing avatar template -> preserve `SmartAvatar` fallback text behavior.
+
+### 5. Good/Base/Bad Cases
+
+- Good: 100 Boost replies mount small static avatars while the unopened mobile emoji panel allocates
+  no emoji images.
+- Base: desktop opens the panel with a bounded larger scroll buffer.
+- Bad: globally disable animation for all avatars, nest one preference listener per Boost avatar, or
+  leave a large emoji grid mounted invisibly on mobile.
+
+### 6. Tests Required
+
+- Widget-test single and grouped Boost avatar URLs are static and avatar taps still work.
+- Widget-test mobile initial absence and explicit mounting of `EmojiPicker`.
+- Widget-test desktop initial presence.
+- Unit-test the exact mobile/desktop cache-extent policy.
+- Keep Boost text normalization, submission, fallback avatar, and ordinary avatar-preference tests
+  green.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```dart
+ValueListenableBuilder<int>(
+  valueListenable: AvatarUrlPolicy.revisionListenable,
+  builder: (_, __, ___) => SmartAvatar(imageUrl: animatedTemplate),
+);
+```
+
+#### Correct
+
+```dart
+SmartAvatar(
+  imageUrl: AvatarUrlPolicy.resolveStaticAvatarUrl(templateUrl, size: 48),
+  fallbackText: username,
+);
+```

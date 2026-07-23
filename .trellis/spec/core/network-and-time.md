@@ -317,14 +317,16 @@ Evidence:
 ## Scenario: Web-Equivalent Related Topics
 
 ### 1. Scope / Trigger
-- Trigger: adding or changing the topic-detail related-topic list, final-page pagination, or the
-  Discourse response fields consumed by that list.
+- Trigger: adding or changing the topic-detail related-topic list, optional detail-field completion,
+  final-page pagination, or the Discourse response fields consumed by that list.
 
 ### 2. Signatures
 - `TopicDetail.relatedTopics: List<Topic>?`
+- `TopicDetail.highestPostNumber: int`
 - `parseRelatedTopics(Object? value) -> List<Topic>`
 - `GET /t/{topicId}/{postNumber}.json`
 - `DiscourseService.getRelatedTopics(topicId, {required postNumber})`
+- `TopicRelatedTopicsLoader.load(topicId:, postNumber:, viewerKey:)`
 - `selectRelatedTopics(topics, currentTopicId: ...) -> List<Topic>`
 
 ### 3. Contracts
@@ -336,31 +338,50 @@ Evidence:
   and never let one malformed row fail the containing `TopicDetail`.
 - `TopicDetail.fromJson` and `DiscourseService.getRelatedTopics` must share
   `parseRelatedTopics(...)`; do not duplicate strict `.map(Topic.fromJson)` pipelines.
-- Pagination `copyWith` operations preserve an existing related list when a later page omits the
-  field. Once the post stream reaches its end and the list is still null, request the final-page
-  endpoint once and merge its list without making comment loading fail.
+- Pagination, refresh, and preview-to-full-detail merges preserve an existing related list when a
+  later response omits the field. Optional-field absence must never overwrite known data.
+- Return the main topic detail before completing a missing related list. After first content is
+  available, schedule one delayed low-priority background read using server
+  `highest_post_number` (fall back to `posts_count` only when absent). Reaching the final loaded post
+  may trigger the same loader as a fallback, but must not create a second request.
+- The related loader key includes viewer, topic id, and final post number. It shares in-flight work,
+  keeps successful empty/non-empty results in a bounded short-TTL LRU cache, and never caches
+  failures. It does not poll or retry by timer.
+- The optional request is silent and opts out of generic GET quick retry and 401 self-healing retry.
+  It still uses the shared request scheduler; it must not bypass rate limits or Cloudflare controls.
+- Skip background related completion for private messages and filtered detail modes.
 - The UI filters the current topic and blank titles, sorts by `created_at` descending, takes at most
-  five entries, starts expanded, and navigates through `buildTopicDetailRoute(...)`.
+  five entries, and starts expanded. Initial rendering displays title links only and performs no
+  navigation; only tapping a title pushes `buildTopicDetailRoute(...)`.
 - API `created_at` values are parsed with `TimeUtils.parseUtcTime()`; no direct `DateTime.parse`.
 
 ### 4. Validation & Error Matrix
-- Missing field -> preserve existing data during merges; hide the related section if no data exists.
+- Missing field in initial ordinary detail -> render the body first, then make at most one delayed
+  cache-governed final-page request and merge the result.
+- Missing field in a later refresh -> preserve the already loaded related list.
 - Explicit empty list -> store empty and hide the section without retrying.
 - Explicit null/non-list -> store empty and keep the topic body usable.
 - Mixed valid and malformed rows -> keep valid rows, skip malformed rows, and keep the topic body,
   first-post preview, and preview dialog usable.
 - Row with null/missing/non-positive `id`, blank `title`, or an incompatible optional field type ->
   skip that row; do not throw a type-cast error from the topic-detail request.
-- Final-page request failure -> keep loaded posts and hide only the related section.
+- Final-page request failure -> keep loaded posts and hide only the related section; do not enter a
+  page error state, rapid-retry, or cache the failure.
+- Concurrent same viewer/topic/final-post loads -> one network request and one shared result.
+- Different viewer or changed `highest_post_number` -> independent cache entries.
+- Private message or filtered detail -> no related completion request.
 - Duplicate/current/blank items -> filter before sorting and truncating.
 - Equal or missing dates -> deterministic ID tie-breaker; null dates sort last.
+- Initial related widget build -> five titles may be visible, but the route stack is unchanged.
+- User taps one related title -> push exactly that topic through the shared detail route.
 
 ### 5. Good/Base/Bad Cases
-- Good: initial topic data carries related topics, or the provider fills them after the final page,
-  while the footer remains a pure rendering consumer.
+- Good: the main post paints immediately, then a delayed deduplicated final-page read fills five
+  title links without opening any of them.
 - Good: a response with one `{ "id": null }` row and one valid row still loads the post and displays
   only the valid related title.
-- Base: a short topic reaches the end in its initial response and already has an explicit empty list.
+- Base: a short topic's initial response already carries an explicit empty list, so no background
+  completion request is needed.
 - Bad: display `suggested_topics`, request a cloud search endpoint, or replace a known list with null
   from an intermediate `/posts.json` response.
 - Bad: call `.map(Topic.fromJson)` directly on an optional related list, because one malformed row
@@ -372,8 +393,13 @@ Evidence:
   remains available.
 - Service tests for the exact final-page URL, `related_topics`/`suggested_topics` separation, mixed
   malformed rows, and `/t/{id}/1.json` first-post preview isolation.
-- Provider integration test for initial data -> final page -> related merge and failure isolation.
-- Widget tests for filtering, order, five-item cap, default expansion, empty hiding, and route tap.
+- Loader tests for in-flight reuse, viewer/final-post key isolation, TTL/LRU bounds, empty-result
+  caching, and failure non-caching.
+- Provider integration tests proving the main detail future completes before related loading,
+  `highest_post_number` is used, refresh omission preserves known data, and failures/private
+  messages/filtered modes are isolated.
+- Widget tests for filtering, order, five-item cap, default expansion, topic-change reset, empty
+  hiding, no route on initial render, and one shared-route push after an explicit title tap.
 
 ### 7. Wrong vs Correct
 #### Wrong
