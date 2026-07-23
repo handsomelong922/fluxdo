@@ -19,6 +19,29 @@ void main() {
     },
   );
 
+  test('home load-more also accepts a bottom overscroll event', () {
+    expect(
+      shouldTriggerHomeLoadMore(
+        depth: 0,
+        isScrollUpdate: false,
+        isOverscroll: true,
+        extentAfter: 0,
+        viewportDimension: 800,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldTriggerHomeLoadMore(
+        depth: 0,
+        isScrollUpdate: false,
+        isOverscroll: true,
+        extentAfter: 2000,
+        viewportDimension: 800,
+      ),
+      isFalse,
+    );
+  });
+
   group('homeScrollToTopAction', () {
     test('远距离回顶重建滚动位置而不是跨越变高列表', () {
       expect(

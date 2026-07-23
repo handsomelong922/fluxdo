@@ -47,6 +47,28 @@ void main() {
     expect(find.text('相关帖子'), findsNothing);
   });
 
+  testWidgets('initial rendering only shows titles and does not navigate', (
+    tester,
+  ) async {
+    final observer = _RecordingNavigatorObserver();
+    await tester.pumpWidget(
+      _app(
+        RelatedTopics(
+          currentTopicId: 42,
+          topics: [
+            _topic(7, 'Related title', DateTime.utc(2026, 7, 1)),
+            _topic(8, 'Another title', DateTime.utc(2026, 7, 2)),
+          ],
+        ),
+        navigatorObservers: [observer],
+      ),
+    );
+
+    expect(find.text('Related title'), findsOneWidget);
+    expect(find.text('Another title'), findsOneWidget);
+    expect(observer.topicDetailPushes, 0);
+  });
+
   testWidgets('opens the shared topic detail route', (tester) async {
     final observer = _RecordingNavigatorObserver();
     await tester.pumpWidget(
@@ -63,6 +85,35 @@ void main() {
 
     expect(observer.lastRoute?.settings.name, 'topic_detail');
     expect(observer.lastRoute?.settings.arguments, {'topicId': 7});
+  });
+
+  testWidgets('switching to another topic resets the section to expanded', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        RelatedTopics(
+          currentTopicId: 42,
+          topics: [_topic(7, 'First related', DateTime.utc(2026, 7, 1))],
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('相关帖子'));
+    await tester.pumpAndSettle();
+    expect(find.text('First related'), findsNothing);
+
+    await tester.pumpWidget(
+      _app(
+        RelatedTopics(
+          currentTopicId: 43,
+          topics: [_topic(8, 'Next related', DateTime.utc(2026, 7, 2))],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Next related'), findsOneWidget);
   });
 }
 
@@ -86,10 +137,12 @@ Widget _app(
 
 class _RecordingNavigatorObserver extends NavigatorObserver {
   Route<dynamic>? lastRoute;
+  int topicDetailPushes = 0;
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     lastRoute = route;
+    if (route.settings.name == 'topic_detail') topicDetailPushes++;
     super.didPush(route, previousRoute);
   }
 }

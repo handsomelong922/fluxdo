@@ -162,6 +162,19 @@ double homeLoadMoreTriggerDistance(double viewportDimension) {
 }
 
 @visibleForTesting
+bool shouldTriggerHomeLoadMore({
+  required int depth,
+  required bool isScrollUpdate,
+  required bool isOverscroll,
+  required double extentAfter,
+  required double viewportDimension,
+}) {
+  return depth == 0 &&
+      (isScrollUpdate || isOverscroll) &&
+      extentAfter <= homeLoadMoreTriggerDistance(viewportDimension);
+}
+
+@visibleForTesting
 double quantizeMobileHeaderProgress(
   double rawProgress, {
   required double threshold,
@@ -1528,15 +1541,9 @@ class _TopicListState extends ConsumerState<_TopicList> {
     final topic = topics[_keyboardFocusIndex];
     final initialFirstPostHtml = _resolveInitialTopicPreviewHtml(topic);
     // 强制用 Navigator push 打开（而非 Master-Detail 内选中）
-    Navigator.of(context).push(
-      buildTopicDetailRoute<void>(
-        topicId: topic.id,
-        initialTitle: topic.title,
-        scrollToPostNumber: _resolveInitialTopicScrollTarget(
-          topic,
-          initialFirstPostHtml,
-        ),
-        initialTopicPreview: topic,
+    unawaited(
+      _pushTopicDetail(
+        topic: topic,
         initialFirstPostHtml: initialFirstPostHtml,
       ),
     );
@@ -1562,19 +1569,36 @@ class _TopicListState extends ConsumerState<_TopicList> {
       return;
     }
 
-    Navigator.of(context).push(
-      buildTopicDetailRoute<void>(
-        topicId: topic.id,
-        initialTitle: topic.title,
-        scrollToPostNumber: _resolveInitialTopicScrollTarget(
-          topic,
-          initialFirstPostHtml,
-        ),
-        initialTopicPreview: topic,
+    unawaited(
+      _pushTopicDetail(
+        topic: topic,
         initialFirstPostHtml: initialFirstPostHtml,
         autoSwitchToMasterDetail: true,
       ),
     );
+  }
+
+  Future<void> _pushTopicDetail({
+    required Topic topic,
+    required String? initialFirstPostHtml,
+    bool autoSwitchToMasterDetail = false,
+  }) {
+    final pauseController = ref.read(homeTopicExcerptPauseControllerProvider);
+    return pauseController.runWhilePaused<void>(Object(), () async {
+      await Navigator.of(context).push(
+        buildTopicDetailRoute<void>(
+          topicId: topic.id,
+          initialTitle: topic.title,
+          scrollToPostNumber: _resolveInitialTopicScrollTarget(
+            topic,
+            initialFirstPostHtml,
+          ),
+          initialTopicPreview: topic,
+          initialFirstPostHtml: initialFirstPostHtml,
+          autoSwitchToMasterDetail: autoSwitchToMasterDetail,
+        ),
+      );
+    });
   }
 
   String? _resolveInitialTopicPreviewHtml(Topic topic) {
@@ -1722,12 +1746,13 @@ class _TopicListState extends ConsumerState<_TopicList> {
                     _setHomeExcerptLoadingPaused(false);
                   }
                 }
-                if (notification.depth == 0 &&
-                    notification is ScrollUpdateNotification &&
-                    notification.metrics.extentAfter <=
-                        homeLoadMoreTriggerDistance(
-                          notification.metrics.viewportDimension,
-                        )) {
+                if (shouldTriggerHomeLoadMore(
+                  depth: notification.depth,
+                  isScrollUpdate: notification is ScrollUpdateNotification,
+                  isOverscroll: notification is OverscrollNotification,
+                  extentAfter: notification.metrics.extentAfter,
+                  viewportDimension: notification.metrics.viewportDimension,
+                )) {
                   ref.read(topicListProvider(providerKey).notifier).loadMore();
                 }
                 return false;

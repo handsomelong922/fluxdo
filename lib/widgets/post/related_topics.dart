@@ -54,6 +54,14 @@ class _RelatedTopicsState extends State<RelatedTopics> {
   bool _expanded = true;
 
   @override
+  void didUpdateWidget(RelatedTopics oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentTopicId != widget.currentTopicId) {
+      _expanded = true;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final topics = selectRelatedTopics(
       widget.topics ?? const <Topic>[],

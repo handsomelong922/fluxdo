@@ -88,6 +88,22 @@ void main() {
       );
     });
 
+    test('honors the per-request automatic retry opt out', () {
+      final requestOptions = options('GET');
+      requestOptions.extra[disableAutomaticRetryExtraKey] = true;
+
+      expect(
+        shouldRetryDiscourseRequest(
+          DioException.connectionError(
+            requestOptions: requestOptions,
+            reason: 'socket closed',
+          ),
+          1,
+        ),
+        isFalse,
+      );
+    });
+
     test('does not retry definitive failures', () {
       expect(
         shouldRetryDiscourseRequest(

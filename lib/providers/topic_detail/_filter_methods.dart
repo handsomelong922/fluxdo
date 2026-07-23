@@ -92,6 +92,7 @@ extension FilterMethods on TopicDetailNotifier {
 
   /// 取消过滤并跳转到指定帖子
   Future<void> cancelFilterAndReloadWithPostNumber(int postNumber) async {
+    final previousDetail = state.value;
     _filter = null;
     _usernameFilter = null;
     _filterTopLevelReplies = false;
@@ -112,7 +113,10 @@ extension FilterMethods on TopicDetailNotifier {
         usernameFilters: _usernameFilter,
       );
 
-      final filteredDetail = _applyUserFilter(detail);
+      final filteredDetail = preserveRelatedTopicsOnRefresh(
+        current: previousDetail,
+        incoming: _applyUserFilter(detail),
+      );
       _updateBoundaryState(
         filteredDetail.postStream.posts,
         filteredDetail.postStream.stream,
@@ -129,6 +133,7 @@ extension FilterMethods on TopicDetailNotifier {
 
   /// 使用当前 filter 重新加载数据
   Future<void> _reloadWithFilter() async {
+    final previousDetail = state.value;
     state = const AsyncValue.loading();
     _hasMoreAfter = true;
     _hasMoreBefore = true;
@@ -144,7 +149,10 @@ extension FilterMethods on TopicDetailNotifier {
         filterTopLevelReplies: _filterTopLevelReplies,
       );
 
-      final filteredDetail = _applyUserFilter(detail);
+      final filteredDetail = preserveRelatedTopicsOnRefresh(
+        current: previousDetail,
+        incoming: _applyUserFilter(detail),
+      );
       _updateBoundaryState(
         filteredDetail.postStream.posts,
         filteredDetail.postStream.stream,

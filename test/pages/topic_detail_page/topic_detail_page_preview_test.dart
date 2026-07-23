@@ -11,6 +11,7 @@ void main() {
         title: '原始标题',
         slug: 'sample-topic',
         postsCount: 8,
+        highestPostNumber: 11,
         replyCount: 7,
         views: 321,
         likeCount: 12,
@@ -41,6 +42,7 @@ void main() {
       expect(preview.id, 42);
       expect(preview.title, '详情页标题');
       expect(preview.postsCount, 8);
+      expect(preview.highestPostNumber, 11);
       expect(preview.views, 321);
       expect(preview.likeCount, 12);
       expect(preview.categoryId, 9);

@@ -1688,6 +1688,7 @@ class TopicDetail {
   final String title;
   final String slug;
   final int postsCount;
+  final int highestPostNumber;
   final PostStream postStream;
   final int categoryId;
   final bool closed;
@@ -1760,6 +1761,7 @@ class TopicDetail {
     required this.title,
     required this.slug,
     required this.postsCount,
+    int? highestPostNumber,
     required this.postStream,
     required this.categoryId,
     required this.closed,
@@ -1793,7 +1795,8 @@ class TopicDetail {
     bool hasAcceptedAnswer = false,
     int? acceptedAnswerPostNumber,
     List<AcceptedAnswer> acceptedAnswers = const [],
-  }) : acceptedAnswers =
+  }) : highestPostNumber = highestPostNumber ?? postsCount,
+       acceptedAnswers =
            acceptedAnswers.isNotEmpty || acceptedAnswerPostNumber == null
            ? List.unmodifiable(acceptedAnswers)
            : List.unmodifiable([
@@ -1880,6 +1883,10 @@ class TopicDetail {
       title: json['title'] as String? ?? '',
       slug: json['slug'] as String? ?? '',
       postsCount: json['posts_count'] as int? ?? 0,
+      highestPostNumber: _intFrom(json, const [
+        'highest_post_number',
+        'posts_count',
+      ]),
       postStream: postStream,
       categoryId: json['category_id'] as int? ?? 0,
       closed: json['closed'] as bool? ?? false,
@@ -1936,6 +1943,7 @@ class TopicDetail {
     String? title,
     String? slug,
     int? postsCount,
+    int? highestPostNumber,
     PostStream? postStream,
     int? categoryId,
     bool? closed,
@@ -1994,6 +2002,7 @@ class TopicDetail {
       title: title ?? this.title,
       slug: slug ?? this.slug,
       postsCount: postsCount ?? this.postsCount,
+      highestPostNumber: highestPostNumber ?? this.highestPostNumber,
       postStream: postStream ?? this.postStream,
       categoryId: categoryId ?? this.categoryId,
       closed: closed ?? this.closed,

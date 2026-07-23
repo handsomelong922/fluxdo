@@ -139,6 +139,47 @@ void main() {
     },
   );
 
+  test(
+    'runWhilePaused acquires before the action and releases in finally',
+    () async {
+      final loader = HomeTopicExcerptLoader(
+        minRequestInterval: Duration.zero,
+        fetchPreview: (topicId) async => _previewDetail(topicId),
+      );
+      final container = ProviderContainer(
+        overrides: [homeTopicExcerptLoaderProvider.overrideWithValue(loader)],
+      );
+      addTearDown(loader.dispose);
+      addTearDown(container.dispose);
+      final controller = container.read(
+        homeTopicExcerptPauseControllerProvider,
+      );
+      final release = Completer<void>();
+
+      final result = controller.runWhilePaused<int>(Object(), () async {
+        expect(controller.isPaused, isTrue);
+        expect(container.read(homeTopicExcerptPausedProvider), isTrue);
+        await release.future;
+        return 7;
+      });
+
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.isPaused, isTrue);
+      release.complete();
+      expect(await result, 7);
+      expect(controller.isPaused, isFalse);
+      expect(container.read(homeTopicExcerptPausedProvider), isFalse);
+
+      await expectLater(
+        controller.runWhilePaused<void>(Object(), () async {
+          throw StateError('route failed');
+        }),
+        throwsStateError,
+      );
+      expect(controller.isPaused, isFalse);
+    },
+  );
+
   test('HomeTopicExcerptLoader spaces queued requests', () async {
     final starts = <DateTime>[];
     final loader = HomeTopicExcerptLoader(

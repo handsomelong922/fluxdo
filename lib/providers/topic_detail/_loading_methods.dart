@@ -153,27 +153,6 @@ extension LoadingMethods on TopicDetailNotifier {
     }
   }
 
-  Future<void> _loadRelatedTopicsAtEnd() async {
-    final currentDetail = state.value;
-    if (currentDetail == null || currentDetail.relatedTopics != null) {
-      return;
-    }
-    final posts = currentDetail.postStream.posts;
-    if (posts.isEmpty) return;
-
-    try {
-      final topics = await ref
-          .read(discourseServiceProvider)
-          .getRelatedTopics(arg.topicId, postNumber: posts.last.postNumber);
-      if (!ref.mounted) return;
-      final latest = state.value;
-      if (latest == null || latest.relatedTopics != null) return;
-      _setDataAndCache(latest.copyWith(relatedTopics: topics));
-    } catch (error) {
-      runtimeDebugPrint('[TopicDetail] 加载相关帖子失败: $error');
-    }
-  }
-
   /// 手动重试加载更早的帖子
   Future<void> retryLoadPrevious() async {
     _isLoadPreviousFailed = false;
@@ -266,7 +245,7 @@ extension LoadingMethods on TopicDetailNotifier {
           if (!_hasMoreAfter &&
               result.requireValue.relatedTopics == null &&
               result.requireValue.postStream.posts.isNotEmpty) {
-            await _loadRelatedTopicsAtEnd();
+            await _loadRelatedTopics();
           }
         }
       }
@@ -403,6 +382,7 @@ extension LoadingMethods on TopicDetailNotifier {
 
   /// 使用新的起始帖子号重新加载数据
   Future<void> reloadWithPostNumber(int postNumber) async {
+    final previousDetail = state.value;
     state = const AsyncValue.loading();
     _hasMoreAfter = true;
     _hasMoreBefore = true;
@@ -421,7 +401,10 @@ extension LoadingMethods on TopicDetailNotifier {
         filterTopLevelReplies: _filterTopLevelReplies,
       );
 
-      final filteredDetail = _applyUserFilter(detail);
+      final filteredDetail = preserveRelatedTopicsOnRefresh(
+        current: previousDetail,
+        incoming: _applyUserFilter(detail),
+      );
       _updateBoundaryState(
         filteredDetail.postStream.posts,
         filteredDetail.postStream.stream,
@@ -439,6 +422,7 @@ extension LoadingMethods on TopicDetailNotifier {
   /// 刷新当前话题详情（保持列表可见）
   Future<void> refreshWithPostNumber(int postNumber) async {
     if (state.isLoading) return;
+    final previousDetail = state.value;
     _isLoadMoreFailed = false;
     _isLoadPreviousFailed = false;
 
@@ -454,7 +438,10 @@ extension LoadingMethods on TopicDetailNotifier {
         usernameFilters: _usernameFilter,
       );
 
-      final filteredDetail = _applyUserFilter(detail);
+      final filteredDetail = preserveRelatedTopicsOnRefresh(
+        current: state.value ?? previousDetail,
+        incoming: _applyUserFilter(detail),
+      );
       _updateBoundaryState(
         filteredDetail.postStream.posts,
         filteredDetail.postStream.stream,

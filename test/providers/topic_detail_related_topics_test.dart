@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fluxdo/models/topic.dart';
 import 'package:fluxdo/providers/theme_provider.dart';
 import 'package:fluxdo/providers/topic_detail_provider.dart';
 import 'package:fluxdo/services/discourse/discourse_service.dart';
@@ -34,46 +36,105 @@ void main() {
       ..addAll(originalInterceptors);
   });
 
-  test('loads related topics after reaching the final post page', () async {
-    final preferences = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
-      overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
-    );
+  test(
+    'loads related topics after the initial body without blocking it',
+    () async {
+      final container = await _container(delay: Duration.zero);
+      addTearDown(container.dispose);
+      const params = TopicDetailParams(42, instanceId: 'initial-related');
+      final subscription = container.listen(
+        topicDetailProvider(params),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      final initial = await container.read(topicDetailProvider(params).future);
+
+      expect(initial.postStream.posts.single.cooked, '<p>post 1</p>');
+      expect(initial.relatedTopics, isNull);
+      expect(initial.highestPostNumber, 9);
+
+      await adapter.relatedRequestStarted.future.timeout(
+        const Duration(seconds: 1),
+      );
+      expect(adapter.paths, contains('/t/42/9.json'));
+      expect(
+        container.read(topicDetailProvider(params)).requireValue.relatedTopics,
+        isNull,
+      );
+
+      adapter.releaseRelatedResponse.complete();
+      await _waitUntil(
+        () =>
+            container
+                .read(topicDetailProvider(params))
+                .value
+                ?.relatedTopics
+                ?.isNotEmpty ==
+            true,
+      );
+
+      final loaded = container.read(topicDetailProvider(params)).requireValue;
+      expect(loaded.relatedTopics?.map((topic) => topic.id), [7]);
+    },
+  );
+
+  test(
+    'does not request again when the initial response carries an empty list',
+    () async {
+      adapter.includeInitialRelatedTopics = true;
+      final container = await _container(delay: Duration.zero);
+      addTearDown(container.dispose);
+      const params = TopicDetailParams(42, instanceId: 'explicit-empty');
+
+      final detail = await container.read(topicDetailProvider(params).future);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(detail.relatedTopics, isEmpty);
+      expect(adapter.paths.where((path) => path == '/t/42/9.json'), isEmpty);
+    },
+  );
+
+  test(
+    'keeps the initial body when the optional related request fails',
+    () async {
+      adapter.failRelatedRequest = true;
+      final container = await _container(delay: Duration.zero);
+      addTearDown(container.dispose);
+      const params = TopicDetailParams(42, instanceId: 'related-failure');
+
+      await container.read(topicDetailProvider(params).future);
+      await adapter.relatedRequestStarted.future.timeout(
+        const Duration(seconds: 1),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      final detail = container.read(topicDetailProvider(params)).requireValue;
+      expect(detail.postStream.posts.single.cooked, '<p>post 1</p>');
+      expect(detail.relatedTopics, isNull);
+    },
+  );
+
+  test('skips background related requests for private messages', () async {
+    adapter.privateMessage = true;
+    final container = await _container(delay: Duration.zero);
     addTearDown(container.dispose);
-    const params = TopicDetailParams(42, instanceId: 'related-topics-test');
-    final subscription = container.listen(
-      topicDetailProvider(params),
-      (_, _) {},
-      fireImmediately: true,
-    );
-    addTearDown(subscription.close);
+    const params = TopicDetailParams(42, instanceId: 'private-message');
 
-    final initial = await container.read(topicDetailProvider(params).future);
-    expect(initial.relatedTopics, isNull);
-    expect(initial.postStream.posts.map((post) => post.postNumber), [1]);
+    final detail = await container.read(topicDetailProvider(params).future);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
 
-    await container.read(topicDetailProvider(params).notifier).loadMore();
-
-    final loaded = container.read(topicDetailProvider(params)).requireValue;
-    expect(loaded.postStream.posts.map((post) => post.postNumber), [1, 2, 3]);
-    expect(loaded.relatedTopics?.map((topic) => topic.id), [7]);
-    expect(
-      adapter.paths,
-      containsAllInOrder(['/t/42.json', '/t/42/posts.json', '/t/42/3.json']),
-    );
+    expect(detail.isPrivateMessage, isTrue);
+    expect(adapter.paths.where((path) => path == '/t/42/9.json'), isEmpty);
   });
 
-  test('keeps final posts when the related request fails', () async {
-    adapter.failRelatedRequest = true;
-    final preferences = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
-      overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
-    );
+  test('reaching the final page remains a fallback trigger', () async {
+    adapter.highestPostNumber = 3;
+    adapter.stream = const [101, 102, 103];
+    final container = await _container(delay: const Duration(days: 1));
     addTearDown(container.dispose);
-    const params = TopicDetailParams(
-      42,
-      instanceId: 'related-topics-failure-test',
-    );
+    const params = TopicDetailParams(42, instanceId: 'final-page-fallback');
     final subscription = container.listen(
       topicDetailProvider(params),
       (_, _) {},
@@ -82,27 +143,46 @@ void main() {
     addTearDown(subscription.close);
 
     await container.read(topicDetailProvider(params).future);
+    adapter.releaseRelatedResponse.complete();
     await container.read(topicDetailProvider(params).notifier).loadMore();
 
     final loaded = container.read(topicDetailProvider(params)).requireValue;
     expect(loaded.postStream.posts.map((post) => post.postNumber), [1, 2, 3]);
-    expect(loaded.relatedTopics, isNull);
+    expect(loaded.relatedTopics?.map((topic) => topic.id), [7]);
     expect(adapter.paths, contains('/t/42/3.json'));
+  });
+
+  test('refresh data that omits the field preserves loaded related topics', () {
+    final current = TopicDetail.fromJson(
+      _topicDetailJson(relatedTopics: [_relatedTopicJson()]),
+    );
+    final refreshed = TopicDetail.fromJson(_topicDetailJson());
+
+    final merged = preserveRelatedTopicsOnRefresh(
+      current: current,
+      incoming: refreshed,
+    );
+
+    expect(merged.relatedTopics?.map((topic) => topic.id), [7]);
   });
 }
 
-Map<String, dynamic> _topicDetail() {
-  return {
-    'id': 42,
-    'title': 'Topic',
-    'slug': 'topic',
-    'posts_count': 3,
-    'category_id': 1,
-    'post_stream': {
-      'posts': [_post(1)],
-      'stream': [101, 102, 103],
-    },
-  };
+Future<ProviderContainer> _container({required Duration delay}) async {
+  final preferences = await SharedPreferences.getInstance();
+  return ProviderContainer(
+    overrides: [
+      sharedPreferencesProvider.overrideWithValue(preferences),
+      topicRelatedTopicsLoadDelayProvider.overrideWithValue(delay),
+    ],
+  );
+}
+
+Future<void> _waitUntil(bool Function() condition) async {
+  for (var attempt = 0; attempt < 100; attempt++) {
+    if (condition()) return;
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+  fail('condition was not met');
 }
 
 Map<String, dynamic> _post(int postNumber) {
@@ -117,9 +197,34 @@ Map<String, dynamic> _post(int postNumber) {
   };
 }
 
+Map<String, dynamic> _topicDetailJson({
+  List<Map<String, dynamic>>? relatedTopics,
+}) {
+  final body = <String, dynamic>{
+    'id': 42,
+    'title': 'Topic',
+    'slug': 'topic',
+    'posts_count': 1,
+    'highest_post_number': 9,
+    'category_id': 1,
+    'post_stream': {
+      'posts': [_post(1)],
+      'stream': [101],
+    },
+  };
+  if (relatedTopics != null) body['related_topics'] = relatedTopics;
+  return body;
+}
+
 class _TopicDetailAdapter implements HttpClientAdapter {
   final List<String> paths = [];
+  final Completer<void> relatedRequestStarted = Completer<void>();
+  final Completer<void> releaseRelatedResponse = Completer<void>();
   bool failRelatedRequest = false;
+  bool includeInitialRelatedTopics = false;
+  bool privateMessage = false;
+  int highestPostNumber = 9;
+  List<int> stream = const [101];
 
   @override
   Future<ResponseBody> fetch(
@@ -128,42 +233,49 @@ class _TopicDetailAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     paths.add(options.path);
-    if (options.path == '/t/42/3.json' && failRelatedRequest) {
-      return ResponseBody.fromString('{}', 500);
+    if (options.path == '/t/42/$highestPostNumber.json') {
+      if (!relatedRequestStarted.isCompleted) relatedRequestStarted.complete();
+      if (failRelatedRequest) return _jsonResponse(const {}, statusCode: 500);
+      await releaseRelatedResponse.future;
+      return _jsonResponse({
+        'related_topics': [_relatedTopicJson()],
+      });
     }
-    final Map<String, dynamic> body;
-    switch (options.path) {
-      case '/t/42.json':
-        body = _topicDetail();
-      case '/t/42/posts.json':
-        body = {
-          'post_stream': {
-            'posts': [_post(2), _post(3)],
-            'stream': [101, 102, 103],
-          },
-        };
-      case '/t/42/3.json':
-        body = {
-          'related_topics': [
-            {
-              'id': 7,
-              'title': 'Related',
-              'slug': 'related',
-              'posts_count': 1,
-              'reply_count': 0,
-              'views': 0,
-              'like_count': 0,
-              'category_id': 1,
-              'created_at': '2026-06-01T00:00:00.000Z',
-            },
-          ],
-        };
-      default:
-        body = const <String, dynamic>{};
+    if (options.path == '/t/42/posts.json') {
+      return _jsonResponse({
+        'post_stream': {
+          'posts': [_post(2), _post(3)],
+          'stream': stream,
+        },
+      });
     }
+
+    final body = <String, dynamic>{
+      'id': 42,
+      'title': 'Topic',
+      'slug': 'topic',
+      'posts_count': stream.length,
+      'highest_post_number': highestPostNumber,
+      'category_id': 1,
+      'archetype': privateMessage ? 'private_message' : 'regular',
+      'post_stream': {
+        'posts': [_post(1)],
+        'stream': stream,
+      },
+    };
+    if (includeInitialRelatedTopics) {
+      body['related_topics'] = <Map<String, dynamic>>[];
+    }
+    return _jsonResponse(body);
+  }
+
+  ResponseBody _jsonResponse(
+    Map<String, dynamic> body, {
+    int statusCode = 200,
+  }) {
     return ResponseBody.fromString(
       jsonEncode(body),
-      200,
+      statusCode,
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],
       },
@@ -172,4 +284,18 @@ class _TopicDetailAdapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+}
+
+Map<String, dynamic> _relatedTopicJson() {
+  return {
+    'id': 7,
+    'title': 'Related',
+    'slug': 'related',
+    'posts_count': 1,
+    'reply_count': 0,
+    'views': 0,
+    'like_count': 0,
+    'category_id': 1,
+    'created_at': '2026-06-01T00:00:00.000Z',
+  };
 }

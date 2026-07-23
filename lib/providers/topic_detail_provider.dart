@@ -10,6 +10,7 @@ import '../services/preloaded_data_service.dart';
 import '../services/log/runtime_log_settings.dart';
 import '../services/settings/content_filter_service.dart'; // CUSTOM: User Filter
 import '../services/topic_detail_cache_service.dart';
+import '../services/topic_related_topics_loader.dart';
 import 'core_providers.dart';
 import 'message_bus/models.dart';
 
@@ -25,6 +26,34 @@ const List<Duration> _topicInitialLoadRetryDelays = [
 ];
 const Duration _topicDetailProviderRetention = Duration(seconds: 10);
 const Duration _topicDetailProviderRetentionMobile = Duration(seconds: 4);
+const Duration _defaultRelatedTopicsLoadDelay = Duration(milliseconds: 650);
+
+final topicRelatedTopicsLoadDelayProvider = Provider<Duration>((ref) {
+  return _defaultRelatedTopicsLoadDelay;
+});
+
+final topicRelatedTopicsLoaderProvider = Provider<TopicRelatedTopicsLoader>((
+  ref,
+) {
+  final service = ref.read(discourseServiceProvider);
+  final loader = TopicRelatedTopicsLoader(
+    fetch: (topicId, postNumber) =>
+        service.getRelatedTopics(topicId, postNumber: postNumber),
+  );
+  ref.onDispose(loader.clear);
+  return loader;
+});
+
+@visibleForTesting
+TopicDetail preserveRelatedTopicsOnRefresh({
+  required TopicDetail? current,
+  required TopicDetail incoming,
+}) {
+  if (incoming.relatedTopics != null || current?.relatedTopics == null) {
+    return incoming;
+  }
+  return incoming.copyWith(relatedTopics: current!.relatedTopics);
+}
 
 @visibleForTesting
 bool isRetryableTopicInitialLoadError(Object error) {
@@ -101,6 +130,8 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   final List<int> _pendingNewPostIds = [];
   final List<int> _incomingUnloadedPostIds = [];
   bool _isLoadingNewPosts = false;
+  Timer? _relatedTopicsLoadTimer;
+  bool _relatedTopicsLoadScheduled = false;
 
   bool get hasMoreAfter => _hasMoreAfter;
   bool get hasMoreBefore => _hasMoreBefore;
@@ -190,6 +221,51 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     state = AsyncValue.data(detail);
   }
 
+  bool _shouldLoadRelatedTopics(TopicDetail detail) {
+    return !_isFilteredMode &&
+        !detail.isPrivateMessage &&
+        detail.relatedTopics == null &&
+        detail.highestPostNumber > 0;
+  }
+
+  void _scheduleRelatedTopicsLoad(TopicDetail detail) {
+    if (_relatedTopicsLoadScheduled || !_shouldLoadRelatedTopics(detail)) {
+      return;
+    }
+    _relatedTopicsLoadScheduled = true;
+    _relatedTopicsLoadTimer?.cancel();
+    _relatedTopicsLoadTimer = Timer(
+      ref.read(topicRelatedTopicsLoadDelayProvider),
+      () {
+        _relatedTopicsLoadTimer = null;
+        unawaited(_loadRelatedTopics(seedDetail: detail));
+      },
+    );
+  }
+
+  Future<void> _loadRelatedTopics({TopicDetail? seedDetail}) async {
+    final currentDetail = state.value ?? seedDetail;
+    if (currentDetail == null || !_shouldLoadRelatedTopics(currentDetail)) {
+      return;
+    }
+
+    try {
+      final topics = await ref
+          .read(topicRelatedTopicsLoaderProvider)
+          .load(
+            topicId: arg.topicId,
+            postNumber: currentDetail.highestPostNumber,
+            viewerKey: _cacheUsername,
+          );
+      if (!ref.mounted) return;
+      final latest = state.value;
+      if (latest == null || !_shouldLoadRelatedTopics(latest)) return;
+      _setDataAndCache(latest.copyWith(relatedTopics: topics));
+    } catch (error) {
+      runtimeDebugPrint('[TopicDetail] 加载相关帖子失败: $error');
+    }
+  }
+
   void _consumeLoadedIncomingPostIds(Iterable<Post> posts) {
     if (_incomingUnloadedPostIds.isEmpty) return;
     final loadedPostIds = posts.map((post) => post.id).toSet();
@@ -202,8 +278,12 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
       if (!ref.mounted) return;
 
       _usingPreviewSeed = false;
-      _cacheTopicDetail(detail);
-      final filteredDetail = _applyUserFilter(detail);
+      final refreshedDetail = preserveRelatedTopicsOnRefresh(
+        current: state.value,
+        incoming: detail,
+      );
+      _cacheTopicDetail(refreshedDetail);
+      final filteredDetail = _applyUserFilter(refreshedDetail);
       _updateBoundaryState(
         filteredDetail.postStream.posts,
         filteredDetail.postStream.stream,
@@ -238,6 +318,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     });
     ref.onDispose(() {
       disposeTimer?.cancel();
+      _relatedTopicsLoadTimer?.cancel();
     });
 
     _hasMoreAfter = true;
@@ -246,6 +327,9 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     _isLoadPreviousFailed = false;
     _cacheUsername = ref.read(currentUserProvider).value?.username;
     _usingPreviewSeed = false;
+    _relatedTopicsLoadTimer?.cancel();
+    _relatedTopicsLoadTimer = null;
+    _relatedTopicsLoadScheduled = false;
 
     final cacheService = ref.read(topicDetailCacheServiceProvider);
     final username = _cacheUsername;
@@ -267,6 +351,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
       )) {
         unawaited(_refreshCachedTopicDetail());
       }
+      _scheduleRelatedTopicsLoad(cachedDetail);
       return cachedDetail;
     }
 
@@ -278,6 +363,8 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
       filteredDetail.postStream.posts,
       filteredDetail.postStream.stream,
     );
+
+    _scheduleRelatedTopicsLoad(filteredDetail);
 
     return filteredDetail;
   }

@@ -79,6 +79,15 @@ class HomeTopicExcerptPauseController {
     _ref.read(homeTopicExcerptLoaderProvider).setPaused(false);
     _ref.read(homeTopicExcerptPausedProvider.notifier).state = false;
   }
+
+  Future<T> runWhilePaused<T>(Object token, Future<T> Function() action) async {
+    acquire(token);
+    try {
+      return await action();
+    } finally {
+      release(token);
+    }
+  }
 }
 
 @visibleForTesting

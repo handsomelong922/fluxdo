@@ -100,18 +100,36 @@ void main() {
       expect(detail.copyWith(title: 'Updated').relatedTopics, same(related));
       expect(detail.copyWith(relatedTopics: const []).relatedTopics, isEmpty);
     });
+
+    test('uses highest_post_number and preserves it through copyWith', () {
+      final detail = TopicDetail.fromJson(
+        _topicJson(postsCount: 3, highestPostNumber: 9),
+      );
+
+      expect(detail.highestPostNumber, 9);
+      expect(detail.copyWith(title: 'Updated').highestPostNumber, 9);
+      expect(detail.copyWith(highestPostNumber: 10).highestPostNumber, 10);
+    });
+
+    test('falls back to posts_count when highest_post_number is missing', () {
+      final detail = TopicDetail.fromJson(_topicJson(postsCount: 3));
+
+      expect(detail.highestPostNumber, 3);
+    });
   });
 }
 
 Map<String, dynamic> _topicJson({
   Object? relatedTopics = _missingField,
   List<Map<String, dynamic>>? suggestedTopics,
+  int postsCount = 1,
+  Object? highestPostNumber = _missingField,
 }) {
   final json = <String, dynamic>{
     'id': 42,
     'title': 'Topic',
     'slug': 'topic',
-    'posts_count': 1,
+    'posts_count': postsCount,
     'category_id': 1,
     'post_stream': {
       'posts': [
@@ -130,6 +148,9 @@ Map<String, dynamic> _topicJson({
   }
   if (suggestedTopics != null) {
     json['suggested_topics'] = suggestedTopics;
+  }
+  if (!identical(highestPostNumber, _missingField)) {
+    json['highest_post_number'] = highestPostNumber;
   }
   return json;
 }

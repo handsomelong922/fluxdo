@@ -230,9 +230,17 @@ mixin _TopicsMixin on _DiscourseServiceBase {
     int topicId, {
     required int postNumber,
   }) async {
+    final backgroundOptions = _backgroundReadOptions(background: true);
+    final options = (backgroundOptions ?? Options()).copyWith(
+      extra: {
+        ...?backgroundOptions?.extra,
+        disableAutomaticRetryExtraKey: true,
+        SelfHealingInterceptor.selfHealedExtraKey: true,
+      },
+    );
     final response = await _dio.get(
       '/t/$topicId/$postNumber.json',
-      options: _backgroundReadOptions(background: true),
+      options: options,
     );
     final data = response.data as Map<String, dynamic>;
     return parseRelatedTopics(data['related_topics']);

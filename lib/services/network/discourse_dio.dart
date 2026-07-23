@@ -20,8 +20,14 @@ import 'interceptors/self_healing_interceptor.dart';
 const Set<String> _retryableReadMethods = {'GET', 'HEAD', 'OPTIONS'};
 const Set<int> _retryableDiscourseStatuses = {408, 502, 503, 504};
 
+/// 可选后台读取可设置此标记，避免通用 GET 快速重试扩大访问次数。
+const String disableAutomaticRetryExtraKey = 'disableAutomaticRetry';
+
 @visibleForTesting
 bool shouldRetryDiscourseRequest(DioException error, int attempt) {
+  if (error.requestOptions.extra[disableAutomaticRetryExtraKey] == true) {
+    return false;
+  }
   final method = error.requestOptions.method.toUpperCase();
   if (!_retryableReadMethods.contains(method)) return false;
 

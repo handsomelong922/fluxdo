@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/services/discourse/discourse_service.dart';
+import 'package:fluxdo/services/network/discourse_dio.dart';
+import 'package:fluxdo/services/network/interceptors/self_healing_interceptor.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +42,11 @@ void main() {
       expect(adapter.path, '/t/42/99.json');
       expect(topics.map((topic) => topic.id), [7]);
       expect(topics.single.title, 'Related');
+      expect(adapter.extra['priority'], 'low');
+      expect(adapter.extra['isSilent'], isTrue);
+      expect(adapter.extra['showErrorToast'], isFalse);
+      expect(adapter.extra[disableAutomaticRetryExtraKey], isTrue);
+      expect(adapter.extra[SelfHealingInterceptor.selfHealedExtraKey], isTrue);
     },
   );
 
@@ -55,6 +62,7 @@ void main() {
 
 class _RelatedTopicsAdapter implements HttpClientAdapter {
   String? path;
+  Map<String, dynamic> extra = const {};
 
   @override
   Future<ResponseBody> fetch(
@@ -63,6 +71,7 @@ class _RelatedTopicsAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     path = options.path;
+    extra = Map<String, dynamic>.from(options.extra);
     if (options.path == '/t/42/1.json') {
       return _jsonResponse({
         'id': 42,

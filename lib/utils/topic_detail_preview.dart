@@ -31,6 +31,9 @@ TopicDetail buildTopicDetailPreview({
     title: initialTitle ?? topic.title,
     slug: topic.slug,
     postsCount: topic.postsCount,
+    highestPostNumber: topic.highestPostNumber > 0
+        ? topic.highestPostNumber
+        : topic.postsCount,
     postStream: PostStream(
       posts: [previewPost],
       stream: [previewPost.id],
