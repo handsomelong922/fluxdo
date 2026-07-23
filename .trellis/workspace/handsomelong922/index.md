@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 17
+- **Total Sessions**: 18
 - **Last Active**: 2026-07-23
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~618 | Active |
+| `journal-1.md` | ~653 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 18 | 2026-07-23 | Fix related topics visibility and mobile avatar jank | `5c28e7ef`, `5cbd099e`, `6204e402` | `codex/rollback-to-v0.3.1` |
 | 17 | 2026-07-23 | 修复相关帖子、头像卡顿与首页分页 | `0a347c37`, `3dce306b`, `12b0db75`, `cfacccde` | `codex/rollback-to-v0.3.1` |
 | 16 | 2026-07-23 | 修复相关帖子空值回归并统一详情入口 | `13093115`, `64ecc18b` | `codex/rollback-to-v0.3.1` |
 | 15 | 2026-07-22 | 修复剩余卡顿 手势冲突并添加相关帖子 | `9dd2732b`, `c3ea63c7`, `dc4e995b`, `f543d6e0` | `codex/rollback-to-v0.3.1` |

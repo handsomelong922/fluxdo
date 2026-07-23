@@ -616,3 +616,38 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: Fix related topics visibility and mobile avatar jank
+
+**Date**: 2026-07-23
+**Task**: Fix related topics visibility and mobile avatar jank
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+Propagated related topics through tree detail, kept mobile post/tree avatars and Flair static, added regression tests, updated specs, and verified full Flutter analyze/test.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5c28e7ef` | (see git log) |
+| `5cbd099e` | (see git log) |
+| `6204e402` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
