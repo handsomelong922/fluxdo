@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ignore: depend_on_referenced_packages
@@ -9,6 +11,7 @@ import '../../services/preloaded_data_service.dart';
 import '../../services/discourse/discourse_service.dart';
 import '../../services/settings/content_filter_service.dart'; // CUSTOM: Tag Filter // CUSTOM: User Filter
 import '../../services/settings/keyword_filter_service.dart'; // CUSTOM: Keyword Filter
+import '../../services/network/exceptions/api_exception.dart';
 import '../../utils/pagination_helper.dart';
 import '../core_providers.dart';
 import '../category_provider.dart';
@@ -25,6 +28,104 @@ final topicListRefreshingProvider = StateProvider.family<bool, int?>(
 );
 const Duration _topicListProviderRetention = Duration(seconds: 20);
 const Duration _topicListProviderRetentionMobile = Duration(seconds: 5);
+const Duration _defaultTopicListLoadMoreTransientCooldown = Duration(
+  seconds: 2,
+);
+
+final topicListLoadMoreCooldownProvider = Provider<Duration>((ref) {
+  return _defaultTopicListLoadMoreTransientCooldown;
+});
+
+@visibleForTesting
+int topicListPageAfterSuccessfulLoad({
+  required int previousPage,
+  required int requestedPage,
+  required int mergedItemCount,
+  required int previousItemCount,
+}) {
+  if (mergedItemCount < previousItemCount || requestedPage <= previousPage) {
+    return previousPage;
+  }
+  // 服务端已经成功返回了 requestedPage；过滤/去重后的可见数量不能让
+  // 客户端再次请求同一页。
+  return requestedPage;
+}
+
+@visibleForTesting
+bool canRetryTopicListLoadMoreNow({
+  required bool failed,
+  required bool requiresManualRetry,
+  required DateTime? retryAfter,
+  required DateTime now,
+}) {
+  if (!failed) return true;
+  if (requiresManualRetry) return false;
+  return retryAfter == null || !now.isBefore(retryAfter);
+}
+
+@visibleForTesting
+bool isTransientTopicListLoadMoreError(Object error) {
+  if (error is TimeoutException || error is SocketException) return true;
+  if (error is ServerException) return true;
+  if (error is DioException) {
+    final nested = error.error;
+    if (nested != null && !identical(nested, error)) {
+      if (isTransientTopicListLoadMoreError(nested)) return true;
+    }
+    switch (error.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+      case DioExceptionType.connectionError:
+        return true;
+      case DioExceptionType.badResponse:
+        final statusCode = error.response?.statusCode;
+        return statusCode != null && statusCode >= 500;
+      case DioExceptionType.cancel:
+      case DioExceptionType.badCertificate:
+        return false;
+      case DioExceptionType.unknown:
+        return false;
+    }
+  }
+  return false;
+}
+
+@visibleForTesting
+bool requiresManualTopicListLoadMoreRetry(Object error) {
+  if (error is CfChallengeException || error is RateLimitException) {
+    return true;
+  }
+  if (error is DioException) {
+    final statusCode = error.response?.statusCode;
+    if (statusCode == 401 ||
+        statusCode == 403 ||
+        statusCode == 419 ||
+        statusCode == 429) {
+      return true;
+    }
+
+    final cfMitigated = error.response?.headers.value('cf-mitigated');
+    if (cfMitigated?.toLowerCase() == 'challenge') return true;
+
+    final responseBody = error.response?.data;
+    if (responseBody is String) {
+      final body = responseBody.toLowerCase();
+      if (body.contains('cloudflare') ||
+          body.contains('just a moment') ||
+          body.contains('cf_chl_')) {
+        return true;
+      }
+    }
+
+    final nested = error.error;
+    if (nested != null && !identical(nested, error)) {
+      return requiresManualTopicListLoadMoreRetry(nested);
+    }
+    return !isTransientTopicListLoadMoreError(error);
+  }
+  return !isTransientTopicListLoadMoreError(error);
+}
 
 @visibleForTesting
 List<T> mergeRefreshedTopicHead<T, K>({
@@ -82,6 +183,8 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
   int _page = 0;
   bool _hasMore = true;
   bool _isLoadMoreFailed = false;
+  DateTime? _loadMoreRetryAfter;
+  bool _loadMoreRequiresManualRetry = false;
   int _refreshGeneration = 0;
   bool get hasMore => _hasMore;
   bool get isLoadMoreFailed => _isLoadMoreFailed;
@@ -114,6 +217,8 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
     _page = 0;
     _hasMore = true;
     _isLoadMoreFailed = false;
+    _loadMoreRetryAfter = null;
+    _loadMoreRequiresManualRetry = false;
     ref.read(topicListLoadMoreProvider(_categoryId).notifier).state = false;
 
     // 获取排序 API 参数
@@ -507,6 +612,8 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
 
     final result = await AsyncValue.guard(() async {
       _isLoadMoreFailed = false;
+      _loadMoreRetryAfter = null;
+      _loadMoreRequiresManualRetry = false;
       final response = await _fetchTopics(
         service,
         currentFilter,
@@ -536,10 +643,14 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       if (result.hasError) {
         _page = previousPage;
         _hasMore = previousHasMore;
+        _loadMoreRetryAfter = null;
+        _loadMoreRequiresManualRetry = false;
         state = AsyncValue.data(currentTopics);
         return;
       }
     } else if (result.hasError) {
+      _loadMoreRetryAfter = null;
+      _loadMoreRequiresManualRetry = false;
       state = AsyncValue.error(result.error!, result.stackTrace!);
       return;
     }
@@ -608,6 +719,8 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       );
       if (generation != _refreshGeneration) return;
       _isLoadMoreFailed = false;
+      _loadMoreRetryAfter = null;
+      _loadMoreRequiresManualRetry = false;
       _page = result.lastLoadedPage;
       _hasMore = result.state.hasMore;
       state = AsyncValue.data(result.state.items);
@@ -666,7 +779,19 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
 
   /// 加载更多
   Future<void> loadMore() async {
-    if (_isLoadMoreFailed) return; // 失败后需手动重试
+    if (!canRetryTopicListLoadMoreNow(
+      failed: _isLoadMoreFailed,
+      requiresManualRetry: _loadMoreRequiresManualRetry,
+      retryAfter: _loadMoreRetryAfter,
+      now: DateTime.now(),
+    )) {
+      return;
+    }
+    if (_isLoadMoreFailed) {
+      // 临时错误只在用户再次滚到底部时恢复，不创建后台 Timer。
+      _isLoadMoreFailed = false;
+      _loadMoreRetryAfter = null;
+    }
     if (!_hasMore || state.isLoading) return;
     final loadMoreState = topicListLoadMoreProvider(_categoryId);
     if (ref.read(topicListRefreshingProvider(_categoryId))) return;
@@ -704,12 +829,24 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
       );
 
       _hasMore = paginationResult.hasMore;
-      if (paginationResult.items.length > currentTopics.length) {
-        _page = nextPage;
-      }
+      _page = topicListPageAfterSuccessfulLoad(
+        previousPage: _page,
+        requestedPage: nextPage,
+        mergedItemCount: paginationResult.items.length,
+        previousItemCount: currentTopics.length,
+      );
+      _isLoadMoreFailed = false;
+      _loadMoreRetryAfter = null;
+      _loadMoreRequiresManualRetry = false;
       state = AsyncValue.data(paginationResult.items);
-    } catch (_) {
+    } catch (error) {
       _isLoadMoreFailed = true;
+      _loadMoreRequiresManualRetry = requiresManualTopicListLoadMoreRetry(
+        error,
+      );
+      _loadMoreRetryAfter = _loadMoreRequiresManualRetry
+          ? null
+          : DateTime.now().add(ref.read(topicListLoadMoreCooldownProvider));
       state = AsyncValue.data(currentTopics);
     } finally {
       ref.read(loadMoreState.notifier).state = false;
@@ -717,9 +854,11 @@ class TopicListNotifier extends AsyncNotifier<List<Topic>> {
   }
 
   /// 手动重试加载更多
-  void retryLoadMore() {
+  Future<void> retryLoadMore() async {
     _isLoadMoreFailed = false;
-    loadMore();
+    _loadMoreRetryAfter = null;
+    _loadMoreRequiresManualRetry = false;
+    await loadMore();
   }
 
   /// 刷新单条话题状态（用于 MessageBus 更新）
