@@ -20,6 +20,25 @@ String _getEmojiUrl(String emojiName) {
 }
 
 @visibleForTesting
+String resolvePostAvatarUrl({
+  required Post post,
+  required int size,
+  required TargetPlatform platform,
+}) {
+  final isMobilePlatform =
+      platform == TargetPlatform.android || platform == TargetPlatform.iOS;
+  if (!isMobilePlatform) return post.getAvatarUrl(size: size);
+
+  // 帖子列表/详情可能同时提供 animated_avatar 和 avatar_template。移动端
+  // 不播放动态头像；没有可靠静态模板时交给 SmartAvatar 显示 fallback。
+  final staticUrl = AvatarUrlPolicy.resolveStaticAvatarUrl(
+    post.avatarTemplate,
+    size: size,
+  );
+  return isNativeAnimatedUrl(staticUrl) ? '' : staticUrl;
+}
+
+@visibleForTesting
 int? resolvePostTrustLevel({int? trustLevel, String? userTitle}) {
   if (trustLevel != null) return trustLevel;
 
@@ -67,8 +86,11 @@ class PostAvatar extends StatefulWidget {
 class _PostAvatarState extends State<PostAvatar> {
   @override
   Widget build(BuildContext context) {
-    final avatarUrl = widget.post.getAvatarUrl(
-      size: (widget.radius * 2).round(),
+    final avatarSize = (widget.radius * 2).round();
+    final avatarUrl = resolvePostAvatarUrl(
+      post: widget.post,
+      size: avatarSize,
+      platform: defaultTargetPlatform,
     );
     final glowColor = AppConstants.siteCustomization.matchAvatarGlow(
       widget.post,

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, visibleForTesting;
 import 'package:jovial_svg/jovial_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../models/avatar_url_policy.dart';
@@ -7,6 +9,24 @@ import '../../services/emoji_handler.dart';
 import '../../utils/svg_utils.dart';
 import '../../utils/font_awesome_helper.dart';
 import '../../utils/url_helper.dart';
+
+@visibleForTesting
+String resolveFlairBadgeImageUrl({
+  required String url,
+  required TargetPlatform platform,
+  required int size,
+}) {
+  final resolved = AvatarUrlPolicy.resolveDirectAvatarUrl(url, size: size);
+  final isMobilePlatform =
+      platform == TargetPlatform.android || platform == TargetPlatform.iOS;
+  if (!isMobilePlatform) return resolved;
+
+  final staticUrl = AvatarUrlPolicy.resolveStaticAvatarUrl(
+    resolved,
+    size: size,
+  );
+  return isNativeAnimatedUrl(staticUrl) ? '' : staticUrl;
+}
 
 /// Flair 徽章组件
 /// 用于在头像右下角显示用户的群组/身份标识
@@ -133,8 +153,9 @@ class FlairBadge extends StatelessWidget {
 
     // 有背景时图片缩小一点，留出内边距
     final imageSize = hasBgColor ? size * 0.7 : size;
-    final fullUrl = AvatarUrlPolicy.resolveDirectAvatarUrl(
-      _getFullFlairUrl(),
+    final fullUrl = resolveFlairBadgeImageUrl(
+      url: _getFullFlairUrl(),
+      platform: defaultTargetPlatform,
       size: imageSize.round(),
     );
     if (fullUrl.isEmpty) {

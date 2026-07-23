@@ -41,6 +41,54 @@ void main() {
     expect(resolvePostTrustLevel(userTitle: '自定义头衔'), isNull);
     expect(postTrustLevelLabel(3), 'LV3');
   });
+
+  test('uses a static template for mobile post avatars', () {
+    final post = _post(
+      avatarTemplate: '/user_avatar/linux.do/alice/{size}/1.gif',
+      animatedAvatar: '/user_avatar/linux.do/alice/original/4X/1.gif',
+    );
+
+    expect(
+      resolvePostAvatarUrl(
+        post: post,
+        size: 40,
+        platform: TargetPlatform.android,
+      ),
+      'https://linux.do/user_avatar/linux.do/alice/40/1.png',
+    );
+  });
+
+  test('uses fallback when mobile has no reliable static avatar', () {
+    final post = _post(
+      avatarTemplate: '',
+      animatedAvatar: '/user_avatar/linux.do/alice/original/4X/1.gif',
+    );
+
+    expect(
+      resolvePostAvatarUrl(
+        post: post,
+        size: 40,
+        platform: TargetPlatform.android,
+      ),
+      isEmpty,
+    );
+  });
+
+  test('keeps desktop avatar preference behavior', () {
+    final post = _post(
+      avatarTemplate: '/user_avatar/linux.do/alice/{size}/1.png',
+      animatedAvatar: '/user_avatar/linux.do/alice/original/4X/1.gif',
+    );
+
+    expect(
+      resolvePostAvatarUrl(
+        post: post,
+        size: 40,
+        platform: TargetPlatform.windows,
+      ),
+      'https://linux.do/user_avatar/linux.do/alice/original/4X/1.gif',
+    );
+  });
 }
 
 Widget _buildApp({required bool useUsernameAsPrimaryLabel, Post? post}) {
@@ -69,14 +117,20 @@ Widget _buildApp({required bool useUsernameAsPrimaryLabel, Post? post}) {
   );
 }
 
-Post _post({String? userTitle, int? trustLevel}) {
+Post _post({
+  String? userTitle,
+  int? trustLevel,
+  String avatarTemplate = '',
+  String? animatedAvatar,
+}) {
   final createdAt = DateTime.utc(2026, 7, 7, 12);
   return Post(
     id: 101,
     topicId: 42,
     name: 'Custom Name',
     username: 'account_name',
-    avatarTemplate: '',
+    avatarTemplate: avatarTemplate,
+    animatedAvatar: animatedAvatar,
     cooked: '<p>content</p>',
     postNumber: 1,
     postType: 1,

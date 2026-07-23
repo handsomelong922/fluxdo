@@ -1,7 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, visibleForTesting;
 import '../../models/avatar_url_policy.dart';
 import '../../pages/user_profile_page.dart';
+import '../../services/discourse_cache_manager.dart';
 import '../common/smart_avatar.dart';
+
+@visibleForTesting
+String resolveNestedPostAvatarUrl({
+  required String avatarTemplate,
+  required TargetPlatform platform,
+}) {
+  final isMobilePlatform =
+      platform == TargetPlatform.android || platform == TargetPlatform.iOS;
+  final url = isMobilePlatform
+      ? AvatarUrlPolicy.resolveStaticAvatarUrl(avatarTemplate, size: 36)
+      : AvatarUrlPolicy.resolveTemplate(avatarTemplate, size: 36);
+  return isMobilePlatform && isNativeAnimatedUrl(url) ? '' : url;
+}
 
 /// 嵌套帖子左侧头像（可点击跳转用户主页）
 class NestedPostAvatar extends StatelessWidget {
@@ -25,9 +41,9 @@ class NestedPostAvatar extends StatelessWidget {
       child: ValueListenableBuilder<int>(
         valueListenable: AvatarUrlPolicy.revisionListenable,
         builder: (context, _, _) {
-          final avatarUrl = AvatarUrlPolicy.resolveTemplate(
-            avatarTemplate,
-            size: 36,
+          final avatarUrl = resolveNestedPostAvatarUrl(
+            avatarTemplate: avatarTemplate,
+            platform: defaultTargetPlatform,
           );
           return SmartAvatar(
             imageUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
