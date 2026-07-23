@@ -868,6 +868,7 @@ class _NestedPostCardState extends ConsumerState<NestedPostCard> {
           onRefreshPost: widget.onRefreshPost,
           onJumpToPost: widget.onJumpToPost,
           onSolutionChanged: widget.onSolutionChanged,
+          relatedTopics: widget.detail.relatedTopics,
           hideRepliesButton: true,
         ),
       ],
