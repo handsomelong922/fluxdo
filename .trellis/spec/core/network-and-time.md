@@ -353,6 +353,10 @@ Evidence:
 - The UI filters the current topic and blank titles, sorts by `created_at` descending, takes at most
   five entries, and starts expanded. Initial rendering displays title links only and performs no
   navigation; only tapping a title pushes `buildTopicDetailRoute(...)`.
+- Every detail rendering mode must propagate the same `TopicDetail.relatedTopics` value to the OP
+  footer. In particular, both flat `PostItem` and tree `NestedPostCard` paths must pass the field to
+  `PostFooterSection`; fixing only one mode leaves home/search/bookmark/history entries inconsistent
+  after they converge on the user's preferred detail mode.
 - API `created_at` values are parsed with `TimeUtils.parseUtcTime()`; no direct `DateTime.parse`.
 
 ### 4. Validation & Error Matrix
@@ -400,6 +404,8 @@ Evidence:
   messages/filtered modes are isolated.
 - Widget tests for filtering, order, five-item cap, default expansion, topic-change reset, empty
   hiding, no route on initial render, and one shared-route push after an explicit title tap.
+- Add a tree-detail propagation guard whenever the OP footer wiring changes; provider/widget tests
+  alone do not catch a constructor call site that silently omits the optional field.
 
 ### 7. Wrong vs Correct
 #### Wrong

@@ -1762,12 +1762,15 @@ _page = topicListPageAfterSuccessfulLoad(
 
 ### 1. Scope / Trigger
 
-- Trigger: changing Boost reply rendering, grouped avatar stacks, animated-avatar policy, or emoji
-  panel mounting/cache extent on mobile and desktop.
+- Trigger: changing Boost reply rendering, post/tree avatars, avatar Flair, grouped avatar stacks,
+  animated-avatar policy, or emoji panel mounting/cache extent on mobile and desktop.
 
 ### 2. Signatures
 
 - `AvatarUrlPolicy.resolveStaticAvatarUrl(url, size:) -> String`
+- `resolvePostAvatarUrl(post:, size:, platform:) -> String`
+- `resolveNestedPostAvatarUrl(avatarTemplate:, platform:) -> String`
+- `resolveFlairBadgeImageUrl(url:, platform:, size:) -> String`
 - `shouldInitiallyShowBoostEmojiPanel(TargetPlatform platform) -> bool`
 - `emojiPickerCacheExtentForPlatform(TargetPlatform platform) -> double`
 - `SmartAvatar(imageUrl:, radius:, fallbackText:)`
@@ -1777,6 +1780,12 @@ _page = topicListPageAfterSuccessfulLoad(
 - High-density Boost avatar rows always pass a static avatar URL to `SmartAvatar`, for both single
   Boost bubbles and grouped stacks. This local policy must not change the global avatar preference
   semantics on ordinary profile/post surfaces.
+- Android/iOS post and nested-detail avatars must prefer the server's static `avatar_template`
+  rather than `animated_avatar`. If no reliable static URL exists, use `SmartAvatar` fallback text;
+  do not play the animated original or guess that an unrelated `.png` resource exists.
+- Android/iOS Flair must not mount a native animated provider. Convert only URL shapes supported by
+  `AvatarUrlPolicy.resolveStaticAvatarUrl`; otherwise render the existing Flair fallback. Desktop
+  keeps its established image behavior.
 - Do not wrap each Boost avatar in a second avatar-policy `ValueListenableBuilder`; `SmartAvatar`
   owns its normal image lifecycle, and duplicate listeners multiply rebuilds across dense lists.
 - Android/iOS Boost input initially mounts only the text controls. `EmojiPicker` enters the widget
@@ -1789,6 +1798,10 @@ _page = topicListPageAfterSuccessfulLoad(
 
 - Dense Boost list with animated avatar templates -> rendered requests use static avatar URLs.
 - Grouped Boost stack -> every visible avatar uses the same static policy.
+- Flat and tree topic detail with both `animated_avatar` and `avatar_template` -> Android/iOS uses
+  the static template; desktop keeps existing preference behavior.
+- Animated Flair without a reliable static candidate -> Android/iOS uses fallback and creates no
+  native animated image provider.
 - Mobile sheet opens -> no `EmojiPicker` or emoji image burst until the emoji action is tapped.
 - Desktop sheet opens -> picker remains present without an extra click.
 - Mobile user taps emoji action -> one picker mounts with the mobile cache extent.
@@ -1805,6 +1818,8 @@ _page = topicListPageAfterSuccessfulLoad(
 ### 6. Tests Required
 
 - Widget-test single and grouped Boost avatar URLs are static and avatar taps still work.
+- Unit-test flat/tree post avatar URL selection and mobile/desktop behavior.
+- Unit-test mobile animated Flair fallback and desktop preservation.
 - Widget-test mobile initial absence and explicit mounting of `EmojiPicker`.
 - Widget-test desktop initial presence.
 - Unit-test the exact mobile/desktop cache-extent policy.
