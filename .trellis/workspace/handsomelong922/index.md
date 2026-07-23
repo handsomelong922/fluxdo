@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 16
+- **Total Sessions**: 17
 - **Last Active**: 2026-07-23
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~582 | Active |
+| `journal-1.md` | ~618 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 17 | 2026-07-23 | 修复相关帖子、头像卡顿与首页分页 | `0a347c37`, `3dce306b`, `12b0db75`, `cfacccde` | `codex/rollback-to-v0.3.1` |
 | 16 | 2026-07-23 | 修复相关帖子空值回归并统一详情入口 | `13093115`, `64ecc18b` | `codex/rollback-to-v0.3.1` |
 | 15 | 2026-07-22 | 修复剩余卡顿 手势冲突并添加相关帖子 | `9dd2732b`, `c3ea63c7`, `dc4e995b`, `f543d6e0` | `codex/rollback-to-v0.3.1` |
 | 14 | 2026-07-22 | 修复持续卡顿并优化主页预览与搜索体验 | `7030a7cd`, `37dc3114`, `5e5c4564`, `1051d3fa`, `db43fec8` | `codex/rollback-to-v0.3.1` |

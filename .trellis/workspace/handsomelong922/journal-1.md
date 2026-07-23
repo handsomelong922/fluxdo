@@ -580,3 +580,39 @@ Verified v0.6.103 Android and Windows release artifacts, safely adapted fingerpr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: 修复相关帖子、头像卡顿与首页分页
+
+**Date**: 2026-07-23
+**Task**: 修复相关帖子、头像卡顿与首页分页
+**Branch**: `codex/rollback-to-v0.3.1`
+
+### Summary
+
+实现默认展开的相关帖子标题链接与非阻塞补取，修复 malformed related_topics 导致的详情崩溃风险；移动端 Boost 按需挂载 EmojiPicker、静态化高密度头像并减少重复监听；修复首页过滤空页导致的分页停滞，加入冷却与手动重试门禁。606 项 Flutter 测试、全量 analyze、格式与 diff 检查均通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0a347c37` | (see git log) |
+| `3dce306b` | (see git log) |
+| `12b0db75` | (see git log) |
+| `cfacccde` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
