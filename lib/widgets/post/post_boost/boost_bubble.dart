@@ -15,6 +15,11 @@ double _groupedBoostTextMaxWidth(BuildContext context) {
   return (screenWidth - 160).clamp(88.0, 180.0).toDouble();
 }
 
+String _resolveBoostAvatarUrl(String? avatarTemplate) {
+  final templateUrl = AvatarUrlPolicy.resolveTemplate(avatarTemplate, size: 48);
+  return AvatarUrlPolicy.resolveStaticAvatarUrl(templateUrl, size: 48);
+}
+
 /// 单个 Boost 气泡
 class BoostBubble extends StatelessWidget {
   final Boost? boost;
@@ -87,25 +92,16 @@ class BoostBubble extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ValueListenableBuilder<int>(
-                valueListenable: AvatarUrlPolicy.revisionListenable,
-                builder: (context, _, _) {
-                  final avatarUrl = AvatarUrlPolicy.resolveTemplate(
-                    boost!.user.avatarTemplate,
-                    size: 48,
-                  );
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onAvatarTap == null
-                        ? null
-                        : () => onAvatarTap!(boost!.user),
-                    child: SmartAvatar(
-                      imageUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
-                      radius: 10,
-                      fallbackText: boost!.user.username,
-                    ),
-                  );
-                },
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onAvatarTap == null
+                    ? null
+                    : () => onAvatarTap!(boost!.user),
+                child: SmartAvatar(
+                  imageUrl: _resolveBoostAvatarUrl(boost!.user.avatarTemplate),
+                  radius: 10,
+                  fallbackText: boost!.user.username,
+                ),
               ),
               const SizedBox(width: 4),
               ConstrainedBox(
@@ -267,19 +263,12 @@ class _AvatarStack extends StatelessWidget {
                   onTap: onAvatarTap == null
                       ? null
                       : () => onAvatarTap!(visibleUsers[i]),
-                  child: ValueListenableBuilder<int>(
-                    valueListenable: AvatarUrlPolicy.revisionListenable,
-                    builder: (context, _, _) {
-                      final avatarUrl = AvatarUrlPolicy.resolveTemplate(
-                        visibleUsers[i].avatarTemplate,
-                        size: 48,
-                      );
-                      return SmartAvatar(
-                        imageUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
-                        radius: 10,
-                        fallbackText: visibleUsers[i].username,
-                      );
-                    },
+                  child: SmartAvatar(
+                    imageUrl: _resolveBoostAvatarUrl(
+                      visibleUsers[i].avatarTemplate,
+                    ),
+                    radius: 10,
+                    fallbackText: visibleUsers[i].username,
                   ),
                 ),
               ),

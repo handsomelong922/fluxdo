@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,13 @@ import '../../utils/dialog_utils.dart';
 import '../common/cached_image.dart';
 import '../common/loading_spinner.dart';
 import '../../../../../l10n/s.dart';
+
+@visibleForTesting
+double emojiPickerCacheExtentForPlatform(TargetPlatform platform) {
+  final isMobile =
+      platform == TargetPlatform.android || platform == TargetPlatform.iOS;
+  return isMobile ? 160 : 480;
+}
 
 /// 常用表情的 Key
 const String _recentEmojisKey = 'recent_emojis';
@@ -272,12 +280,10 @@ class _EmojiPickerState extends ConsumerState<EmojiPicker>
           key: _contentAreaKey,
           child: CustomScrollView(
             controller: _scrollController,
-            // 预 build 屏外内容,滚动到时 widget 已 ready、图已在加载。
-            // 注意别贪大:cell 行高 ~48px、~10 列,这个值每 +500px 就是
-            // 面板挂载那一帧多 build ~100 个 cell(InkWell+Tooltip+Image),
-            // 直接加重"打开面板顿一下"。emoji 是小 PNG + 磁盘索引 O(1),
-            // 加载本身很快,800px(~2 屏)足够掩护滚动。
-            cacheExtent: 800,
+            // 移动端优先控制首次挂载的图片解码量；桌面保留更大的滚动缓冲。
+            cacheExtent: emojiPickerCacheExtentForPlatform(
+              defaultTargetPlatform,
+            ),
             slivers: _buildSlivers(
               emojiGroups,
               groupKeys,

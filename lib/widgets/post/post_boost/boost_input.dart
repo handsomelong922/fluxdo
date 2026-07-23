@@ -1,11 +1,16 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/s.dart';
 import '../../../models/emoji.dart';
 import '../../../utils/emoji_shortcodes.dart';
-import '../../../utils/platform_utils.dart';
 import '../../common/emoji_text.dart';
 import '../../markdown_editor/emoji_picker.dart';
+
+@visibleForTesting
+bool shouldInitiallyShowBoostEmojiPanel(TargetPlatform platform) {
+  return platform != TargetPlatform.android && platform != TargetPlatform.iOS;
+}
 
 /// Boost 输入框的提交结果。
 sealed class BoostInputResult {
@@ -77,8 +82,7 @@ class _BoostTextEditingController extends TextEditingController {
 class _BoostInputSheetState extends ConsumerState<_BoostInputSheet> {
   final _controller = _BoostTextEditingController();
   final _focusNode = FocusNode();
-  // 默认展开表情面板，避免浮层过小
-  bool _showEmojiPanel = true;
+  late bool _showEmojiPanel;
   bool _normalizingSelection = false;
 
   static const int _maxVisibleLength = 16;
@@ -86,6 +90,7 @@ class _BoostInputSheetState extends ConsumerState<_BoostInputSheet> {
   @override
   void initState() {
     super.initState();
+    _showEmojiPanel = shouldInitiallyShowBoostEmojiPanel(defaultTargetPlatform);
     _controller.addListener(_normalizeSelectionIfNeeded);
   }
 
@@ -251,7 +256,10 @@ class _BoostInputSheetState extends ConsumerState<_BoostInputSheet> {
                     onTap: () {
                       // 移动端：点击输入框时收起表情面板（让虚拟键盘接管）
                       // 桌面端：保持表情面板，因为没有虚拟键盘来填充空间
-                      if (_showEmojiPanel && PlatformUtils.isMobile) {
+                      if (_showEmojiPanel &&
+                          !shouldInitiallyShowBoostEmojiPanel(
+                            defaultTargetPlatform,
+                          )) {
                         setState(() => _showEmojiPanel = false);
                       }
                     },
