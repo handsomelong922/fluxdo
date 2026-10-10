@@ -220,9 +220,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   Set<String>? _blockedFilterBlocked;
   TopicDetail? _blockedFilterOutput;
 
-  /// 标题是否显示（用 ValueNotifier 隔离 AppBar 更新）
-  final ValueNotifier<bool> _showTitleNotifier = ValueNotifier<bool>(false);
-
   /// AppBar 是否有阴影（用 ValueNotifier 隔离 AppBar 更新）
   final ValueNotifier<bool> _isScrolledUnderNotifier = ValueNotifier<bool>(
     false,
@@ -832,7 +829,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
     WidgetsBinding.instance.removeObserver(this);
     _expandController.dispose();
-    _showTitleNotifier.dispose();
     _isScrolledUnderNotifier.dispose();
     _isOverlayVisibleNotifier.dispose();
     _searchController.dispose();
@@ -952,12 +948,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           _controller.scrollController.hasClients &&
           _controller.scrollController.offset <= barHeight;
       if (atTop) {
-        _showTitleNotifier.value = false;
         _isScrolledUnderNotifier.value = false;
       } else {
-        if (_hasFirstPost) {
-          _showTitleNotifier.value = true;
-        }
         _isScrolledUnderNotifier.value = true;
       }
     } else {
@@ -965,7 +957,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       if (box != null && box.hasSize) {
         final position = box.localToGlobal(Offset.zero);
         final headerVisible = position.dy >= barHeight;
-        _showTitleNotifier.value = !headerVisible;
         _isScrolledUnderNotifier.value = !_hasFirstPost || !headerVisible;
       }
     }
@@ -1198,11 +1189,11 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
 
     // 正常模式下的 AppBar
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(kToolbarHeight),
-      child: ValueListenableBuilder<bool>(
-        valueListenable: _showTitleNotifier,
-        builder: (context, showTitle, _) => ValueListenableBuilder<bool>(
+    // 手机书签工作区隐藏了正文标题，保留它的独立标题栏。
+    if (_usesEmbeddedMobileWorkspaceChrome) {
+      return PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: ValueListenableBuilder<bool>(
           valueListenable: _isScrolledUnderNotifier,
           builder: (context, isScrolledUnder, _) => AnimatedBuilder(
             animation: _expandController,
@@ -1210,122 +1201,36 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               final targetElevation = isScrolledUnder ? 3.0 : 0.0;
               final currentElevation =
                   targetElevation * (1.0 - _expandController.value);
-              final expandProgress = _expandController.value;
-              final shouldShowTitle = showTitle || !_hasFirstPost;
-
-              if (_usesEmbeddedMobileWorkspaceChrome) {
-                return _buildEmbeddedMobileWorkspaceAppBar(
-                  theme: theme,
-                  detail: detail,
-                  notifier: notifier,
-                  elevation: currentElevation,
-                );
-              }
-
-              return AppBar(
-                automaticallyImplyLeading: !widget.embeddedMode,
-                // 平行视界导航栈：embeddedMode 下默认不显示返回按钮（双栏
-                // 选中态没有"返回"概念），但栈深度 > 1（内部链接跳转堆上来
-                // 的层）时，onEmbeddedBack 会被显式传入，这里补一个返回按钮
-                // 弹出当前层，退回上一层。
-                leading: widget.embeddedMode && widget.onEmbeddedBack != null
-                    ? BackButton(onPressed: widget.onEmbeddedBack)
-                    : null,
+              return _buildEmbeddedMobileWorkspaceAppBar(
+                theme: theme,
+                detail: detail,
+                notifier: notifier,
                 elevation: currentElevation,
-                scrolledUnderElevation: currentElevation,
-                shadowColor: Colors.transparent,
-                surfaceTintColor: theme.colorScheme.surfaceTint.withValues(
-                  alpha: (1.0 - expandProgress).clamp(0.0, 1.0),
-                ),
-                backgroundColor: theme.colorScheme.surface,
-                title: _buildAppBarTitle(
-                  theme: theme,
-                  detail: detail,
-                  shouldShowTitle: shouldShowTitle,
-                  expandProgress: expandProgress,
-                ),
-                centerTitle: false,
-                actions: _buildAppBarActions(
-                  detail: detail,
-                  notifier: notifier,
-                  shouldShowTitle: shouldShowTitle,
-                  expandProgress: expandProgress,
-                ),
               );
             },
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  /// 构建 AppBar 标题
-  Widget _buildAppBarTitle({
-    required ThemeData theme,
-    required TopicDetail? detail,
-    required bool shouldShowTitle,
-    required double expandProgress,
-  }) {
-    return Opacity(
-      opacity: shouldShowTitle ? (1.0 - expandProgress).clamp(0.0, 1.0) : 0.0,
-      child: GestureDetector(
-        onTap: () {
-          if (shouldShowTitle && detail != null) {
-            _toggleExpandedHeader();
-          }
-        },
-        child: Text.rich(
-          TextSpan(
-            style: theme.textTheme.titleMedium,
-            children: [
-              if (detail?.isPrivateMessage ?? false)
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Icon(
-                      Symbols.mail_rounded,
-                      size: 18,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                ),
-              if (detail?.closed ?? false)
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Icon(
-                      Symbols.lock_rounded,
-                      size: 18,
-                      color:
-                          theme.textTheme.titleMedium?.color ??
-                          theme.colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-              if (detail?.hasAcceptedAnswer ?? false)
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Icon(
-                      Symbols.check_box_rounded,
-                      size: 18,
-                      color: Colors.green,
-                    ),
-                  ),
-                ),
-              ...EmojiText.buildEmojiSpans(
-                context,
-                detail?.title ?? widget.initialTitle ?? '',
-                theme.textTheme.titleMedium,
-              ),
-            ],
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
+    // 标题由正文头部展示，避免详情加载前后标题与操作按钮重新分配宽度。
+    // 顶栏保持占位，只移除背景和滚动着色，正文不会延伸到按钮后面。
+    return AppBar(
+      automaticallyImplyLeading: !widget.embeddedMode,
+      // 嵌入视图仅在导航栈深度大于 1 时提供返回按钮。
+      leading: widget.embeddedMode && widget.onEmbeddedBack != null
+          ? BackButton(onPressed: widget.onEmbeddedBack)
+          : null,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      shadowColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      backgroundColor: Colors.transparent,
+      // 透明背景无法推导状态栏亮暗，避免浅色主题下白色图标不可见。
+      systemOverlayStyle: theme.brightness == Brightness.dark
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
+      actions: _buildAppBarActions(detail: detail, notifier: notifier),
     );
   }
 
@@ -1465,8 +1370,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   List<Widget> _buildAppBarActions({
     required TopicDetail? detail,
     required TopicDetailNotifier notifier,
-    required bool shouldShowTitle,
-    required double expandProgress,
   }) {
     if (detail == null) {
       return [];
@@ -2523,9 +2426,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       });
     }
 
-    // AppBar 两个分支高度恒为 kToolbarHeight(搜索 AppBar 无 bottom,
-    // 正常分支自身就是 PreferredSize(kToolbarHeight)),外层声明恒定
-    // 高度后,内部随 detail 重建不影响 Scaffold 布局
+    // 各模式顶栏高度恒为 kToolbarHeight，外层声明恒定高度，
+    // 内部随 detail 重建不影响 Scaffold 布局。
     final topicScaffold = Scaffold(
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
