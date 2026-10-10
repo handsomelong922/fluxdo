@@ -185,6 +185,19 @@ class _Harness {
     await container.read(topicDetailProvider(params).future);
     await container.read(nestedTopicProvider(nestedParams).future);
   }
+
+  Future<void> unmount(WidgetTester tester) async {
+    // 主动留下搜索状态，验证页面 dispose 的延迟清理确实执行。
+    container.read(topicSearchProvider(_topicId).notifier).enterSearchMode();
+    expect(container.read(topicSearchProvider(_topicId)).isSearchMode, isTrue);
+    await tester.pumpWidget(const SizedBox());
+
+    // 无参数 pump() 只刷新微任务，不推进 fake clock；显式零时长才会
+    // 执行 Future(...) 创建的零延迟 Timer，然后再销毁 ProviderContainer。
+    await tester.pump(Duration.zero);
+    expect(container.read(topicSearchProvider(_topicId)).isSearchMode, isFalse);
+    expect(tester.takeException(), isNull);
+  }
 }
 
 void _expectNoPlaceholderOrFlatList() {
@@ -224,8 +237,7 @@ void main() {
     expect(find.byType(NestedPostList), findsOneWidget);
     _expectNoPlaceholderOrFlatList();
     expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump();
+    await harness.unmount(tester);
   });
 
   testWidgets('缓存详情首次挂载即选择树形，不依赖 detail 变化通知', (tester) async {
@@ -238,8 +250,7 @@ void main() {
     expect(find.byType(NestedPostList), findsOneWidget);
     _expectNoPlaceholderOrFlatList();
     expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump();
+    await harness.unmount(tester);
   });
 
   testWidgets('路由转场不绘制骨架，转场结束后的首个正文直接为树形', (tester) async {
@@ -261,8 +272,7 @@ void main() {
     await tester.pump();
     expect(find.byType(NestedPostList), findsOneWidget);
     _expectNoPlaceholderOrFlatList();
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump();
+    await harness.unmount(tester);
   });
 
   for (final privateMessage in [false, true]) {
@@ -284,8 +294,7 @@ void main() {
         isFalse,
       );
       expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump();
+      await harness.unmount(tester);
     });
   }
 
@@ -308,8 +317,7 @@ void main() {
         isFalse,
       );
       expect(find.byType(PostListSkeleton), findsNothing);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump();
+      await harness.unmount(tester);
     });
   }
 
@@ -323,8 +331,7 @@ void main() {
     await tester.pumpWidget(harness.app());
     expect(find.byType(NestedPostList), findsOneWidget);
     _expectNoPlaceholderOrFlatList();
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump();
+    await harness.unmount(tester);
   });
 
   testWidgets('用户手动退出树形后，详情和偏好更新不会重新应用默认模式', (tester) async {
@@ -353,8 +360,7 @@ void main() {
     expect(find.byType(TopicPostList), findsOneWidget);
     expect(find.byType(NestedPostList), findsNothing);
     expect(find.byType(PostListSkeleton), findsNothing);
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump();
+    await harness.unmount(tester);
   });
 
   testWidgets('带楼层的树形入口保留 context 定位参数', (tester) async {
@@ -368,8 +374,7 @@ void main() {
     final list = tester.widget<NestedPostList>(find.byType(NestedPostList));
     expect(list.params.targetPostNumber, 27);
     _expectNoPlaceholderOrFlatList();
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump();
+    await harness.unmount(tester);
   });
 
   testWidgets('默认树形失败仍可回退普通视图且不闪骨架', (tester) async {
@@ -388,8 +393,7 @@ void main() {
     await tester.pump();
     expect(find.byType(TopicPostList), findsOneWidget);
     expect(find.byType(ErrorView), findsNothing);
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump();
+    await harness.unmount(tester);
   });
 
   testWidgets('带楼层的树形请求失败后平铺仍定位原目标', (tester) async {
@@ -415,8 +419,7 @@ void main() {
     final list = tester.widget<TopicPostList>(find.byType(TopicPostList));
     expect(list.detail.postStream.posts[list.centerPostIndex].postNumber, 27);
     expect(find.byType(NestedPostList), findsNothing);
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump();
+    await harness.unmount(tester);
   });
 
   testWidgets('树形页的搜索退出和手机书签标题保留', (tester) async {
@@ -445,7 +448,6 @@ void main() {
     expect(find.byType(TopicSearchView), findsNothing);
     expect(find.byType(NestedPostList), findsOneWidget);
     _expectNoPlaceholderOrFlatList();
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump();
+    await harness.unmount(tester);
   });
 }
