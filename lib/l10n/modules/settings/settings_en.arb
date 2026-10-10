@@ -1,5 +1,7 @@
 {
   "@@locale": "en",
+  "reading_hideHomeAvatars": "Hide homepage avatars",
+  "reading_hideHomeAvatarsDesc": "Hide avatars in the home topic list and reclaim their space",
   "bottomNav_actionPickerTitle": "Choose action",
   "bottomNav_appearanceGroup": "Appearance",
   "bottomNav_customizeLayout": "Customize entries",

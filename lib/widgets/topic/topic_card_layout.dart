@@ -168,6 +168,7 @@ class TopicCardLayout {
     required String Function(String name) emojiUrlOf,
     double statsAvailableWidth = 460,
     bool messageStyle = false,
+    bool hideAvatar = false,
     String? excerptText,
     String? bandName,
     String? bandReminder,
@@ -184,6 +185,7 @@ class TopicCardLayout {
       identityHashCode(theme),
       statsAvailableWidth,
       messageStyle,
+      hideAvatar,
       bandExpired,
       identityHashCode(category),
       _currentMinuteEpoch(),
@@ -224,6 +226,7 @@ class TopicCardLayout {
       width: w,
       theme: theme,
       messageStyle: messageStyle,
+      hideAvatar: hideAvatar,
       titleSegments: titleSegments,
       titleIconSpecs: titleIconSpecs,
       parseTitleEmoji: true,
@@ -427,6 +430,7 @@ class TopicCardLayout {
     required double width,
     required ThemeData theme,
     required bool messageStyle,
+    bool hideAvatar = false,
     required List<(String, bool)> titleSegments,
     required List<(IconData, Color)> titleIconSpecs,
     required bool parseTitleEmoji,
@@ -466,8 +470,10 @@ class TopicCardLayout {
 
     // 头像布局:inline = 头像在元信息行内(32);column = 头像独占
     // 左列(40,与私信卡一致),标题/摘要/元信息统一从 contentX 起排
-    final avatarCol =
-        !messageStyle && style.avatarLayout == TopicCardAvatarLayout.column;
+    final showAvatar = messageStyle || !hideAvatar;
+    final avatarCol = showAvatar &&
+        !messageStyle &&
+        style.avatarLayout == TopicCardAvatarLayout.column;
     const colAvatarD = 40.0;
     final contentX = avatarCol ? hPad + colAvatarD + 10 : hPad;
     final contentW = avatarCol ? innerWidth - colAvatarD - 10 : innerWidth;
@@ -867,8 +873,9 @@ class TopicCardLayout {
       // (署名+时间 / 分类标签+统计);任一缺席(字段开关或数据缺失)
       // 则剩余字段合并单行 [左块 … 统计 时间],行随内容收缩
       const avatarD = 32.0;
-      final rightX = avatarCol ? contentX : hPad + avatarD + 8;
-      final metaWidth = avatarCol ? contentW : innerWidth - avatarD - 8;
+      final avatarSpace = showAvatar ? avatarD + 8 : 0.0;
+      final rightX = avatarCol ? contentX : hPad + avatarSpace;
+      final metaWidth = avatarCol ? contentW : innerWidth - avatarSpace;
       author = (style.showAuthor && authorName.isNotEmpty) ? ab.build() : null;
       final twoRows = author != null && catTags != null;
       final timeW = time == null ? 0.0 : time!.longestLine + 8;
@@ -900,10 +907,15 @@ class TopicCardLayout {
       }
       final rightBlockH =
           firstH + (firstH > 0 && secondH > 0 ? 2 : 0.0) + secondH;
-      final hasMetaRow = avatarCol ? rightBlockH > 0 : true;
+      final hasMetaRow = avatarCol || !showAvatar ? rightBlockH > 0 : true;
       if (hasMetaRow) y += 8;
       final double rowTop;
-      if (avatarCol) {
+      if (!showAvatar) {
+        // 隐藏头像时不保留图片、左右间距或头像最小行高。
+        avatarRect = Rect.zero;
+        rowTop = y;
+        y += rightBlockH;
+      } else if (avatarCol) {
         // 头像独占左列:顶对齐标题首行(复刻私信卡观感)
         avatarRect =
             Rect.fromLTWH(hPad, bandHeight + vPad, colAvatarD, colAvatarD);
@@ -973,8 +985,8 @@ class TopicCardLayout {
       cardHeight = contentBottom + vPad + 8;
     }
 
-    avatarUrl = avatarUrlValue;
-    animatedAvatarUrl = animatedAvatarUrlValue;
+    avatarUrl = showAvatar ? avatarUrlValue : null;
+    animatedAvatarUrl = showAvatar ? animatedAvatarUrlValue : null;
     semanticsLabel = [
       for (final (t, _) in titleSegments) t,
       if (author != null && authorName.isNotEmpty) authorName,

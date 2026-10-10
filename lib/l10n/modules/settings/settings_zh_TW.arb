@@ -1,5 +1,7 @@
 {
   "@@locale": "zh_TW",
+  "reading_hideHomeAvatars": "隱藏首頁頭像",
+  "reading_hideHomeAvatarsDesc": "隱藏首頁話題列表中的頭像，並收回左側空白",
   "bottomNav_actionPickerTitle": "選擇動作",
   "bottomNav_appearanceGroup": "外觀",
   "bottomNav_customizeLayout": "自訂底欄項目",

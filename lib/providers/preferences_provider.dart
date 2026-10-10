@@ -113,6 +113,9 @@ class AppPreferences {
   /// 在首页创作按钮上方显示独立刷新入口，默认关闭
   final bool homeRefreshButton;
 
+  /// 隐藏首页话题头像并收回占位，默认关闭。
+  final bool hideHomeAvatars;
+
   /// 自动识别剪贴板中的 Linux.do 话题链接
   final bool clipboardTopicLinkDetection;
 
@@ -317,6 +320,7 @@ class AppPreferences {
     required this.shareImageThemeIndex,
     required this.autoFillLogin,
     this.homeRefreshButton = false,
+    this.hideHomeAvatars = false,
     required this.clipboardTopicLinkDetection,
     required this.topicFilterKeywords,
     this.topicFilterWholeWord = false,
@@ -384,6 +388,7 @@ class AppPreferences {
     int? shareImageThemeIndex,
     bool? autoFillLogin,
     bool? homeRefreshButton,
+    bool? hideHomeAvatars,
     bool? clipboardTopicLinkDetection,
     List<String>? topicFilterKeywords,
     bool? topicFilterWholeWord,
@@ -451,6 +456,7 @@ class AppPreferences {
       shareImageThemeIndex: shareImageThemeIndex ?? this.shareImageThemeIndex,
       autoFillLogin: autoFillLogin ?? this.autoFillLogin,
       homeRefreshButton: homeRefreshButton ?? this.homeRefreshButton,
+      hideHomeAvatars: hideHomeAvatars ?? this.hideHomeAvatars,
       clipboardTopicLinkDetection:
           clipboardTopicLinkDetection ?? this.clipboardTopicLinkDetection,
       topicFilterKeywords: topicFilterKeywords ?? this.topicFilterKeywords,
@@ -546,6 +552,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _shareImageThemeIndexKey = 'pref_share_image_theme_index';
   static const String _autoFillLoginKey = 'pref_auto_fill_login';
   static const String _homeRefreshButtonKey = 'pref_home_refresh_button';
+  static const String _hideHomeAvatarsKey = 'pref_hide_home_avatars';
   static const String _clipboardTopicLinkDetectionKey =
       'pref_clipboard_topic_link_detection';
   static const String _topicFilterKeywordsKey = 'pref_topic_filter_keywords';
@@ -639,6 +646,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
           shareImageThemeIndex: _prefs.getInt(_shareImageThemeIndexKey) ?? 0,
           autoFillLogin: _prefs.getBool(_autoFillLoginKey) ?? true,
           homeRefreshButton: _prefs.getBool(_homeRefreshButtonKey) ?? false,
+          hideHomeAvatars: _prefs.getBool(_hideHomeAvatarsKey) ?? false,
           clipboardTopicLinkDetection:
               _prefs.getBool(_clipboardTopicLinkDetectionKey) ?? false,
           topicFilterKeywords:
@@ -794,6 +802,11 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   Future<void> setAutoFillLogin(bool enabled) async {
     state = state.copyWith(autoFillLogin: enabled);
     await _prefs.setBool(_autoFillLoginKey, enabled);
+  }
+
+  Future<void> setHideHomeAvatars(bool enabled) async {
+    state = state.copyWith(hideHomeAvatars: enabled);
+    await _prefs.setBool(_hideHomeAvatarsKey, enabled);
   }
 
   Future<void> setHomeRefreshButton(bool enabled) async {

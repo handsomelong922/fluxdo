@@ -68,6 +68,15 @@ List<SettingsGroup> buildReadingGroups(BuildContext context) {
       icon: Symbols.touch_app_rounded,
       items: [
         SwitchModel(
+          id: 'hideHomeAvatars',
+          title: l10n.reading_hideHomeAvatars,
+          subtitle: l10n.reading_hideHomeAvatarsDesc,
+          icon: Symbols.person_rounded,
+          getValue: (ref) => ref.watch(preferencesProvider).hideHomeAvatars,
+          onChanged: (ref, v) =>
+              ref.read(preferencesProvider.notifier).setHideHomeAvatars(v),
+        ),
+        SwitchModel(
           id: 'longPressPreview',
           title: l10n.preferences_longPressPreview,
           subtitle: l10n.preferences_longPressPreviewDesc,

@@ -190,6 +190,7 @@ class TopicCardPrewarmScope extends StatelessWidget {
     this.categoryMap,
     this.statsAvailableWidth,
     this.messageStyle = false,
+    this.hideAvatar = false,
     required this.child,
   });
 
@@ -197,6 +198,7 @@ class TopicCardPrewarmScope extends StatelessWidget {
   final Map<int, Category>? categoryMap;
   final double? statsAvailableWidth;
   final bool messageStyle;
+  final bool hideAvatar;
   final Widget child;
 
   @override
@@ -209,6 +211,7 @@ class TopicCardPrewarmScope extends StatelessWidget {
         topicCardWidthFor(context),
         statsAvailableWidth,
         messageStyle,
+        hideAvatar,
         identityHashCode(categoryMap),
         TopicCardStyleScope.current,
       ),
@@ -221,6 +224,7 @@ class TopicCardPrewarmScope extends StatelessWidget {
           categoryMap: categoryMap,
           statsAvailableWidth: statsAvailableWidth,
           messageStyle: messageStyle,
+          hideAvatar: hideAvatar,
         );
       },
       child: child,

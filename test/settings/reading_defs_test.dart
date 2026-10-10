@@ -54,6 +54,17 @@ Future<List<SettingsModel>> _pumpAndCollectBasicItems(
 }
 
 void main() {
+  testWidgets('阅读设置包含隐藏首页头像开关', (tester) async {
+    final items = await _pumpAndCollectBasicItems(
+      tester,
+      size: const Size(390, 844),
+      desktopOverride: false,
+    );
+    final setting = items.singleWhere((item) => item.id == 'hideHomeAvatars');
+    expect(setting, isA<SwitchModel>());
+    expect(setting.title, '隐藏首页头像');
+  });
+
   testWidgets('桌面宽屏显示默认打开标签页方式设置', (tester) async {
     final items = await _pumpAndCollectBasicItems(
       tester,

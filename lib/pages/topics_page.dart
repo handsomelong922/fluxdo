@@ -2790,11 +2790,14 @@ class _TopicListState extends ConsumerState<_TopicList>
     super.build(context); // AutomaticKeepAliveClientMixin 需要
 
     final providerKey = widget.categoryId;
-    // 本页外层固定有 12px 左右留白；TopicCard 内部再扣 24px padding、
-    // 32px 头像和 8px 间距，因此移动端元信息区宽度 = 屏宽 - 88。
+    final hideHomeAvatars = ref.watch(
+      preferencesProvider.select((p) => p.hideHomeAvatars),
+    );
+    // 本页外层留白 24px、卡片内边距 24px；显示头像时再扣
+    // 32px 头像和 8px 间距，隐藏时将这 40px 归还元信息区。
     // 由列表层一次计算并传入，避开 Sliver 布局阶段的逐卡 LayoutBuilder。
     final double? statsAvailableWidth = Responsive.isMobile(context)
-        ? MediaQuery.sizeOf(context).width - 88
+        ? MediaQuery.sizeOf(context).width - (hideHomeAvatars ? 48 : 88)
         : null;
     final statsWidthTier = statsAvailableWidth == null
         ? null
@@ -2925,6 +2928,7 @@ class _TopicListState extends ConsumerState<_TopicList>
 
         return TopicCardPrewarmScope(
           topics: topics,
+          hideAvatar: hideHomeAvatars,
           categoryMap: widget.categoryMap,
           statsAvailableWidth: statsAvailableWidth,
           child: DesktopRefreshIndicator(
@@ -3096,6 +3100,7 @@ class _TopicListState extends ConsumerState<_TopicList>
                                         _openTopic(topic);
                                       },
                                       enableLongPress: enableLongPress,
+                                      hideAvatar: hideHomeAvatars,
                                       highlightColor: color,
                                       categoryMap: widget.categoryMap,
                                       statsAvailableWidth: statsAvailableWidth,
@@ -3112,6 +3117,7 @@ class _TopicListState extends ConsumerState<_TopicList>
                               category: _categorySignatureFor(topic),
                               statsWidthTier: statsWidthTier,
                               cardStyle: topicCardStyle,
+                              hideAvatar: hideHomeAvatars,
                               // 主题恒等进签名:自绘卡的文字颜色在排版期
                               // 烤死,obtain 发生在缓存短路点之外 —— 不换
                               // 代则深浅色切换后旧排版继续画(底色由
@@ -3140,6 +3146,7 @@ class _TopicListState extends ConsumerState<_TopicList>
                                 _openTopic(topic);
                               },
                               enableLongPress: enableLongPress,
+                              hideAvatar: hideHomeAvatars,
                               categoryMap: widget.categoryMap,
                               statsAvailableWidth: statsAvailableWidth,
                             );

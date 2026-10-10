@@ -37,6 +37,7 @@ TopicCardLayout obtainTopicItemLayout({
   Map<int, Category>? categoryMap,
   double? statsAvailableWidth,
   bool messageStyle = false,
+  bool hideAvatar = false,
 }) {
   final cardWidth = topicCardWidthFor(context);
   final categoryId = int.tryParse(topic.categoryId);
@@ -47,8 +48,10 @@ TopicCardLayout obtainTopicItemLayout({
     theme: Theme.of(context),
     category: categoryMap?[categoryId],
     emojiUrlOf: topicCardEmojiUrlResolver,
-    statsAvailableWidth: statsAvailableWidth ?? (cardWidth - 64),
+    statsAvailableWidth: statsAvailableWidth ??
+        (cardWidth - (hideAvatar && !messageStyle ? 24 : 64)),
     messageStyle: messageStyle,
+    hideAvatar: hideAvatar,
   );
 }
 
@@ -69,6 +72,7 @@ Widget buildTopicItem({
   Widget? topWidget,
   Widget? middleWidget,
   bool messageStyle = false,
+  bool hideAvatar = false,
   Map<int, Category>? categoryMap,
   double? statsAvailableWidth,
   List<PreviewAction>? previewActions,
@@ -122,6 +126,7 @@ Widget buildTopicItem({
           categoryMap: categoryMap,
           statsAvailableWidth: statsAvailableWidth,
           messageStyle: messageStyle,
+          hideAvatar: hideAvatar,
         )
       : null;
 
@@ -166,6 +171,7 @@ Widget buildTopicItem({
         topWidget: topWidget,
         middleWidget: middleWidget,
         messageStyle: messageStyle,
+        hideAvatar: hideAvatar,
         categoryMap: categoryMap,
         statsAvailableWidth: statsAvailableWidth,
       );

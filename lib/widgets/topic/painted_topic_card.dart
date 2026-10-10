@@ -68,6 +68,15 @@ class _PaintedTopicCardState extends State<PaintedTopicCard> {
   String? _readyAnimatedUrl;
 
   @override
+  void didUpdateWidget(covariant PaintedTopicCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.layout.animatedAvatarUrl != widget.layout.animatedAvatarUrl) {
+      // 隐藏后再显示同一头像，也需等待新 overlay 就绪才收起静态兜底。
+      _readyAnimatedUrl = null;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final layout = widget.layout;
     final cardRadius = BorderRadius.circular(10);
@@ -271,7 +280,7 @@ class _RenderTopicCard extends RenderBox
     // 头像:动图 overlay 未就绪时画静态首帧(TopicCardImages 单帧,
     // 未到则灰底)顶住观感;overlay 首帧就绪后停画 —— 透明 gif 的帧
     // 挡不住底图,继续画会从透明像素后透出"静态+动态双影"
-    if (_paintStaticAvatar) {
+    if (_paintStaticAvatar && !l.avatarRect.isEmpty) {
       final avatarRect = l.avatarRect.shift(offset);
       final avatar = l.avatarUrl == null
           ? null

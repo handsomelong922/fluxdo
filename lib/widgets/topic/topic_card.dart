@@ -237,6 +237,9 @@ class TopicCard extends ConsumerWidget {
   /// Gmail 式私信布局:发件人置顶加粗、会话主题次行(私信列表用)
   final bool messageStyle;
 
+  /// 仅由首页列表传入；其他列表保留现有头像展示。
+  final bool hideAvatar;
+
   /// 由列表层提供时，避免每张卡片各自订阅分类 Provider。
   final Map<int, Category>? categoryMap;
 
@@ -256,6 +259,7 @@ class TopicCard extends ConsumerWidget {
     this.topWidget,
     this.middleWidget,
     this.messageStyle = false,
+    this.hideAvatar = false,
     this.categoryMap,
     this.statsAvailableWidth,
   });
@@ -461,12 +465,15 @@ class TopicCard extends ConsumerWidget {
         if (middleWidget != null) ...[const SizedBox(height: 4), middleWidget!],
         const SizedBox(height: 8),
         metadata(
-          withAvatarInline: style.avatarLayout == TopicCardAvatarLayout.inline,
+          withAvatarInline:
+              !hideAvatar && style.avatarLayout == TopicCardAvatarLayout.inline,
         ),
       ],
     );
 
-    if (style.avatarLayout != TopicCardAvatarLayout.column) return content;
+    if (hideAvatar || style.avatarLayout != TopicCardAvatarLayout.column) {
+      return content;
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

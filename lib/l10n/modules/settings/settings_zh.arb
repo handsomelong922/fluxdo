@@ -1,5 +1,7 @@
 {
   "@@locale": "zh",
+  "reading_hideHomeAvatars": "隐藏首页头像",
+  "reading_hideHomeAvatarsDesc": "隐藏首页话题列表中的头像，并收回左侧空白",
   "bottomNav_actionPickerTitle": "选择动作",
   "bottomNav_appearanceGroup": "外观",
   "bottomNav_customizeLayout": "自定义底栏项",
