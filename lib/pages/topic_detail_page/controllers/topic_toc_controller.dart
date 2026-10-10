@@ -67,8 +67,7 @@ class TopicTocController extends ChangeNotifier {
   /// 会瞬报其他楼层,不冻结会闪隐)。
   bool get isJumping => _jumpTargetId != null;
 
-  /// 顶对齐后的视觉缓冲:帖子列表视口顶就在 AppBar 下缘(标准 Scaffold
-  /// 不重叠),reveal 0 对齐后标题贴边,留一点间距好看。
+  /// 顶对齐后的视觉缓冲；浮动顶栏的高度另由控制器可视边界提供。
   static const double _topBuffer = 12;
 
   /// 话题数据落地/更新后调用:条件满足则(重新)提取 1 楼 TOC。
@@ -187,8 +186,9 @@ class TopicTocController extends ChangeNotifier {
     if (viewport == null) return;
     final sc = detailController.scrollController;
     if (!sc.hasClients) return;
-    final target =
-        viewport.getOffsetToReveal(box, 0.0).offset - _topBuffer;
+    final target = viewport.getOffsetToReveal(box, 0.0).offset -
+        sc.viewportBoundaryGetter().top -
+        _topBuffer;
     sc.jumpTo(target.clamp(
       sc.position.minScrollExtent,
       sc.position.maxScrollExtent,
@@ -213,7 +213,10 @@ class TopicTocController extends ChangeNotifier {
     final sc = detailController.scrollController;
     if (!sc.hasClients) return;
 
-    final threshold = sc.position.pixels + _topBuffer + _spyBuffer;
+    final threshold = sc.position.pixels +
+        sc.viewportBoundaryGetter().top +
+        _topBuffer +
+        _spyBuffer;
     String? activeId;
     for (final entry in data.flat) {
       final offset = _topAlignOffsetOf(entry.anchorKey);

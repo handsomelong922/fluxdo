@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:app_icons/app_icons.dart';
 import '../../../l10n/s.dart';
 import 'package:common_ui/common_ui.dart';
+import 'topic_content_insets.dart';
 
 /// 话题详情页底部操作栏
 class TopicBottomBar extends StatelessWidget {
@@ -57,35 +58,34 @@ class TopicBottomBar extends StatelessWidget {
     final theme = Theme.of(context);
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
-    return Container(
-      height: 80,
+    return Padding(
       padding: EdgeInsets.only(bottom: bottomPadding),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 8),
-          // 回到顶部
-          IconButton(
-            onPressed: onScrollToTop,
-            icon: const Icon(Symbols.vertical_align_top_rounded),
-            tooltip: context.l10n.topicDetail_scrollToTop,
-          ),
-          // 筛选
-          if (_hasActiveFilter)
-            _buildActiveFilterChip(context, theme)
-          else
-            _buildFilterMenuButton(context, theme),
-          // 分享菜单
-          _buildShareMenu(context, theme),
-          // 在浏览器打开
-          IconButton(
-            onPressed: onOpenInBrowser,
-            icon: const Icon(Symbols.language_rounded),
-            tooltip: context.l10n.topicDetail_openInBrowser,
-          ),
-        ],
+      child: SizedBox(
+        height: kTopicBottomBarHeight,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // 回到顶部
+            IconButton(
+              onPressed: onScrollToTop,
+              icon: const Icon(Symbols.vertical_align_top_rounded),
+              tooltip: context.l10n.topicDetail_scrollToTop,
+            ),
+            // 筛选
+            if (_hasActiveFilter)
+              _buildActiveFilterChip(context, theme)
+            else
+              _buildFilterMenuButton(context, theme),
+            // 分享菜单
+            _buildShareMenu(context, theme),
+            // 在浏览器打开
+            IconButton(
+              onPressed: onOpenInBrowser,
+              icon: const Icon(Symbols.language_rounded),
+              tooltip: context.l10n.topicDetail_openInBrowser,
+            ),
+          ],
+        ),
       ),
     );
   }

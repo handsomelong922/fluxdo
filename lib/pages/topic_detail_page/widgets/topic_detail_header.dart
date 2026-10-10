@@ -28,6 +28,7 @@ class TopicDetailHeader extends ConsumerWidget {
   final void Function(int, bool)? onVoteChanged;
   final void Function(TopicNotificationLevel)? onNotificationLevelChanged;
   final bool showTitle;
+  final double topPadding;
 
   /// 跳转到当前话题的指定帖子
   final void Function(int postNumber)? onJumpToPost;
@@ -39,6 +40,7 @@ class TopicDetailHeader extends ConsumerWidget {
     this.onVoteChanged,
     this.onNotificationLevelChanged,
     this.showTitle = true,
+    this.topPadding = 0,
     this.onJumpToPost,
   });
 
@@ -67,7 +69,7 @@ class TopicDetailHeader extends ConsumerWidget {
     }
 
     return Container(
-      padding: EdgeInsets.fromLTRB(16, showTitle ? 20 : 12, 16, 16),
+      padding: EdgeInsets.fromLTRB(16, topPadding + (showTitle ? 20 : 12), 16, 16),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         border: Border(

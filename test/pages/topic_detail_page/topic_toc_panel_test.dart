@@ -92,4 +92,60 @@ void main() {
     expect(find.text('第一节'), findsOneWidget);
     expect(find.text('第二章'), findsOneWidget);
   });
+
+  testWidgets('目录精确跳转和激活判断都避开浮动顶栏', (tester) async {
+    final controller = TopicDetailController(
+      scrollController: AutoScrollController(
+        viewportBoundaryGetter: () => const Rect.fromLTRB(0, 56, 0, 0),
+      ),
+      screenTrack: ScreenTrack(DiscourseService()),
+      trackEnabled: false,
+    );
+    final floatingToc = TopicTocController(detailController: controller);
+    addTearDown(controller.dispose);
+    addTearDown(floatingToc.dispose);
+    floatingToc.debugSetTocData(toc.tocData!);
+    final entry = floatingToc.tocData!.flat.first;
+    const headingKey = ValueKey('floating-toc-heading');
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: HeadingAnchorScope(
+          registry: floatingToc.registry,
+          child: SingleChildScrollView(
+            controller: controller.scrollController,
+            child: Column(
+              children: [
+                const SizedBox(height: 300),
+                HeadingAnchorRegistrar(
+                  nodeId: entry.nodeId,
+                  child: const SizedBox(
+                    key: headingKey,
+                    height: 40,
+                    child: Text('标题'),
+                  ),
+                ),
+                const SizedBox(height: 1000),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ));
+
+    // 本用例只检查第二阶段的标题精确定位，空帖子列表跳过第一阶段。
+    final jump = floatingToc.scrollToHeading(entry, const []);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    await jump;
+    await tester.pump();
+    expect(tester.getTopLeft(find.byKey(headingKey)).dy, 56 + 12);
+
+    controller.scrollController.jumpTo(100);
+    await tester.pump();
+    floatingToc.updateActiveHeading();
+    expect(floatingToc.activeHeadingId, entry.id);
+    expect(tester.takeException(), isNull);
+  });
 }

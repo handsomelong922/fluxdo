@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:app_icons/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:m3e_ui/m3e_ui.dart';
@@ -14,6 +15,7 @@ import 'topic_detail_header.dart';
 import 'shared_issue_button.dart';
 import 'topic_more_topics.dart';
 import 'private_message_participants.dart';
+import 'topic_content_insets.dart';
 
 /// 嵌套视图帖子列表 — 在现有 TopicDetailPage 内替换平铺帖子流
 class NestedPostList extends ConsumerStatefulWidget {
@@ -147,6 +149,23 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
     final ctx = _contextTargetKey.currentContext;
     if (ctx != null) {
       _scrolledToTarget = target;
+      final box = ctx.findRenderObject();
+      final viewport = box == null ? null : RenderAbstractViewport.maybeOf(box);
+      if (box != null && viewport != null && widget.scrollController.hasClients) {
+        final position = widget.scrollController.position;
+        final offset = topicContentRevealOffset(
+          viewport: viewport,
+          target: box,
+          topPadding: TopicContentInsets.paddingOf(context).top,
+          alignment: 0.2,
+        );
+        widget.scrollController.animateTo(
+          offset.clamp(position.minScrollExtent, position.maxScrollExtent),
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+        );
+        return;
+      }
       Scrollable.ensureVisible(
         ctx,
         duration: const Duration(milliseconds: 400),
@@ -241,6 +260,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
             child: TopicDetailHeader(
               detail: widget.detail,
               headerKey: widget.headerKey,
+              topPadding: TopicContentInsets.paddingOf(context).top,
               showTitle: !widget.hideHeaderTitle,
               onVoteChanged: widget.onVoteChanged,
               onNotificationLevelChanged: widget.onNotificationLevelChanged,
@@ -419,7 +439,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
 
           SliverToBoxAdapter(
             child: SizedBox(
-              height: MediaQuery.of(context).padding.bottom + 100,
+              height: TopicContentInsets.paddingOf(context).bottom,
             ),
           ),
         ],

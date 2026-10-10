@@ -6,6 +6,7 @@ import '../../../providers/preferences_provider.dart';
 import '../../../widgets/topic/topic_progress.dart';
 import 'topic_bottom_bar.dart';
 import 'topic_progress_gestures.dart';
+import 'topic_content_insets.dart';
 
 /// 话题详情页浮层
 /// 包含进度栏、底部操作栏和悬浮回复按钮
@@ -114,7 +115,8 @@ class TopicDetailOverlay extends StatelessWidget {
             builder: (context, showBottomBar, child) => AnimatedPositioned(
               key: const ValueKey('progress_bar'),
               duration: const Duration(milliseconds: 200),
-              bottom: showBottomBar ? 96 : 24 + bottomPadding,
+              bottom: bottomPadding +
+                  (showBottomBar ? kTopicBottomBarHeight + 16 : 24),
               left: 0,
               right: 0,
               child: child!,
@@ -150,7 +152,7 @@ class TopicDetailOverlay extends StatelessWidget {
             duration: const Duration(milliseconds: 200),
             left: 0,
             right: 0,
-            bottom: showBottomBar ? 0 : -80,
+            bottom: showBottomBar ? 0 : -(kTopicBottomBarHeight + bottomPadding),
             child: child!,
           ),
         ),
@@ -167,9 +169,7 @@ class TopicDetailOverlay extends StatelessWidget {
               key: const ValueKey('fab_reply'),
               duration: const Duration(milliseconds: 200),
               right: 16,
-              bottom: showBottomBar
-                  ? bottomPadding + (80 - bottomPadding - 56) / 2
-                  : 16 + bottomPadding,
+              bottom: topicReplyBottom(bottomPadding, showBottomBar),
               child: child!,
             ),
           ),

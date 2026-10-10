@@ -30,6 +30,7 @@ jobs:
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       build_number: ${{ steps.version.outputs.build_number }}
+      artifact_url: ${{ steps.upload_apk.outputs.artifact-url }}
     defaults:
       run:
         shell: bash
@@ -56,6 +57,9 @@ jobs:
           ref: ${{ github.sha }}
           submodules: recursive
           persist-credentials: false
+
+      - name: Test the release permission preflight
+        run: python3 -m unittest discover -s scripts/ci -p 'test_personal_release_preflight.py' -v
 
       - name: Calculate personal release identity
         id: version
@@ -303,6 +307,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload verified APK
+        id: upload_apk
         uses: actions/upload-artifact@v4
         with:
           name: personal-apk-${{ github.sha }}
@@ -310,6 +315,19 @@ jobs:
           retention-days: 14
           if-no-files-found: error
           overwrite: true
+
+      - name: Report the verified APK download
+        env:
+          ARTIFACT_URL: ${{ steps.upload_apk.outputs.artifact-url }}
+        run: |
+          test -n "$ARTIFACT_URL"
+          {
+            printf '### 已验证的个人 APK\n\n'
+            printf '分析、测试、构建、原生库及个人签名验证已通过。\n\n'
+            printf '[下载 APK 和 SHA-256 校验文件](%s)\n\n' "$ARTIFACT_URL"
+            printf 'Artifact 保留 14 天，下载需要登录 GitHub。Release 发布状态见发布任务。\n\n'
+            cat dist/fluxdo-personal-arm64-v8a.apk.sha256
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove temporary signing material
         if: always()
@@ -337,7 +355,80 @@ jobs:
         working-directory: dist
         run: sha256sum -c fluxdo-personal-arm64-v8a.apk.sha256
 
+      - name: Check GITHUB_TOKEN release eligibility
+        id: release_permission
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_URL: ${{ needs.build.outputs.artifact_url }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, urllib.parse, urllib.request
+          repo = 'handsomelong922/fluxdo'
+          target = os.environ['GITHUB_SHA']
+          artifact = os.environ['ARTIFACT_URL']
+          def require(condition, message):
+              if not condition:
+                  raise SystemExit(message)
+          def sha(value):
+              require(isinstance(value, str) and re.fullmatch(r'[0-9a-f]{40}', value),
+                      'GitHub 返回的提交或目录 SHA 无效')
+              return value
+          require(os.environ['GITHUB_REPOSITORY'] == repo, '不允许发布到其他仓库')
+          require(artifact.startswith(f'https://github.com/{repo}/actions/runs/'),
+                  '缺少本次已验证 Artifact 的下载链接')
+          sha(target)
+          def api(path=''):
+              url = f'https://api.github.com/repos/{repo}' + (f'/{path}' if path else '')
+              request = urllib.request.Request(url, headers={
+                  'Authorization': f'Bearer {os.environ["GH_TOKEN"]}',
+                  'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'})
+              # API/网络错误直接失败，不把未知错误解释为可跳过的权限限制。
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+          def workflow_tree(root):
+              # 逐层读取非递归树，避免 compare 的文件数上限或 merge-base 语义。
+              current = sha(root)
+              for name in ('.github', 'workflows'):
+                  data = api(f'git/trees/{current}')
+                  require(data['sha'] == current and data.get('truncated') is False,
+                          '工作流目录树返回不完整，不能判断发布权限')
+                  matches = [item for item in data['tree'] if item['path'] == name]
+                  if not matches:
+                      return None
+                  require(len(matches) == 1 and matches[0]['type'] == 'tree'
+                          and matches[0]['mode'] == '040000', '工作流路径不是唯一的 Git 目录')
+                  current = sha(matches[0]['sha'])
+              return current
+          metadata = api()
+          require(metadata['full_name'] == repo, 'GitHub 返回的仓库身份不匹配')
+          default_branch = metadata['default_branch']
+          require(isinstance(default_branch, str) and default_branch, '仓库默认分支无效')
+          default = api('commits/' + urllib.parse.quote(default_branch, safe=''))
+          default_sha = sha(default['sha'])
+          source = api(f'git/commits/{target}')
+          require(source['sha'] == target, 'GitHub 返回的目标提交不匹配')
+          eligible = workflow_tree(source['tree']['sha']) == workflow_tree(default['commit']['tree']['sha'])
+          # 此预检只适用于当前显式使用的 GITHUB_TOKEN，不探测或读取额外凭据。
+          # 若日后用户另行授权发布凭据，需同步审查预检和发布步骤；这里不创建 Secret。
+          docs = 'https://docs.github.com/en/rest/releases/releases#create-a-release'
+          if eligible:
+              status = '工作流目录与默认分支一致，允许继续尝试 Release 发布；此预检不代表已发布。'
+          else:
+              status = ('Release 未创建，权限预检跳过：目标提交的 .github/workflows 与默认分支不同；'
+                        'GitHub 要求 Workflows write，当前 GITHUB_TOKEN 无法获得该权限。')
+              print(f'::warning::{status}')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f'### Release 发布权限预检\n\n{status}\n\n'
+                            f'目标提交：{target}\n\n默认分支快照：{default_sha}\n\n'
+                            f'[下载已验证 APK 和校验文件]({artifact})（保留 14 天，需要登录 GitHub）\n\n'
+                            f'[GitHub 发布权限说明]({docs})\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'eligible={str(eligible).lower()}\n')
+          PY
+
       - name: Publish only to the personal fork
+        if: steps.release_permission.outputs.eligible == 'true'
+        id: publish
         uses: softprops/action-gh-release@v2
         with:
           repository: handsomelong922/fluxdo
@@ -358,3 +449,11 @@ jobs:
           fail_on_unmatched_files: true
           prerelease: true
           make_latest: false
+
+      - name: Report the published release
+        if: steps.publish.outcome == 'success'
+        env:
+          RELEASE_URL: ${{ steps.publish.outputs.url }}
+        run: |
+          test -n "$RELEASE_URL"
+          printf '\nRelease 已创建：[打开发布页](%s)\n' "$RELEASE_URL" >> "$GITHUB_STEP_SUMMARY"

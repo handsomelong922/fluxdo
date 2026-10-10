@@ -107,6 +107,25 @@ void main() {
     expect(controller.topAlignOffsetForScrollIndex(199), isNull);
   });
 
+  testWidgets('悬浮顶栏下已渲染目标保留按钮避让，回顶仍受滚动边界约束', (tester) async {
+    final controller = AutoScrollController(
+      viewportBoundaryGetter: () => const Rect.fromLTRB(0, 56, 0, 0),
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(buildList(controller, 20));
+
+    expect(controller.topAlignOffsetForScrollIndex(4), 144);
+    await controller.jumpToRenderedScrollIndex(4);
+    await tester.pump();
+    expect(controller.position.pixels, 144);
+    expect(tester.getTopLeft(find.text('item 4')).dy, 56);
+
+    await controller.jumpToRenderedScrollIndex(0);
+    await tester.pump();
+    expect(controller.position.pixels, 0);
+    expect(controller.position.outOfRange, isFalse);
+  });
+
   /// reverse 列表（聊天气泡流）的 alignment 语义
   ///
   /// getOffsetToReveal 的 alignment 相对**滚动**前缘、而非屏幕上方。

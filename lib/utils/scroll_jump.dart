@@ -77,7 +77,12 @@ extension AutoScrollJump on AutoScrollController {
     final viewport = RenderAbstractViewport.maybeOf(box);
     if (viewport == null) return null;
 
-    // viewportBoundaryGetter 默认 Rect.zero，无额外偏移
-    return viewport.getOffsetToReveal(box, alignment).offset;
+    final offset = viewport.getOffsetToReveal(box, alignment).offset;
+    // 正序顶对齐需要避开浮动工具栏；默认 Rect.zero 保持原有行为。
+    // reverse 列表的 alignment=1 仍沿用滚动前缘语义。
+    if (alignment == 0.0 && position.axisDirection == AxisDirection.down) {
+      return offset - viewportBoundaryGetter().top;
+    }
+    return offset;
   }
 }

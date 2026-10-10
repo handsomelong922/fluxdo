@@ -47,7 +47,6 @@ import '../../services/log/bookmark_edit_trace.dart';
 import '../../services/navigation/app_route_observer.dart';
 import '../../utils/hero_visibility_controller.dart';
 import '../../widgets/content/lazy_load_scope.dart';
-import '../../widgets/post/post_item_skeleton.dart';
 import '../../widgets/post/post_item/widgets/post_flag_sheet.dart';
 import '../../widgets/post/post_replies_sheet.dart';
 import '../../widgets/post/post_revision/revision_modal.dart';
@@ -64,6 +63,8 @@ import 'controllers/topic_toc_controller.dart';
 import 'widgets/nested_post_list.dart';
 import 'widgets/invite_private_message_dialog.dart';
 import 'widgets/topic_detail_overlay.dart';
+import 'widgets/topic_content_insets.dart';
+import 'widgets/topic_floating_app_bar.dart';
 import 'widgets/topic_post_list.dart';
 import 'widgets/topic_toc_panel.dart';
 import 'widgets/topic_detail_header.dart';
@@ -231,7 +232,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
   );
   bool _isSwitchingMode = false; // 切换热门回复模式
   bool _isNestedView = false; // 嵌套视图模式
-  bool _defaultNestedViewApplied = false; // 默认嵌套视图配置是否已应用（依赖 detail 加载后判定）
+  bool _defaultNestedViewApplied = false; // 首次详情构建前确定默认视图，之后保留用户选择
   int? _nestedTargetPostNumber; // 树形 context 定位的目标楼层（通知等带楼层进入）
   int _nestedRelocateToken = 0; // 同目标重跳令牌:递增触发 NestedPostList 重新滚动定位+高亮重播
   bool _nestedAutoEnabled = false; // 树形视图是否为默认配置自动开启（失败时静默回落平铺）
@@ -276,8 +277,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
 
   /// 进入转场是否已完成。转场期间物化真实帖子列表(缓存命中时首屏多个
   /// PostItem 的构建 + 中文排版)会把大 build 帧砸在动画中间 —— 换什么
-  /// 转场曲线都掉帧。未完成前一律先渲染骨架(与首次加载视觉一致),
-  /// completed 后下一帧再物化,把成本挪出动画窗口。无转场进入(动画
+  /// 转场曲线都掉帧。未完成前保持背景，不插入会闪现的帖子占位框架；
+  /// completed 后下一帧再物化，把成本挪出动画窗口。无转场进入(动画
   /// 初始即 completed)时保持 true,零影响。
   bool _routeTransitionDone = true;
   bool _isParentActive = true;
@@ -377,7 +378,17 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     );
 
     _controller = TopicDetailController(
-      scrollController: AutoScrollController(),
+      scrollController: AutoScrollController(
+        viewportBoundaryGetter: () => Rect.fromLTRB(
+          0,
+          _usesEmbeddedMobileWorkspaceChrome ||
+                  ref.read(topicSearchProvider(widget.topicId)).isSearchMode
+              ? 0
+              : kToolbarHeight,
+          0,
+          0,
+        ),
+      ),
       screenTrack: _screenTrack,
       trackEnabled: trackEnabled,
       initialPostNumber: widget.scrollToPostNumber,
@@ -1214,22 +1225,14 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
 
     // 标题由正文头部展示，避免详情加载前后标题与操作按钮重新分配宽度。
-    // 顶栏保持占位，只移除背景和滚动着色，正文不会延伸到按钮后面。
-    return AppBar(
+    // 顶栏透明叠放，首部避让随正文滚走，空白处不拦截正文手势。
+    return TopicFloatingAppBar(
+      brightness: theme.brightness,
       automaticallyImplyLeading: !widget.embeddedMode,
       // 嵌入视图仅在导航栈深度大于 1 时提供返回按钮。
       leading: widget.embeddedMode && widget.onEmbeddedBack != null
           ? BackButton(onPressed: widget.onEmbeddedBack)
           : null,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      shadowColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      backgroundColor: Colors.transparent,
-      // 透明背景无法推导状态栏亮暗，避免浅色主题下白色图标不可见。
-      systemOverlayStyle: theme.brightness == Brightness.dark
-          ? SystemUiOverlayStyle.light
-          : SystemUiOverlayStyle.dark,
       actions: _buildAppBarActions(detail: detail, notifier: notifier),
     );
   }
@@ -1962,9 +1965,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         valueListenable: _controller.showBottomBarNotifier,
         builder: (context, showBottomBar, _) {
           // 回复 FAB 的底部定位公式(见 TopicDetailOverlay),TOC 叠其上
-          final replyBottom = showBottomBar
-              ? bottomPadding + (80 - bottomPadding - 56) / 2
-              : 16 + bottomPadding;
+          final replyBottom = topicReplyBottom(bottomPadding, showBottomBar);
           return AnimatedPositioned(
             key: const ValueKey('toc_fab'),
             duration: const Duration(milliseconds: 200),
@@ -2089,6 +2090,40 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     }
   }
 
+  /// 在首个详情帧构建前确定模式，兼容异步加载和已缓存的 provider。
+  /// 不放到 listener 的帧后回调中，否则会先挂载平铺，再切成树形。
+  void _applyDefaultNestedView(TopicDetail? detail) {
+    if (_defaultNestedViewApplied || detail == null) return;
+    _defaultNestedViewApplied = true;
+    if (detail.isPrivateMessage ||
+        !ref.read(preferencesProvider).defaultNestedView) {
+      return;
+    }
+
+    // 从头加载时首帖缺失/被删是树形接口必定失败的可靠信号。
+    // 带楼层进入的窗口本来就可能没有一楼，不能据此禁用树形。
+    final target = widget.scrollToPostNumber;
+    final fromTop = target == null || target <= 1;
+    final posts = detail.postStream.posts;
+    final opMissingOrDeleted =
+        fromTop &&
+        posts.isNotEmpty &&
+        (posts.first.postNumber != 1 || posts.first.isDeleted);
+    if (opMissingOrDeleted) return;
+
+    _isNestedView = true;
+    _nestedAutoEnabled = true;
+    _nestedTargetPostNumber = target != null && target > 1 ? target : null;
+    if (_nestedTargetPostNumber != null) {
+      // 时间线仍需要目标进度，但树形定位不运行平铺的 center/贴底收尾。
+      _primeStreamIndexForInitialTarget(
+        detail,
+        _filteredDetail(detail).postStream.posts,
+        null,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -2117,6 +2152,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       topicDetailProvider(params).select((a) => a.value != null),
     );
     final notifier = ref.read(topicDetailProvider(params).notifier);
+    _applyDefaultNestedView(ref.read(topicDetailProvider(params)).value);
 
     // 会话已读集合变化(timings 上报成功后 markAsRead)只需推给 controller
     // 供 screenTrack 计算 readOnscreen,不触发 rebuild —— 与
@@ -2276,40 +2312,6 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
               .setTopicTitle(detail.title);
         } catch (_) {}
       }
-      // 首次拿到 detail 后再决定是否应用默认嵌套视图：
-      // 私信场景下树形视图 API 拉不到数据，跳过该配置
-      if (!_defaultNestedViewApplied && detail != null) {
-        _defaultNestedViewApplied = true;
-        if (!detail.isPrivateMessage &&
-            ref.read(preferencesProvider).defaultNestedView) {
-          // 预检:一楼被软删时树形接口必 500(服务端 op_post 未处理
-          // default_scope 过滤),已知场景直接跳过,省一次注定失败的请求。
-          // 只有从头加载(无目标楼层)时平铺流的首帖缺失/被删才是可靠信号;
-          // 带楼层进入时流从中间开始,一楼不在首块属正常。
-          final target = widget.scrollToPostNumber;
-          final fromTop = target == null || target <= 1;
-          final streamPosts = detail.postStream.posts;
-          final opMissingOrDeleted =
-              fromTop &&
-              streamPosts.isNotEmpty &&
-              (streamPosts.first.postNumber != 1 ||
-                  streamPosts.first.isDeleted);
-          if (!opMissingOrDeleted) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                setState(() {
-                  _isNestedView = true;
-                  _nestedAutoEnabled = true;
-                  // 通知等带楼层进入:树形下走 context 定位视图
-                  _nestedTargetPostNumber = (target != null && target > 1)
-                      ? target
-                      : null;
-                });
-              }
-            });
-          }
-        }
-      }
       // 与 _buildPostListContent 一致，用过滤后列表判断 1 楼是否存在
       final posts = detail == null
           ? null
@@ -2426,9 +2428,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       });
     }
 
-    // 各模式顶栏高度恒为 kToolbarHeight，外层声明恒定高度，
-    // 内部随 detail 重建不影响 Scaffold 布局。
+    // 搜索和手机书签工作区保留完整顶栏；普通页只浮动显示操作按钮。
+    final floatingAppBar = !isSearchMode && !_usesEmbeddedMobileWorkspaceChrome;
     final topicScaffold = Scaffold(
+      extendBodyBehindAppBar: floatingAppBar,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: Consumer(
@@ -2442,17 +2445,23 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           },
         ),
       ),
-      body: Consumer(
-        builder: (context, ref, _) {
-          final detailAsync = ref.watch(topicDetailProvider(params));
-          return _buildBody(
-            context,
-            detailAsync,
-            detailAsync.value,
-            notifier,
-            isLoggedIn,
-          );
-        },
+      body: TopicContentBody(
+        floatingAppBar: floatingAppBar,
+        systemTopPadding: MediaQuery.paddingOf(context).top,
+        hasReply: isLoggedIn,
+        hasProgress: !_isNestedView,
+        child: Consumer(
+          builder: (context, ref, _) {
+            final detailAsync = ref.watch(topicDetailProvider(params));
+            return _buildBody(
+              context,
+              detailAsync,
+              detailAsync.value,
+              notifier,
+              isLoggedIn,
+            );
+          },
+        ),
       ),
     );
 
@@ -2636,47 +2645,25 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
         ref.watch(topicTocVisibilityProvider) ??
         MediaQuery.sizeOf(context).width >= _tocAutoExpandMinWidth;
 
-    // 初始加载或切换模式时显示骨架屏
-    // 注意：当 hasError 为 true 时，即使 isLoading 也为 true（AsyncLoading.copyWithPrevious 语义），
-    // 也应该优先显示错误页面而不是骨架屏
-    if (_isSwitchingMode) {
-      final showHeaderSkeleton =
-          widget.scrollToPostNumber == null || widget.scrollToPostNumber == 0;
-      return _wrapWithConstraint(
-        PostListSkeleton(withHeader: showHeaderSkeleton),
-      );
+    // 转场期间仍延后物化帖子，但不插入再立即撤掉的骨架布局。
+    if (!_routeTransitionDone) return const SizedBox.expand();
+
+    // 网络等待只显示轻量指示器；带旧状态的错误优先交给下方错误页。
+    if (_isSwitchingMode ||
+        (detailAsync.isLoading && !detailAsync.hasError && detail == null)) {
+      return const Center(child: LoadingSpinner());
     }
 
-    // 进入转场未完成:先骨架(缓存命中时首帧物化真实列表会把大 build 帧
-    // 砸进转场动画,见 _routeTransitionDone),completed 后下一帧再物化。
-    if (!_routeTransitionDone) {
-      final showHeaderSkeleton =
-          widget.scrollToPostNumber == null || widget.scrollToPostNumber == 0;
-      return _wrapWithConstraint(
-        PostListSkeleton(withHeader: showHeaderSkeleton),
-      );
-    }
-
-    if (detailAsync.isLoading && detail == null) {
-      final showHeaderSkeleton =
-          widget.scrollToPostNumber == null || widget.scrollToPostNumber == 0;
-      return _wrapWithConstraint(
-        PostListSkeleton(withHeader: showHeaderSkeleton),
-      );
-    }
-
-    // 跳转中：等待包含目标帖子的新数据 - 显示骨架屏
+    // 平铺跳转等待目标窗口；树形由自己的 context 请求负责定位，
+    // 不应被平铺窗口中是否存在目标帖拦住。
     final jumpTarget = _controller.jumpTargetPostNumber;
-    if (jumpTarget != null && detail != null) {
+    if (!_isNestedView && jumpTarget != null && detail != null) {
       final posts = detail.postStream.posts;
-      // 检查目标帖子是否在当前加载的范围内
       final hasTarget =
           posts.isNotEmpty &&
           posts.first.postNumber <= jumpTarget &&
           posts.last.postNumber >= jumpTarget;
-      if (!hasTarget) {
-        return _wrapWithConstraint(const PostListSkeleton(withHeader: false));
-      }
+      if (!hasTarget) return const Center(child: LoadingSpinner());
     }
 
     Widget content = const SizedBox();
@@ -2712,7 +2699,10 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                   .read(topicSearchProvider(widget.topicId).notifier)
                   .exitSearchMode();
               _searchController.clear();
-              unawaited(_jumpToPostInTopic(postNumber));
+              // 等固定搜索栏切回浮动顶栏，避免按旧视口几何定位。
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) unawaited(_jumpToPostInTopic(postNumber));
+              });
             },
           ),
 
@@ -2871,7 +2861,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     // 无爬行、无估算。收尾（贴底 anchor + markPositioned）在帧后完成。
     // _viewportAnchor 不在此处重置：残留值由 _finalizeInitialPosition
     // 按真实几何重新评估（避免刷新场景闪一帧顶对齐）。
-    if (!_controller.hasInitialScrolled && posts.isNotEmpty) {
+    if (!_isNestedView &&
+        !_controller.hasInitialScrolled &&
+        posts.isNotEmpty) {
       final target = _resolveInitialTarget(posts, dividerPostIndex);
       _controller.markInitialScrolled(
         target != null
@@ -2932,9 +2924,9 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       }
 
       Widget nestedView = nestedAsync.when(
-        loading: () => PostListSkeleton(withHeader: true),
+        loading: () => const Center(child: LoadingSpinner()),
         error: (e, s) => _nestedAutoEnabled
-            ? PostListSkeleton(withHeader: true)
+            ? const SizedBox.expand()
             : ErrorView(
                 error: e,
                 stackTrace: s,

@@ -12,17 +12,19 @@ String _section(String source, String start, String end) {
 }
 
 void main() {
-  final source = File(
-    'lib/pages/topic_detail_page/topic_detail_page.dart',
-  ).readAsStringSync();
+  final source = File('lib/pages/topic_detail_page/topic_detail_page.dart')
+      .readAsStringSync();
   final appBarBuilder = _section(
     source,
     '  PreferredSizeWidget _buildAppBar({',
     '  bool _canEditTopic(',
   );
   final normalAppBar = appBarBuilder.substring(
-    appBarBuilder.lastIndexOf('return AppBar('),
+    appBarBuilder.lastIndexOf('return TopicFloatingAppBar('),
   );
+  final floatingAppBar = File(
+    'lib/pages/topic_detail_page/widgets/topic_floating_app_bar.dart',
+  ).readAsStringSync();
 
   test('普通话题顶栏加载前后都不装配重复标题', () {
     expect(normalAppBar, isNot(matches(RegExp(r'\btitle\s*:'))));
@@ -30,20 +32,19 @@ void main() {
   });
 
   test('普通话题顶栏不绘制背景、滚动着色和阴影', () {
-    expect(normalAppBar, contains('backgroundColor: Colors.transparent'));
-    expect(normalAppBar, contains('surfaceTintColor: Colors.transparent'));
-    expect(normalAppBar, contains('shadowColor: Colors.transparent'));
-    expect(normalAppBar, contains('elevation: 0'));
-    expect(normalAppBar, contains('scrolledUnderElevation: 0'));
+    expect(floatingAppBar, contains('backgroundColor: Colors.transparent'));
+    expect(floatingAppBar, contains('surfaceTintColor: Colors.transparent'));
+    expect(floatingAppBar, contains('shadowColor: Colors.transparent'));
+    expect(floatingAppBar, contains('elevation: 0'));
+    expect(floatingAppBar, contains('scrolledUnderElevation: 0'));
+    expect(floatingAppBar, contains('forceMaterialTransparency: true'));
   });
 
   test('透明顶栏按主题指定状态栏图标亮暗', () {
-    expect(
-      normalAppBar,
-      contains('systemOverlayStyle: theme.brightness == Brightness.dark'),
-    );
-    expect(normalAppBar, contains('? SystemUiOverlayStyle.light'));
-    expect(normalAppBar, contains(': SystemUiOverlayStyle.dark'));
+    expect(normalAppBar, contains('brightness: theme.brightness'));
+    expect(floatingAppBar, contains('statusBarIconBrightness: brightness'));
+    expect(floatingAppBar, contains('statusBarColor: Colors.transparent'));
+    expect(floatingAppBar, contains('systemStatusBarContrastEnforced: false'));
   });
 
   test('普通顶栏仍保留返回、搜索和更多入口', () {
@@ -51,7 +52,10 @@ void main() {
       normalAppBar,
       contains('automaticallyImplyLeading: !widget.embeddedMode'),
     );
-    expect(normalAppBar, contains('BackButton(onPressed: widget.onEmbeddedBack)'));
+    expect(
+      normalAppBar,
+      contains('BackButton(onPressed: widget.onEmbeddedBack)'),
+    );
     expect(normalAppBar, contains('actions: _buildAppBarActions('));
     final actions = _section(
       source,
@@ -68,11 +72,31 @@ void main() {
       appBarBuilder.indexOf('// 正常模式下的 AppBar'),
     );
     expect(searchAppBar, contains('title: TextField('));
-    expect(searchAppBar, contains('backgroundColor: theme.colorScheme.surface'));
+    expect(
+      searchAppBar,
+      contains('backgroundColor: theme.colorScheme.surface'),
+    );
     expect(searchAppBar, contains('onPressed: _exitSearchMode'));
   });
 
-  test('透明顶栏仍占据布局高度，不让正文延伸到按钮后面', () {
+  test('搜索结果退出后等新视口布局再跳转，固定搜索栏不重复避让', () {
+    final scrollController = _section(
+      source,
+      '      scrollController: AutoScrollController(',
+      '      screenTrack: _screenTrack,',
+    );
+    expect(scrollController, contains('viewportBoundaryGetter:'));
+    expect(scrollController, contains('ref.read(topicSearchProvider(widget.topicId)).isSearchMode'));
+    final searchView = _section(
+      source,
+      '          TopicSearchView(',
+      '        // TopicDetailOverlay (Bottom Bar)',
+    );
+    expect(searchView, contains('WidgetsBinding.instance.addPostFrameCallback'));
+    expect(searchView, contains('if (mounted) unawaited(_jumpToPostInTopic(postNumber))'));
+  });
+
+  test('普通顶栏不占据固定正文空间，搜索和书签工作区仍使用原顶栏布局', () {
     final scaffold = _section(
       source,
       '    final topicScaffold = Scaffold(',
@@ -80,7 +104,17 @@ void main() {
     );
     expect(scaffold, contains('appBar: PreferredSize('));
     expect(scaffold, contains('Size.fromHeight(kToolbarHeight)'));
-    expect(scaffold, isNot(contains('extendBodyBehindAppBar: true')));
+    expect(scaffold, contains('extendBodyBehindAppBar: floatingAppBar'));
+    expect(scaffold, contains('body: TopicContentBody('));
+    expect(
+      source,
+      contains('!isSearchMode && !_usesEmbeddedMobileWorkspaceChrome'),
+    );
+    final bodyInsets = File(
+      'lib/pages/topic_detail_page/widgets/topic_content_insets.dart',
+    ).readAsStringSync();
+    expect(bodyInsets, contains('floatingAppBar ? systemTopPadding : 0'));
+    expect(bodyInsets, contains('top: floatingAppBar ? kToolbarHeight : 0'));
   });
 
   test('正文标题和手机书签工作区的独立标题仍保留', () {
@@ -88,6 +122,25 @@ void main() {
       'lib/pages/topic_detail_page/widgets/nested_post_list.dart',
     ).readAsStringSync();
     expect(nested, contains('showTitle: !widget.hideHeaderTitle'));
+    expect(
+      nested,
+      contains('topPadding: TopicContentInsets.paddingOf(context).top'),
+    );
+    expect(
+      nested,
+      contains('height: TopicContentInsets.paddingOf(context).bottom'),
+    );
+    final flat = File(
+      'lib/pages/topic_detail_page/widgets/topic_post_list.dart',
+    ).readAsStringSync();
+    expect(
+      flat,
+      contains('topPadding: TopicContentInsets.paddingOf(context).top'),
+    );
+    expect(
+      flat,
+      contains('bottom: TopicContentInsets.paddingOf(context).bottom'),
+    );
     final workspace = _section(
       source,
       '  PreferredSizeWidget _buildEmbeddedMobileWorkspaceAppBar({',
