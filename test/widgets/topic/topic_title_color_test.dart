@@ -156,6 +156,10 @@ void main() {
                       hideAvatar: true,
                     );
               await tester.pumpWidget(_app(container, card, theme));
+              // Theme.of 会合并当前语言的 Typography，原始 ThemeData 字号可能为 null。
+              final resolvedTheme = Theme.of(
+                tester.element(find.byWidget(card)),
+              );
               final title = tester.widget<Text>(
                 find
                     .byWidgetPredicate(
@@ -195,7 +199,7 @@ void main() {
               }
               expect(
                 textStyle.fontSize,
-                pinned ? theme.textTheme.labelMedium!.fontSize : 17,
+                pinned ? resolvedTheme.textTheme.labelMedium!.fontSize : 17,
               );
               expect(
                 textStyle.fontWeight,
