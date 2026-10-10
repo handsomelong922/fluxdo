@@ -97,6 +97,15 @@ jobs:
           workspaces: core/doh_proxy
           key: personal-dev-android-arm64
 
+      # 根目录分析器会扫描这些独立包，主工作区的 pub get 不会解析它们。
+      - name: Prepare DevTools extension dependencies
+        working-directory: devtools_extension
+        run: flutter pub get
+
+      - name: Prepare Linux plugin example dependencies
+        working-directory: packages/flutter_inappwebview_linux/example
+        run: flutter pub get
+
       - name: Analyze and test the workspace
         run: |
           flutter config --no-analytics
