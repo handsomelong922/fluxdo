@@ -13,7 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
 
-  Future<SharedPreferences> pumpSheet(WidgetTester tester, {AiTopicSummaryService? service}) async {
+  Future<SharedPreferences> pumpSheet(WidgetTester tester, {AiTopicSummaryService? service, double textScale = 1}) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(ProviderScope(overrides: [
@@ -32,6 +32,10 @@ void main() {
       localizationsDelegates: const [GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate, GlobalCupertinoLocalizations.delegate],
       supportedLocales: AppLocaleUtils.supportedLocales,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       home: const Scaffold(body: AiTopicSummarySheet(topicId: 1, isPrivateMessage: true)),
     ))));
     await tester.pumpAndSettle();
@@ -76,10 +80,25 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await pumpSheet(tester);
+    await pumpSheet(tester, textScale: 2);
     expect(tester.takeException(), isNull);
-    await tester.scrollUntilVisible(find.text('读取并准备总结'), 150);
-    expect(find.text('读取并准备总结'), findsOneWidget);
+    final sheet = find.byType(AiTopicSummarySheet);
+    expect(MediaQuery.textScalerOf(tester.element(sheet)).scale(16), 32);
+    final list = find.descendant(of: sheet, matching: find.byType(ListView));
+    expect(list, findsOneWidget);
+    // ListView 的第一个 Scrollable 是外层视口；正文 SelectableText
+    // 自带的内部 Scrollable 不能作为整张面板的滚动目标。
+    final scrollable = find.descendant(of: list, matching: find.byType(Scrollable)).first;
+    final position = tester.state<ScrollableState>(scrollable).position;
+    final initialOffset = position.pixels;
+    await tester.drag(scrollable, const Offset(0, -150));
+    await tester.pumpAndSettle();
+    expect(position.pixels, greaterThan(initialOffset));
+    await tester.scrollUntilVisible(find.text('读取并准备总结'), 150, scrollable: scrollable);
+    await tester.pumpAndSettle();
+    expect(position.pixels, greaterThan(initialOffset));
+    expect(find.text('读取并准备总结').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(Duration.zero);
   });

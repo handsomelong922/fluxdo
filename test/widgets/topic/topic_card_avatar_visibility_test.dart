@@ -106,18 +106,23 @@ void main() {
   });
 
   testWidgets('首页自绘调用隐藏静态与动态头像，点击保持有效', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     var tapped = false;
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => buildTopicItem(
-              context: context,
-              topic: _topic(),
-              isSelected: false,
-              onTap: () => tapped = true,
-              enableLongPress: false,
-              hideAvatar: true,
+      ProviderScope(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => buildTopicItem(
+                context: context,
+                topic: _topic(),
+                isSelected: false,
+                onTap: () => tapped = true,
+                enableLongPress: false,
+                hideAvatar: true,
+              ),
             ),
           ),
         ),
@@ -130,6 +135,8 @@ void main() {
     await tester.tap(find.byType(PaintedTopicCard));
     expect(tapped, isTrue);
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(Duration.zero);
   });
 
   testWidgets('动态头像隐藏再显示时恢复静态兜底，等待新 overlay 就绪', (tester) async {
