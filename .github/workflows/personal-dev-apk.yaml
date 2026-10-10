@@ -106,12 +106,35 @@ jobs:
         working-directory: packages/flutter_inappwebview_linux/example
         run: flutter pub get
 
-      - name: Analyze and test the workspace
+      - name: Prepare the Linux test host
         run: |
           flutter config --no-analytics
-          # 包含依赖、翻译、证书预处理，以及分析器和工作区全部测试。
+          dart tool/project_prep.dart app
+          # flutter test 不执行桌面插件打包，显式使用 flutter_js 自带的原生库。
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          from urllib.parse import unquote, urljoin, urlparse
+          config = Path('.dart_tool/package_config.json').resolve()
+          package = next(p for p in json.loads(config.read_text())['packages']
+                         if p['name'] == 'flutter_js')
+          root = urlparse(urljoin(config.as_uri(), package['rootUri']))
+          if root.scheme != 'file' or root.netloc:
+              raise SystemExit(f'flutter_js package root is not a local file URI: {root.geturl()}')
+          library = Path(unquote(root.path)) / 'linux/shared/libquickjs_c_bridge_plugin.so'
+          if not library.is_file():
+              raise SystemExit(f'flutter_js bundled Linux library is missing: {library}')
+          print(f'Linux test QuickJS library: {library}')
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'LIBQUICKJSC_TEST_PATH={library}\n')
+          PY
+
+      - name: Analyze and test the workspace
+        run: |
           # 沿用项目规则：警告/提示不阻断；分析错误和测试失败会阻止发布。
-          dart tool/project_tasks.dart release:prepare
+          dart tool/project_tasks.dart release:prepare --skip-test
+          # 保留主应用及工作区全部测试，按项目测试文档限制并发数。
+          dart tool/project_tasks.dart test:all --concurrency=2
 
       - name: Set up Android native tools
         run: |
