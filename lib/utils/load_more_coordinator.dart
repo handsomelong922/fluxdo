@@ -1,8 +1,10 @@
+import 'dart:async';
+
 import 'topic_keyword_filter.dart';
 
 typedef LoadMoreAction = Future<void> Function();
 typedef BoolReader = bool Function();
-typedef CountReader = int Function();
+typedef CountReader = FutureOr<int> Function();
 typedef AutoLoadMoreDecider = bool Function(LoadMoreAttempt attempt);
 typedef CooldownDecider = bool Function(LoadMoreAttempt attempt);
 
@@ -65,10 +67,12 @@ class LoadMoreCoordinator {
     _isRunning = true;
     try {
       if (shouldAutoLoadMore == null) {
-        final before = progressCount?.call();
+        final before = await progressCount?.call();
+        if (!isActive() || (before != null && before < 0)) return;
         await loadMore();
         if (!isActive()) return;
-        final after = progressCount?.call();
+        final after = await progressCount?.call();
+        if (!isActive() || (after != null && after < 0)) return;
         if (before != null && after != null) {
           final attempt = LoadMoreAttempt(
             before: before,
@@ -94,10 +98,12 @@ class LoadMoreCoordinator {
 
       var attempts = 0;
       while (true) {
-        final before = count();
+        final before = await count();
+        if (!isActive() || before < 0) return;
         await loadMore();
         if (!isActive()) return;
-        final after = count();
+        final after = await count();
+        if (!isActive() || after < 0) return;
         final attempt = LoadMoreAttempt(
           before: before,
           after: after,

@@ -10,6 +10,8 @@ import '../providers/preferences_provider.dart';
 import '../utils/load_more_coordinator.dart';
 import '../utils/pagination_helper.dart';
 import '../utils/topic_keyword_filter.dart';
+import '../utils/topic_regex_filter_controller.dart';
+import '../widgets/topic/topic_regex_filter_status.dart';
 import '../widgets/common/paged_list_footer.dart';
 import '../widgets/topic/topic_list_skeleton.dart';
 import '../widgets/topic/keyword_filter_hint_bar.dart';
@@ -45,6 +47,10 @@ class CategoryTopicsPage extends ConsumerStatefulWidget {
 
 class _CategoryTopicsPageState extends ConsumerState<CategoryTopicsPage>
     with TopicListUpdatesMixin<CategoryTopicsPage> {
+  late final _regexFilter = TopicRegexFilterController(() {
+    if (mounted) setState(() {});
+  });
+
   final ScrollController _scrollController = ScrollController();
   final TopicLoadMoreCoordinator _loadMoreCoordinator =
       TopicLoadMoreCoordinator();
@@ -136,6 +142,7 @@ class _CategoryTopicsPageState extends ConsumerState<CategoryTopicsPage>
 
   @override
   void dispose() {
+    _regexFilter.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -166,11 +173,28 @@ class _CategoryTopicsPageState extends ConsumerState<CategoryTopicsPage>
     final wholeWord = prefs.topicFilterWholeWord;
     final blockedUsernames = prefs.normalizedBlockedUsernames;
 
-    int visibleItemCount() {
+    bool filtersStillCurrent() {
+      if (!mounted) return false;
+      final current = ref.read(preferencesProvider);
+      return listEquals(current.topicFilterRegexPatterns, regexPatterns) &&
+          listEquals(current.normalizedFilterKeywords, keywords) &&
+          current.topicFilterWholeWord == wholeWord &&
+          setEquals(current.normalizedBlockedUsernames, blockedUsernames);
+    }
+
+    Future<int> visibleItemCount() async {
+      if (!filtersStillCurrent()) return -1;
+      if (!await _regexFilter.settle(
+        regexPatterns,
+        _topics.map((topic) => topic.title),
+      )) {
+        return -1;
+      }
       final (visible, _, _) = TopicKeywordFilter.apply(
         _topics,
         normalizedKeywords: keywords,
         regexPatterns: regexPatterns,
+        regexMatches: _regexFilter.matches,
         wholeWord: wholeWord,
         blockedUsernames: blockedUsernames,
       );
@@ -180,7 +204,7 @@ class _CategoryTopicsPageState extends ConsumerState<CategoryTopicsPage>
     await _loadMoreCoordinator.loadTopicPage(
       loadMore: _loadMore,
       hasMore: () => _hasMore,
-      isActive: () => mounted,
+      isActive: filtersStillCurrent,
       itemCount: () => _topics.length,
       visibleItemCount: visibleItemCount,
       hasKeywordFilter: keywords.isNotEmpty ||
@@ -658,16 +682,20 @@ class _CategoryTopicsPageState extends ConsumerState<CategoryTopicsPage>
     // 话题卡自定义样式:改设置触发 rebuild(自绘排版直读全局快照)
     ref.watch(preferencesProvider.select((p) => p.topicCardStyle));
     _syncAutoLoadFilter(keywords, regexPatterns, wholeWord, blockedUsernames);
+    _regexFilter.prepare(regexPatterns, _topics.map((topic) => topic.title));
     final (visible, hidden, hiddenByBlocked) = TopicKeywordFilter.apply(
       _topics,
       normalizedKeywords: keywords,
       regexPatterns: regexPatterns,
+      regexMatches: _regexFilter.matches,
       wholeWord: wholeWord,
       blockedUsernames: blockedUsernames,
     );
     final hintOffset = (showFilterHint && hidden > 0) ? 1 : 0;
 
-    return TopicCardPrewarmScope(
+    return TopicRegexFilterStatus(
+      controller: _regexFilter,
+      child: TopicCardPrewarmScope(
       topics: visible,
       child: DesktopRefreshIndicator(
       onRefresh: _loadTopics,
@@ -730,7 +758,8 @@ class _CategoryTopicsPageState extends ConsumerState<CategoryTopicsPage>
             enableLongPress: enableLongPress,
           );
         },
-      ),
+          ),
+        ),
       ),
     );
   }

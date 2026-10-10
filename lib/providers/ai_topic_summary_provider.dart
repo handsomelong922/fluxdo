@@ -1,9 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 
 import 'package:ai_model_manager/ai_model_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/topic.dart';
+import '../constants.dart';
+import '../services/ai_topic_summary_task.dart';
+import 'theme_provider.dart';
 import '../services/ai_topic_summary_service.dart';
 import '../services/ai_translation_service.dart';
 import 'ai_post_review_provider.dart';
@@ -94,3 +100,49 @@ final aiTopicSummaryServiceFactoryProvider = Provider<TopicSummaryServiceFactory
     },
   );
 });
+
+/// 账号切换时重建；生命周期不属于总结面板。
+final aiTopicSummaryAccountProvider = Provider<String>((ref) {
+  ref.watch(currentUserProvider);
+  final user = ref.watch(discourseServiceProvider).currentUserNotifier;
+  void changed() => ref.invalidateSelf();
+  user.addListener(changed);
+  ref.onDispose(() => user.removeListener(changed));
+  return '${AppConstants.baseUrl}:${user.value?.id ?? "guest"}';
+});
+
+final aiTopicSummaryTasksProvider = Provider<AiTopicSummaryTasks>((ref) {
+  ref.watch(aiTopicSummaryAccountProvider);
+  final prefs = ref.watch(sharedPreferencesProvider);
+  final tasks = AiTopicSummaryTasks(
+    readCache: (key) => key.startsWith('private_') ? null : prefs.getString(key),
+    writeCache: (key, value) async {
+      if (key.startsWith('private_')) return true;
+      final saved = await prefs.setString(key, value);
+      if (!saved) return false;
+      // 所有账号合计最多保留 100 个快照，避免不断切换 Prompt 无限增长。
+      final keys = prefs.getKeys().where((k) => k.startsWith('ai_topic_summary_v1_')).toList();
+      int savedAt(String k) {
+        try { return (jsonDecode(prefs.getString(k)!) as Map<String, dynamic>)['savedAtMillis'] as int; }
+        catch (_) { return 0; }
+      }
+      final excess = (keys.length - 100).clamp(0, keys.length);
+      keys.remove(key);
+      keys.sort((a, b) => savedAt(a).compareTo(savedAt(b)));
+      for (final old in keys.take(excess)) {
+        await prefs.remove(old);
+      }
+      return true;
+    },
+  );
+  ref.onDispose(tasks.dispose);
+  return tasks;
+});
+
+String topicSummaryTaskKey({required String account, required int topicId,
+  required AiProvider provider, required AiModel model, required String prompt,
+  bool isPrivateMessage = false}) {
+  final identity = jsonEncode([account, topicId, provider.id, provider.baseUrl,
+    provider.type.name, model.id, prompt.trim()]);
+  return '${isPrivateMessage ? "private_" : ""}ai_topic_summary_v1_${sha256.convert(utf8.encode(identity))}';
+}

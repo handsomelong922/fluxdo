@@ -11,19 +11,23 @@ void main() {
       'pref_topic_filter_whole_word': true,
     });
     final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(overrides: [
-      sharedPreferencesProvider.overrideWithValue(prefs),
-    ]);
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
     addTearDown(container.dispose);
-    expect(container.read(preferencesProvider).topicFilterRegexPatterns, isEmpty);
-    await container.read(preferencesProvider.notifier)
+    expect(
+      container.read(preferencesProvider).topicFilterRegexPatterns,
+      isEmpty,
+    );
+    await container
+        .read(preferencesProvider.notifier)
         .setTopicFilterRegexPatterns([' (手机|电脑).*AI ', '(手机|电脑).*AI']);
-    final reloaded = ProviderContainer(overrides: [
-      sharedPreferencesProvider.overrideWithValue(prefs),
-    ]);
+    final reloaded = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
     addTearDown(reloaded.dispose);
     final state = reloaded.read(preferencesProvider);
-    expect(state.topicFilterRegexPatterns, ['(手机|电脑).*AI']);
+    expect(state.topicFilterRegexPatterns, [' (手机|电脑).*AI ', '(手机|电脑).*AI']);
     expect(state.topicFilterKeywords, ['a.b', '(旧词)']);
     expect(state.topicFilterWholeWord, isTrue);
   });
@@ -33,27 +37,43 @@ void main() {
       'pref_topic_filter_regex_patterns': [r'^AI$'],
     });
     final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(overrides: [
-      sharedPreferencesProvider.overrideWithValue(prefs),
-    ]);
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
     addTearDown(container.dispose);
-    await expectLater(container.read(preferencesProvider.notifier)
-        .setTopicFilterRegexPatterns(['(']), throwsFormatException);
-    expect(container.read(preferencesProvider).topicFilterRegexPatterns, [r'^AI$']);
+    await expectLater(
+      container.read(preferencesProvider.notifier).setTopicFilterRegexPatterns([
+        '(',
+      ]),
+      throwsFormatException,
+    );
+    expect(container.read(preferencesProvider).topicFilterRegexPatterns, [
+      r'^AI$',
+    ]);
     expect(prefs.getStringList('pref_topic_filter_regex_patterns'), [r'^AI$']);
   });
 
   test('用户名批量输入正规化后保存且重新加载一致', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(overrides: [
-      sharedPreferencesProvider.overrideWithValue(prefs),
-    ]);
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
     addTearDown(container.dispose);
-    await container.read(preferencesProvider.notifier)
-        .setBlockedUsernames(['@Alice，bob @ALICE\ncarol, @Dave']);
-    expect(prefs.getStringList('pref_blocked_usernames'), ['Alice', 'bob', 'carol', 'Dave']);
-    expect(container.read(preferencesProvider).normalizedBlockedUsernames,
-        {'alice', 'bob', 'carol', 'dave'});
+    await container.read(preferencesProvider.notifier).setBlockedUsernames([
+      '@Alice，bob @ALICE\ncarol, @Dave',
+    ]);
+    expect(prefs.getStringList('pref_blocked_usernames'), [
+      'Alice',
+      'bob',
+      'carol',
+      'Dave',
+    ]);
+    expect(container.read(preferencesProvider).normalizedBlockedUsernames, {
+      'alice',
+      'bob',
+      'carol',
+      'dave',
+    });
   });
 }

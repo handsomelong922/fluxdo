@@ -106,6 +106,40 @@ void main() {
       expect(coordinator.isCoolingDown, isTrue);
     });
 
+    test('等待异步正则计数后才判断续载，匹配失败不加载', () async {
+      final coordinator = TopicLoadMoreCoordinator();
+      var calls = 0;
+      var ready = false;
+      await coordinator.loadTopicPage(
+        loadMore: () async {
+          expect(ready, isTrue);
+          calls++;
+        },
+        hasMore: () => true,
+        isActive: () => true,
+        itemCount: () => calls,
+        visibleItemCount: () async {
+          await Future<void>.delayed(Duration.zero);
+          ready = true;
+          return calls == 0 ? 0 : 5;
+        },
+        hasKeywordFilter: true,
+      );
+      expect(calls, 1);
+      await coordinator.loadTopicPage(
+        loadMore: () async {
+          calls++;
+        },
+        hasMore: () => true,
+        isActive: () => true,
+        itemCount: () => calls,
+        visibleItemCount: () async => -1,
+        hasKeywordFilter: true,
+      );
+      expect(calls, 1);
+      expect(coordinator.isRunning, isFalse);
+    });
+
     test('关键词过滤可见增量足够时停止续载', () async {
       final coordinator = TopicLoadMoreCoordinator();
       var calls = 0;

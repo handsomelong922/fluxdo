@@ -1,3 +1,4 @@
+import '../widgets/common/personal_page_transitions.dart';
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui' as ui show lerpDouble;
@@ -41,6 +42,8 @@ import '../providers/preferences_provider.dart';
 import '../utils/load_more_coordinator.dart';
 import '../utils/motion_springs.dart';
 import '../utils/topic_keyword_filter.dart';
+import '../utils/topic_regex_filter_controller.dart';
+import '../widgets/topic/topic_regex_filter_status.dart';
 import '../utils/frame_jank_monitor.dart';
 import '../utils/responsive.dart';
 import '../widgets/layout/master_detail_layout.dart';
@@ -1308,16 +1311,16 @@ class _TopicsPageState extends ConsumerState<TopicsPage>
         parentCategorySlug: parentSlug,
       );
     }
-    // fade 路由：全局 Cupertino 滑动转场会带着整页横移，毁掉胶囊 →
-    // 搜索框的 Hero morph（一镜到底）;搜索页单独用淡入配合 Hero 飞行
+    // 默认保留胶囊 → 搜索框的 Hero 淡入；用户自选转场时遵循全局设置。
     Navigator.push(
       context,
-      PageRouteBuilder(
+      personalPageRoute(
+        context: context,
         transitionDuration: const Duration(milliseconds: 320),
         reverseTransitionDuration: const Duration(milliseconds: 280),
         pageBuilder: (_, _, _) =>
             SearchPage(initialFilter: filter, heroCapsule: true),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+        defaultTransitionsBuilder: (context, animation, secondaryAnimation, child) =>
             buildPredictiveBackPageTransitions(
               context,
               animation,
@@ -2482,6 +2485,10 @@ class _TopicList extends ConsumerStatefulWidget {
 
 class _TopicListState extends ConsumerState<_TopicList>
     with AutomaticKeepAliveClientMixin, TopicListUpdatesMixin<_TopicList> {
+  late final _regexFilter = TopicRegexFilterController(() {
+    if (mounted) setState(() {});
+  });
+
   final _refreshIndicatorKey = GlobalKey<M3eRefreshIndicatorState>();
 
   /// overlay 头部架构下无 NestedScrollView 注入的 PrimaryScrollController，
@@ -2711,17 +2718,34 @@ class _TopicListState extends ConsumerState<_TopicList>
     final wholeWord = prefs.topicFilterWholeWord;
     final blockedUsernames = prefs.normalizedBlockedUsernames;
 
+    bool filtersStillCurrent() {
+      if (!mounted) return false;
+      final current = ref.read(preferencesProvider);
+      return listEquals(current.topicFilterRegexPatterns, regexPatterns) &&
+          listEquals(current.normalizedFilterKeywords, keywords) &&
+          current.topicFilterWholeWord == wholeWord &&
+          setEquals(current.normalizedBlockedUsernames, blockedUsernames);
+    }
+
     int itemCount() {
       return ref.read(topicListProvider(providerKey)).value?.length ?? 0;
     }
 
-    int visibleItemCount() {
+    Future<int> visibleItemCount() async {
+      if (!filtersStillCurrent()) return -1;
       final raw =
           ref.read(topicListProvider(providerKey)).value ?? const <Topic>[];
+      if (!await _regexFilter.settle(
+        regexPatterns,
+        raw.map((topic) => topic.title),
+      )) {
+        return -1;
+      }
       final (visible, _, _) = TopicKeywordFilter.apply(
         raw,
         normalizedKeywords: keywords,
         regexPatterns: regexPatterns,
+        regexMatches: _regexFilter.matches,
         wholeWord: wholeWord,
         blockedUsernames: blockedUsernames,
       );
@@ -2731,7 +2755,7 @@ class _TopicListState extends ConsumerState<_TopicList>
     await _loadMoreCoordinator.loadTopicPage(
       loadMore: notifier.loadMore,
       hasMore: () => notifier.hasMore,
-      isActive: () => mounted,
+      isActive: filtersStillCurrent,
       itemCount: itemCount,
       visibleItemCount: visibleItemCount,
       hasKeywordFilter: keywords.isNotEmpty ||
@@ -2786,6 +2810,7 @@ class _TopicListState extends ConsumerState<_TopicList>
 
   @override
   void dispose() {
+    _regexFilter.dispose();
     if (PlatformUtils.isDesktop) {
       _listShortcutBinding.disposeDeferred();
     }
@@ -2868,10 +2893,12 @@ class _TopicListState extends ConsumerState<_TopicList>
     var hiddenCount = 0;
     var hiddenByBlocked = 0;
     final visibleTopicsAsync = topicsAsync.whenData((topics) {
+      _regexFilter.prepare(regexPatterns, topics.map((topic) => topic.title));
       final (visible, hidden, byBlocked) = TopicKeywordFilter.apply(
         topics,
         normalizedKeywords: keywords,
         regexPatterns: regexPatterns,
+        regexMatches: _regexFilter.matches,
         wholeWord: wholeWord,
         blockedUsernames: blockedUsernames,
       );
@@ -2918,11 +2945,16 @@ class _TopicListState extends ConsumerState<_TopicList>
       ascending: ref.read(topicSortAscendingProvider),
       newNewView: newNewViewEnabled,
     );
-    watchTopicUpdates(updateQuery, tags: isCurrentTab
+    watchTopicUpdates(
+      updateQuery,
+      tags: isCurrentTab
         ? ref.read(topicListProvider(providerKey).notifier).knownTags
-        : const []);
+        : const [],
+    );
 
-    return visibleTopicsAsync.when(
+    return TopicRegexFilterStatus(
+      controller: _regexFilter,
+      child: visibleTopicsAsync.when(
       data: (topics) {
         final newTopicCount = topicUpdateSnapshot.length;
         final hasNewTopics = newTopicCount > 0 || isLoadingTopicUpdates;
@@ -3227,6 +3259,7 @@ class _TopicListState extends ConsumerState<_TopicList>
             ),
           ),
         ),
+      ),
       ),
     );
   }

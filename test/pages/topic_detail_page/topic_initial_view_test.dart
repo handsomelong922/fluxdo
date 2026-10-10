@@ -13,6 +13,8 @@ import 'package:fluxdo/pages/topic_detail_page/topic_detail_page.dart';
 import 'package:fluxdo/pages/topic_detail_page/widgets/nested_post_list.dart';
 import 'package:fluxdo/pages/topic_detail_page/widgets/topic_post_list.dart';
 import 'package:fluxdo/pages/topic_detail_page/widgets/topic_bottom_bar.dart';
+import 'package:fluxdo/pages/topic_detail_page/widgets/topic_detail_header.dart';
+import 'package:fluxdo/pages/topic_detail_page/widgets/topic_floating_app_bar.dart';
 import 'package:fluxdo/providers/discourse_providers.dart';
 import 'package:fluxdo/providers/message_bus_providers.dart';
 import 'package:fluxdo/providers/nested_topic_provider.dart';
@@ -151,12 +153,25 @@ class _Harness {
     return _Harness(container, params, nestedParams);
   }
 
-  Widget app({bool bookmarkWorkspace = false, Widget? home}) =>
+  Widget app({
+    bool bookmarkWorkspace = false,
+    Widget? home,
+    EdgeInsets? systemPadding,
+  }) =>
       UncontrolledProviderScope(
         container: container,
         child: TranslationProvider(
           child: MaterialApp(
             navigatorKey: navigatorKey,
+            builder: systemPadding == null
+                ? null
+                : (context, child) => MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      padding: systemPadding,
+                      viewPadding: systemPadding,
+                    ),
+                    child: child!,
+                  ),
             locale: const Locale('zh'),
             localizationsDelegates: const [
               GlobalMaterialLocalizations.delegate,
@@ -208,6 +223,62 @@ void _expectNoPlaceholderOrFlatList() {
 void main() {
   setUp(() => PlatformUtils.debugDesktopOverride = false);
   tearDown(() => PlatformUtils.debugDesktopOverride = null);
+
+  // 使用真实页面、两种列表和真实 Header，防止仅用占位标题漏测叠加留白。
+  for (final nested in [false, true]) {
+    for (final geometry in [
+      (width: 390.0, padding: EdgeInsets.zero),
+      (width: 320.0, padding: const EdgeInsets.only(top: 24, bottom: 34)),
+      (width: 640.0, padding: const EdgeInsets.fromLTRB(44, 24, 44, 21)),
+    ]) {
+      testWidgets(
+        '${nested ? "树形" : "平铺"}真实标题距工具栏4dp '
+        'width=${geometry.width} safeArea=${geometry.padding}',
+        (tester) async {
+          tester.view.devicePixelRatio = 1;
+          tester.view.physicalSize = Size(geometry.width, 800);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          addTearDown(tester.view.resetPhysicalSize);
+          final detail = _detail(posts: [_post(1)]);
+          final harness = await _Harness.create(
+            detail: Future.value(detail),
+            nested: Future.value(
+              NestedTopicState(opPost: detail.postStream.posts.first),
+            ),
+            defaultNestedView: nested,
+          );
+          await harness.preload();
+          await tester.pumpWidget(harness.app(systemPadding: geometry.padding));
+          await tester.pump();
+          expect(
+            find.byType(nested ? NestedPostList : TopicPostList),
+            findsOneWidget,
+          );
+          final header = find.byType(TopicDetailHeader);
+          expect(header, findsOneWidget);
+          final title = find.descendant(
+            of: header,
+            matching: find.byType(SelectableText),
+          );
+          expect(title, findsOneWidget);
+          final toolbarRect = tester.getRect(find.byType(TopicFloatingAppBar));
+          final titleRect = tester.getRect(title);
+          expect(
+            toolbarRect.bottom,
+            closeTo(geometry.padding.top + kToolbarHeight, 0.01),
+          );
+          expect(titleRect.top - toolbarRect.bottom, closeTo(4, 0.01));
+          expect(titleRect.left, greaterThanOrEqualTo(geometry.padding.left + 16));
+          expect(
+            titleRect.right,
+            lessThanOrEqualTo(geometry.width - geometry.padding.right - 16),
+          );
+          expect(tester.takeException(), isNull);
+          await harness.unmount(tester);
+        },
+      );
+    }
+  }
 
   testWidgets('初次加载和树形请求等待期间均不绘制骨架或平铺列表', (tester) async {
     final detail = Completer<TopicDetail>();

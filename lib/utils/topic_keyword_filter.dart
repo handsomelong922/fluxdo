@@ -1,6 +1,5 @@
 import '../models/topic.dart';
 import 'blocked_user_filter.dart';
-import 'topic_regex_rules.dart';
 
 /// 标题关键词过滤工具。
 ///
@@ -25,9 +24,12 @@ class TopicKeywordFilter {
     required List<String> normalizedKeywords,
     required bool wholeWord,
     List<String> regexPatterns = const [],
+    Map<String, bool>? regexMatches,
     Set<String> blockedUsernames = const <String>{},
   }) {
-    if ((normalizedKeywords.isEmpty && regexPatterns.isEmpty && blockedUsernames.isEmpty) ||
+    if ((normalizedKeywords.isEmpty &&
+            regexPatterns.isEmpty &&
+            blockedUsernames.isEmpty) ||
         topics.isEmpty) {
       return (topics, 0, 0);
     }
@@ -44,7 +46,9 @@ class TopicKeywordFilter {
       }
     }
 
-    final safeRegexes = TopicRegexRules.compileValid(regexPatterns);
+    if (regexPatterns.isNotEmpty && regexMatches == null) {
+      throw StateError('正则过滤必须先在后台匹配');
+    }
     final visible = <Topic>[];
     var hidden = 0;
     var hiddenByBlocked = 0;
@@ -53,7 +57,7 @@ class TopicKeywordFilter {
         hidden++;
         hiddenByBlocked++;
       } else if (_matches(topic.title, substrings, regexes) ||
-          safeRegexes.any((rule) => rule.hasMatch(topic.title))) {
+          (regexPatterns.isNotEmpty && regexMatches![topic.title] != false)) {
         hidden++;
       } else {
         visible.add(topic);

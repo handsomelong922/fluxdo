@@ -33,7 +33,7 @@ List<SettingsModel> buildPersonalNavigationSettings(BuildContext context) {
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                child: Text(zh ? '返回手势保留跟手滑动；淡入淡出可能增加渲染开销。' : 'Back gestures keep interactive sliding. Fade may increase rendering cost.'),
+                child: Text(zh ? '用于普通页面打开和返回（含手势）；媒体查看器保留专属转场。淡入淡出可能增加渲染开销。' : 'Applies to standard page navigation and back gestures. Media viewers keep their own transitions. Fade may increase rendering cost.'),
               ),
               for (final style in PageTransitionStyle.values)
                 SimpleDialogOption(

@@ -846,9 +846,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   }
 
   Future<void> setTopicFilterRegexPatterns(List<String> patterns) async {
-    final sanitized = patterns.map((pattern) => pattern.trim())
-        .where((pattern) => pattern.isNotEmpty).toSet().toList();
-    TopicRegexRules.validate(sanitized);
+    final sanitized = patterns.toSet().toList();
+    await TopicRegexRules.validate(sanitized);
     if (const ListEquality<String>().equals(sanitized, state.topicFilterRegexPatterns)) {
       return;
     }

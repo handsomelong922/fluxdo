@@ -629,9 +629,9 @@ class _TopicFilterKeywordsDialogState
           child: Text(l10n.common_cancel),
         ),
         FilledButton(
-          onPressed: () {
-            final rules = _editorKey.currentState!.collectRules();
-            if (rules == null) return;
+          onPressed: () async {
+            final rules = await _editorKey.currentState!.collectRules();
+            if (rules == null || !context.mounted) return;
             Navigator.pop(context, (
               keywords: rules.keywords,
               regexPatterns: rules.regexPatterns,

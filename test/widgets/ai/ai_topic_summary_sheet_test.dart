@@ -24,6 +24,7 @@ void main() {
           baseUrl: 'https://example.invalid', models: const [AiModel(id: 'mock-model')]),
         model: const AiModel(id: 'mock-model'),
       )),
+      aiTopicSummaryAccountProvider.overrideWithValue('https://example.invalid:42'),
       aiTopicSummaryApiKeyLoaderProvider.overrideWithValue((_) async => 'mock-key'),
       if (service != null) aiTopicSummaryServiceFactoryProvider.overrideWithValue(
         ({required topicId, required provider, required model, required apiKey}) => service),
@@ -38,7 +39,8 @@ void main() {
       ),
       home: const Scaffold(body: AiTopicSummarySheet(topicId: 1, isPrivateMessage: true)),
     ))));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     return prefs;
   }
 
@@ -46,7 +48,7 @@ void main() {
     await pumpSheet(tester);
     expect(find.text('尚未配置文本模型'), findsOneWidget);
     expect(find.textContaining('这是私信'), findsOneWidget);
-    final start = tester.widget<FilledButton>(find.widgetWithText(FilledButton, '读取并准备总结'));
+    final start = tester.widget<FilledButton>(find.widgetWithText(FilledButton, '开始总结'));
     expect(start.onPressed, isNull);
     await tester.tap(find.text('模型设置'));
     await tester.pumpAndSettle();
@@ -94,15 +96,15 @@ void main() {
     await tester.drag(scrollable, const Offset(0, -150));
     await tester.pumpAndSettle();
     expect(position.pixels, greaterThan(initialOffset));
-    await tester.scrollUntilVisible(find.text('读取并准备总结'), 150, scrollable: scrollable);
+    await tester.scrollUntilVisible(find.text('开始总结'), 150, scrollable: scrollable);
     await tester.pumpAndSettle();
     expect(position.pixels, greaterThan(initialOffset));
-    expect(find.text('读取并准备总结').hitTestable(), findsOneWidget);
+    expect(find.text('开始总结').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(Duration.zero);
   });
-  testWidgets('读取后需确认才发AI，重复点击不重复启动，取消终止等待', (tester) async {
+  testWidgets('打开即后台总结，无二次确认，取消终止等待', (tester) async {
     var reads = 0;
     var calls = 0;
     final pending = Completer<String>();
@@ -111,18 +113,10 @@ void main() {
       loadPosts: (_) async => [], generate: (_, _, _) { calls++; return pending.future; },
     );
     await pumpSheet(tester, service: service);
-    await tester.tap(find.text('读取并准备总结'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('确认发送给 AI'), findsOneWidget);
-    expect(find.textContaining('本次预计 1 次 AI 请求'), findsOneWidget);
-    expect(calls, 0);
+    expect(find.text('确认发送给 AI'), findsNothing);
     expect(reads, 1);
-    await tester.tap(find.text('发送并总结'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
     expect(calls, 1);
-    final start = tester.widget<FilledButton>(find.widgetWithText(FilledButton, '读取并准备总结'));
+    final start = tester.widget<FilledButton>(find.widgetWithText(FilledButton, '开始总结'));
     expect(start.onPressed, isNull);
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
@@ -133,6 +127,44 @@ void main() {
     expect(calls, 1);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(Duration.zero);
+  });
+
+  testWidgets('离开面板后继续后台任务，重新打开直接查看结果且不重复请求', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final visible = ValueNotifier<bool>(true);
+    addTearDown(visible.dispose);
+    final pending = Completer<String>();
+    var calls = 0;
+    final model = (provider: AiProvider(id: 'mock', name: 'Mock AI', type: AiProviderType.openai,
+      baseUrl: 'https://example.invalid'), model: const AiModel(id: 'mock-model'));
+    await tester.pumpWidget(ProviderScope(overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      aiSharedPreferencesProvider.overrideWithValue(prefs),
+      aiTopicSummaryAccountProvider.overrideWithValue('site:42'),
+      aiTopicSummaryModelProvider.overrideWithValue(model),
+      aiTopicSummaryDefaultPromptProvider.overrideWithValue('summarize'),
+      aiTopicSummaryApiKeyLoaderProvider.overrideWithValue((_) async => 'mock-key'),
+      aiTopicSummaryServiceFactoryProvider.overrideWithValue(
+        ({required topicId, required provider, required model, required apiKey}) => AiTopicSummaryService(
+          loadTopic: () async => const SummarySnapshot('title', [1], [SummaryPost(1, 1, 'a', 'body')]),
+          loadPosts: (_) async => [], generate: (_, _, _) { calls++; return pending.future; })),
+    ], child: TranslationProvider(child: MaterialApp(home: Scaffold(body:
+      ValueListenableBuilder<bool>(valueListenable: visible, builder: (_, show, _) =>
+        show ? const AiTopicSummarySheet(topicId: 1) : const Text('another page')))))));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(calls, 1);
+    visible.value = false;
+    await tester.pump();
+    pending.complete('后台完成的总结');
+    await tester.pump();
+    visible.value = true;
+    await tester.pumpAndSettle();
+    expect(find.text('后台完成的总结'), findsOneWidget);
+    expect(calls, 1);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
 }

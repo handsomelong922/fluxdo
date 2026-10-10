@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 import textwrap
 import unittest
@@ -48,7 +49,7 @@ def fixture():
 
 
 class ReleasePreflightTest(unittest.TestCase):
-    def run_preflight(self, responses):
+    def run_preflight(self, responses, **overrides):
         workflow = WORKFLOW.read_text()
         match = re.search(
             r"      - name: Check GITHUB_TOKEN release eligibility\n"
@@ -65,6 +66,7 @@ class ReleasePreflightTest(unittest.TestCase):
         stdout = io.StringIO()
 
         def urlopen(request, timeout):
+            self.assertEqual(request.get_header("Authorization"), "Bearer offline-test-placeholder")
             self.assertEqual(request.get_method(), "GET", "预检不能写入外部状态")
             self.assertIsNone(request.data)
             self.assertEqual(timeout, 30)
@@ -85,10 +87,13 @@ class ReleasePreflightTest(unittest.TestCase):
                 "GH_TOKEN": "offline-test-placeholder",
                 "GITHUB_REPOSITORY": REPOSITORY,
                 "GITHUB_SHA": TARGET,
+                "GITHUB_REF": "refs/heads/dev",
+                "RELEASE_PAT": "",
                 "ARTIFACT_URL": ARTIFACT_URL,
                 "GITHUB_OUTPUT": str(output),
                 "GITHUB_STEP_SUMMARY": str(summary),
             }
+            environment.update(overrides)
             try:
                 with patch.dict(os.environ, environment), patch("urllib.request.urlopen", urlopen):
                     with contextlib.redirect_stdout(stdout):
@@ -176,6 +181,87 @@ class ReleasePreflightTest(unittest.TestCase):
         self.run_preflight(responses)
         self.assertEqual(self.output, "eligible=true\n")
         self.assertIn("commits/stable%2Fbase", self.requests)
+
+    def test_existing_pat_allows_different_workflows_without_exposing_secret(self):
+        responses = fixture()
+        responses[f"git/trees/{TARGET_GITHUB}"]["tree"][0]["sha"] = OTHER_WORKFLOWS
+        sentinel = "offline-secret-sentinel"
+        self.run_preflight(responses, RELEASE_PAT=sentinel)
+        self.assertEqual(self.output, "eligible=true\n")
+        self.assertIn("RELEASE_PAT", self.summary)
+        self.assertNotIn("Release 已创建", self.summary)
+        self.assertNotIn(sentinel, self.output + self.summary + self.stdout)
+        self.assertIn(f"git/commits/{TARGET}", self.requests)
+        self.assertFalse(any(path.startswith("git/trees/") for path in self.requests))
+
+    def test_repository_ref_sha_and_artifact_guards_apply_to_both_credentials(self):
+        for pat in ("", "offline-secret-sentinel"):
+            for invalid in (
+                {"GITHUB_REPOSITORY": "Lingyan000/fluxdo"},
+                {"GITHUB_REF": "refs/heads/main"},
+                {"GITHUB_SHA": "invalid"},
+                {"ARTIFACT_URL": "https://github.com/Lingyan000/fluxdo/actions/runs/123"},
+            ):
+                with self.subTest(pat=bool(pat), invalid=invalid):
+                    with self.assertRaises(SystemExit):
+                        self.run_preflight(fixture(), RELEASE_PAT=pat, **invalid)
+                    self.assertEqual(self.output, "")
+                    self.assertEqual(self.requests, [])
+
+    def test_pat_path_rejects_wrong_commit_and_api_failure(self):
+        responses = fixture()
+        responses[f"git/commits/{TARGET}"]["sha"] = DEFAULT
+        with self.assertRaisesRegex(SystemExit, "提交"):
+            self.run_preflight(responses, RELEASE_PAT="offline-secret-sentinel")
+        responses[""] = urllib.error.HTTPError(API_ROOT, 403, "fixture", {}, None)
+        with self.assertRaises(urllib.error.HTTPError):
+            self.run_preflight(responses, RELEASE_PAT="offline-secret-sentinel")
+        self.assertEqual(self.output, "")
+
+    def test_publish_uses_existing_secret_and_honest_outcome_summaries(self):
+        workflow = WORKFLOW.read_text()
+        release = workflow.split("  release:\n", 1)[1]
+        self.assertIn("token: ${{ secrets.RELEASE_PAT || github.token }}", release)
+        self.assertIn("RELEASE_PAT: ${{ secrets.RELEASE_PAT }}", release)
+        self.assertIn("repository: handsomelong922/fluxdo", release)
+        self.assertIn("target_commitish: ${{ github.sha }}", release)
+        self.assertIn("prerelease: true", release)
+        self.assertIn("make_latest: false", release)
+        self.assertIn("if: steps.publish.outcome == 'success'", release)
+        self.assertIn("if: always() && steps.publish.outcome == 'failure'", release)
+        self.assertIn("Release 发布失败", release)
+        self.assertIn("Contents", release)
+        self.assertNotIn("continue-on-error:", workflow)
+
+    def test_summary_scripts_report_only_the_actual_publication_outcome(self):
+        workflow = WORKFLOW.read_text()
+        for name, url, expected_status in (
+            ("Report the published release", "", 1),
+            ("Report the published release", f"https://github.com/{REPOSITORY}/releases/tag/test", 0),
+            ("Report a failed release without hiding the failure", "", 0),
+        ):
+            with self.subTest(name=name, url=url):
+                block = workflow.split(f"      - name: {name}\n", 1)[1].split("      - name:", 1)[0]
+                script = textwrap.dedent(block.split("        run: |\n", 1)[1])
+                with tempfile.TemporaryDirectory() as temp:
+                    summary = Path(temp) / "summary"
+                    result = subprocess.run(
+                        ["bash", "-e", "-o", "pipefail", "-c", script],
+                        env={**os.environ, "GITHUB_STEP_SUMMARY": str(summary),
+                             "RELEASE_URL": url, "ARTIFACT_URL": ARTIFACT_URL},
+                        text=True, capture_output=True,
+                    )
+                    self.assertEqual(result.returncode, expected_status, result.stderr)
+                    report = summary.read_text() if summary.exists() else ""
+                    if "failed" in name:
+                        self.assertIn("Release 发布失败", report)
+                        self.assertIn(ARTIFACT_URL, report)
+                        self.assertNotIn("Release 已创建", report)
+                    elif url:
+                        self.assertIn("Release 已创建", report)
+                        self.assertIn(url, report)
+                    else:
+                        self.assertEqual(report, "")
 
     def test_workflow_keeps_hard_gates_and_conditionally_publishes(self):
         workflow = WORKFLOW.read_text()

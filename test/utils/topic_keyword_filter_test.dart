@@ -18,22 +18,39 @@ void main() {
     test('仅正则也生效，完整词开关不改变显式表达式语义', () {
       final input = [_topic(20, '求助手机 AI'), _topic(21, '其他话题')];
       for (final wholeWord in [false, true]) {
-        final (visible, hidden, byUser) = TopicKeywordFilter.apply(input,
-          normalizedKeywords: const [], wholeWord: wholeWord,
-          regexPatterns: const ['(求助|提问).*(手机|电脑)']);
+        final (visible, hidden, byUser) = TopicKeywordFilter.apply(
+          input,
+          normalizedKeywords: const [],
+          wholeWord: wholeWord,
+          regexPatterns: const ['(求助|提问).*(手机|电脑)'],
+          regexMatches: const {'求助手机 AI': true, '其他话题': false},
+        );
         expect(visible.map((topic) => topic.id), [21]);
         expect(hidden, 1);
         expect(byUser, 0);
       }
     });
 
-    test('坏正则被忽略，旧关键词仍按字面匹配', () {
+    test('未验证标题保持隐藏，字面规则不受影响', () {
       final input = [_topic(20, 'a.b'), _topic(21, 'axb'), _topic(22, 'AI')];
-      final (visible, hidden, _) = TopicKeywordFilter.apply(input,
-        normalizedKeywords: const ['a.b'], wholeWord: false,
-        regexPatterns: const ['[', r'^AI$']);
+      final (visible, hidden, _) = TopicKeywordFilter.apply(
+        input,
+        normalizedKeywords: const ['a.b'],
+        wholeWord: false,
+        regexPatterns: const [r'^AI$'],
+        regexMatches: const {'axb': false},
+      );
       expect(visible.map((topic) => topic.id), [21]);
       expect(hidden, 2);
+      expect(
+        () => TopicKeywordFilter.apply(
+          input,
+          normalizedKeywords: const [],
+          wholeWord: false,
+          regexPatterns: const ['['],
+        ),
+        throwsStateError,
+      );
     });
 
     final topics = [

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ai_model_manager/ai_model_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,10 +10,11 @@ import '../../providers/ai_post_review_provider.dart';
 import '../../providers/ai_topic_summary_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/ai_topic_summary_service.dart';
+import '../../services/ai_topic_summary_task.dart';
 import 'ai_model_select_sheet.dart';
 import 'ai_quick_prompts_sheet.dart';
 
-/// 标题区域入口；打开面板不会自动向 AI 发送帖子。
+/// 一次点击即使用已配置模型；后台任务和缓存不依赖面板生命周期。
 class AiTopicSummaryButton extends StatefulWidget {
   const AiTopicSummaryButton({super.key, required this.detail});
   final TopicDetail detail;
@@ -48,12 +51,7 @@ class AiTopicSummarySheet extends ConsumerStatefulWidget {
 }
 
 class _AiTopicSummarySheetState extends ConsumerState<AiTopicSummarySheet> {
-  TopicSummaryCancellation? _cancellation;
   ({AiProvider provider, AiModel model})? _selected;
-  TopicSummaryResult? _result;
-  String? _error;
-  String _progress = '';
-  bool _busy = false;
   late final TextEditingController _prompt;
 
   @override
@@ -61,10 +59,12 @@ class _AiTopicSummarySheetState extends ConsumerState<AiTopicSummarySheet> {
     super.initState();
     _prompt = TextEditingController(text: ref.read(sharedPreferencesProvider).getString(topicSummaryPromptKey)
         ?? ref.read(aiTopicSummaryDefaultPromptProvider));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _start(retry: false);
+    });
   }
   @override
   void dispose() {
-    _cancellation?.cancel();
     _prompt.dispose();
     super.dispose();
   }
@@ -79,49 +79,29 @@ class _AiTopicSummarySheetState extends ConsumerState<AiTopicSummarySheet> {
     return fallback;
   }
 
-  Future<void> _start() async {
-    if (_busy || _prompt.text.trim().isEmpty) return;
-    final available = ref.read(aiPostReviewAvailableModelsProvider);
-    final selected = _resolveModel(available, ref.read(aiTopicSummaryModelProvider));
+  String _key(({AiProvider provider, AiModel model}) selected, String account) =>
+      topicSummaryTaskKey(account: account, topicId: widget.topicId,
+        provider: selected.provider, model: selected.model, prompt: _prompt.text, isPrivateMessage: widget.isPrivateMessage);
+
+  void _start({bool retry = true}) {
+    if (_prompt.text.trim().isEmpty) return;
+    final selected = _resolveModel(ref.read(aiPostReviewAvailableModelsProvider),
+        ref.read(aiTopicSummaryModelProvider));
     if (selected == null) return;
-    final cancellation = TopicSummaryCancellation();
-    _cancellation = cancellation;
-    setState(() { _busy = true; _error = null; _result = null; _progress = '正在准备…'; });
-    try {
-      final key = await cancellation.wait(ref.read(aiTopicSummaryApiKeyLoaderProvider)(selected.provider.id));
-      cancellation.check();
-      if (key == null || key.trim().isEmpty) {
-        throw const TopicSummaryException('此服务尚未配置 API Key，请打开模型设置');
-      }
-      final service = ref.read(aiTopicSummaryServiceFactoryProvider)(topicId: widget.topicId,
-          provider: selected.provider, model: selected.model, apiKey: key.trim());
-      final result = await service.summarize(prompt: _prompt.text.trim(), cancellation: cancellation,
-          onPrepared: (posts, total, chars, requests) async {
-            if (!mounted || cancellation.isCancelled) return false;
-            return await showDialog<bool>(context: context, builder: (context) => AlertDialog(
-              title: const Text('确认发送给 AI'),
-              content: Text('已读取 $posts/$total 楼（缺失 ${total - posts} 楼），将把 $chars 字符发送至 ${selected.provider.name} / ${selected.model.name ?? selected.model.id}。'
-                  '\n服务地址：${selected.provider.baseUrl}'
-                  '\n本次预计 $requests 次 AI 请求，可能产生 API 费用。'
-                  '${widget.isPrivateMessage ? '\n内容包含私信，请确认参与者隐私。' : ''}'),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
-                FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('发送并总结')),
-              ],
-            )) ?? false;
-          },
-          onProgress: (value) {
-            if (mounted && !cancellation.isCancelled) setState(() => _progress = value);
-          });
-      if (mounted && !cancellation.isCancelled) setState(() => _result = result);
-    } catch (error) {
-      if (mounted && identical(_cancellation, cancellation)) {
-        setState(() => _error = cancellation.isCancelled ? '已取消总结'
-            : error is TopicSummaryException ? error.message : '读取或总结失败，未生成完整总结。请重试或检查模型设置。');
-      }
-    } finally {
-      if (mounted && identical(_cancellation, cancellation)) setState(() => _busy = false);
-    }
+    final account = ref.read(aiTopicSummaryAccountProvider);
+    if (widget.isPrivateMessage && account.endsWith(':guest')) return;
+    final tasks = ref.read(aiTopicSummaryTasksProvider);
+    final factory = ref.read(aiTopicSummaryServiceFactoryProvider);
+    final loadKey = ref.read(aiTopicSummaryApiKeyLoaderProvider);
+    unawaited(tasks.start(_key(selected, account), prompt: _prompt.text.trim(), retry: retry,
+      createService: () async {
+        final apiKey = await loadKey(selected.provider.id);
+        if (apiKey == null || apiKey.trim().isEmpty) {
+          throw const TopicSummaryException('此服务尚未配置 API Key，请打开模型设置');
+        }
+        return factory(topicId: widget.topicId, provider: selected.provider,
+          model: selected.model, apiKey: apiKey.trim());
+      }));
   }
 
   Future<void> _editPrompt() async {
@@ -138,7 +118,14 @@ class _AiTopicSummarySheetState extends ConsumerState<AiTopicSummarySheet> {
   Widget build(BuildContext context) {
     final available = ref.watch(aiPostReviewAvailableModelsProvider);
     final selected = _resolveModel(available, ref.watch(aiTopicSummaryModelProvider));
-    final result = _result;
+    final account = ref.watch(aiTopicSummaryAccountProvider);
+    final tasks = ref.watch(aiTopicSummaryTasksProvider);
+    final key = selected == null ? null : _key(selected, account);
+    return StreamBuilder<void>(stream: tasks.changes, builder: (context, _) {
+    final state = key == null ? const TopicSummaryTaskState() : tasks.state(key);
+    final result = state.result;
+    final busy = state.busy;
+    final needsAccount = widget.isPrivateMessage && account.endsWith(':guest');
     return SizedBox(height: MediaQuery.sizeOf(context).height * 0.85, child: Padding(
       padding: const EdgeInsets.all(16),
       child: ListView(children: [
@@ -147,21 +134,24 @@ class _AiTopicSummarySheetState extends ConsumerState<AiTopicSummarySheet> {
           IconButton(tooltip: '关闭', onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
         ]),
         Text(widget.isPrivateMessage
-            ? '这是私信。开始后会将私信主帖和所有可读取回复发送给下方所选 AI 服务，请确认参与者隐私。'
-            : '开始后会将主帖和所有可读取回复发送给下方所选 AI 服务。'),
+            ? '这是私信，内容会发送给所选 AI 服务，请注意参与者隐私。'
+            : '使用已配置 AI 总结主帖与全部可读取回复，可能产生 API 费用。'),
         const SizedBox(height: 8),
         Text(selected == null ? '尚未配置文本模型' : '${selected.provider.name} / ${selected.model.name ?? selected.model.id}'),
-        const Text('按开始时目录抓取；长帖会分段并合并，可能产生多次 API 费用。上限 10000 楼 / 9.6 万字符 / 16 段，超限会停止；最多 31 次 AI 请求。取消会关闭当前 AI 请求；已发出的论坛读取可能仍在结束中。', style: TextStyle(fontSize: 12)),
+        Text(widget.isPrivateMessage
+            ? '关闭面板或离开帖子后会继续总结。私信结果仅在本次登录期间保留，不写入本地缓存。'
+            : '关闭面板或离开帖子后会继续总结，返回可查看。结果保存在本机；长帖会分段合并。', style: const TextStyle(fontSize: 12)),
+        if (needsAccount) const Text('请先登录后再总结私信。'),
         Wrap(spacing: 8, children: [
-          TextButton(onPressed: _busy ? null : () => Navigator.push(context,
+          TextButton(onPressed: busy ? null : () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const AiProvidersPage())), child: const Text('模型设置')),
-          if (selected != null) TextButton(onPressed: _busy ? null : () async {
+          if (selected != null) TextButton(onPressed: busy ? null : () async {
             final value = await showAiModelSelectSheet(context: context,
                 allModels: ref.read(aiPostReviewAvailableModelsProvider), current: selected, mode: PromptType.text);
             if (value != null && mounted) setState(() => _selected = value);
           }, child: const Text('切换模型')),
-          TextButton(onPressed: _busy ? null : _editPrompt, child: const Text('总结 Prompt')),
-          TextButton(onPressed: _busy ? null : () => showAiQuickPromptsSheet(
+          TextButton(onPressed: busy ? null : _editPrompt, child: const Text('总结 Prompt')),
+          TextButton(onPressed: busy ? null : () => showAiQuickPromptsSheet(
             context: context, type: PromptType.text, onPick: (preset, dimensions) async {
               if (!mounted) return;
               final value = appendDimensionFragments(preset.promptTemplate, preset.dimensions, dimensions);
@@ -170,23 +160,22 @@ class _AiTopicSummarySheetState extends ConsumerState<AiTopicSummarySheet> {
             },
           ), child: const Text('选择已有快捷词')),
         ]),
-        if (_busy) ...[const LinearProgressIndicator(), const SizedBox(height: 8), Text(_progress)],
-        if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        if (busy) ...[const LinearProgressIndicator(), const SizedBox(height: 8), Text(state.progress)],
+        if (state.error != null) Text(state.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        if (state.savedAt != null) Text('生成时间：${state.savedAt!.toLocal().toString().split(".").first}；新回复需重新总结。', style: const TextStyle(fontSize: 12)),
         if (result != null) Text('已总结 ${result.readCount}/${result.total} 楼'
             '${result.missingIds.isEmpty ? '' : '；${result.missingIds.length} 楼不可读取，本结果不包含这些楼层'}。'),
         Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: SelectableText(result?.text ?? '')),
         const Text('AI 可能遗漏或误解，请核对原帖。', style: TextStyle(fontSize: 12)),
         Row(children: [
-          Expanded(child: FilledButton(onPressed: _busy || selected == null ? null : _start,
-              child: Text(_result != null || _error != null ? '重新读取并总结' : '读取并准备总结'))),
-          if (_busy) TextButton(onPressed: () {
-            _cancellation?.cancel();
-            setState(() => _progress = '正在取消…');
-          }, child: const Text('取消')),
+          Expanded(child: FilledButton(onPressed: busy || selected == null || needsAccount ? null : () => _start(),
+              child: Text(result != null || state.error != null ? '重新总结' : '开始总结'))),
+          if (busy) TextButton(onPressed: () => tasks.cancel(key!), child: const Text('取消')),
           if (result != null) IconButton(tooltip: '复制总结', onPressed: () => Clipboard.setData(ClipboardData(text: result.text)), icon: const Icon(Icons.copy)),
         ]),
       ]),
     ));
+    });
   }
 }
 

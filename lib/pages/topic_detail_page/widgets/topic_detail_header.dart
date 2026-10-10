@@ -70,7 +70,8 @@ class TopicDetailHeader extends ConsumerWidget {
     }
 
     return Container(
-      padding: EdgeInsets.fromLTRB(16, topPadding + (showTitle ? 20 : 12), 16, 16),
+      // 系统安全区由 Body 保留，topPadding 已含工具栏高度，只补极小视觉间距。
+      padding: EdgeInsets.fromLTRB(16, topPadding + 4, 16, 16),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         border: Border(

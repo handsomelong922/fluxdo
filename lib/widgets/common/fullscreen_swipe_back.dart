@@ -23,6 +23,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -79,6 +81,30 @@ class FullscreenSwipeBackTransitionsBuilder extends PageTransitionsBuilder {
   }
 }
 
+/// 只添加返回手势，不添加任何页面视觉。自选转场复用现有控制器，
+/// 边缘模式使用 Flutter Cupertino 同款 20px/安全区宽度与 RTL 方向。
+Widget wrapSwipeBackForPageRoute<T>({
+  required PageRoute<T> route,
+  required Widget child,
+  required bool fullscreen,
+}) {
+  if (route.fullscreenDialog) return child;
+  final edge = _FullscreenBackGestureDetector<T>(
+    enabledCallback: () => route.popGestureEnabled,
+    onStartPopGesture: () => _startPopGesture<T>(route),
+    edgeOnly: true,
+    child: child,
+  );
+  if (!fullscreen) return edge;
+  // 全屏探测器对内部横向滚动/平台视图让位时，边缘入口仍可返回。
+  // 两者正常参与同一个手势竞技场，只有胜者启动一次路由控制器。
+  return _FullscreenBackGestureDetector<T>(
+    enabledCallback: () => route.popGestureEnabled,
+    onStartPopGesture: () => _startPopGesture<T>(route),
+    child: edge,
+  );
+}
+
 // Called by _FullscreenBackGestureDetector when a pop ("back") drag start
 // gesture is detected. The returned controller handles all of the subsequent
 // drag events.
@@ -111,6 +137,7 @@ class _FullscreenBackGestureDetector<T> extends StatefulWidget {
     required this.enabledCallback,
     required this.onStartPopGesture,
     required this.child,
+    this.edgeOnly = false,
   });
 
   final Widget child;
@@ -118,6 +145,7 @@ class _FullscreenBackGestureDetector<T> extends StatefulWidget {
   final ValueGetter<bool> enabledCallback;
 
   final ValueGetter<_FullscreenBackGestureController<T>> onStartPopGesture;
+  final bool edgeOnly;
 
   @override
   _FullscreenBackGestureDetectorState<T> createState() =>
@@ -188,7 +216,8 @@ class _FullscreenBackGestureDetectorState<T>
   }
 
   void _handlePointerDown(PointerDownEvent event) {
-    if (widget.enabledCallback() && !_hitsPlatformView(event)) {
+    if (widget.enabledCallback() &&
+        (widget.edgeOnly || !_hitsPlatformView(event))) {
       _recognizer.addPointer(event);
     }
   }
@@ -221,6 +250,27 @@ class _FullscreenBackGestureDetectorState<T>
   @override
   Widget build(BuildContext context) {
     assert(debugCheckHasDirectionality(context));
+    if (widget.edgeOnly) {
+      final padding = MediaQuery.paddingOf(context);
+      final safeEdge = Directionality.of(context) == TextDirection.rtl
+          ? padding.right : padding.left;
+      return Stack(
+        fit: StackFit.passthrough,
+        children: [
+          widget.child,
+          PositionedDirectional(
+            start: 0,
+            top: 0,
+            bottom: 0,
+            width: math.max(20.0, safeEdge),
+            child: Listener(
+              onPointerDown: _handlePointerDown,
+              behavior: HitTestBehavior.translucent,
+            ),
+          ),
+        ],
+      );
+    }
     // 差异点:官方在 child 上叠一条左缘 20px 的探测竖条,这里整页监听;
     // translucent 只旁路收集 pointer,页面自身命中与滚动不受影响。
     return Listener(

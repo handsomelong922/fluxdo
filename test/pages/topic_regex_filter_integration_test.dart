@@ -10,6 +10,16 @@ void main() {
   ]) {
     test('$page 显示与续加载使用相同正则规则，修改后重置续加载冷却', () {
       final source = File('lib/pages/$page.dart').readAsStringSync();
+      expect(source, contains('Future<int> visibleItemCount() async'));
+      expect(source, contains('await _regexFilter.settle('));
+      expect(source, contains('_regexFilter.prepare(regexPatterns,'));
+      expect(
+        RegExp(r'regexMatches: _regexFilter.matches').allMatches(source),
+        hasLength(2),
+      );
+      expect(source, contains('TopicRegexFilterStatus('));
+      expect(source, contains('_regexFilter.dispose()'));
+
       expect(
         RegExp(r'regexPatterns: regexPatterns').allMatches(source),
         hasLength(2),
