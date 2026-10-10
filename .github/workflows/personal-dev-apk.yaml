@@ -232,6 +232,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Build the signed ARM64 APK
+        id: apk_build
         env:
           BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
         run: |
@@ -244,16 +245,57 @@ jobs:
 
       - name: Verify APK contents, signature and checksum
         run: |
+          set -euo pipefail
           apk=dist/fluxdo-personal-arm64-v8a.apk
           unzip -Z1 "$apk" > "$RUNNER_TEMP/apk-files.txt"
           grep -Fx 'lib/arm64-v8a/libdoh_proxy.so' "$RUNNER_TEMP/apk-files.txt"
           grep -Fx 'lib/arm64-v8a/librhttp.so' "$RUNNER_TEMP/apk-files.txt"
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
           test -n "$apksigner"
-          "$apksigner" verify --print-certs "$apk" > "$RUNNER_TEMP/apk-signature.txt"
-          expected=$(sha256sum "$RUNNER_TEMP/personal-signing-cert.der" | cut -d ' ' -f 1)
-          grep -F "Signer #1 certificate SHA-256 digest: $expected" "$RUNNER_TEMP/apk-signature.txt"
+          printf 'apksigner: %s\n' "$apksigner"
+          "$apksigner" --version
+          expected=$(python3 -c 'import hashlib, os, pathlib; print(hashlib.sha256(pathlib.Path(os.environ["RUNNER_TEMP"], "personal-signing-cert.der").read_bytes()).hexdigest())')
+          printf '预期签名证书 SHA-256：%s\n' "$expected"
+          # 保留验签输出；pipefail 确保验签失败不能被 tee 的成功掩盖。
+          "$apksigner" verify --print-certs "$apk" 2>&1 | tee "$RUNNER_TEMP/apk-signature.txt"
+          python3 - "$expected" <<'PY'
+          import os, pathlib, re, sys
+          temp = pathlib.Path(os.environ['RUNNER_TEMP'])
+          expected = sys.argv[1]
+          # 兼容普通编号与 v3.1 的 SDK 范围标签，仅校验实际签名者的证书摘要。
+          label = r'Signer (?:#[1-9][0-9]*|\(minSdkVersion=[0-9]+(?: \(dev release=true\))?, maxSdkVersion=[0-9]+\))'
+          digests = []
+          for line in temp.joinpath('apk-signature.txt').read_text().splitlines():
+              if not line.startswith('Signer'):
+                  continue
+              signer = re.fullmatch(label + r' (.+)', line)
+              if signer is None:
+                  raise SystemExit(f'无法识别签名者输出：{line}')
+              detail = signer.group(1)
+              if detail.startswith(('certificate DN: ', 'certificate SHA-1 digest: ',
+                                    'certificate MD5 digest: ', 'public key ')):
+                  continue
+              digest = re.fullmatch(r'certificate SHA-256 digest: ([0-9a-fA-F]{64})', detail)
+              if digest is None:
+                  raise SystemExit(f'签名者证书摘要格式无效：{line}')
+              digests.append(digest.group(1).lower())
+          if not digests or any(digest != expected for digest in digests):
+              raise SystemExit(f'签名证书不匹配：预期 {expected}，实际 {digests}')
+          print(f'全部 {len(digests)} 个签名者证书摘要匹配：{expected}')
+          PY
           (cd dist && sha256sum fluxdo-personal-arm64-v8a.apk > fluxdo-personal-arm64-v8a.apk.sha256)
+
+      # 仅供排查验包失败，不作为可安装 Release 发布；禁止包含任何签名私密材料。
+      - name: Preserve unverified APK for diagnosis on failure
+        if: failure() && steps.apk_build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostic-unverified-apk-${{ github.sha }}
+          path: |
+            dist/*.apk
+            ${{ runner.temp }}/apk-signature.txt
+          retention-days: 3
+          if-no-files-found: error
 
       - name: Upload verified APK
         uses: actions/upload-artifact@v4
