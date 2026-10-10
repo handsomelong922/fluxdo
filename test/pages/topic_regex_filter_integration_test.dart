@@ -17,6 +17,10 @@ void main() {
         RegExp(r'regexMatches: _regexFilter.matches').allMatches(source),
         hasLength(2),
       );
+      expect(source, contains('TopicKeywordFilter.inspect('));
+      expect(source, contains('hiddenTopics:'));
+      expect(source, contains('if (mounted) _openTopic(topic)'));
+      expect(source, isNot(contains('hiddenCount: hidden')));
       expect(source, contains('TopicRegexFilterStatus('));
       expect(source, contains('_regexFilter.dispose()'));
 

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../../services/app_error_handler.dart';
 import '../../services/notion/notion_bookmark_auto_sync.dart';
 import 'package:flutter/material.dart';
+import '../../providers/ai_topic_summary_provider.dart';
 import 'package:flutter/rendering.dart' show RenderSliver, RenderViewport;
 import 'package:flutter/services.dart';
 import '../../utils/idle_task.dart';
@@ -2426,6 +2427,13 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       preferencesProvider.select((p) => p.aiSwipeEntry),
     );
 
+    ref.listen(aiTopicSummaryAccountProvider, (previous, next) {
+      if (previous != null && previous != next) {
+        ref.read(topicAiChatProvider(widget.topicId).notifier)
+            .discardMemoryOnlySession();
+      }
+    });
+
     // 保持当前话题页内的 AI 状态存活，避免 BottomSheet 关闭后丢失
     // 已选模型、文本/生图模式和消息列表。离开话题页后仍由 autoDispose 释放。
     if (hasAiModel) {
@@ -2610,6 +2618,45 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     return child;
   }
 
+  Future<void> _continueAiSummary(String summary) async {
+    final detail = ref.read(topicDetailProvider(_params)).value;
+    if (detail == null || summary.trim().isEmpty) return;
+
+    // 等待持久化和助手页面挂载时保持自动释放状态存活，
+    // 兼容仅配置总结模型的情况。
+    final subscription = ref.listenManual(
+      topicAiChatProvider(widget.topicId),
+      (_, _) {},
+    );
+    try {
+      await ref
+          .read(topicAiChatProvider(widget.topicId).notifier)
+          .continueFromSummary(
+            detail.title,
+            summary,
+            persistSession: !detail.isPrivateMessage,
+          );
+      if (!mounted) return;
+
+      final swipeMode = ref.read(preferencesProvider).aiSwipeEntry;
+      final hasAiModel = ref.read(hasAvailableAiModelProvider);
+      if (swipeMode && hasAiModel && _pageController.hasClients) {
+        await _pageController.animateToPage(
+          1,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+        );
+      } else {
+        _showAiAssistantSheet(detail);
+        // 弹窗并非同步挂载；等消费者订阅后再释放临时监听，
+        // 避免预填会话在两帧之间丢失。
+        await WidgetsBinding.instance.endOfFrame;
+      }
+    } finally {
+      subscription.close();
+    }
+  }
+
   void _showAiAssistantSheet(TopicDetail detail) {
     _isAiSheetOpen = true;
     // 在 modal 外部获取状态栏高度，因为 showModalBottomSheet 会清零 padding.top
@@ -2787,6 +2834,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                                       level,
                                     ),
                                 onJumpToPost: _jumpToPostInTopic,
+                                onContinueAiSummary: _continueAiSummary,
                               ),
                             ),
                           ),
@@ -2951,6 +2999,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
                     ref.invalidate(nestedTopicProvider(nestedParams)),
               ),
         data: (nestedState) => NestedPostList(
+          onContinueAiSummary: _continueAiSummary,
           nestedState: nestedState,
           params: nestedParams,
           detail: detail,
@@ -3005,6 +3054,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
           valueListenable: _controller.highlightNotifier,
           builder: (context, highlightPostNumber, _) {
             return TopicPostList(
+              onContinueAiSummary: _continueAiSummary,
               detail: detail,
               scrollController: _controller.scrollController,
               centerKey: _centerKey,

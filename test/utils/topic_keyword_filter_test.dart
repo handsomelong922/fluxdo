@@ -41,7 +41,7 @@ void main() {
         regexMatches: const {'axb': false},
       );
       expect(visible.map((topic) => topic.id), [21]);
-      expect(hidden, 2);
+      expect(hidden, 1); // 未知正则结果属于待验证，不算命中。
       expect(
         () => TopicKeywordFilter.apply(
           input,
@@ -67,7 +67,7 @@ void main() {
         normalizedKeywords: const [],
         wholeWord: false,
       );
-      expect(visible, topics);
+      expect(visible, same(topics));
       expect(hidden, 0);
     });
 
@@ -152,6 +152,118 @@ void main() {
       );
       expect(visible.map((t) => t.id), [11]);
       expect(hidden, 1);
+    });
+  });
+
+  group('confirmed filter snapshot', () {
+    test('blocked then literal then regex precedence; pending is separate', () {
+      final blocked = Topic(
+        id: 30,
+        title: 'AI blocked',
+        slug: 'blocked',
+        postsCount: 1,
+        replyCount: 0,
+        views: 0,
+        likeCount: 0,
+        categoryId: '1',
+        posters: [
+          TopicPoster(
+            userId: 7,
+            description: '',
+            extras: '',
+            user: TopicUser(id: 7, username: 'Alice', avatarTemplate: ''),
+          ),
+        ],
+      );
+      final result = TopicKeywordFilter.inspect(
+        [
+          blocked,
+          _topic(31, 'AI literal'),
+          _topic(32, 'regex'),
+          _topic(33, 'pending'),
+          _topic(34, 'visible'),
+          blocked,
+        ],
+        normalizedKeywords: const ['ai'],
+        wholeWord: true,
+        blockedUsernames: const {'alice'},
+        regexPatterns: const ['.*'],
+        regexMatches: const {
+          'AI literal': true,
+          'regex': true,
+          'visible': false,
+        },
+      );
+      expect(result.hidden.map((e) => e.topic.id), [30, 31, 32]);
+      expect(result.hidden.map((e) => e.reason), [
+        TopicFilterReason.blockedUser,
+        TopicFilterReason.keyword,
+        TopicFilterReason.regex,
+      ]);
+      expect(result.hidden[1].keyword, 'ai');
+      expect(result.hiddenByBlocked, 1);
+      expect(result.pending.map((e) => e.id), [33]);
+      expect(result.visible.map((e) => e.id), [34]);
+      expect(() => result.hidden.clear(), throwsUnsupportedError);
+    });
+
+    test(
+      'pending transitions to confirmed or visible without inflating count',
+      () {
+        final input = [_topic(1, 'hide'), _topic(2, 'show')];
+        TopicFilterResult inspect(Map<String, bool> matches) =>
+            TopicKeywordFilter.inspect(
+              input,
+              normalizedKeywords: const [],
+              wholeWord: false,
+              regexPatterns: const ['^hide'],
+              regexMatches: matches,
+            );
+        final pending = inspect({});
+        expect(pending.hidden, isEmpty);
+        expect(pending.pending, hasLength(2));
+        final settled = inspect({'hide': true, 'show': false});
+        expect(settled.hidden, hasLength(1));
+        expect(settled.visible.single.id, 2);
+        expect(settled.pending, isEmpty);
+        expect(pending.pending, hasLength(2)); // 旧快照保持不变。
+      },
+    );
+
+    test(
+      'disabled filters preserve provider list identity for index caches',
+      () {
+        final input = [_topic(1, 'visible')];
+        final result = TopicKeywordFilter.inspect(
+          input,
+          normalizedKeywords: const [],
+          wholeWord: false,
+        );
+        expect(result.visible, same(input));
+        expect(result.hidden, isEmpty);
+        expect(
+          () => result.hidden.add(
+            FilteredTopic(input.first, TopicFilterReason.regex),
+          ),
+          throwsUnsupportedError,
+        );
+      },
+    );
+
+    test('duplicate IDs cannot inflate the banner count', () {
+      final topic = _topic(1, 'AI');
+      final result = TopicKeywordFilter.inspect(
+        [topic, topic],
+        normalizedKeywords: const ['ai'],
+        wholeWord: false,
+      );
+      final (_, count, _) = TopicKeywordFilter.apply(
+        [topic, topic],
+        normalizedKeywords: const ['ai'],
+        wholeWord: false,
+      );
+      expect(count, result.hidden.length);
+      expect(count, 1);
     });
   });
 

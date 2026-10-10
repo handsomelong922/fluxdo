@@ -5,6 +5,8 @@ import 'package:crypto/crypto.dart';
 
 import 'package:ai_model_manager/ai_model_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// ignore: depend_on_referenced_packages
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../models/topic.dart';
 import '../constants.dart';
@@ -18,6 +20,69 @@ import 'core_providers.dart';
 final aiTopicSummaryModelProvider = Provider<({AiProvider provider, AiModel model})?>((ref) {
   return resolveSelectedTextAiModel(ref, null);
 });
+
+typedef TopicSummaryModel = ({AiProvider provider, AiModel model});
+typedef TopicSummarySelectionScope = ({String account, int topicId});
+const _summaryModelChoicesKey = 'ai_topic_summary_model_choices_v1';
+
+String _selectionKey(TopicSummarySelectionScope scope) =>
+    sha256.convert(utf8.encode(jsonEncode([scope.account, scope.topicId]))).toString();
+
+Map<String, dynamic> _readSummaryModelChoices(String? raw) {
+  try { return Map<String, dynamic>.from(jsonDecode(raw ?? '{}') as Map); }
+  catch (_) { return {}; }
+}
+
+TopicSummaryModel? _findSummaryModel(List<TopicSummaryModel> models, String? key) {
+  final parsed = parseAiModelKey(key);
+  if (parsed == null) return null;
+  for (final item in models) {
+    if (item.provider.id == parsed.providerId && item.model.id == parsed.modelId &&
+        item.model.output.contains(Modality.text)) return item;
+  }
+  return null;
+}
+
+/// 非敏感的选模偏好按账号/站点/话题保存，重进页面后仍能找到同一总结缓存。
+final aiTopicSummarySelectionProvider = StateProvider.family<
+    TopicSummaryModel?, TopicSummarySelectionScope>((ref, scope) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  final saved = _readSummaryModelChoices(prefs.getString(_summaryModelChoicesKey))[_selectionKey(scope)];
+  if (saved is! String) return null;
+  return _findSummaryModel(ref.watch(allAvailableAiModelsProvider), saved);
+});
+
+final aiTopicSummaryResolvedModelProvider = Provider.family<TopicSummaryModel?, int>((ref, topicId) {
+  final account = ref.watch(aiTopicSummaryAccountProvider);
+  final selected = ref.watch(topicSelectedAiModelProvider(topicId));
+  final remembered = ref.watch(aiTopicSummarySelectionProvider((account: account, topicId: topicId)));
+  final available = ref.watch(allAvailableAiModelsProvider);
+  TopicSummaryModel? valid(TopicSummaryModel? item) => item == null ? null :
+      _findSummaryModel(available, buildAiModelKey(item.provider.id, item.model.id));
+  return valid(selected) ?? valid(remembered) ??
+      _findSummaryModel(available, ref.watch(defaultTextAiModelKeyProvider)) ??
+      _findSummaryModel(available, ref.watch(defaultAiModelKeyProvider)) ??
+      valid(ref.watch(lastUsedTextAiModelProvider)) ??
+      valid(ref.watch(lastUsedAiAssistantModelProvider)) ??
+      ref.watch(aiTopicSummaryModelProvider);
+});
+
+Future<void> rememberTopicSummaryModel(WidgetRef ref, int topicId, TopicSummaryModel model) async {
+  final scope = (account: ref.read(aiTopicSummaryAccountProvider), topicId: topicId);
+  final prefs = ref.read(sharedPreferencesProvider);
+  final choices = _readSummaryModelChoices(prefs.getString(_summaryModelChoicesKey));
+  final key = _selectionKey(scope);
+  choices.remove(key);
+  choices[key] = buildAiModelKey(model.provider.id, model.model.id);
+  while (choices.length > 100) { choices.remove(choices.keys.first); }
+  ref.read(aiTopicSummarySelectionProvider(scope).notifier).state = model;
+  ref.read(topicSelectedAiModelProvider(topicId).notifier).state = model;
+  // 同时沿用现有助手选模记忆，不创建新的凭据或连接。
+  await Future.wait([
+    prefs.setString(_summaryModelChoicesKey, jsonEncode(choices)),
+    setLastUsedAiAssistantModel(ref, model.provider.id, model.model.id, isImageMode: false),
+  ]);
+}
 
 /// 注入读取入口，测试不接触安全存储中的真实密钥。
 final aiTopicSummaryApiKeyLoaderProvider = Provider<Future<String?> Function(String)>((ref) {

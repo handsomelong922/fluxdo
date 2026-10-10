@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:app_icons/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
 import '../../../l10n/s.dart';
 import '../../../models/topic.dart';
 import '../../../providers/discourse_providers.dart';
 import '../../../utils/font_awesome_helper.dart';
-import '../../../widgets/topic/topic_summary_widget.dart';
 import '../../../widgets/common/emoji_text.dart';
 import '../../../utils/time_utils.dart';
 import '../../../widgets/common/relative_time_text.dart';
@@ -33,6 +33,7 @@ class TopicDetailHeader extends ConsumerWidget {
 
   /// 跳转到当前话题的指定帖子
   final void Function(int postNumber)? onJumpToPost;
+  final void Function(String summary)? onContinueAiSummary;
 
   const TopicDetailHeader({
     super.key,
@@ -43,6 +44,7 @@ class TopicDetailHeader extends ConsumerWidget {
     this.showTitle = true,
     this.topPadding = 0,
     this.onJumpToPost,
+    this.onContinueAiSummary,
   });
 
   @override
@@ -208,12 +210,13 @@ class TopicDetailHeader extends ConsumerWidget {
           if (detail.isAssigned) ...[
             InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: () => unawaited(
-                showAssignSheet(context, ref, topicId: detail.id),
-              ),
+              onTap: () =>
+                  unawaited(showAssignSheet(context, ref, topicId: detail.id)),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primaryContainer.withValues(
                     alpha: 0.5,
@@ -302,23 +305,15 @@ class TopicDetailHeader extends ConsumerWidget {
 
           // AI 摘要 & 订阅按钮
           const SizedBox(height: 16),
-          CollapsibleTopicSummary(
-            topicId: detail.id,
-            topicDetail: detail,
+          AiTopicSummaryButton(
+            detail: detail,
             onJumpToPost: onJumpToPost,
-          ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              TopicNotificationButton(
-                level: detail.notificationLevel,
-                onChanged: onNotificationLevelChanged,
-                style: TopicNotificationButtonStyle.chip,
-              ),
-              AiTopicSummaryButton(detail: detail),
-            ],
+            onContinueConversation: onContinueAiSummary,
+            headerExtra: TopicNotificationButton(
+              level: detail.notificationLevel,
+              onChanged: onNotificationLevelChanged,
+              style: TopicNotificationButtonStyle.chip,
+            ),
           ),
         ],
       ),

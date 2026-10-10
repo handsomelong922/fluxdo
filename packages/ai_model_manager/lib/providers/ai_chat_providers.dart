@@ -527,6 +527,9 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   bool _cancelled = false;
   bool _isGeneratingTitle = false;
 
+  // 私信总结的续聊始终仅保留在内存中，退出时也不写入本地聊天记录。
+  final Set<String> _memoryOnlySessionIds = {};
+
   /// 缓存的上下文帖子（通过 fetchContextPosts 加载）
   List<TopicPostContext>? _cachedContextPosts;
   String? _cachedTitle;
@@ -560,13 +563,15 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   /// 保存当前消息到存储
   Future<void> _saveToStorage() async {
     final sessionId = state.currentSessionId;
-    if (sessionId == null) return;
+    if (sessionId == null || _memoryOnlySessionIds.contains(sessionId)) return;
     await storageService.saveSessionMessages(
       topicId,
       sessionId,
       state.messages,
       topicTitle: _cachedTitle,
     );
+    // 存储尚未完成时，总结续聊的页面跳转可能已被中断。
+    if (!mounted) return;
     // 刷新会话列表
     state = state.copyWith(sessions: storageService.getTopicSessions(topicId));
   }
@@ -574,7 +579,9 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   /// dispose 前保存（由 ref.onDispose 调用）
   void saveBeforeDispose() {
     final sessionId = state.currentSessionId;
-    if (sessionId == null || state.messages.isEmpty) return;
+    if (sessionId == null ||
+        state.messages.isEmpty ||
+        _memoryOnlySessionIds.contains(sessionId)) return;
     storageService.saveSessionMessages(
       topicId,
       sessionId,
@@ -585,6 +592,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
 
   /// 创建新会话
   void createNewSession() {
+    _clearPrivateSummaryContext();
     stopGeneration();
     final sessionId = _uuid.v4();
     state = state.copyWith(
@@ -596,6 +604,7 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   /// 切换到指定会话
   void switchSession(String sessionId) {
     if (sessionId == state.currentSessionId) return;
+    _clearPrivateSummaryContext();
     stopGeneration();
     final messages = storageService.loadSessionMessages(sessionId);
     state = state.copyWith(
@@ -631,6 +640,64 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   void setContextPosts(String title, List<TopicPostContext> posts) {
     _cachedTitle = title;
     _cachedContextPosts = posts;
+  }
+
+  /// 用已有总结预填新会话，不向 AI 服务发送请求。
+  /// 私信话题调用时须关闭持久化。
+  Future<void> continueFromSummary(
+    String topicTitle,
+    String summaryText, {
+    bool persistSession = true,
+  }) async {
+    final summary = summaryText
+        .replaceAll('\u2028', '\n')
+        .replaceAll('\u2029', '\n')
+        .replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]'), '')
+        .replaceAll(RegExp('[\u202A-\u202E\u2066-\u2069\uFEFF]'), '')
+        .trim();
+    if (summary.isEmpty) return;
+
+    stopGeneration();
+    _cachedTitle = topicTitle;
+    _cachedContextPosts = [
+      TopicPostContext(postNumber: 1, username: 'AI Summary', cooked: summary),
+    ];
+    final sessionId = _uuid.v4();
+    if (!persistSession) _memoryOnlySessionIds.add(sessionId);
+    state = state.copyWith(
+      currentSessionId: sessionId,
+      messages: [
+        AiChatMessage(
+          id: _uuid.v4(),
+          role: ChatRole.user,
+          content: '请基于这份话题摘要继续对话。\n话题：$topicTitle',
+          createdAt: DateTime.now(),
+        ),
+        AiChatMessage(
+          id: _uuid.v4(),
+          role: ChatRole.assistant,
+          content: summary,
+          createdAt: DateTime.now(),
+        ),
+      ],
+      isGenerating: false,
+    );
+    await _saveToStorage();
+  }
+
+  void _clearPrivateSummaryContext() {
+    if (!_memoryOnlySessionIds.contains(state.currentSessionId)) return;
+    _cachedTitle = null;
+    _cachedContextPosts = null;
+  }
+
+  /// 所属登录会话变化时清除私信总结内容。
+  void discardMemoryOnlySession() {
+    if (!_memoryOnlySessionIds.contains(state.currentSessionId)) return;
+    stopGeneration();
+    _cachedTitle = null;
+    _cachedContextPosts = null;
+    state = TopicAiChatState(sessions: state.sessions);
   }
 
   /// 发送消息
@@ -1240,7 +1307,9 @@ class TopicAiChatNotifier extends StateNotifier<TopicAiChatState> {
   /// 首次回复完成后自动生成会话标题
   Future<void> _tryGenerateTitle() async {
     final sessionId = state.currentSessionId;
-    if (sessionId == null || _isGeneratingTitle) return;
+    if (sessionId == null ||
+        _isGeneratingTitle ||
+        _memoryOnlySessionIds.contains(sessionId)) return;
 
     // 检查是否已有标题
     final sessions = state.sessions;

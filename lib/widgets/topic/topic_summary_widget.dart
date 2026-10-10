@@ -398,6 +398,7 @@ class CollapsibleTopicSummary extends ConsumerStatefulWidget {
   final int topicId;
   final TopicDetail? topicDetail;  // 新增：传入话题详情以检查 summarizable
   final Widget? headerExtra; // 新增：头部额外组件（如订阅按钮）
+  final String? label;
   /// 跳转到当前话题的指定帖子
   final void Function(int postNumber)? onJumpToPost;
 
@@ -406,6 +407,7 @@ class CollapsibleTopicSummary extends ConsumerStatefulWidget {
     required this.topicId,
     this.topicDetail,
     this.headerExtra,
+    this.label,
     this.onJumpToPost,
   });
 
@@ -485,7 +487,7 @@ class _CollapsibleTopicSummaryState
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      hasCachedSummary ? S.current.topic_aiSummary : S.current.topic_generateAiSummary,
+                      widget.label ?? (hasCachedSummary ? S.current.topic_aiSummary : S.current.topic_generateAiSummary),
                       style: theme.textTheme.labelMedium?.copyWith(
                         color: theme.colorScheme.primary,
                         fontWeight: FontWeight.w500,

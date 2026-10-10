@@ -11,15 +11,8 @@ class TopicKeywordFilter {
   static const int autoLoadVisibleThreshold = 5;
   static const int autoLoadMaxAttempts = 3;
 
-  /// 应用关键词与本地屏蔽名单过滤，返回
-  /// `(可见列表, 隐藏总数, 其中因屏蔽名单隐藏的数量)`。
-  ///
-  /// - [normalizedKeywords] 必须是已 trim + lowercase + 去空的列表。
-  /// - [wholeWord] 为 true 时：对纯 ASCII word-char 关键词（如 `ai`、`db_2`）
-  ///   使用单词边界（`\b`）匹配；对含非 word-char（如中文）的关键词依然走子串
-  ///   匹配——Dart 的 `\b` 不在两个非 word-char 之间产生边界，强制套 `\b`
-  ///   会让 `\b中文\b` 几乎不可能命中。
-  static (List<Topic> visible, int hiddenCount, int hiddenByBlocked) apply(
+  /// 兼容旧调用：只统计已确认的过滤结果，不把待验证标题计为命中。
+  static (List<Topic>, int, int) apply(
     List<Topic> topics, {
     required List<String> normalizedKeywords,
     required bool wholeWord,
@@ -27,75 +20,99 @@ class TopicKeywordFilter {
     Map<String, bool>? regexMatches,
     Set<String> blockedUsernames = const <String>{},
   }) {
-    if ((normalizedKeywords.isEmpty &&
-            regexPatterns.isEmpty &&
-            blockedUsernames.isEmpty) ||
-        topics.isEmpty) {
-      return (topics, 0, 0);
-    }
+    final result = inspect(
+      topics,
+      normalizedKeywords: normalizedKeywords,
+      wholeWord: wholeWord,
+      regexPatterns: regexPatterns,
+      regexMatches: regexMatches,
+      blockedUsernames: blockedUsernames,
+    );
+    return (result.visible, result.hidden.length, result.hiddenByBlocked);
+  }
 
-    final substrings = <String>[];
-    final regexes = <RegExp>[];
-    for (final keyword in normalizedKeywords) {
-      if (wholeWord && _isAsciiWordOnly(keyword)) {
-        regexes.add(
-          RegExp(r'\b' + RegExp.escape(keyword) + r'\b', caseSensitive: false),
-        );
-      } else {
-        substrings.add(keyword);
-      }
+  /// 仅检查已加载的话题，按屏蔽用户、字面关键词、已确认正则命中的顺序归因。
+  /// 未验证标题仍暂不展示，但不计入已忽略数量；相同话题 ID 只统计一次。
+  static TopicFilterResult inspect(
+    List<Topic> topics, {
+    required List<String> normalizedKeywords,
+    required bool wholeWord,
+    List<String> regexPatterns = const [],
+    Map<String, bool>? regexMatches,
+    Set<String> blockedUsernames = const <String>{},
+  }) {
+    // 未启用过滤时保留原列表身份，避免首页索引和滚动锚点缓存失效。
+    // 已确认隐藏的记录仍使用不可变快照。
+    if (normalizedKeywords.isEmpty &&
+        regexPatterns.isEmpty &&
+        blockedUsernames.isEmpty) {
+      return TopicFilterResult._unfiltered(topics);
     }
-
-    if (regexPatterns.isNotEmpty && regexMatches == null) {
+    if (topics.isNotEmpty && regexPatterns.isNotEmpty && regexMatches == null) {
       throw StateError('正则过滤必须先在后台匹配');
     }
     final visible = <Topic>[];
-    var hidden = 0;
-    var hiddenByBlocked = 0;
+    final hidden = <FilteredTopic>[];
+    final pending = <Topic>[];
+    final seen = <int>{};
     for (final topic in topics) {
+      if (!seen.add(topic.id)) continue;
       if (BlockedUserFilter.isBlockedTopic(topic, blockedUsernames)) {
-        hidden++;
-        hiddenByBlocked++;
-      } else if (_matches(topic.title, substrings, regexes) ||
-          (regexPatterns.isNotEmpty && regexMatches![topic.title] != false)) {
-        hidden++;
+        hidden.add(FilteredTopic(topic, TopicFilterReason.blockedUser));
+        continue;
+      }
+      final keyword = _matchingKeyword(
+        topic.title,
+        normalizedKeywords,
+        wholeWord,
+      );
+      if (keyword != null) {
+        hidden.add(
+          FilteredTopic(topic, TopicFilterReason.keyword, keyword: keyword),
+        );
+      } else if (regexPatterns.isNotEmpty &&
+          regexMatches![topic.title] == true) {
+        hidden.add(FilteredTopic(topic, TopicFilterReason.regex));
+      } else if (regexPatterns.isNotEmpty &&
+          regexMatches![topic.title] == null) {
+        pending.add(topic);
       } else {
         visible.add(topic);
       }
     }
-    return (visible, hidden, hiddenByBlocked);
+    return TopicFilterResult(visible, hidden, pending);
   }
 
-  static bool _matches(
+  // 字面匹配和 ASCII 完整词边界均无需在界面隔离区执行正则。
+  // 用户表达式仅由后台工作隔离区计算。
+  static String? _matchingKeyword(
     String title,
-    List<String> substrings,
-    List<RegExp> regexes,
+    List<String> keywords,
+    bool wholeWord,
   ) {
-    if (substrings.isNotEmpty) {
-      final lower = title.toLowerCase();
-      for (final keyword in substrings) {
-        if (lower.contains(keyword)) return true;
+    final lower = title.toLowerCase();
+    for (final keyword in keywords) {
+      if (keyword.isEmpty) continue;
+      final needsBoundary = wholeWord && keyword.codeUnits.every(_isWordCode);
+      var index = lower.indexOf(keyword);
+      while (index >= 0) {
+        final end = index + keyword.length;
+        if (!needsBoundary ||
+            ((index == 0 || !_isWordCode(lower.codeUnitAt(index - 1))) &&
+                (end == lower.length || !_isWordCode(lower.codeUnitAt(end))))) {
+          return keyword;
+        }
+        index = lower.indexOf(keyword, index + 1);
       }
     }
-    for (final re in regexes) {
-      if (re.hasMatch(title)) return true;
-    }
-    return false;
+    return null;
   }
 
-  /// 关键词是否全部由 ASCII 字母 / 数字 / 下划线组成（`\w` 等价集）。
-  static bool _isAsciiWordOnly(String s) {
-    if (s.isEmpty) return false;
-    for (final code in s.codeUnits) {
-      final isWord =
-          (code >= 0x30 && code <= 0x39) || // 0-9
-          (code >= 0x41 && code <= 0x5A) || // A-Z
-          (code >= 0x61 && code <= 0x7A) || // a-z
-          code == 0x5F; // _
-      if (!isWord) return false;
-    }
-    return true;
-  }
+  static bool _isWordCode(int code) =>
+      (code >= 0x30 && code <= 0x39) ||
+      (code >= 0x41 && code <= 0x5A) ||
+      (code >= 0x61 && code <= 0x7A) ||
+      code == 0x5F;
 
   /// loadMore 完成后判断是否需要自动再加载一次。
   ///
@@ -116,4 +133,33 @@ class TopicKeywordFilter {
     if (attempts >= maxAttempts) return false;
     return (visibleAfter - visibleBefore) < threshold;
   }
+}
+
+/// 只有已确认的原因才能进入忽略数量和复核列表。
+enum TopicFilterReason { blockedUser, keyword, regex }
+
+class FilteredTopic {
+  const FilteredTopic(this.topic, this.reason, {this.keyword});
+  final Topic topic;
+  final TopicFilterReason reason;
+  final String? keyword;
+}
+
+class TopicFilterResult {
+  TopicFilterResult(
+    List<Topic> visible,
+    List<FilteredTopic> hidden,
+    List<Topic> pending,
+  ) : visible = List.unmodifiable(visible),
+      hidden = List.unmodifiable(hidden),
+      pending = List.unmodifiable(pending);
+  TopicFilterResult._unfiltered(this.visible)
+    : hidden = const [],
+      pending = const [];
+  final List<Topic> visible;
+  final List<FilteredTopic> hidden;
+  final List<Topic> pending;
+  int get hiddenByBlocked => hidden
+      .where((entry) => entry.reason == TopicFilterReason.blockedUser)
+      .length;
 }

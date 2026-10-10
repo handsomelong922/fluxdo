@@ -1,5 +1,6 @@
 import 'package:ai_model_manager/ai_model_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/providers/ai_topic_summary_provider.dart';
 import 'package:fluxdo/providers/theme_provider.dart';
@@ -7,6 +8,67 @@ import 'package:fluxdo/services/ai_topic_summary_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  final provider = AiProvider(id: 'p', name: 'P', type: AiProviderType.openai, baseUrl: 'https://example.invalid');
+  final first = (provider: provider, model: const AiModel(id: 'first'));
+  final second = (provider: provider, model: const AiModel(id: 'second'));
+
+  test('摘要选模遵循话题选择、保存选择、显式默认和最近模型顺序', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      aiSharedPreferencesProvider.overrideWithValue(prefs),
+      aiTopicSummaryAccountProvider.overrideWithValue('site:1'),
+      allAvailableAiModelsProvider.overrideWithValue([first, second]),
+      aiTopicSummaryModelProvider.overrideWithValue(first),
+    ]);
+    addTearDown(container.dispose);
+    final resolved = aiTopicSummaryResolvedModelProvider(42);
+    final subscription = container.listen(resolved, (_, _) {});
+    addTearDown(subscription.close);
+    container.read(lastUsedAiAssistantModelKeyProvider.notifier).state = 'p:second';
+    expect(container.read(resolved), second);
+    container.read(defaultTextAiModelKeyProvider.notifier).state = 'p:first';
+    expect(container.read(resolved), first);
+    container.read(aiTopicSummarySelectionProvider((account: 'site:1', topicId: 42)).notifier).state = second;
+    expect(container.read(resolved), second);
+    container.read(topicSelectedAiModelProvider(42).notifier).state = first;
+    expect(container.read(resolved), first);
+    container.read(topicSelectedAiModelProvider(42).notifier).state = null;
+    container.read(aiTopicSummarySelectionProvider((account: 'site:1', topicId: 42)).notifier).state =
+        (provider: provider, model: const AiModel(id: 'deleted'));
+    expect(container.read(resolved), first);
+  });
+
+  testWidgets('非默认模型在重新进入和重建容器后保留且按账号隔离', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    late WidgetRef widgetRef;
+    await tester.pumpWidget(ProviderScope(overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      aiSharedPreferencesProvider.overrideWithValue(prefs),
+      aiTopicSummaryAccountProvider.overrideWithValue('site:1'),
+      allAvailableAiModelsProvider.overrideWithValue([first, second]),
+    ], child: Consumer(builder: (context, ref, _) {
+      widgetRef = ref;
+      return const SizedBox.shrink();
+    })));
+    await tester.runAsync(() => rememberTopicSummaryModel(widgetRef, 42, second));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(Duration.zero);
+    final container = ProviderContainer(overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      aiSharedPreferencesProvider.overrideWithValue(prefs),
+      aiTopicSummaryAccountProvider.overrideWithValue('site:1'),
+      allAvailableAiModelsProvider.overrideWithValue([first, second]),
+      aiTopicSummaryModelProvider.overrideWithValue(first),
+    ]);
+    addTearDown(container.dispose);
+    container.read(defaultTextAiModelKeyProvider.notifier).state = 'p:first';
+    expect(container.read(aiTopicSummaryResolvedModelProvider(42)), second);
+    expect(container.read(aiTopicSummarySelectionProvider((account: 'site:2', topicId: 42))), isNull);
+  });
+
   test('真实缓存键按账号、站点、话题、服务地址、模型和 Prompt 隔离', () {
     String key({String account = 'site:1', int topic = 1, String url = 'https://example.invalid',
       String model = 'model', String prompt = 'prompt', bool private = false}) => topicSummaryTaskKey(

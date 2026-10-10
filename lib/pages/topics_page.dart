@@ -2890,11 +2890,10 @@ class _TopicListState extends ConsumerState<_TopicList>
       preferencesProvider.select((p) => p.showFilterHint),
     );
     _syncAutoLoadFilter(keywords, regexPatterns, wholeWord, blockedUsernames);
-    var hiddenCount = 0;
-    var hiddenByBlocked = 0;
+    var hiddenTopics = <FilteredTopic>[];
     final visibleTopicsAsync = topicsAsync.whenData((topics) {
       _regexFilter.prepare(regexPatterns, topics.map((topic) => topic.title));
-      final (visible, hidden, byBlocked) = TopicKeywordFilter.apply(
+      final result = TopicKeywordFilter.inspect(
         topics,
         normalizedKeywords: keywords,
         regexPatterns: regexPatterns,
@@ -2902,9 +2901,8 @@ class _TopicListState extends ConsumerState<_TopicList>
         wholeWord: wholeWord,
         blockedUsernames: blockedUsernames,
       );
-      hiddenCount = hidden;
-      hiddenByBlocked = byBlocked;
-      return visible;
+      hiddenTopics = result.hidden;
+      return result.visible;
     });
     final selectedTopicId = ref.watch(selectedTopicProvider).topicId;
     // 列表层读取一次；itemBuilder 冷挂载每张卡时直接复用结果。
@@ -2959,7 +2957,7 @@ class _TopicListState extends ConsumerState<_TopicList>
         final newTopicCount = topicUpdateSnapshot.length;
         final hasNewTopics = newTopicCount > 0 || isLoadingTopicUpdates;
         final newTopicOffset = hasNewTopics ? 1 : 0;
-        final hintOffset = (showFilterHint && hiddenCount > 0) ? 1 : 0;
+        final hintOffset = (showFilterHint && hiddenTopics.isNotEmpty) ? 1 : 0;
         final headerOffset = newTopicOffset + hintOffset;
         final idToIndex = _visibleIndexMapFor(topics);
         // pill/过滤提示行出现或消失 = 全列表行 index 平移(数据身份未变,
@@ -3078,8 +3076,10 @@ class _TopicListState extends ConsumerState<_TopicList>
                               return KeyedSubtree(
                                 key: const ValueKey(_filterHintKeyValue),
                                 child: KeywordFilterHintBar(
-                                  hiddenCount: hiddenCount,
-                                  hiddenByBlocked: hiddenByBlocked,
+                                  hiddenTopics: hiddenTopics,
+                                  onOpenTopic: (topic) {
+                                    if (mounted) _openTopic(topic);
+                                  },
                                 ),
                               );
                             }

@@ -36,6 +36,7 @@ class NestedPostList extends ConsumerStatefulWidget {
   final void Function(Post post) onEdit;
   final void Function(int postId) onRefreshPost;
   final void Function(int postNumber) onJumpToPost;
+  final void Function(String summary)? onContinueAiSummary;
   final void Function(int, bool) onVoteChanged;
   final void Function(int count, bool userCreated)? onSharedIssueChanged;
   final void Function(TopicNotificationLevel)? onNotificationLevelChanged;
@@ -75,6 +76,7 @@ class NestedPostList extends ConsumerStatefulWidget {
     required this.onEdit,
     required this.onRefreshPost,
     required this.onJumpToPost,
+    this.onContinueAiSummary,
     required this.onVoteChanged,
     this.onSharedIssueChanged,
     this.onNotificationLevelChanged,
@@ -265,6 +267,7 @@ class _NestedPostListState extends ConsumerState<NestedPostList> {
               onVoteChanged: widget.onVoteChanged,
               onNotificationLevelChanged: widget.onNotificationLevelChanged,
               onJumpToPost: widget.onJumpToPost,
+              onContinueAiSummary: widget.onContinueAiSummary,
             ),
           ),
 

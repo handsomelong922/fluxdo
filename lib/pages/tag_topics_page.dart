@@ -502,7 +502,7 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage>
     ref.watch(preferencesProvider.select((p) => p.topicCardStyle));
     _syncAutoLoadFilter(keywords, regexPatterns, wholeWord, blockedUsernames);
     _regexFilter.prepare(regexPatterns, _topics.map((topic) => topic.title));
-    final (visible, hidden, hiddenByBlocked) = TopicKeywordFilter.apply(
+    final result = TopicKeywordFilter.inspect(
       _topics,
       normalizedKeywords: keywords,
       regexPatterns: regexPatterns,
@@ -510,7 +510,8 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage>
       wholeWord: wholeWord,
       blockedUsernames: blockedUsernames,
     );
-    final hintOffset = (showFilterHint && hidden > 0) ? 1 : 0;
+    final visible = result.visible;
+    final hintOffset = (showFilterHint && result.hidden.isNotEmpty) ? 1 : 0;
 
     return TopicRegexFilterStatus(
       controller: _regexFilter,
@@ -533,8 +534,10 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage>
           }
           if (hintOffset > 0 && index == updateOffset) {
             return KeywordFilterHintBar(
-              hiddenCount: hidden,
-              hiddenByBlocked: hiddenByBlocked,
+              hiddenTopics: result.hidden,
+              onOpenTopic: (topic) {
+                if (mounted) _openTopic(topic);
+              },
             );
           }
           final topicIndex = index - hintOffset - updateOffset;

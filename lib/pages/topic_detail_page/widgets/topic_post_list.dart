@@ -86,6 +86,7 @@ class TopicPostList extends StatefulWidget {
   final void Function(Map<int, ({int firstScrollIndex, int lastScrollIndex})>)?
   onPostSegmentRangesChanged;
   final void Function(int postNumber) onJumpToPost;
+  final void Function(String summary)? onContinueAiSummary;
   final void Function(Post? replyToPost, {String? initialContent}) onReply;
   final void Function(Post post) onEdit;
   final void Function(Post post)? onShareAsImage;
@@ -169,6 +170,7 @@ class TopicPostList extends StatefulWidget {
     this.onScrollIndexToPostNumberChanged,
     this.onPostSegmentRangesChanged,
     required this.onJumpToPost,
+    this.onContinueAiSummary,
     required this.onReply,
     required this.onEdit,
     this.onShareAsImage,
@@ -1204,6 +1206,7 @@ class _TopicPostListState extends State<TopicPostList> {
                       onVoteChanged: onVoteChanged,
                       onNotificationLevelChanged: onNotificationLevelChanged,
                       onJumpToPost: onJumpToPost,
+                      onContinueAiSummary: widget.onContinueAiSummary,
                     ),
                   ),
                 ),
@@ -1247,6 +1250,7 @@ class _TopicPostListState extends State<TopicPostList> {
                           onVoteChanged: onVoteChanged,
                           onNotificationLevelChanged: onNotificationLevelChanged,
                           onJumpToPost: onJumpToPost,
+                          onContinueAiSummary: widget.onContinueAiSummary,
                         ),
                       ),
                     ),
