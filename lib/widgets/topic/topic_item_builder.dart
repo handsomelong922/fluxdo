@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/discourse_providers.dart';
 import '../../services/topic_preview_preloader.dart';
 import '../../utils/responsive.dart';
-import '../common/morphing_dialog_anchor.dart';
+import '../common/topic_preview_gestures.dart';
 import 'painted_topic_card.dart';
 import 'topic_card.dart';
 import 'topic_card_layout.dart';
@@ -90,17 +90,15 @@ Widget buildTopicItem({
           : theme.cardTheme.color ?? theme.colorScheme.surfaceContainerLow);
 
   // 从实际卡身接管画面；桌面的居中约束留在来源外层。
-  VoidCallback? longPressFor(BuildContext cardContext) => enableLongPress
-      ? () => TopicPreviewDialog.show(
-          context,
-          topic: topic,
-          onOpen: onTap,
-          actions: previewActions,
-          customActionPanelBuilder: previewCustomActionPanelBuilder,
-          sourceContext: cardContext,
-          anchorColor: anchorColor,
-        )
-      : null;
+  void showPreview(BuildContext cardContext) => TopicPreviewDialog.show(
+    context,
+    topic: topic,
+    onOpen: onTap,
+    actions: previewActions,
+    customActionPanelBuilder: previewCustomActionPanelBuilder,
+    sourceContext: cardContext,
+    anchorColor: anchorColor,
+  );
 
   // 长按意图预加载(正文):移动端按住不动 250ms / 桌面右键按下即触发,
   // 弹窗打开时正文多已在路上。chat 类场景没有话题 id 的不适用(调用
@@ -133,16 +131,18 @@ Widget buildTopicItem({
   // 自绘路径:排版全局缓存 + 单渲染对象。宽度口径见
   // [topicCardWidthFor];分类表由调用方传入(未传时不查,分类行缺分
   // 类名 —— 各列表页均已传)
-  final Widget child = MorphingDialogAnchor(
-    enabled: enableLongPress,
+  final Widget child = TopicPreviewGestures(
+    onTap: onTap,
+    onPreview: showPreview,
+    enableLongPress: enableLongPress,
     bottomGap: topic.pinned ? 6 : 8,
-    builder: (cardContext) {
+    builder: (cardContext, cardTap, cardLongPress) {
       if (topic.pinned) {
         return CompactTopicCard(
           topic: topic,
-          onTap: onTap,
+          onTap: cardTap,
           onMiddleClick: onMiddleClick,
-          onLongPress: longPressFor(cardContext),
+          onLongPress: cardLongPress,
           onPreviewIntent: previewIntent,
           isSelected: isSelected,
           highlightColor: highlightColor,
@@ -152,9 +152,9 @@ Widget buildTopicItem({
       if (paintedLayout != null) {
         return PaintedTopicCard(
           layout: paintedLayout,
-          onTap: onTap,
+          onTap: cardTap,
           onMiddleClick: onMiddleClick,
-          onLongPress: longPressFor(cardContext),
+          onLongPress: cardLongPress,
           onPreviewIntent: previewIntent,
           isSelected: isSelected,
           highlightColor: highlightColor,
@@ -162,9 +162,9 @@ Widget buildTopicItem({
       }
       return TopicCard(
         topic: topic,
-        onTap: onTap,
+        onTap: cardTap,
         onMiddleClick: onMiddleClick,
-        onLongPress: longPressFor(cardContext),
+        onLongPress: cardLongPress,
         onPreviewIntent: previewIntent,
         isSelected: isSelected,
         highlightColor: highlightColor,

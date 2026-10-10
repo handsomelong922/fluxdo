@@ -159,7 +159,8 @@ Widget _page({
                   detail: _detail,
                   onScrollToTop: () {},
                   onShare: () {},
-                  onOpenInBrowser: () {},
+                  onBookmark: () {},
+                  isBookmarked: false,
                   onReply: () {},
                   onProgressTap: () {},
                 ),
@@ -244,9 +245,12 @@ void main() {
     final first = tester.getCenter(
       find.byIcon(Symbols.vertical_align_top_rounded),
     );
-    final last = tester.getCenter(find.byIcon(Symbols.language_rounded));
+    final last = tester.getCenter(find.byIcon(Symbols.bookmark_rounded));
     expect((first.dx + last.dx) / 2, 160);
-    expect(first.dy, 640 - 34 - kTopicBottomBarHeight / 2);
+    expect(
+      first.dy,
+      640 - 34 - kTopicBottomBarLift - kTopicBottomBarHeight / 2,
+    );
     final reply = tester.getRect(find.byType(FloatingActionButton));
     expect(reply.bottom, lessThanOrEqualTo(bar.top));
 
@@ -265,7 +269,7 @@ void main() {
     );
     expect(
       tester.getBottomLeft(find.byType(FloatingActionButton)).dy,
-      640 - 34 - 16,
+      640 - 34 - kTopicBottomBarLift - 16,
     );
     expect(tester.takeException(), isNull);
   });
@@ -287,6 +291,20 @@ void main() {
       expect(
         tester.getSize(find.byKey(_viewportKey)).height,
         640 - 24 - keyboardHeight,
+      );
+      expect(
+        tester.getBottomLeft(find.byType(TopicBottomBar)).dy,
+        640 - keyboardHeight - kTopicBottomBarLift,
+        reason: '底栏上移量与键盘调整后的正文视口一致',
+      );
+      controller.jumpTo(controller.position.maxScrollExtent);
+      await tester.pump();
+      expect(
+        tester.getBottomLeft(find.byKey(_tailKey)).dy,
+        lessThanOrEqualTo(
+          tester.getTopLeft(find.byType(FloatingActionButton)).dy,
+        ),
+        reason: '键盘显示时，末尾仍避开上移后的回复按钮',
       );
       expect(tester.takeException(), isNull);
     });

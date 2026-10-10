@@ -24,7 +24,7 @@ class BlockedUserFilter {
   static List<String> sanitizeUsernames(Iterable<String> usernames) {
     final seen = <String>{};
     final result = <String>[];
-    for (final username in usernames) {
+    for (final username in usernames.expand(splitInput)) {
       final cleaned = stripAtPrefix(username);
       final normalized = normalizeUsername(cleaned);
       if (normalized.isEmpty || !seen.add(normalized)) continue;
@@ -33,9 +33,13 @@ class BlockedUserFilter {
     return result;
   }
 
+  /// 支持从文本或表格粘贴用户名，以空白及中英文逗号分隔。
+  static Iterable<String> splitInput(String input) =>
+      input.split(RegExp(r'[\s,，]+'));
+
   static Set<String> normalizedUsernames(Iterable<String> usernames) {
     return Set.unmodifiable(
-      usernames.map(normalizeUsername).where((username) => username.isNotEmpty),
+      sanitizeUsernames(usernames).map(normalizeUsername).where((username) => username.isNotEmpty),
     );
   }
 

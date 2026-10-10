@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:app_icons/app_icons.dart';
+
 import '../../../models/topic.dart';
 import '../../../providers/preferences_provider.dart';
 import '../../../widgets/topic/topic_progress.dart';
@@ -26,7 +27,8 @@ class TopicDetailOverlay extends StatelessWidget {
   final VoidCallback onShare;
   final VoidCallback? onShareAsImage;
   final VoidCallback? onExport;
-  final VoidCallback onOpenInBrowser;
+  final VoidCallback onBookmark;
+  final bool isBookmarked;
   final VoidCallback onReply;
   final VoidCallback onProgressTap;
   final ValueChanged<ProgressGestureAction>? onProgressGesture;
@@ -54,7 +56,8 @@ class TopicDetailOverlay extends StatelessWidget {
     required this.onShare,
     this.onShareAsImage,
     this.onExport,
-    required this.onOpenInBrowser,
+    required this.onBookmark,
+    required this.isBookmarked,
     required this.onReply,
     required this.onProgressTap,
     this.onProgressGesture,
@@ -115,7 +118,9 @@ class TopicDetailOverlay extends StatelessWidget {
             builder: (context, showBottomBar, child) => AnimatedPositioned(
               key: const ValueKey('progress_bar'),
               duration: const Duration(milliseconds: 200),
-              bottom: bottomPadding +
+              bottom:
+                  bottomPadding +
+                  kTopicBottomBarLift +
                   (showBottomBar ? kTopicBottomBarHeight + 16 : 24),
               left: 0,
               right: 0,
@@ -130,7 +135,8 @@ class TopicDetailOverlay extends StatelessWidget {
             onShare: onShare,
             onShareAsImage: onShareAsImage,
             onExport: onExport,
-            onOpenInBrowser: onOpenInBrowser,
+            onBookmark: isLoggedIn ? onBookmark : null,
+            isBookmarked: isBookmarked,
             hasSummary: detail.hasSummary,
             isPostVoting: detail.isPostVoting,
             isSummaryMode: isSummaryMode,
@@ -152,7 +158,9 @@ class TopicDetailOverlay extends StatelessWidget {
             duration: const Duration(milliseconds: 200),
             left: 0,
             right: 0,
-            bottom: showBottomBar ? 0 : -(kTopicBottomBarHeight + bottomPadding),
+            bottom: showBottomBar
+                ? kTopicBottomBarLift
+                : -(kTopicBottomBarHeight + bottomPadding),
             child: child!,
           ),
         ),

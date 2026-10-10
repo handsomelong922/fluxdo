@@ -1277,14 +1277,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   return SearchPostCard(
                     post: searchPost,
                     onTap: () => _openTopicResult(searchPost),
-                    onLongPress: enableLongPress
-                        ? (cardContext) => SearchPreviewDialog.show(
-                            context,
-                            post: searchPost,
-                            onOpen: () => _openTopicResult(searchPost),
-                            sourceContext: cardContext,
-                          )
-                        : null,
+                    enableLongPress: enableLongPress,
+                    onLongPress: (cardContext) => SearchPreviewDialog.show(
+                      context,
+                      post: searchPost,
+                      onOpen: () => _openTopicResult(searchPost),
+                      sourceContext: cardContext,
+                    ),
                   );
                 }
 

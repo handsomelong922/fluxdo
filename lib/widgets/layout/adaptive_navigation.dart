@@ -500,8 +500,8 @@ abstract final class _CapsuleMetrics {
   /// 胶囊距屏幕左右边缘的最小外边距（TG iOS sideInset 12）
   static const double outerMargin = 12;
 
-  /// 胶囊距屏幕底缘的外边距（TG 双端一致 8）
-  static const double bottomMargin = 8;
+  /// 胶囊在系统安全区之外留白，上移 8dp 后保持舒适触控位置。
+  static const double bottomMargin = 16;
 
   /// 胶囊最大宽度。宽屏（平板竖屏 / 折叠展开）不拉满，
   /// 取 TG iOS 500 与 Android 344 的中间档。

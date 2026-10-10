@@ -15,6 +15,27 @@ Topic _topic(int id, String title) => Topic(
 
 void main() {
   group('TopicKeywordFilter.apply', () {
+    test('仅正则也生效，完整词开关不改变显式表达式语义', () {
+      final input = [_topic(20, '求助手机 AI'), _topic(21, '其他话题')];
+      for (final wholeWord in [false, true]) {
+        final (visible, hidden, byUser) = TopicKeywordFilter.apply(input,
+          normalizedKeywords: const [], wholeWord: wholeWord,
+          regexPatterns: const ['(求助|提问).*(手机|电脑)']);
+        expect(visible.map((topic) => topic.id), [21]);
+        expect(hidden, 1);
+        expect(byUser, 0);
+      }
+    });
+
+    test('坏正则被忽略，旧关键词仍按字面匹配', () {
+      final input = [_topic(20, 'a.b'), _topic(21, 'axb'), _topic(22, 'AI')];
+      final (visible, hidden, _) = TopicKeywordFilter.apply(input,
+        normalizedKeywords: const ['a.b'], wholeWord: false,
+        regexPatterns: const ['[', r'^AI$']);
+      expect(visible.map((topic) => topic.id), [21]);
+      expect(hidden, 2);
+    });
+
     final topics = [
       _topic(1, 'Main thread for the AI release'),
       _topic(2, '今天的水帖合集'),

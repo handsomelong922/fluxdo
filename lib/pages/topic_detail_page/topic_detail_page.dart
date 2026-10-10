@@ -1866,6 +1866,21 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     _handleProgressGesture(action, detail, notifier);
   }
 
+  /// 底栏复用现有书签创建/编辑流程，点击时重新检查登录态。
+  void _handleBottomBarBookmark() {
+    if (!mounted) return;
+    if (ref.read(currentUserProvider).value == null) {
+      ToastService.showInfo(S.current.common_pleaseLogin);
+      return;
+    }
+    unawaited(
+      _handleBookmark(
+        ref.read(topicDetailProvider(_params).notifier),
+        source: 'topic_detail_bottom_bar',
+      ),
+    );
+  }
+
   /// [TopicDetailOverlay] 的实例缓存(输入签名比对):见调用处注释。
   ({Object signature, Widget widget})? _overlayCache;
 
@@ -1878,6 +1893,7 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
     // (它每次更新都是新实例),只取 Overlay 用到的字段。
     final signature = (
       isLoggedIn: isLoggedIn,
+      isBookmarked: _bookmarkEditTarget(detail) != null || detail.bookmarked,
       totalCount: detail.postStream.stream.length,
       hasSummary: detail.hasSummary,
       isPostVoting: detail.isPostVoting,
@@ -1903,7 +1919,8 @@ class _TopicDetailPageState extends ConsumerState<TopicDetailPage>
       onShare: _shareTopic,
       onShareAsImage: _shareAsImage,
       onExport: _showExportSheet,
-      onOpenInBrowser: _openInBrowser,
+      onBookmark: _handleBottomBarBookmark,
+      isBookmarked: _bookmarkEditTarget(detail) != null || detail.bookmarked,
       onReply: () => _handleReply(null),
       onProgressTap: _showTimelineSheetForCurrent,
       onProgressGesture: _handleProgressGestureForCurrent,

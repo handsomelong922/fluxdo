@@ -11,7 +11,7 @@ import '../common/category_tags_line.dart';
 import '../common/relative_time_text.dart';
 import '../common/smart_avatar.dart';
 import '../topic/painted_topic_card.dart';
-import '../common/morphing_dialog_anchor.dart';
+import '../common/topic_preview_gestures.dart';
 import '../topic/topic_card_layout.dart';
 import '../topic/topic_card_prewarmer.dart';
 import '../topic/topic_item_builder.dart' show kUsePaintedTopicCard;
@@ -91,22 +91,24 @@ class SearchPostCard extends StatelessWidget {
     required this.post,
     this.onTap,
     this.onLongPress,
+    this.enableLongPress = true,
   });
 
+  final bool enableLongPress;
   final SearchPost post;
   final VoidCallback? onTap;
   final ValueChanged<BuildContext>? onLongPress;
 
   @override
   Widget build(BuildContext context) {
-    Widget card = MorphingDialogAnchor(
-      enabled: onLongPress != null,
-      builder: (cardContext) => _SearchPostCardContent(
+    Widget card = TopicPreviewGestures(
+      onTap: onTap,
+      onPreview: onLongPress,
+      enableLongPress: enableLongPress,
+      builder: (cardContext, cardTap, cardLongPress) => _SearchPostCardContent(
         post: post,
-        onTap: onTap,
-        onLongPress: onLongPress == null
-            ? null
-            : () => onLongPress!(cardContext),
+        onTap: cardTap,
+        onLongPress: cardLongPress,
       ),
     );
     if (!Responsive.isMobile(context)) {

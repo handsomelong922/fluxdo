@@ -19,6 +19,8 @@ import '../../widgets/ai/ai_model_select_sheet.dart';
 import '../../providers/sticker_provider.dart';
 import '../../services/sticker_market_service.dart';
 import '../settings_model.dart';
+import '../widgets/topic_filter_rules_editor.dart';
+import '../widgets/filter_rule_strings.dart';
 
 /// 功能设置数据声明
 List<SettingsGroup> buildPreferencesGroups(BuildContext context) {
@@ -79,10 +81,9 @@ List<SettingsGroup> buildPreferencesGroups(BuildContext context) {
           icon: Symbols.filter_alt_off_rounded,
           wrapSubtitle: true,
           getDynamicSubtitle: (ref) {
-            final count = ref
-                .watch(preferencesProvider)
-                .topicFilterKeywords
-                .length;
+            final prefs = ref.watch(preferencesProvider);
+            final count = prefs.topicFilterKeywords.length +
+                prefs.topicFilterRegexPatterns.length;
             if (count == 0) return null;
             return l10n.preferences_topicFilterKeywordsCount(count);
           },
@@ -539,7 +540,11 @@ Future<void> _showAiTranslationModelSheet(
       );
 }
 
-typedef _TopicFilterDialogResult = ({List<String> keywords, bool wholeWord});
+typedef _TopicFilterDialogResult = ({
+  List<String> keywords,
+  List<String> regexPatterns,
+  bool wholeWord,
+});
 
 /// 打开「标题关键词过滤」编辑弹窗（公共入口，hint bar 与设置项均复用）。
 Future<void> showTopicFilterKeywordsDialog(
@@ -551,21 +556,25 @@ Future<void> showTopicFilterKeywordsDialog(
     context: context,
     builder: (dialogContext) => _TopicFilterKeywordsDialog(
       initialKeywords: prefs.topicFilterKeywords,
+      initialRegexPatterns: prefs.topicFilterRegexPatterns,
       initialWholeWord: prefs.topicFilterWholeWord,
     ),
   );
   if (result == null || !context.mounted) return;
   final notifier = ref.read(preferencesProvider.notifier);
+  await notifier.setTopicFilterRegexPatterns(result.regexPatterns);
   await notifier.setTopicFilterKeywords(result.keywords);
   await notifier.setTopicFilterWholeWord(result.wholeWord);
 }
 
 class _TopicFilterKeywordsDialog extends StatefulWidget {
   final List<String> initialKeywords;
+  final List<String> initialRegexPatterns;
   final bool initialWholeWord;
 
   const _TopicFilterKeywordsDialog({
     required this.initialKeywords,
+    required this.initialRegexPatterns,
     required this.initialWholeWord,
   });
 
@@ -576,22 +585,13 @@ class _TopicFilterKeywordsDialog extends StatefulWidget {
 
 class _TopicFilterKeywordsDialogState
     extends State<_TopicFilterKeywordsDialog> {
-  late final TextEditingController _controller;
+  final _editorKey = GlobalKey<TopicFilterRulesEditorState>();
   late bool _wholeWord;
-  late final List<String> _keywords;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: '');
     _wholeWord = widget.initialWholeWord;
-    _keywords = List<String>.from(widget.initialKeywords);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
   }
 
   @override
@@ -607,31 +607,10 @@ class _TopicFilterKeywordsDialogState
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                icon: const Icon(Symbols.clear_all_rounded, size: 18),
-                label: Text(l10n.common_clear),
-                onPressed: () => setState(() {
-                  _keywords.clear();
-                  _controller.clear();
-                }),
-              ),
-            ),
-            _EntryChipsEditor(
-              controller: _controller,
-              entries: _keywords,
-              hintText: l10n.preferences_topicFilterKeywordsHint,
-              helperText: l10n.preferences_topicFilterKeywordsHelper,
-              normalizeEntry: (value) => value.trim(),
-              isDuplicate: (existing, candidate) => existing == candidate,
-              onEntriesChanged: (entries) {
-                setState(() {
-                  _keywords
-                    ..clear()
-                    ..addAll(entries);
-                });
-              },
+            TopicFilterRulesEditor(
+              key: _editorKey,
+              initialKeywords: widget.initialKeywords,
+              initialRegexPatterns: widget.initialRegexPatterns,
             ),
             const SizedBox(height: 8),
             SwitchListTile.adaptive(
@@ -651,13 +630,13 @@ class _TopicFilterKeywordsDialogState
         ),
         FilledButton(
           onPressed: () {
-            final keywords = _appendTokenEntries(
-              _keywords,
-              _controller.text,
-              normalizeEntry: (value) => value.trim(),
-              isDuplicate: (existing, candidate) => existing == candidate,
-            );
-            Navigator.pop(context, (keywords: keywords, wholeWord: _wholeWord));
+            final rules = _editorKey.currentState!.collectRules();
+            if (rules == null) return;
+            Navigator.pop(context, (
+              keywords: rules.keywords,
+              regexPatterns: rules.regexPatterns,
+              wholeWord: _wholeWord,
+            ));
           },
           child: Text(l10n.common_confirm),
         ),
@@ -733,7 +712,7 @@ class _BlockedUsernamesDialogState extends State<_BlockedUsernamesDialog> {
               controller: _controller,
               entries: _usernames,
               hintText: l10n.preferences_blockedUsernamesHint,
-              helperText: l10n.preferences_blockedUsernamesHelper,
+              helperText: FilterRuleStrings(context).usernameHelp,
               normalizeEntry: BlockedUserFilter.stripAtPrefix,
               isDuplicate: (existing, candidate) =>
                   BlockedUserFilter.normalizeUsername(existing) ==
@@ -785,7 +764,7 @@ List<String> _appendTokenEntries(
   required _TokenDuplicate isDuplicate,
 }) {
   final entries = List<String>.from(existing);
-  for (final part in rawInput.split(RegExp(r'[\r\n]+'))) {
+  for (final part in BlockedUserFilter.splitInput(rawInput)) {
     final candidate = normalizeEntry(part);
     if (candidate.isEmpty ||
         entries.any((entry) => isDuplicate(entry, candidate))) {

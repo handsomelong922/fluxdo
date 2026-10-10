@@ -5,6 +5,16 @@ import 'package:fluxdo/utils/blocked_user_filter.dart';
 
 void main() {
   group('BlockedUserFilter', () {
+    test('批量输入支持空白和中英文逗号，保留首次显示形式', () {
+      expect(
+        BlockedUserFilter.sanitizeUsernames([
+          ' @Alice, bob，CAROL\n@alice\t@Dave  bob ',
+          '， , \n',
+        ]),
+        ['Alice', 'bob', 'CAROL', 'Dave'],
+      );
+    });
+
     test('用户名去重和匹配均不区分大小写', () {
       expect(
         BlockedUserFilter.sanitizeUsernames([' Alice ', '@alice', '', '@BOB']),

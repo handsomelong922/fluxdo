@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../providers/personal_topic_bar_preferences_provider.dart';
+import 'personal_topic_bar_labels.dart';
 import 'package:app_icons/app_icons.dart';
 import '../../../l10n/s.dart';
 import 'package:common_ui/common_ui.dart';
 import 'topic_content_insets.dart';
 
 /// 话题详情页底部操作栏
-class TopicBottomBar extends StatelessWidget {
+class TopicBottomBar extends ConsumerWidget {
   final VoidCallback? onScrollToTop;
   final VoidCallback? onShare;
   final VoidCallback? onShareAsImage;
   final VoidCallback? onExport;
-  final VoidCallback? onOpenInBrowser;
+  final VoidCallback? onBookmark;
+  final bool isBookmarked;
   final bool hasSummary;
   final bool isPostVoting;
   final bool isSummaryMode;
@@ -33,7 +37,8 @@ class TopicBottomBar extends StatelessWidget {
     this.onShare,
     this.onShareAsImage,
     this.onExport,
-    this.onOpenInBrowser,
+    this.onBookmark,
+    this.isBookmarked = false,
     this.hasSummary = false,
     this.isPostVoting = false,
     this.isSummaryMode = false,
@@ -54,7 +59,7 @@ class TopicBottomBar extends StatelessWidget {
   bool get _hasActiveFilter => isSummaryMode || isActivityMode || isAuthorOnlyMode || isTopLevelMode || isNestedMode;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
@@ -65,25 +70,35 @@ class TopicBottomBar extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 回到顶部
-            IconButton(
-              onPressed: onScrollToTop,
-              icon: const Icon(Symbols.vertical_align_top_rounded),
-              tooltip: context.l10n.topicDetail_scrollToTop,
-            ),
-            // 筛选
-            if (_hasActiveFilter)
-              _buildActiveFilterChip(context, theme)
-            else
-              _buildFilterMenuButton(context, theme),
-            // 分享菜单
-            _buildShareMenu(context, theme),
-            // 在浏览器打开
-            IconButton(
-              onPressed: onOpenInBrowser,
-              icon: const Icon(Symbols.language_rounded),
-              tooltip: context.l10n.topicDetail_openInBrowser,
-            ),
+            for (final action in ref.watch(personalTopicBarPreferencesProvider))
+              KeyedSubtree(
+                key: ValueKey('topic-bar-${action.name}'),
+                child: switch (action) {
+                  TopicBarAction.scrollToTop => IconButton(
+                    onPressed: onScrollToTop,
+                    icon: const Icon(Symbols.vertical_align_top_rounded),
+                    tooltip: context.l10n.topicDetail_scrollToTop,
+                  ),
+                  TopicBarAction.filter => _hasActiveFilter
+                      ? _buildActiveFilterChip(context, theme)
+                      : _buildFilterMenuButton(context, theme),
+                  TopicBarAction.share => _buildShareMenu(context, theme),
+                  TopicBarAction.bookmark => IconButton(
+                    onPressed: onBookmark,
+                    isSelected: isBookmarked,
+                    icon: Icon(
+                      Symbols.bookmark_rounded,
+                      fill: isBookmarked ? 1 : 0,
+                      color: isBookmarked ? theme.colorScheme.primary : null,
+                    ),
+                    tooltip: onBookmark == null
+                        ? context.l10n.common_pleaseLogin
+                        : isBookmarked
+                        ? PersonalTopicBarLabels(context).bookmarked
+                        : context.l10n.common_addBookmark,
+                  ),
+                },
+              ),
           ],
         ),
       ),

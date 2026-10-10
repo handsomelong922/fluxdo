@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 
 const double kTopicBottomBarHeight = 48;
+const double kTopicBottomBarLift = 8;
 
 /// 中间楼层直接锚定时，让目标首行落在浮动工具栏下方。
 double topicContentAnchor({
@@ -27,7 +28,9 @@ double topicContentRevealOffset({
 
 /// 回复按钮在操作栏上方，不与居中的功能按钮重叠。
 double topicReplyBottom(double bottomPadding, bool showBottomBar) =>
-    bottomPadding + (showBottomBar ? kTopicBottomBarHeight + 8 : 16);
+    bottomPadding +
+    kTopicBottomBarLift +
+    (showBottomBar ? kTopicBottomBarHeight + 8 : 16);
 
 /// 只在滚动内容末尾留出真实控件的避让距离，不缩小正文视口。
 double topicBottomContentPadding({
@@ -36,9 +39,14 @@ double topicBottomContentPadding({
   required bool hasProgress,
 }) {
   final replyExtent = hasReply ? topicReplyBottom(0, true) + 56 : 0.0;
-  final progressExtent = hasProgress ? kTopicBottomBarHeight + 16 + 40 : 0.0;
+  final progressExtent = hasProgress
+      ? kTopicBottomBarLift + kTopicBottomBarHeight + 16 + 40
+      : 0.0;
   return bottomPadding +
-      math.max(kTopicBottomBarHeight, math.max(replyExtent, progressExtent));
+      math.max(
+        kTopicBottomBarLift + kTopicBottomBarHeight,
+        math.max(replyExtent, progressExtent),
+      );
 }
 
 /// 顶底浮动控件的避让随内容滚走，不再占据固定的空白栏。

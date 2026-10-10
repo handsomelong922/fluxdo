@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/models/category.dart';
 import 'package:fluxdo/models/topic.dart';
 import 'package:fluxdo/providers/category_provider.dart';
+import 'package:fluxdo/providers/theme_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fluxdo/utils/platform_utils.dart';
 import 'package:fluxdo/widgets/topic/painted_topic_card.dart';
 import 'package:fluxdo/widgets/topic/topic_item_builder.dart';
@@ -27,11 +29,14 @@ void main() {
     PlatformUtils.debugDesktopOverride = true;
     addTearDown(() => PlatformUtils.debugDesktopOverride = null);
 
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     var middleClicked = false;
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
           categoryMapProvider.overrideWith(
             (ref) => const AsyncValue.data(<int, Category>{}),
           ),
@@ -67,5 +72,7 @@ void main() {
     await tester.pump();
 
     expect(middleClicked, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(Duration.zero);
   });
 }

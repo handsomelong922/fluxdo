@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/s.dart';
 import '../../pages/topic_detail_page/widgets/progress_gesture_action_meta.dart';
+import '../../pages/topic_detail_page/widgets/personal_topic_bar_settings.dart';
+import 'personal_navigation_defs.dart';
 import '../../pages/topic_detail_page/widgets/progress_gesture_menu_settings_page.dart';
 import '../../providers/preferences_provider.dart';
 import '../../services/preloaded_data_service.dart';
@@ -85,6 +87,8 @@ List<SettingsGroup> buildReadingGroups(BuildContext context) {
           onChanged: (ref, v) =>
               ref.read(preferencesProvider.notifier).setLongPressPreview(v),
         ),
+        ...buildPersonalNavigationSettings(context),
+        buildPersonalTopicBarOrderSetting(context),
         SwitchModel(
           id: 'hideBarOnScroll',
           title: l10n.preferences_hideBarOnScroll,

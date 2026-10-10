@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// 悬浮胶囊底栏的几何与选中态回归。
 ///
-/// 几何：item 高 48（无字 40）+ 内边距 4×2，距屏底 8、距左右 12。
+/// 几何：item 高 48（无字 40）+ 内边距 4×2，距屏底 16、距左右 12。
 /// 比 Telegram 的 56 紧凑 —— 参考设计实测 pill 高 ≈36dp，
 /// 悬浮形态的关键是「压实」。
 void main() {
@@ -109,7 +109,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('带字态胶囊高 56，贴屏底 8 / 距左右 12', (tester) async {
+  testWidgets('带字态胶囊高 56，贴屏底 16 / 距左右 12', (tester) async {
     await pumpBar(tester, labelless: false);
     final box = capsuleOf(tester);
     expect(box.size.height, 56, reason: 'item 48 + inset 4×2');
@@ -117,8 +117,8 @@ void main() {
     expect(topLeft.dx, 12, reason: '左外边距（TG iOS sideInset）');
     expect(
       screen.height - (topLeft.dy + box.size.height),
-      safeBottom + 8,
-      reason: '安全区之外再让 8（TG 双端一致）',
+      safeBottom + 16,
+      reason: '安全区之外留 16，保留上移后的额外间距',
     );
   });
 

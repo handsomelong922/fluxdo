@@ -2562,6 +2562,7 @@ class _TopicListState extends ConsumerState<_TopicList>
   final TopicLoadMoreCoordinator _loadMoreCoordinator =
       TopicLoadMoreCoordinator();
   List<String> _lastAutoLoadKeywords = const [];
+  List<String> _lastAutoLoadRegexPatterns = const [];
   Set<String> _lastAutoLoadBlockedUsernames = const <String>{};
   bool? _lastAutoLoadWholeWord;
 
@@ -2706,6 +2707,7 @@ class _TopicListState extends ConsumerState<_TopicList>
 
     final prefs = ref.read(preferencesProvider);
     final keywords = prefs.normalizedFilterKeywords;
+    final regexPatterns = prefs.topicFilterRegexPatterns;
     final wholeWord = prefs.topicFilterWholeWord;
     final blockedUsernames = prefs.normalizedBlockedUsernames;
 
@@ -2719,6 +2721,7 @@ class _TopicListState extends ConsumerState<_TopicList>
       final (visible, _, _) = TopicKeywordFilter.apply(
         raw,
         normalizedKeywords: keywords,
+        regexPatterns: regexPatterns,
         wholeWord: wholeWord,
         blockedUsernames: blockedUsernames,
       );
@@ -2731,21 +2734,25 @@ class _TopicListState extends ConsumerState<_TopicList>
       isActive: () => mounted,
       itemCount: itemCount,
       visibleItemCount: visibleItemCount,
-      hasKeywordFilter: keywords.isNotEmpty || blockedUsernames.isNotEmpty,
+      hasKeywordFilter: keywords.isNotEmpty ||
+          regexPatterns.isNotEmpty || blockedUsernames.isNotEmpty,
     );
   }
 
   void _syncAutoLoadFilter(
     List<String> keywords,
+    List<String> regexPatterns,
     bool wholeWord,
     Set<String> blockedUsernames,
   ) {
     if (listEquals(_lastAutoLoadKeywords, keywords) &&
+        listEquals(_lastAutoLoadRegexPatterns, regexPatterns) &&
         _lastAutoLoadWholeWord == wholeWord &&
         setEquals(_lastAutoLoadBlockedUsernames, blockedUsernames)) {
       return;
     }
     _lastAutoLoadKeywords = List.unmodifiable(keywords);
+    _lastAutoLoadRegexPatterns = List.unmodifiable(regexPatterns);
     _lastAutoLoadWholeWord = wholeWord;
     _lastAutoLoadBlockedUsernames = Set.unmodifiable(blockedUsernames);
     _loadMoreCoordinator.resetCooldown();
@@ -2845,6 +2852,9 @@ class _TopicListState extends ConsumerState<_TopicList>
     final keywords = ref.watch(
       preferencesProvider.select((p) => p.normalizedFilterKeywords),
     );
+    final regexPatterns = ref.watch(
+      preferencesProvider.select((p) => p.topicFilterRegexPatterns),
+    );
     final wholeWord = ref.watch(
       preferencesProvider.select((p) => p.topicFilterWholeWord),
     );
@@ -2854,13 +2864,14 @@ class _TopicListState extends ConsumerState<_TopicList>
     final showFilterHint = ref.watch(
       preferencesProvider.select((p) => p.showFilterHint),
     );
-    _syncAutoLoadFilter(keywords, wholeWord, blockedUsernames);
+    _syncAutoLoadFilter(keywords, regexPatterns, wholeWord, blockedUsernames);
     var hiddenCount = 0;
     var hiddenByBlocked = 0;
     final visibleTopicsAsync = topicsAsync.whenData((topics) {
       final (visible, hidden, byBlocked) = TopicKeywordFilter.apply(
         topics,
         normalizedKeywords: keywords,
+        regexPatterns: regexPatterns,
         wholeWord: wholeWord,
         blockedUsernames: blockedUsernames,
       );

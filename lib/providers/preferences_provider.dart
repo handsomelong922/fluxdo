@@ -17,6 +17,7 @@ import '../services/cf_challenge_service.dart';
 import '../services/crash_context_reporter.dart';
 import '../services/render_backend_service.dart';
 import '../utils/blocked_user_filter.dart';
+import '../utils/topic_regex_rules.dart';
 import '../widgets/topic/topic_card_layout.dart';
 import 'theme_provider.dart';
 
@@ -121,6 +122,9 @@ class AppPreferences {
 
   /// 话题关键词过滤列表（原样存储，仅 trim 去重去空，保留用户输入大小写以便回显）
   final List<String> topicFilterKeywords;
+
+  /// 显式正则规则，独立存储以保留历史关键词的字面匹配语义。
+  final List<String> topicFilterRegexPatterns;
 
   /// 话题关键词过滤：是否启用完整词匹配（仅影响英文/数字等 word-char 关键词）
   final bool topicFilterWholeWord;
@@ -323,6 +327,7 @@ class AppPreferences {
     this.hideHomeAvatars = false,
     required this.clipboardTopicLinkDetection,
     required this.topicFilterKeywords,
+    this.topicFilterRegexPatterns = const [],
     this.topicFilterWholeWord = false,
     this.blockedUsernames = const [],
     this.showFilterHint = true,
@@ -391,6 +396,7 @@ class AppPreferences {
     bool? hideHomeAvatars,
     bool? clipboardTopicLinkDetection,
     List<String>? topicFilterKeywords,
+    List<String>? topicFilterRegexPatterns,
     bool? topicFilterWholeWord,
     List<String>? blockedUsernames,
     bool? showFilterHint,
@@ -460,6 +466,8 @@ class AppPreferences {
       clipboardTopicLinkDetection:
           clipboardTopicLinkDetection ?? this.clipboardTopicLinkDetection,
       topicFilterKeywords: topicFilterKeywords ?? this.topicFilterKeywords,
+      topicFilterRegexPatterns:
+          topicFilterRegexPatterns ?? this.topicFilterRegexPatterns,
       topicFilterWholeWord: topicFilterWholeWord ?? this.topicFilterWholeWord,
       blockedUsernames: blockedUsernames ?? this.blockedUsernames,
       showFilterHint: showFilterHint ?? this.showFilterHint,
@@ -556,6 +564,7 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
   static const String _clipboardTopicLinkDetectionKey =
       'pref_clipboard_topic_link_detection';
   static const String _topicFilterKeywordsKey = 'pref_topic_filter_keywords';
+  static const String _topicFilterRegexPatternsKey = 'pref_topic_filter_regex_patterns';
   static const String _topicFilterWholeWordKey = 'pref_topic_filter_whole_word';
   static const String _blockedUsernamesKey = 'pref_blocked_usernames';
   static const String _showFilterHintKey = 'pref_show_filter_hint';
@@ -651,6 +660,8 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
               _prefs.getBool(_clipboardTopicLinkDetectionKey) ?? false,
           topicFilterKeywords:
               _prefs.getStringList(_topicFilterKeywordsKey) ?? const [],
+          topicFilterRegexPatterns:
+              _prefs.getStringList(_topicFilterRegexPatternsKey) ?? const [],
           topicFilterWholeWord:
               _prefs.getBool(_topicFilterWholeWordKey) ?? false,
           blockedUsernames:
@@ -832,6 +843,17 @@ class PreferencesNotifier extends StateNotifier<AppPreferences> {
     }
     state = state.copyWith(topicFilterKeywords: deduped);
     await _prefs.setStringList(_topicFilterKeywordsKey, deduped);
+  }
+
+  Future<void> setTopicFilterRegexPatterns(List<String> patterns) async {
+    final sanitized = patterns.map((pattern) => pattern.trim())
+        .where((pattern) => pattern.isNotEmpty).toSet().toList();
+    TopicRegexRules.validate(sanitized);
+    if (const ListEquality<String>().equals(sanitized, state.topicFilterRegexPatterns)) {
+      return;
+    }
+    await _prefs.setStringList(_topicFilterRegexPatternsKey, sanitized);
+    state = state.copyWith(topicFilterRegexPatterns: sanitized);
   }
 
   Future<void> setTopicFilterWholeWord(bool enabled) async {

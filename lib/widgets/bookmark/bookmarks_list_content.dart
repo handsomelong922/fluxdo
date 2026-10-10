@@ -19,7 +19,7 @@ import '../../utils/platform_utils.dart';
 import '../../utils/time_utils.dart';
 import 'bookmark_preview_quick_editor.dart';
 import '../common/error_view.dart';
-import '../common/morphing_dialog_anchor.dart';
+import '../common/topic_preview_gestures.dart';
 import '../common/icon_glyph_span.dart';
 import '../common/paged_list_footer.dart';
 import '../desktop_refresh_indicator.dart';
@@ -265,38 +265,38 @@ class BookmarksListContent extends ConsumerWidget {
             categoryMap,
             statsAvailableWidth,
           );
-          Widget card = MorphingDialogAnchor(
-            enabled: enableLongPress,
-            builder: (cardContext) => PaintedTopicCard(
+          Widget card = TopicPreviewGestures(
+            onTap: () => onTap(topic),
+            enableLongPress: enableLongPress,
+            onPreview: (cardContext) => TopicPreviewDialog.show(
+                context,
+                topic: topic,
+                onOpen: () => onTap(topic),
+                sourceContext: cardContext,
+                // chat 书签无话题上下文:正文直接用书签 excerpt,
+                // 不按话题 id 拉详情(那个 id 是书签 id,必 404)
+                firstPostLoader: topic.isChatMessageBookmark
+                    ? () async => topic.excerpt ?? ''
+                    : null,
+                actions: topic.bookmarkId != null
+                    ? _buildPreviewActions(context, topic)
+                    : null,
+                customActionPanelBuilder: topic.bookmarkId != null
+                    ? (_) => BookmarkPreviewQuickEditor(
+                        initialName: topic.bookmarkName,
+                        suggestions: bookmarkNameSuggestions,
+                        suggestionsLoader: bookmarkNameSuggestionsLoader,
+                        onSave: (value) =>
+                            onQuickRenameBookmark(topic, value),
+                      )
+                    : null,
+              ),
+            builder: (cardContext, cardTap, cardLongPress) => PaintedTopicCard(
               key: ValueKey(bookmarkTopicIdentity(topic)),
               layout: layout,
-              onTap: () => onTap(topic),
+              onTap: cardTap,
               onMiddleClick: () => onMiddleClick(topic),
-              onLongPress: enableLongPress
-                  ? () => TopicPreviewDialog.show(
-                      context,
-                      topic: topic,
-                      onOpen: () => onTap(topic),
-                      sourceContext: cardContext,
-                      // chat 书签无话题上下文:正文直接用书签 excerpt,
-                      // 不按话题 id 拉详情(那个 id 是书签 id,必 404)
-                      firstPostLoader: topic.isChatMessageBookmark
-                          ? () async => topic.excerpt ?? ''
-                          : null,
-                      actions: topic.bookmarkId != null
-                          ? _buildPreviewActions(context, topic)
-                          : null,
-                      customActionPanelBuilder: topic.bookmarkId != null
-                          ? (_) => BookmarkPreviewQuickEditor(
-                              initialName: topic.bookmarkName,
-                              suggestions: bookmarkNameSuggestions,
-                              suggestionsLoader: bookmarkNameSuggestionsLoader,
-                              onSave: (value) =>
-                                  onQuickRenameBookmark(topic, value),
-                            )
-                          : null,
-                    )
-                  : null,
+              onLongPress: cardLongPress,
               // 长按意图预加载:chat 书签无话题上下文(那个 id 是书签
               // id,预取必 404),不参与
               onPreviewIntent: enableLongPress && !topic.isChatMessageBookmark

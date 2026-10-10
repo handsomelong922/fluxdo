@@ -355,23 +355,22 @@ class _UserContentSearchViewState extends ConsumerState<UserContentSearchView> {
                       );
                     }
                   },
-                  onLongPress: enableLongPress
-                      ? (cardContext) => SearchPreviewDialog.show(
-                          context,
-                          post: post,
-                          onOpen: () {
-                            final topic = post.topic;
-                            if (topic != null) {
-                              _openTopic(
-                                topicId: topic.id,
-                                title: topic.title,
-                                scrollToPostNumber: post.postNumber,
-                              );
-                            }
-                          },
-                          sourceContext: cardContext,
-                        )
-                      : null,
+                  enableLongPress: enableLongPress,
+                  onLongPress: (cardContext) => SearchPreviewDialog.show(
+                      context,
+                      post: post,
+                      onOpen: () {
+                        final topic = post.topic;
+                        if (topic != null) {
+                          _openTopic(
+                            topicId: topic.id,
+                            title: topic.title,
+                            scrollToPostNumber: post.postNumber,
+                          );
+                        }
+                      },
+                      sourceContext: cardContext,
+                    ),
                 );
               },
             ),

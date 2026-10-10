@@ -232,38 +232,37 @@ class _TopicSearchViewState extends ConsumerState<TopicSearchView> {
                       }
                     }
                   },
-                  onLongPress: enableLongPress
-                      ? (cardContext) => SearchPreviewDialog.show(
-                          context,
-                          post: post,
-                          onOpen: () {
-                            if (widget.onJumpToPost != null) {
-                              widget.onJumpToPost!(post.postNumber);
-                              return;
-                            }
-                            final topic = post.topic;
-                            if (topic != null) {
-                              if (EmbeddedStackScope.maybePushTopic(
-                                context,
+                  enableLongPress: enableLongPress,
+                  onLongPress: (cardContext) => SearchPreviewDialog.show(
+                      context,
+                      post: post,
+                      onOpen: () {
+                        if (widget.onJumpToPost != null) {
+                          widget.onJumpToPost!(post.postNumber);
+                          return;
+                        }
+                        final topic = post.topic;
+                        if (topic != null) {
+                          if (EmbeddedStackScope.maybePushTopic(
+                            context,
+                            topicId: topic.id,
+                            scrollToPostNumber: post.postNumber,
+                          )) {
+                            return;
+                          }
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => TopicDetailPage(
                                 topicId: topic.id,
                                 scrollToPostNumber: post.postNumber,
-                              )) {
-                                return;
-                              }
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => TopicDetailPage(
-                                    topicId: topic.id,
-                                    scrollToPostNumber: post.postNumber,
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          sourceContext: cardContext,
-                        )
-                      : null,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      sourceContext: cardContext,
+                    ),
                 );
               },
             ),

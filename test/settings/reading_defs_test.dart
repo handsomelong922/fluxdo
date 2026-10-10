@@ -65,6 +65,21 @@ void main() {
     expect(setting.title, '隐藏首页头像');
   });
 
+  testWidgets('阅读设置同时提供原长按、新预览转场和底栏排序入口', (tester) async {
+    final items = await _pumpAndCollectBasicItems(
+      tester,
+      size: const Size(390, 844),
+      desktopOverride: false,
+    );
+    expect(items.map((item) => item.id), containsAll([
+      'longPressPreview',
+      'rightEdgeTapPreview',
+      'pageTransitionStyle',
+      'personalTopicBarOrder',
+    ]));
+    expect(items.map((item) => item.id).toSet().length, items.length);
+  });
+
   testWidgets('桌面宽屏显示默认打开标签页方式设置', (tester) async {
     final items = await _pumpAndCollectBasicItems(
       tester,

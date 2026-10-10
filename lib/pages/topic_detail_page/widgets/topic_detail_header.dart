@@ -20,6 +20,7 @@ import '../../../widgets/common/topic_badges.dart';
 import '../../category_topics_page.dart';
 import '../../tag_topics_page.dart';
 import '../../../widgets/topic/assign_sheet.dart';
+import '../../../widgets/ai/ai_topic_summary_sheet.dart';
 
 /// 话题详情页头部组件
 class TopicDetailHeader extends ConsumerWidget {
@@ -304,11 +305,19 @@ class TopicDetailHeader extends ConsumerWidget {
             topicId: detail.id,
             topicDetail: detail,
             onJumpToPost: onJumpToPost,
-            headerExtra: TopicNotificationButton(
-              level: detail.notificationLevel,
-              onChanged: onNotificationLevelChanged,
-              style: TopicNotificationButtonStyle.chip,
-            ),
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              TopicNotificationButton(
+                level: detail.notificationLevel,
+                onChanged: onNotificationLevelChanged,
+                style: TopicNotificationButtonStyle.chip,
+              ),
+              AiTopicSummaryButton(detail: detail),
+            ],
           ),
         ],
       ),

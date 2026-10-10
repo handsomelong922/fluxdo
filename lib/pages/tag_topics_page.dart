@@ -58,6 +58,7 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage>
   TopicSortOrder _currentOrder = TopicSortOrder.defaultOrder;
   bool _ascending = false;
   List<String> _lastAutoLoadKeywords = const [];
+  List<String> _lastAutoLoadRegexPatterns = const [];
   Set<String> _lastAutoLoadBlockedUsernames = const <String>{};
   bool? _lastAutoLoadWholeWord;
 
@@ -140,6 +141,7 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage>
   Future<void> _loadMoreWithAutoContinue() async {
     final prefs = ref.read(preferencesProvider);
     final keywords = prefs.normalizedFilterKeywords;
+    final regexPatterns = prefs.topicFilterRegexPatterns;
     final wholeWord = prefs.topicFilterWholeWord;
     final blockedUsernames = prefs.normalizedBlockedUsernames;
 
@@ -147,6 +149,7 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage>
       final (visible, _, _) = TopicKeywordFilter.apply(
         _topics,
         normalizedKeywords: keywords,
+        regexPatterns: regexPatterns,
         wholeWord: wholeWord,
         blockedUsernames: blockedUsernames,
       );
@@ -159,7 +162,8 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage>
       isActive: () => mounted,
       itemCount: () => _topics.length,
       visibleItemCount: visibleItemCount,
-      hasKeywordFilter: keywords.isNotEmpty || blockedUsernames.isNotEmpty,
+      hasKeywordFilter: keywords.isNotEmpty ||
+          regexPatterns.isNotEmpty || blockedUsernames.isNotEmpty,
     );
   }
 
@@ -336,15 +340,18 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage>
 
   void _syncAutoLoadFilter(
     List<String> keywords,
+    List<String> regexPatterns,
     bool wholeWord,
     Set<String> blockedUsernames,
   ) {
     if (listEquals(_lastAutoLoadKeywords, keywords) &&
+        listEquals(_lastAutoLoadRegexPatterns, regexPatterns) &&
         _lastAutoLoadWholeWord == wholeWord &&
         setEquals(_lastAutoLoadBlockedUsernames, blockedUsernames)) {
       return;
     }
     _lastAutoLoadKeywords = List.unmodifiable(keywords);
+    _lastAutoLoadRegexPatterns = List.unmodifiable(regexPatterns);
     _lastAutoLoadWholeWord = wholeWord;
     _lastAutoLoadBlockedUsernames = Set.unmodifiable(blockedUsernames);
     _loadMoreCoordinator.resetCooldown();
@@ -455,6 +462,9 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage>
     final keywords = ref.watch(
       preferencesProvider.select((p) => p.normalizedFilterKeywords),
     );
+    final regexPatterns = ref.watch(
+      preferencesProvider.select((p) => p.topicFilterRegexPatterns),
+    );
     final wholeWord = ref.watch(
       preferencesProvider.select((p) => p.topicFilterWholeWord),
     );
@@ -466,10 +476,11 @@ class _TagTopicsPageState extends ConsumerState<TagTopicsPage>
     );
     // 话题卡自定义样式:改设置触发 rebuild(自绘排版直读全局快照)
     ref.watch(preferencesProvider.select((p) => p.topicCardStyle));
-    _syncAutoLoadFilter(keywords, wholeWord, blockedUsernames);
+    _syncAutoLoadFilter(keywords, regexPatterns, wholeWord, blockedUsernames);
     final (visible, hidden, hiddenByBlocked) = TopicKeywordFilter.apply(
       _topics,
       normalizedKeywords: keywords,
+      regexPatterns: regexPatterns,
       wholeWord: wholeWord,
       blockedUsernames: blockedUsernames,
     );
