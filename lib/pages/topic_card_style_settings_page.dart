@@ -11,6 +11,7 @@ import '../providers/preferences_provider.dart';
 import '../utils/responsive.dart';
 import '../widgets/topic/painted_topic_card.dart';
 import '../widgets/topic/topic_card_layout.dart';
+import '../settings/widgets/topic_title_color_dialog.dart';
 
 /// 话题卡片样式设置页
 ///
@@ -101,7 +102,47 @@ class _TopicCardStyleSettingsPageState
         ),
         const SizedBox(height: 12),
         SegmentedCardGroup(
-          children: [_buildTitleFontSizeSlider(theme, l10n, style)],
+          children: [
+            _buildTitleFontSizeSlider(theme, l10n, style),
+            ListTile(
+              leading: Icon(
+                Symbols.palette_rounded,
+                color: style.titleColor == null
+                    ? theme.colorScheme.onSurface
+                    : Color(style.titleColor!),
+              ),
+              title: Text(l10n.topicCardStyle_titleColor),
+              subtitle: Text(
+                style.titleColor == null
+                    ? l10n.topicCardStyle_titleColorTheme
+                    : '#${style.titleColor!.toRadixString(16).substring(2).toUpperCase()}',
+              ),
+              trailing: TextButton(
+                onPressed: style.titleColor == null
+                    ? null
+                    : () => _update(style.copyWith(resetTitleColor: true)),
+                child: Text(l10n.common_reset),
+              ),
+              onTap: () async {
+                final color = await showDialog<int>(
+                  context: context,
+                  builder: (_) => TopicTitleColorDialog(
+                    initialColor:
+                        style.titleColor ??
+                        theme.colorScheme.onSurface.toARGB32(),
+                  ),
+                );
+                if (!mounted || color == null) return;
+                // 弹窗期间可能有其他偏好更新，合并最新状态。
+                _update(
+                  ref
+                      .read(preferencesProvider)
+                      .topicCardStyle
+                      .copyWith(titleColor: color),
+                );
+              },
+            ),
+          ],
         ),
         const SizedBox(height: 24),
 

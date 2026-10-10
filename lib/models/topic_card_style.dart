@@ -14,7 +14,8 @@ enum TopicCardAvatarLayout {
 /// 话题卡片自定义样式:元信息可精简字段开关 + 头像布局 + 动态头像开关。
 /// 卡片骨架(分类/标题/时间/未读状态/头像)恒定显示,不提供开关 ——
 /// 保证任意配置组合下卡片形态完整;可精简的只有作者名/标签/统计。
-/// 仅作用于普通话题卡;私信卡(messageStyle)与置顶紧凑卡不受影响。
+/// 仅作用于普通话题卡;私信卡(messageStyle)不受影响。
+/// 置顶紧凑卡只应用标题颜色，其余布局保持紧凑样式。
 @immutable
 class TopicCardStyle {
   final bool showAuthor;
@@ -27,6 +28,9 @@ class TopicCardStyle {
   /// 标题字号(sp)。默认 15 = 现状;范围由设置页滑块约束(13~18)
   final double titleFontSize;
 
+  /// 标题自定义不透明 ARGB 色；null 跟随主题。已读状态仍由字重和徽章区分。
+  final int? titleColor;
+
   /// 关闭后话题卡头像强制静态(不下载/播放 gif 等动图),其他页面不受影响
   final bool animatedAvatar;
 
@@ -38,6 +42,7 @@ class TopicCardStyle {
     this.showViews = true,
     this.avatarLayout = TopicCardAvatarLayout.inline,
     this.titleFontSize = 15.0,
+    this.titleColor,
     this.animatedAvatar = true,
   });
 
@@ -53,6 +58,8 @@ class TopicCardStyle {
     bool? showViews,
     TopicCardAvatarLayout? avatarLayout,
     double? titleFontSize,
+    int? titleColor,
+    bool resetTitleColor = false,
     bool? animatedAvatar,
   }) {
     return TopicCardStyle(
@@ -63,6 +70,7 @@ class TopicCardStyle {
       showViews: showViews ?? this.showViews,
       avatarLayout: avatarLayout ?? this.avatarLayout,
       titleFontSize: titleFontSize ?? this.titleFontSize,
+      titleColor: resetTitleColor ? null : (titleColor ?? this.titleColor),
       animatedAvatar: animatedAvatar ?? this.animatedAvatar,
     );
   }
@@ -85,11 +93,19 @@ class TopicCardStyle {
         titleFontSize:
             ((json['titleFontSize'] as num?)?.toDouble() ?? 15.0)
                 .clamp(13.0, 18.0),
+        titleColor: _parseTitleColor(json['titleColor']),
         animatedAvatar: json['animatedAvatar'] as bool? ?? true,
       );
     } catch (_) {
       return defaults;
     }
+  }
+
+  static int? _parseTitleColor(Object? value) {
+    // 只接受不透明的 32 位 ARGB，畸形数据不影响其他样式选项。
+    return value is int && value >= 0xFF000000 && value <= 0xFFFFFFFF
+        ? value
+        : null;
   }
 
   String toJsonString() => jsonEncode({
@@ -100,6 +116,7 @@ class TopicCardStyle {
     'showViews': showViews,
     'avatarLayout': avatarLayout.name,
     'titleFontSize': titleFontSize,
+    'titleColor': titleColor,
     'animatedAvatar': animatedAvatar,
   });
 
@@ -114,6 +131,7 @@ class TopicCardStyle {
         other.showViews == showViews &&
         other.avatarLayout == avatarLayout &&
         other.titleFontSize == titleFontSize &&
+        other.titleColor == titleColor &&
         other.animatedAvatar == animatedAvatar;
   }
 
@@ -126,6 +144,7 @@ class TopicCardStyle {
     showViews,
     avatarLayout,
     titleFontSize,
+    titleColor,
     animatedAvatar,
   );
 }

@@ -300,16 +300,6 @@ class _TopicFilterMenuButtonState extends ConsumerState<TopicFilterMenuButton> {
                       color: colorScheme.onSurface,
                     ),
                   ),
-                  if (orderActive)
-                    Container(
-                      width: 5,
-                      height: 5,
-                      margin: const EdgeInsets.only(left: 5),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
                   const SizedBox(width: 6),
                   // 活指示器：chevron 在 20px 色调小圆里，开合时弹性
                   // 翻转 180° + 着色（自绘版被否——字体 glyph 的圆角
@@ -363,16 +353,6 @@ class _TopicFilterMenuButtonState extends ConsumerState<TopicFilterMenuButton> {
                       color: colorScheme.onSurface,
                     ),
                   ),
-                  if (orderActive)
-                    Container(
-                      width: 4,
-                      height: 4,
-                      margin: const EdgeInsets.only(left: 4),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
                   const SizedBox(width: 2),
                   Icon(
                     Symbols.arrow_drop_down_rounded,

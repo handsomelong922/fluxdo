@@ -280,6 +280,9 @@ class TopicCard extends ConsumerWidget {
     // "没点开过的旧话题"语义上也是没读,归入强调态,避免出现第三档深浅
     // onSurfaceVariant 与 onSurface 在部分主题下区分度不够,
     // 叠一层透明度让已读态明确退后
+    final style = messageStyle
+        ? TopicCardStyle.defaults
+        : ref.watch(preferencesProvider.select((p) => p.topicCardStyle));
     final titleColor = isFullyRead
         ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.75)
         : theme.colorScheme.onSurface;
@@ -296,18 +299,13 @@ class TopicCard extends ConsumerWidget {
     final categoryId = int.tryParse(topic.categoryId);
     final category = effectiveCategoryMap?[categoryId];
 
-    // 话题卡自定义样式(私信卡不受影响,强制默认)
-    final style = messageStyle
-        ? TopicCardStyle.defaults
-        : ref.watch(preferencesProvider.select((p) => p.topicCardStyle));
-
     // 标题字号可自定义(默认 15:Gmail 主题行 14 与原版 16 的折中);
     // 私信卡主题行字号在 _buildMessageBody 内部另定,不走这里
     final titleStyle = theme.textTheme.bodyMedium?.copyWith(
       fontSize: style.titleFontSize,
       fontWeight: isFullyRead ? FontWeight.w500 : FontWeight.w600,
       height: 1.3,
-      color: titleColor,
+      color: style.titleColor == null ? titleColor : Color(style.titleColor!),
     );
 
     // Card 壳换轻装(视觉逐项等价):cardTheme elevation=0 无阴影无 tint,
@@ -1024,11 +1022,16 @@ class CompactTopicCard extends ConsumerWidget {
     // 同 TopicCard:Card 壳换轻装(elevation=0 主题下视觉逐项等价),
     // 砍每卡一套 AnimatedPhysicalModel 隐式动画基建。
     final cardRadius = BorderRadius.circular(10);
+    final customTitleColor = ref.watch(
+      preferencesProvider.select((p) => p.topicCardStyle.titleColor),
+    );
     final compactTitleStyle = theme.textTheme.labelMedium?.copyWith(
       fontWeight: isUnread ? FontWeight.w500 : FontWeight.w400,
-      color: isUnread
-          ? theme.colorScheme.onSurface
-          : theme.colorScheme.onSurfaceVariant,
+      color: customTitleColor != null
+          ? Color(customTitleColor)
+          : (isUnread
+                ? theme.colorScheme.onSurface
+                : theme.colorScheme.onSurfaceVariant),
     );
     final needsRichTitle =
         topic.closed ||

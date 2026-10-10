@@ -201,3 +201,15 @@ dart --enable-asserts tool/topic_regex_filter_smoke.dart
 - 真正的 `MarkdownBody` 会直接预热单例 `DiscourseCookService`，不经过 Riverpod 注入。测试应先在 `tester.runAsync` 内从本地 HTML 预置 `PreloadedDataService`，再等待 cook 初始化；使用 `test/helpers/initialize_markdown.dart`。否则可能触发首页网络调度并遗留计时器，普通 provider override 无法阻止。
 - Isolate 编译/匹配测试必须在同一个 `tester.runAsync` 内创建并等待任务，不能在 fakeAsync 创建后移到 real-async 等待。
 - 不通过跳过用例、移除断言、任意延长 pump 或放宽 CI 失败条件来掩盖这些问题。
+
+### 2026-10-10 后续两项首页调整
+
+在 `d85213ea` 的整体使用体验获得确认后，本轮仅调整首页标题颜色及左上角筛选圆点。标题颜色沿用话题卡片样式存储，提供主题默认、色板和自定义 HEX；筛选圆点原本代表非默认排序，并非未读，删除其视觉标记但保留筛选、排序和计数逻辑。最终验证以包含本节的精确提交 CI 为准。
+
+此次工作区确实被重新建立，源码和两个固定子模块已从个人 fork 与记录恢复。为离线语法与纯 Dart 检查，仅恢复官方 Dart 3.13.3（`/workspace/shared/toolchains/dart-sdk/bin/dart`），没有恢复完整 Flutter/Android 依赖，也没有重试被拒绝的 pub 访问。恢复报告可指定该二进制：
+
+```bash
+python docs/personal/inspect_environment.py --dart /workspace/shared/toolchains/dart-sdk/bin/dart
+```
+
+官方 Dart 归档为 `https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.3/sdk/dartsdk-linux-x64-release.zip`；仅在来源可访问且安装获准时恢复。源站返回的归档 MD5 为 `56a7b6ccc25ab39fab1f52b055887ba6`，本次下载已校验。完整 Flutter 验证仍由现有个人 GitHub Actions 执行。

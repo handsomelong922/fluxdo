@@ -162,5 +162,11 @@
   "topicCardStyle_previewExcerpt": "這裡是話題摘要,展示話題的部分內容,幫助你預覽卡片效果。",
   "topicCardStyle_previewUserName": "預覽使用者",
   "topicCardStyle_previewCategory": "開發調校",
-  "topicCardStyle_previewTag": "精華文"
+  "topicCardStyle_previewTag": "精華文",
+  "topicCardStyle_titleColor": "標題顏色",
+  "topicCardStyle_titleColorTheme": "跟隨主題",
+  "topicCardStyle_titleColorCustom": "自訂顏色",
+  "topicCardStyle_titleColorInvalid": "請輸入 6 位十六進位顏色，例如 336699",
+  "topicCardStyle_titleColorHint": "已讀標題保留字重區分；自訂顏色在淺色和深色主題中保持不變。",
+  "topicCardStyle_titleColorLowContrast": "顏色對比度較低，可能不易閱讀。"
 }

@@ -19,6 +19,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--flutter-sdk", type=Path,
                         default=Path("/workspace/shared/flutter-sdk"))
+    parser.add_argument("--dart", type=Path,
+                        help="Optional standalone Dart executable; no installation performed")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     print("Repository:", root)
@@ -42,7 +44,7 @@ def main():
             print("SDK metadata unreadable")
     else:
         print("\nSDK metadata missing; no download attempted")
-    dart = args.flutter_sdk / "bin/cache/dart-sdk/bin/dart"
+    dart = args.dart or args.flutter_sdk / "bin/cache/dart-sdk/bin/dart"
     print("\nDirect Dart:", run(str(dart), "--version"))
     for executable, flag in (("python3", "--version"), ("node", "--version"),
                              ("java", "-version"), ("gh", "--version"),

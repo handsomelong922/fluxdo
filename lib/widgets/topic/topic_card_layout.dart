@@ -590,9 +590,11 @@ class TopicCardLayout {
     }
 
     // ── 标题 / 私信主题行 ─────────────────────────────────────
-    final titleColor = isFullyRead
-        ? scheme.onSurfaceVariant.withValues(alpha: 0.75)
-        : scheme.onSurface;
+    final titleColor = style.titleColor != null
+        ? Color(style.titleColor!)
+        : (isFullyRead
+              ? scheme.onSurfaceVariant.withValues(alpha: 0.75)
+              : scheme.onSurface);
     final normalTitleWeight = isFullyRead ? FontWeight.w500 : FontWeight.w600;
     // 私信主题行:小一档、w400/500、0.9 透明
     final subjectColor = isFullyRead

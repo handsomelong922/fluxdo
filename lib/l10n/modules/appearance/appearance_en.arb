@@ -162,5 +162,11 @@
   "topicCardStyle_previewExcerpt": "This is the topic excerpt, showing part of the content to help you preview the card.",
   "topicCardStyle_previewUserName": "Preview User",
   "topicCardStyle_previewCategory": "Dev Tuning",
-  "topicCardStyle_previewTag": "featured"
+  "topicCardStyle_previewTag": "featured",
+  "topicCardStyle_titleColor": "Title color",
+  "topicCardStyle_titleColorTheme": "Follow theme",
+  "topicCardStyle_titleColorCustom": "Custom color",
+  "topicCardStyle_titleColorInvalid": "Enter a 6-digit hex color, such as 336699",
+  "topicCardStyle_titleColorHint": "Read titles keep their weight distinction. Custom colors stay the same in light and dark themes.",
+  "topicCardStyle_titleColorLowContrast": "Low contrast may make this color hard to read."
 }

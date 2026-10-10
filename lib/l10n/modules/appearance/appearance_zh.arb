@@ -162,5 +162,11 @@
   "topicCardStyle_previewExcerpt": "这里是话题摘要,展示话题的部分内容,帮助你预览卡片效果。",
   "topicCardStyle_previewUserName": "预览用户",
   "topicCardStyle_previewCategory": "开发调优",
-  "topicCardStyle_previewTag": "精华帖"
+  "topicCardStyle_previewTag": "精华帖",
+  "topicCardStyle_titleColor": "标题颜色",
+  "topicCardStyle_titleColorTheme": "跟随主题",
+  "topicCardStyle_titleColorCustom": "自定义颜色",
+  "topicCardStyle_titleColorInvalid": "请输入 6 位十六进制颜色，例如 336699",
+  "topicCardStyle_titleColorHint": "已读标题保留字重区分；自定义颜色在浅色和深色主题中保持不变。",
+  "topicCardStyle_titleColorLowContrast": "颜色对比度较低，可能不易阅读。"
 }
