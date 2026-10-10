@@ -15,7 +15,7 @@ concurrency:
 
 env:
   FLUTTER_VERSION: '3.47.4'
-  ANDROID_NDK_VERSION: '27.3.13750724'
+  ANDROID_NDK_VERSION: '28.2.13676358'
 
 jobs:
   build:
@@ -80,6 +80,58 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Check native-build Node.js
+        run: node --version
+
+      - name: Configure and validate personal signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: |
+          umask 077
+          python3 - <<'PY'
+          import base64, json, os, pathlib
+          root = pathlib.Path('android')
+          root.joinpath('app/key.jks').write_bytes(
+              base64.b64decode(''.join(os.environ['KEYSTORE_BASE64'].split()), validate=True))
+          values = {key: os.environ[env] for key, env in {
+              'keyAlias': 'KEY_ALIAS', 'keyPassword': 'KEY_PASSWORD',
+              'storePassword': 'STORE_PASSWORD'}.items()}
+          if any(not value.strip() or value != value.strip() for value in values.values()):
+              raise SystemExit('Signing values must be nonblank without surrounding whitespace; Gradle trims them')
+          values['storeFile'] = 'key.jks'
+          # Properties.load 使用 ISO-8859-1；Unicode 转义可完整保留密码字符。
+          def escape(value):
+              encoded = value.encode('utf-16-be')
+              return ''.join('\\u' + encoded[i:i+2].hex() for i in range(0, len(encoded), 2))
+          root.joinpath('key.properties').write_text(
+              ''.join(f'{key}={escape(value)}\n' for key, value in values.items()))
+          # 不使用上游 Firebase 项目，也不读取 Google/GCP 密钥。
+          root.joinpath('app/google-services.json').write_text(json.dumps({
+              'project_info': {'project_number': '123', 'project_id': 'dummy'},
+              'client': [{'client_info': {'mobilesdk_app_id': '1:123:android:abc',
+                  'android_client_info': {'package_name': 'com.github.lingyan000.fluxdo'}},
+                  'api_key': [{'current_key': 'dummy'}]}], 'configuration_version': '1'}))
+          PY
+          keytool -exportcert -keystore android/app/key.jks -alias "$KEY_ALIAS" \
+            -storepass:env STORE_PASSWORD -file "$RUNNER_TEMP/personal-signing-cert.der"
+          # 实际解密私钥并生成本地 CSR，提前验证 keyPassword；不向任何服务提交。
+          keytool -certreq -keystore android/app/key.jks -alias "$KEY_ALIAS" \
+            -storepass:env STORE_PASSWORD -keypass:env KEY_PASSWORD \
+            -file "$RUNNER_TEMP/personal-signing.csr"
+          rm -f "$RUNNER_TEMP/personal-signing.csr"
+          mkdir -p "$HOME/.gradle/init.d"
+          cat > "$HOME/.gradle/init.d/personal-no-upload.init.gradle" <<'GRADLE'
+          // 保留构建 ID 生成，禁止映射文件和原生符号上传。
+          gradle.taskGraph.whenReady { graph ->
+              graph.allTasks.findAll { it.name.startsWith('uploadCrashlytics') }.each {
+                  it.enabled = false
+              }
+          }
+          GRADLE
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -133,8 +185,30 @@ jobs:
         run: |
           # 沿用项目规则：警告/提示不阻断；分析错误和测试失败会阻止发布。
           dart tool/project_tasks.dart release:prepare --skip-test
-          # 保留主应用及工作区全部测试，按项目测试文档限制并发数。
-          dart tool/project_tasks.dart test:all --concurrency=2
+          # 与 test:all 一样收集根目录和包测试；显式逐包调用，保留项目预处理。
+          test_paths=()
+          if [[ -d test ]]; then test_paths+=(test); fi
+          for package in packages/*; do
+            if [[ -d "$package/test" && ! -L "$package" ]]; then
+              test_paths+=("$package/test")
+            fi
+          done
+          failures=()
+          for test_path in "${test_paths[@]}"; do
+            echo "::group::Test $test_path"
+            if dart tool/project_tasks.dart test:all "$test_path" --concurrency=2; then
+              printf -- '- %s: PASS\n' "$test_path" >> "$GITHUB_STEP_SUMMARY"
+            else
+              status=$?
+              failures+=("$test_path (exit $status)")
+              printf -- '- %s: FAIL (exit %s)\n' "$test_path" "$status" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            echo '::endgroup::'
+          done
+          if (( ${#failures[@]} > 0 )); then
+            printf '::error::Test suite failed: %s\n' "${failures[@]}"
+            exit 1
+          fi
 
       - name: Set up Android native tools
         run: |
@@ -147,49 +221,8 @@ jobs:
         with:
           packages: 'ndk;${{ env.ANDROID_NDK_VERSION }}'
 
-      - name: Configure the personal Android build
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+      - name: Configure Android native paths
         run: |
-          umask 077
-          python3 - <<'PY'
-          import base64, json, os, pathlib
-          root = pathlib.Path('android')
-          root.joinpath('app/key.jks').write_bytes(
-              base64.b64decode(''.join(os.environ['KEYSTORE_BASE64'].split()), validate=True))
-          values = {key: os.environ[env] for key, env in {
-              'keyAlias': 'KEY_ALIAS', 'keyPassword': 'KEY_PASSWORD',
-              'storePassword': 'STORE_PASSWORD'}.items()}
-          if any(not value.strip() or value != value.strip() for value in values.values()):
-              raise SystemExit('Signing values must be nonblank without surrounding whitespace; Gradle trims them')
-          values['storeFile'] = 'key.jks'
-          # Properties.load 使用 ISO-8859-1；Unicode 转义可完整保留密码字符。
-          def escape(value):
-              encoded = value.encode('utf-16-be')
-              return ''.join('\\u' + encoded[i:i+2].hex() for i in range(0, len(encoded), 2))
-          root.joinpath('key.properties').write_text(
-              ''.join(f'{key}={escape(value)}\n' for key, value in values.items()))
-          # 不使用上游 Firebase 项目，也不读取 Google/GCP 密钥。
-          root.joinpath('app/google-services.json').write_text(json.dumps({
-              'project_info': {'project_number': '123', 'project_id': 'dummy'},
-              'client': [{'client_info': {'mobilesdk_app_id': '1:123:android:abc',
-                  'android_client_info': {'package_name': 'com.github.lingyan000.fluxdo'}},
-                  'api_key': [{'current_key': 'dummy'}]}], 'configuration_version': '1'}))
-          PY
-          keytool -exportcert -keystore android/app/key.jks -alias "$KEY_ALIAS" \
-            -storepass:env STORE_PASSWORD -file "$RUNNER_TEMP/personal-signing-cert.der"
-          mkdir -p "$HOME/.gradle/init.d"
-          cat > "$HOME/.gradle/init.d/personal-no-upload.init.gradle" <<'GRADLE'
-          // 保留构建 ID 生成，禁止映射文件和原生符号上传。
-          gradle.taskGraph.whenReady { graph ->
-              graph.allTasks.findAll { it.name.startsWith('uploadCrashlytics') }.each {
-                  it.enabled = false
-              }
-          }
-          GRADLE
           ndk_path="${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}"
           test -d "$ndk_path"
           {
@@ -236,6 +269,7 @@ jobs:
         run: |
           rm -f android/app/key.jks android/key.properties \
             "$RUNNER_TEMP/personal-signing-cert.der" \
+            "$RUNNER_TEMP/personal-signing.csr" \
             "$HOME/.gradle/init.d/personal-no-upload.init.gradle"
 
   release:
