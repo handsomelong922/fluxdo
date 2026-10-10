@@ -194,3 +194,10 @@ dart --enable-asserts tool/topic_regex_filter_smoke.dart
 ```
 
 这些检查不调用真实 AI，不替代 Flutter 组件测试或真机验收。不要为绕过环境明确拒绝的网络访问而切换下载源。
+
+### 组件测试必须隔离的应用上下文
+
+- `RelativeTimeText` 经 `TimeUtils` 使用 `S.current`：测试的 `MaterialApp` 必须设置应用全局 `navigatorKey`（`local_notification_service.dart`），外层保留 `TranslationProvider`。只设置语言代理不足以替代导航上下文。
+- 真正的 `MarkdownBody` 会直接预热单例 `DiscourseCookService`，不经过 Riverpod 注入。测试应先在 `tester.runAsync` 内从本地 HTML 预置 `PreloadedDataService`，再等待 cook 初始化；使用 `test/helpers/initialize_markdown.dart`。否则可能触发首页网络调度并遗留计时器，普通 provider override 无法阻止。
+- Isolate 编译/匹配测试必须在同一个 `tester.runAsync` 内创建并等待任务，不能在 fakeAsync 创建后移到 real-async 等待。
+- 不通过跳过用例、移除断言、任意延长 pump 或放宽 CI 失败条件来掩盖这些问题。

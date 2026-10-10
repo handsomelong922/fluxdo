@@ -19,6 +19,8 @@ import 'package:fluxdo/widgets/common/relative_time_text.dart';
 import 'package:fluxdo/widgets/markdown_editor/markdown_renderer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/initialize_markdown.dart';
+
 final _account = StateProvider<String>((ref) => 'site:42');
 final _model = (
   provider: AiProvider(
@@ -60,6 +62,7 @@ Future<SharedPreferences> _pump(
 }) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
+  await initializeMarkdownFixture(tester);
   Widget body() => SingleChildScrollView(
     child: AiTopicSummaryButton(
       detail: _detail(privateMessage: privateMessage),

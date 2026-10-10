@@ -34,6 +34,8 @@ import 'package:fluxdo/widgets/post/post_item_skeleton.dart';
 import 'package:fluxdo/widgets/search/topic_search_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/initialize_markdown.dart';
+
 const _topicId = 42;
 const _instanceId = 'initial-view-test';
 
@@ -394,6 +396,9 @@ void main() {
         defaultNestedView: nested,
         summaryService: service,
       );
+      // Markdown uses a singleton cook engine outside provider overrides.
+      // Seed its local bootstrap before mounting to avoid HTTP initialization.
+      await initializeMarkdownFixture(tester);
       await harness.preload();
       final routes = _RouteObserver();
       await tester.pumpWidget(harness.app(navigatorObservers: [routes]));
