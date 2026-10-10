@@ -4,10 +4,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/utils/topic_regex_filter_controller.dart';
 import 'package:fluxdo/widgets/topic/topic_regex_filter_status.dart';
 
+/// 仅控制提示条的待处理展示；真实正则任务仍使用原控制器和 Isolate。
+class _StatusTestController extends TopicRegexFilterController {
+  _StatusTestController(super.onChanged);
+
+  bool showPending = false;
+
+  @override
+  bool get active => showPending || super.active;
+
+  @override
+  bool get isPending => showPending || super.isPending;
+}
+
 void main() {
   testWidgets('后台状态变化不重建列表，错误始终可编辑与重试', (tester) async {
     late StateSetter rebuild;
-    final controller = TopicRegexFilterController(() => rebuild(() {}));
+    final controller = _StatusTestController(() => rebuild(() {}));
+    addTearDown(controller.dispose);
     final scroll = ScrollController();
     const listKey = ValueKey('stable-list');
     await tester.pumpWidget(
@@ -36,12 +50,19 @@ void main() {
     scroll.jumpTo(250);
     await tester.pump();
     final element = tester.element(find.byKey(listKey));
-    controller.prepare(['['], ['title']);
+    // 待处理 UI 用确定性状态驱动，避免让真实 Isolate 落进 fakeAsync。
+    controller.showPending = true;
     rebuild(() {});
     await tester.pump();
     expect(tester.element(find.byKey(listKey)), same(element));
     expect(scroll.offset, 250);
-    await tester.runAsync(() => controller.settle(['['], ['title']));
+    expect(find.textContaining('Checking regex filters'), findsOneWidget);
+    // 创建、启动、等待和清理真实任务均在同一个 real-async 区域完成。
+    await tester.runAsync(() async {
+      controller.showPending = false;
+      controller.prepare(['['], ['title']);
+      await controller.settle(['['], ['title']);
+    });
     await tester.pump();
     expect(find.textContaining('Regex filtering failed'), findsOneWidget);
     expect(find.text('Edit rules'), findsOneWidget);
