@@ -13,6 +13,7 @@ import 'package:fluxdo/providers/ai_post_review_provider.dart';
 import 'package:fluxdo/providers/ai_topic_summary_provider.dart';
 import 'package:fluxdo/providers/theme_provider.dart';
 import 'package:fluxdo/services/ai_topic_summary_service.dart';
+import 'package:fluxdo/services/local_notification_service.dart';
 import 'package:fluxdo/widgets/ai/ai_topic_summary_sheet.dart';
 import 'package:fluxdo/widgets/common/relative_time_text.dart';
 import 'package:fluxdo/widgets/markdown_editor/markdown_renderer.dart';
@@ -95,6 +96,7 @@ Future<SharedPreferences> _pump(
       ],
       child: TranslationProvider(
         child: MaterialApp(
+          navigatorKey: navigatorKey,
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
@@ -119,11 +121,21 @@ Future<SharedPreferences> _pump(
     ),
   );
   await tester.pump();
+  // 相对时间走 S.current，必须使用应用的全局 Navigator 上下文。
+  expect(navigatorKey.currentContext, isNotNull);
   return prefs;
 }
 
+Future<void> _tapVisible(WidgetTester tester, Finder target) async {
+  expect(tester.takeException(), isNull);
+  await tester.ensureVisible(target);
+  await tester.pump();
+  expect(target.hitTestable(), findsOneWidget);
+  await tester.tap(target);
+}
+
 Future<void> _expand(WidgetTester tester) async {
-  await tester.tap(find.byKey(const ValueKey('ai-summary-toggle')));
+  await _tapVisible(tester, find.byKey(const ValueKey('ai-summary-toggle')));
   await tester.pump();
   await tester.pump();
 }
@@ -231,6 +243,7 @@ void main() {
     expect(calls, 1);
     pending.complete('**后台完成**');
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
     expect(
       tester.widget<MarkdownBody>(find.byType(MarkdownBody)).data,
       '**后台完成**',
@@ -263,11 +276,15 @@ void main() {
     await tester.pump();
     visible.value = true;
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
     final markdown = tester.widget<MarkdownBody>(find.byType(MarkdownBody));
     expect(markdown.data, '1. **结论**\n\n- 后台摘要');
     expect(find.text(markdown.data), findsNothing);
     expect(calls, 1);
-    await tester.tap(find.byKey(const ValueKey('ai-summary-continue')));
+    await _tapVisible(
+      tester,
+      find.byKey(const ValueKey('ai-summary-continue')),
+    );
     expect(continued, markdown.data);
     expect(find.byType(BottomSheet), findsNothing);
     await _unmount(tester);
@@ -286,8 +303,9 @@ void main() {
     await _expand(tester);
     await tester.pumpAndSettle();
     expect(find.text('测试错误'), findsOneWidget);
-    await tester.tap(find.text('重试'));
+    await _tapVisible(tester, find.byKey(const ValueKey('ai-summary-refresh')));
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
     expect(calls, 2);
     expect(
       tester.widget<MarkdownBody>(find.byType(MarkdownBody)).data,
@@ -296,7 +314,7 @@ void main() {
     await _expand(tester);
     await _expand(tester);
     expect(calls, 2);
-    await tester.tap(find.text('刷新'));
+    await _tapVisible(tester, find.byKey(const ValueKey('ai-summary-refresh')));
     await tester.pumpAndSettle();
     expect(calls, 3);
     await _unmount(tester);
@@ -358,6 +376,7 @@ void main() {
     );
     await _expand(tester);
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
     final continuation = find.byKey(const ValueKey('ai-summary-continue'));
     final refresh = find.byKey(const ValueKey('ai-summary-refresh'));
     expect(tester.getCenter(continuation).dy, tester.getCenter(refresh).dy);
