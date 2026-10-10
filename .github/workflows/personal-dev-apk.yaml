@@ -19,7 +19,12 @@ env:
 
 jobs:
   build:
-    if: github.repository == 'handsomelong922/fluxdo' && github.ref == 'refs/heads/dev'
+    # 仅跳过已固定来源的一次性恢复事件，其他 dev 提交仍完整构建。
+    if: >-
+      github.repository == 'handsomelong922/fluxdo' && github.ref == 'refs/heads/dev' &&
+      !(github.event_name == 'push' &&
+        github.event.before == '40c53380bc0563852ba8025884ab69a787e1d123' &&
+        github.event.head_commit.message == '[apk-recovery] ci: fix signer labels and publish verified existing APK')
     runs-on: ubuntu-latest
     timeout-minutes: 90
     outputs:
@@ -262,11 +267,11 @@ jobs:
           import os, pathlib, re, sys
           temp = pathlib.Path(os.environ['RUNNER_TEMP'])
           expected = sys.argv[1]
-          # 兼容普通编号与 v3.1 的 SDK 范围标签，仅校验实际签名者的证书摘要。
-          label = r'Signer (?:#[1-9][0-9]*|\(minSdkVersion=[0-9]+(?: \(dev release=true\))?, maxSdkVersion=[0-9]+\))'
+          # 兼容实际工具的 V2 前缀、普通编号与 v3.1 范围，仅校验签名者证书摘要。
+          label = r'(?:V2 Signer:|Signer (?:#[1-9][0-9]*|\(minSdkVersion=[0-9]+(?: \(dev release=true\))?, maxSdkVersion=[0-9]+\)))'
           digests = []
           for line in temp.joinpath('apk-signature.txt').read_text().splitlines():
-              if not line.startswith('Signer'):
+              if not line.startswith('Signer') and not re.match(r'V[0-9].*Signer', line):
                   continue
               signer = re.fullmatch(label + r' (.+)', line)
               if signer is None:

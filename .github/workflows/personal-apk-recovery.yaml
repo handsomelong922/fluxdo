@@ -1,0 +1,198 @@
+name: Recover the verified personal APK once
+
+on:
+  push:
+    branches: [dev]
+    paths: ['.github/workflows/personal-apk-recovery.yaml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: personal-apk-recovery-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    # 只接管紧邻已知构建提交的一次恢复提交，不接管之后的日常构建。
+    if: >-
+      github.repository == 'handsomelong922/fluxdo' && github.ref == 'refs/heads/dev' &&
+      github.event_name == 'push' &&
+      github.event.before == '40c53380bc0563852ba8025884ab69a787e1d123' &&
+      github.event.head_commit.message == '[apk-recovery] ci: fix signer labels and publish verified existing APK'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      tag: ${{ steps.source.outputs.tag }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
+      build_number: ${{ steps.source.outputs.build_number }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Verify immutable source run and unchanged application code
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, re, urllib.request
+          repo = 'handsomelong922/fluxdo'
+          source = '40c53380bc0563852ba8025884ab69a787e1d123'
+          run_id = 38027316427
+          artifact_id = 11662010359
+          def require(condition, message):
+              if not condition:
+                  raise SystemExit(message)
+          def api(path):
+              request = urllib.request.Request(f'https://api.github.com/repos/{repo}/{path}', headers={
+                  'Authorization': f'Bearer {os.environ["GH_TOKEN"]}',
+                  'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+          run = api(f'actions/runs/{run_id}')
+          require(run['repository']['full_name'] == repo and run['head_repository']['full_name'] == repo,
+                  '源运行不属于个人仓库')
+          require(run['head_branch'] == 'dev' and run['head_sha'] == source and run['event'] == 'push'
+                  and run['run_number'] == 5 and run['run_attempt'] == 1
+                  and run['status'] == 'completed' and run['conclusion'] == 'failure'
+                  and run['path'] == '.github/workflows/personal-dev-apk.yaml', '源运行身份不匹配')
+          jobs = api(f'actions/runs/{run_id}/jobs?filter=all&per_page=100')
+          require(jobs['total_count'] == len(jobs['jobs']), '源任务列表不完整')
+          builds = [job for job in jobs['jobs'] if job['name'] == 'build']
+          require(len(builds) == 1 and builds[0]['head_sha'] == source, '源构建任务不唯一')
+          steps = {step['name']: step['conclusion'] for step in builds[0]['steps']}
+          for name in ('Analyze and test the workspace', 'Build the signed ARM64 APK',
+                       'Configure and validate personal signing', 'Preserve unverified APK for diagnosis on failure'):
+              require(steps.get(name) == 'success', f'源门禁未通过：{name}')
+          require([name for name, result in steps.items() if result == 'failure'] ==
+                  ['Verify APK contents, signature and checksum'], '源运行还存在其他失败')
+          compare = api(f'compare/{source}...{os.environ["GITHUB_SHA"]}')
+          allowed = {'.github/workflows/personal-dev-apk.yaml', '.github/workflows/personal-apk-recovery.yaml'}
+          require(compare['status'] == 'ahead' and compare['total_commits'] == 1
+                  and compare['merge_base_commit']['sha'] == source
+                  and compare['commits'][0]['sha'] == os.environ['GITHUB_SHA']
+                  and {item['filename'] for item in compare['files']} == allowed
+                  and all(item['status'] in ('added', 'modified') for item in compare['files']),
+                  '恢复提交包含工作流以外的变化')
+          artifact = api(f'actions/artifacts/{artifact_id}')
+          require(artifact['id'] == artifact_id and not artifact['expired']
+                  and artifact['name'] == f'diagnostic-unverified-apk-{source}'
+                  and artifact['workflow_run']['id'] == run_id and artifact['workflow_run']['head_sha'] == source
+                  and artifact['digest'] == 'sha256:0c87963843df6a07ebcf097a59d1c2be725a448dd05ad735e8cf8e362922be33',
+                  '源产物身份或归档摘要不匹配')
+          content = api(f'contents/pubspec.yaml?ref={source}')
+          pubspec = base64.b64decode(content['content']).decode()
+          base = int(re.search(r'^version:\s*[^\s+]+\+(\d+)\s*$', pubspec, re.M)[1])
+          number = base + run['run_number']
+          require(number == 2026090426, '源构建版本号不匹配')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'source_sha={source}\ntag=personal-dev-5-{source[:12]}\nbuild_number={number}\n')
+          print('已确认原提交的完整测试和构建成功，恢复提交只修工作流。')
+          PY
+
+      - name: Download only the pinned diagnostic artifact
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11662010359'
+          repository: handsomelong922/fluxdo
+          run-id: '38027316427'
+          github-token: ${{ github.token }}
+          path: recovered
+          merge-multiple: true
+
+      - name: Set up Java for independent APK verification
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify the exact APK bytes and native libraries
+        run: |
+          mkdir -p dist
+          cp recovered/fluxdo/fluxdo/dist/fluxdo-personal-arm64-v8a.apk dist/
+          printf '%s  %s\n' \
+            '976ed402ed25304e396313c9ba01c86b093e2b257bbf987cca65b745615ecca6' \
+            'dist/fluxdo-personal-arm64-v8a.apk' | sha256sum -c -
+          unzip -Z1 dist/fluxdo-personal-arm64-v8a.apk > "$RUNNER_TEMP/apk-files.txt"
+          grep -Fx 'lib/arm64-v8a/libdoh_proxy.so' "$RUNNER_TEMP/apk-files.txt"
+          grep -Fx 'lib/arm64-v8a/librhttp.so' "$RUNNER_TEMP/apk-files.txt"
+
+      - name: Reverify cryptographic signature and the original public certificate
+        run: |
+          set -euo pipefail
+          apksigner="$ANDROID_HOME/build-tools/37.0.0/apksigner"
+          test -x "$apksigner"
+          printf 'apksigner: %s\n' "$apksigner"
+          "$apksigner" --version
+          "$apksigner" verify --print-certs dist/fluxdo-personal-arm64-v8a.apk 2>&1 | tee "$RUNNER_TEMP/apk-signature.txt"
+          python3 - <<'PY'
+          import os, pathlib, re
+          # 此公开证书指纹来自源运行的个人 keystore 导出，与保留 APK 的实际签名一致。
+          expected = 'fdd77c8149847ac6117d11c7a35fe8641fde7b45009a59a2d4f8d698e133d259'
+          digests = []
+          for line in pathlib.Path(os.environ['RUNNER_TEMP'], 'apk-signature.txt').read_text().splitlines():
+              if 'Signer' not in line or line.startswith('Source Stamp Signer'):
+                  continue
+              match = re.fullmatch(r'V2 Signer: certificate (DN: .+|SHA-1 digest: [0-9a-fA-F]+|MD5 digest: [0-9a-fA-F]+|SHA-256 digest: ([0-9a-fA-F]{64}))', line)
+              if match is None:
+                  raise SystemExit(f'无法识别原工具的签名者输出：{line}')
+              if match.group(2):
+                  digests.append(match.group(2).lower())
+          if not digests or any(digest != expected for digest in digests):
+              raise SystemExit(f'原始个人签名证书不匹配：{digests}')
+          print(f'全部签名者证书匹配：{expected}')
+          PY
+          (cd dist && sha256sum fluxdo-personal-arm64-v8a.apk > fluxdo-personal-arm64-v8a.apk.sha256)
+
+      - name: Upload only the newly verified APK and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: personal-apk-${{ github.sha }}
+          path: dist/*
+          retention-days: 14
+          if-no-files-found: error
+          overwrite: true
+
+  release:
+    needs: recover
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download this run's verified APK
+        uses: actions/download-artifact@v4
+        with:
+          name: personal-apk-${{ github.sha }}
+          path: dist
+
+      - name: Verify the downloaded checksum
+        working-directory: dist
+        run: sha256sum -c fluxdo-personal-arm64-v8a.apk.sha256
+
+      - name: Publish the exact original build to the personal fork
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: handsomelong922/fluxdo
+          tag_name: ${{ needs.recover.outputs.tag }}
+          target_commitish: ${{ needs.recover.outputs.source_sha }}
+          name: Personal dev ${{ needs.recover.outputs.tag }}
+          body: |
+            dev 分支个人 ARM64 Android 构建，复用已通过全部分析、测试和编译的原始 APK。
+            源码提交：https://github.com/handsomelong922/fluxdo/commit/${{ needs.recover.outputs.source_sha }}
+            Android 版本号（versionCode）：${{ needs.recover.outputs.build_number }}
+            原构建记录：https://github.com/handsomelong922/fluxdo/actions/runs/38027316427
+            恢复验签记录：https://github.com/handsomelong922/fluxdo/actions/runs/${{ github.run_id }}
+
+            已独立复验 APK 字节摘要、原生库及原个人签名证书；没有重新编译或签名。
+            覆盖安装要求手机上的应用使用同一签名。使用占位 Firebase 配置，CI 禁止上传 Crashlytics 符号。
+          files: |
+            dist/fluxdo-personal-arm64-v8a.apk
+            dist/fluxdo-personal-arm64-v8a.apk.sha256
+          fail_on_unmatched_files: true
+          prerelease: true
+          make_latest: false
