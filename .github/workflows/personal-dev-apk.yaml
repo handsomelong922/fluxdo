@@ -1,0 +1,247 @@
+name: Personal dev APK
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 不同提交独立构建，同一提交串行执行，不取消正在构建的 APK。
+concurrency:
+  group: personal-dev-apk-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: '3.47.4'
+  ANDROID_NDK_VERSION: '27.3.13750724'
+
+jobs:
+  build:
+    if: github.repository == 'handsomelong922/fluxdo' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      build_number: ${{ steps.version.outputs.build_number }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Require the existing personal signing secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: |
+          missing=0
+          for name in KEYSTORE_BASE64 KEY_ALIAS KEY_PASSWORD STORE_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing repository secret $name. Reuse the rollback branch signing key; debug signing would prevent reliable in-place updates."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Checkout the exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Calculate personal release identity
+        id: version
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          pubspec = pathlib.Path('pubspec.yaml').read_text()
+          base = int(re.search(r'^version:\s*[^\s+]+\+(\d+)\s*$', pubspec, re.M)[1])
+          number = base + int(os.environ['GITHUB_RUN_NUMBER'])
+          if not 0 < number < 2100000000:
+              raise SystemExit('Android versionCode is outside the supported personal-build range')
+          tag = f"personal-dev-{os.environ['GITHUB_RUN_NUMBER']}-{os.environ['GITHUB_SHA'][:12]}"
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'tag={tag}\nbuild_number={number}\n')
+          PY
+
+      - name: Free Android build space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/share/swift \
+            /usr/local/lib/android/sdk/ndk
+          df -h /
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core/doh_proxy
+          key: personal-dev-android-arm64
+
+      - name: Analyze and test the workspace
+        run: |
+          flutter config --no-analytics
+          # 包含依赖、翻译、证书预处理，以及分析器和工作区全部测试。
+          # 沿用项目规则：警告/提示不阻断；分析错误和测试失败会阻止发布。
+          dart tool/project_tasks.dart release:prepare
+
+      - name: Set up Android native tools
+        run: |
+          cargo install cargo-ndk --locked
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Set up Android NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'ndk;${{ env.ANDROID_NDK_VERSION }}'
+
+      - name: Configure the personal Android build
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: |
+          umask 077
+          python3 - <<'PY'
+          import base64, json, os, pathlib
+          root = pathlib.Path('android')
+          root.joinpath('app/key.jks').write_bytes(
+              base64.b64decode(''.join(os.environ['KEYSTORE_BASE64'].split()), validate=True))
+          values = {key: os.environ[env] for key, env in {
+              'keyAlias': 'KEY_ALIAS', 'keyPassword': 'KEY_PASSWORD',
+              'storePassword': 'STORE_PASSWORD'}.items()}
+          if any(not value.strip() or value != value.strip() for value in values.values()):
+              raise SystemExit('Signing values must be nonblank without surrounding whitespace; Gradle trims them')
+          values['storeFile'] = 'key.jks'
+          # Properties.load 使用 ISO-8859-1；Unicode 转义可完整保留密码字符。
+          def escape(value):
+              encoded = value.encode('utf-16-be')
+              return ''.join('\\u' + encoded[i:i+2].hex() for i in range(0, len(encoded), 2))
+          root.joinpath('key.properties').write_text(
+              ''.join(f'{key}={escape(value)}\n' for key, value in values.items()))
+          # 不使用上游 Firebase 项目，也不读取 Google/GCP 密钥。
+          root.joinpath('app/google-services.json').write_text(json.dumps({
+              'project_info': {'project_number': '123', 'project_id': 'dummy'},
+              'client': [{'client_info': {'mobilesdk_app_id': '1:123:android:abc',
+                  'android_client_info': {'package_name': 'com.github.lingyan000.fluxdo'}},
+                  'api_key': [{'current_key': 'dummy'}]}], 'configuration_version': '1'}))
+          PY
+          keytool -exportcert -keystore android/app/key.jks -alias "$KEY_ALIAS" \
+            -storepass:env STORE_PASSWORD -file "$RUNNER_TEMP/personal-signing-cert.der"
+          mkdir -p "$HOME/.gradle/init.d"
+          cat > "$HOME/.gradle/init.d/personal-no-upload.init.gradle" <<'GRADLE'
+          // 保留构建 ID 生成，禁止映射文件和原生符号上传。
+          gradle.taskGraph.whenReady { graph ->
+              graph.allTasks.findAll { it.name.startsWith('uploadCrashlytics') }.each {
+                  it.enabled = false
+              }
+          }
+          GRADLE
+          ndk_path="${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}"
+          test -d "$ndk_path"
+          {
+            echo "ANDROID_NDK_HOME=$ndk_path"
+            echo "ANDROID_NDK_ROOT=$ndk_path"
+            echo "FLUXDO_ANDROID_JAVA_HOME=$JAVA_HOME"
+          } >> "$GITHUB_ENV"
+
+      - name: Build the signed ARM64 APK
+        env:
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+        run: |
+          dart tool/flutterw.dart build apk --release --target-platform android-arm64 \
+            --build-number "$BUILD_NUMBER" --dart-define=cronetHttpNoPlay=true
+          cmp core/doh_proxy/certs/ca.der android/app/src/main/res/raw/proxy_ca.der
+          cmp core/doh_proxy/certs/ca.crt assets/certs/proxy_ca.pem
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk dist/fluxdo-personal-arm64-v8a.apk
+
+      - name: Verify APK contents, signature and checksum
+        run: |
+          apk=dist/fluxdo-personal-arm64-v8a.apk
+          unzip -Z1 "$apk" > "$RUNNER_TEMP/apk-files.txt"
+          grep -Fx 'lib/arm64-v8a/libdoh_proxy.so' "$RUNNER_TEMP/apk-files.txt"
+          grep -Fx 'lib/arm64-v8a/librhttp.so' "$RUNNER_TEMP/apk-files.txt"
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          test -n "$apksigner"
+          "$apksigner" verify --print-certs "$apk" > "$RUNNER_TEMP/apk-signature.txt"
+          expected=$(sha256sum "$RUNNER_TEMP/personal-signing-cert.der" | cut -d ' ' -f 1)
+          grep -F "Signer #1 certificate SHA-256 digest: $expected" "$RUNNER_TEMP/apk-signature.txt"
+          (cd dist && sha256sum fluxdo-personal-arm64-v8a.apk > fluxdo-personal-arm64-v8a.apk.sha256)
+
+      - name: Upload verified APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: personal-apk-${{ github.sha }}
+          path: dist/*
+          retention-days: 14
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Remove temporary signing material
+        if: always()
+        run: |
+          rm -f android/app/key.jks android/key.properties \
+            "$RUNNER_TEMP/personal-signing-cert.der" \
+            "$HOME/.gradle/init.d/personal-no-upload.init.gradle"
+
+  release:
+    needs: build
+    if: github.repository == 'handsomelong922/fluxdo' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download this run's verified APK
+        uses: actions/download-artifact@v4
+        with:
+          name: personal-apk-${{ github.sha }}
+          path: dist
+
+      - name: Verify the downloaded checksum
+        working-directory: dist
+        run: sha256sum -c fluxdo-personal-arm64-v8a.apk.sha256
+
+      - name: Publish only to the personal fork
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: handsomelong922/fluxdo
+          tag_name: ${{ needs.build.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Personal dev ${{ needs.build.outputs.tag }}
+          body: |
+            dev 分支个人自用 ARM64 Android 构建。
+            源码提交：https://github.com/handsomelong922/fluxdo/commit/${{ github.sha }}
+            Android 版本号（versionCode）：${{ needs.build.outputs.build_number }}
+            构建记录：https://github.com/handsomelong922/fluxdo/actions/runs/${{ github.run_id }}
+
+            使用已有个人签名密钥。覆盖安装要求与手机上已安装的应用使用同一签名。
+            使用占位 Firebase 配置；CI 已禁止上传 Crashlytics 符号和映射文件。
+          files: |
+            dist/fluxdo-personal-arm64-v8a.apk
+            dist/fluxdo-personal-arm64-v8a.apk.sha256
+          fail_on_unmatched_files: true
+          prerelease: true
+          make_latest: false
