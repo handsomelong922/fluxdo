@@ -3114,7 +3114,7 @@ class _TopicListState extends ConsumerState<_TopicList>
                                   isLoadMoreFailed: notifier.isLoadMoreFailed,
                                   onRetry: () {
                                     _loadMoreCoordinator.resetCooldown();
-                                    return notifier.retryLoadMore();
+                                    unawaited(notifier.retryLoadMore());
                                   },
                                 ),
                               );
