@@ -4,6 +4,101 @@ import '../lib/utils/topic_regex_filter_controller.dart';
 
 /// 用真实工作隔离区验证列表控制器的缓存、分页和生命周期。
 final topicRegexFilterSmokeTests = <String, Future<void> Function()>{
+  '短任务及连续分页不立即显示正则提示，未知标题仍隐藏': () async {
+    var changes = 0;
+    final controller = TopicRegexFilterController(() => changes++);
+    try {
+      final titles = <String>[];
+      for (var page = 0; page < 5; page++) {
+        titles.add('title $page');
+        controller.prepare(['hide'], titles);
+        _check(controller.isPending, '任务必须立即进入安全待验证状态');
+        _check(!controller.showPendingIndicator, '短批次不能立即闪现提示条');
+        _check(!controller.matches.containsKey(titles.last), '新标题不能提前显示');
+        _check(await controller.settle(['hide'], titles), '分页应成功');
+        _check(!controller.showPendingIndicator, '完成后不能保留提示');
+      }
+      final settledChanges = changes;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      _check(changes == settledChanges, '完成后不能残留提示计时器通知');
+    } finally {
+      controller.dispose();
+    }
+  },
+  '长任务延迟显示，取消和换代清理提示计时器': () async {
+    var changes = 0;
+    final controller = TopicRegexFilterController(() => changes++);
+    try {
+      final old = controller.settle([r'^(a+)+$'], ['${'a' * 20000}!']);
+      _check(!controller.showPendingIndicator, '任务启动不能立即显示提示');
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      _check(
+        controller.isPending && controller.showPendingIndicator,
+        '长任务应显示提示',
+      );
+      _check(changes == 1, '提示出现应通知界面');
+      controller.prepare(['fresh'], ['fresh']);
+      _check(!controller.showPendingIndicator, '换代不能继承旧提示');
+      _check(!await old, '旧任务应取消');
+      await controller.settle(['fresh'], ['fresh']);
+      final settledChanges = changes;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      _check(changes == settledChanges, '旧提示计时器不得回写');
+    } finally {
+      controller.dispose();
+    }
+  },
+  '长任务超时保留明确错误，重试重新等待提示延迟': () async {
+    final controller = TopicRegexFilterController(() {});
+    try {
+      final patterns = [r'^(a+)+$'];
+      final titles = ['${'a' * 20000}!'];
+      _check(!await controller.settle(patterns, titles), '灾难回溯应超时失败');
+      _check(controller.error?.message == 'timeout', '必须保留超时错误');
+      _check(
+        !controller.isPending && !controller.showPendingIndicator,
+        '失败后清除待处理提示',
+      );
+      _check(controller.matches.isEmpty, '失败标题不能标记为安全');
+      controller.retry();
+      _check(controller.error == null && controller.isPending, '显式重试应启动新任务');
+      _check(!controller.showPendingIndicator, '重试必须重新等待展示延迟');
+      controller.prepare([], []);
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      _check(!controller.showPendingIndicator, '取消重试不能留下提示');
+    } finally {
+      controller.dispose();
+    }
+  },
+  '旧任务计时器不能使新任务提前显示提示': () async {
+    final controller = TopicRegexFilterController(() {});
+    try {
+      final old = controller.settle([r'^(a+)+$'], ['${'a' * 20000}!']);
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      final next = controller.settle([r'^(b+)+$'], ['${'b' * 20000}!']);
+      _check(!await old, '换代应取消旧任务');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      _check(
+        controller.isPending && !controller.showPendingIndicator,
+        '旧任务到时不能提前亮起新提示',
+      );
+      controller.prepare([], []);
+      _check(!await next, '清空规则应取消新任务');
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      _check(!controller.showPendingIndicator, '清空规则必须取消提示计时器');
+    } finally {
+      controller.dispose();
+    }
+  },
+  '销毁待处理任务会取消尚未显示的提示通知': () async {
+    var changes = 0;
+    final controller = TopicRegexFilterController(() => changes++);
+    final pending = controller.settle([r'^(a+)+$'], ['${'a' * 20000}!']);
+    controller.dispose();
+    await pending;
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    _check(changes == 0 && !controller.showPendingIndicator, '销毁后不能出现迟到提示');
+  },
   '首次待处理时未知标题没有缓存，完成后缓存全部布尔结果': () async {
     var changes = 0;
     final controller = TopicRegexFilterController(() => changes++);
@@ -16,7 +111,10 @@ final topicRegexFilterSmokeTests = <String, Future<void> Function()>{
       _check(!controller.isPending, '完成后应清除待处理状态');
       _check(controller.matches['hide'] == true, '命中应缓存 true');
       _check(controller.matches['show'] == false, '不命中应缓存 false');
-      _check(changes == 1, '一次批次应只通知一次');
+      _check(changes >= 1, '完成批次应通知界面');
+      final settledChanges = changes;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      _check(changes == settledChanges, '完成后不能再发提示通知');
     } finally {
       controller.dispose();
     }
@@ -30,11 +128,12 @@ final topicRegexFilterSmokeTests = <String, Future<void> Function()>{
         controller.prepare(['^hide\$'], ['hide', 'show']);
       }
       _check(await pending, '相同输入不应取消当前批次');
+      final settledChanges = changes;
       for (var i = 0; i < 10; i++) {
         controller.prepare(['^hide\$'], ['hide', 'show']);
       }
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      _check(!controller.isPending && changes == 1, '已缓存输入不应再次运算');
+      _check(!controller.isPending && changes == settledChanges, '已缓存输入不应再次运算');
     } finally {
       controller.dispose();
     }
@@ -77,11 +176,12 @@ final topicRegexFilterSmokeTests = <String, Future<void> Function()>{
     final controller = TopicRegexFilterController(() => changes++);
     try {
       await controller.settle(['hide'], ['hide', 'show', 'gone']);
+      final settledChanges = changes;
       controller.prepare(['hide'], ['hide', 'hide', 'show']);
       _check(controller.matches.length == 2, '删除的标题应清理');
       _check(!controller.matches.containsKey('gone'), '不能留下失效标题缓存');
       _check(!controller.isPending, '已有缓存的刷新不需重新运算');
-      _check(changes == 1, '仅清理缓存不应额外发异步通知');
+      _check(changes == settledChanges, '仅清理缓存不应额外发异步通知');
       controller.prepare(['hide'], []);
       _check(controller.matches.isEmpty && !controller.isPending, '空列表应清空缓存');
     } finally {
@@ -107,7 +207,9 @@ final topicRegexFilterSmokeTests = <String, Future<void> Function()>{
             controller.matches['other'] == false,
         '只能保留新规则的结果',
       );
-      _check(changes == 1, '旧取消批次不能再触发通知');
+      final settledChanges = changes;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      _check(changes == settledChanges, '旧取消批次不能再触发通知');
     } finally {
       controller.dispose();
     }
@@ -118,13 +220,17 @@ final topicRegexFilterSmokeTests = <String, Future<void> Function()>{
     try {
       _check(!await controller.settle(['['], ['one']), '坏规则应报告失败');
       _check(controller.error?.message == 'syntax', '应暴露明确语法错误');
-      _check(changes == 1 && !controller.isPending, '失败批次只应通知一次');
+      _check(changes >= 1 && !controller.isPending, '失败批次应通知并结束待处理状态');
+      final settledChanges = changes;
       for (var i = 0; i < 10; i++) {
         controller.prepare(['['], ['one']);
       }
       controller.prepare(['['], ['one', 'two']);
       _check(!await controller.settle(['['], ['one', 'two']), '新增标题不能隐式重试坏规则');
-      _check(changes == 1 && !controller.isPending, '滚动重建不能反复执行失败规则');
+      _check(
+        changes == settledChanges && !controller.isPending,
+        '滚动重建不能反复执行失败规则',
+      );
       _check(await controller.settle(['^two\$'], ['one', 'two']), '修改规则后应恢复');
       _check(controller.error == null, '修改规则应清除旧错误');
       _check(

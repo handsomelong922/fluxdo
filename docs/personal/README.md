@@ -213,3 +213,11 @@ python docs/personal/inspect_environment.py --dart /workspace/shared/toolchains/
 ```
 
 官方 Dart 归档为 `https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.3/sdk/dartsdk-linux-x64-release.zip`；仅在来源可访问且安装获准时恢复。源站返回的归档 MD5 为 `56a7b6ccc25ab39fab1f52b055887ba6`，本次下载已校验。完整 Flutter 验证仍由现有个人 GitHub Actions 执行。
+
+### 2026-10-12 首页分页稳定性
+
+基线为 `666a0f6a`（个人构建第 17 次成功，用户已确认整体体验）。此次只处理首页分页：页脚空闲/加载内容高度原为 16/24，统一首页最小内容高度 24；网络请求、正则过滤和有界续页期间维持加载状态；正则短任务不再立即闪出底部处理中提示，超过 200ms 才显示，过滤和错误处理不延后。
+
+过滤复制但行未变的列表复用索引；纯尾追加不武装锚点，内容更新、插入、移除、换序仍保留锚定。首页按 0.75 视口（200–600px）预取，修正续页补足后仍冷却的问题，手动重试清除冷却。共享 AnchorGuard 实现未改。
+
+新增列表身份、分页协调器、真实 SliverList 空闲/拖动几何和延迟提示测试。纯 Dart 检查可运行 `dart tool/list_identity_change_smoke.dart` 与已有正则 smoke。完整 Flutter 依赖本地缺失，组件测试以本次精确提交 CI 为准；没有真机帧率测量，不能把代码分析或 CI 通过等同真机卡顿完全消失。此轮沿用现有个人构建与签名，不变更 Release 权限。

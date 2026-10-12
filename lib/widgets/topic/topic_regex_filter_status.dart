@@ -17,7 +17,8 @@ class TopicRegexFilterStatus extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final showStatus =
-        controller.active && (controller.isPending || controller.error != null);
+        controller.active &&
+        (controller.showPendingIndicator || controller.error != null);
     final zh = Localizations.localeOf(context).languageCode == 'zh';
     final error = controller.error;
     final text = error == null

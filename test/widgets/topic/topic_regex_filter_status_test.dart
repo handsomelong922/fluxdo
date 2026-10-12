@@ -9,12 +9,16 @@ class _StatusTestController extends TopicRegexFilterController {
   _StatusTestController(super.onChanged);
 
   bool showPending = false;
+  bool pending = false;
 
   @override
-  bool get active => showPending || super.active;
+  bool get active => pending || showPending || super.active;
 
   @override
-  bool get isPending => showPending || super.isPending;
+  bool get isPending => pending || super.isPending;
+
+  @override
+  bool get showPendingIndicator => showPending || super.showPendingIndicator;
 }
 
 void main() {
@@ -51,6 +55,12 @@ void main() {
     await tester.pump();
     final element = tester.element(find.byKey(listKey));
     // 待处理 UI 用确定性状态驱动，避免让真实 Isolate 落进 fakeAsync。
+    controller.pending = true;
+    rebuild(() {});
+    await tester.pump();
+    expect(find.textContaining('Checking regex filters'), findsNothing);
+    expect(tester.element(find.byKey(listKey)), same(element));
+    expect(scroll.offset, 250);
     controller.showPending = true;
     rebuild(() {});
     await tester.pump();
@@ -59,6 +69,7 @@ void main() {
     expect(find.textContaining('Checking regex filters'), findsOneWidget);
     // 创建、启动、等待和清理真实任务均在同一个 real-async 区域完成。
     await tester.runAsync(() async {
+      controller.pending = false;
       controller.showPending = false;
       controller.prepare(['['], ['title']);
       await controller.settle(['['], ['title']);

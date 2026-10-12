@@ -30,10 +30,17 @@ class LoadMoreAttempt {
 /// no concurrent load-more runs, optional bounded auto-continuation, and a
 /// cooldown while a list remains stuck near the bottom.
 class LoadMoreCoordinator {
-  LoadMoreCoordinator({this.triggerDistance = 200, this.releaseDistance = 200});
+  LoadMoreCoordinator({
+    this.triggerDistance = 200,
+    this.releaseDistance = 200,
+    this.onRunningChanged,
+  });
 
   final double triggerDistance;
   final double releaseDistance;
+
+  /// 包含请求、异步过滤和自动续页，避免页脚在中间阶段闪回空闲。
+  final void Function(bool isRunning)? onRunningChanged;
 
   bool _isRunning = false;
   bool _isCoolingDown = false;
@@ -41,13 +48,19 @@ class LoadMoreCoordinator {
   bool get isRunning => _isRunning;
   bool get isCoolingDown => _isCoolingDown;
 
-  bool shouldTriggerForDistance(double distanceToEnd) {
-    if (distanceToEnd >= releaseDistance) {
+  bool shouldTriggerForDistance(
+    double distanceToEnd, {
+    double? prefetchDistance,
+  }) {
+    // 首页按视口预取时，冷却解除与触发必须使用同一边界。
+    final release = prefetchDistance ?? releaseDistance;
+    final trigger = prefetchDistance ?? triggerDistance;
+    if (distanceToEnd >= release) {
       _isCoolingDown = false;
       return false;
     }
     if (_isCoolingDown) return false;
-    return distanceToEnd < triggerDistance;
+    return distanceToEnd < trigger;
   }
 
   void resetCooldown() {
@@ -66,6 +79,7 @@ class LoadMoreCoordinator {
 
     _isRunning = true;
     try {
+      onRunningChanged?.call(true);
       if (shouldAutoLoadMore == null) {
         final before = await progressCount?.call();
         if (!isActive() || (before != null && before < 0)) return;
@@ -121,12 +135,17 @@ class LoadMoreCoordinator {
       }
     } finally {
       _isRunning = false;
+      onRunningChanged?.call(false);
     }
   }
 }
 
 class TopicLoadMoreCoordinator extends LoadMoreCoordinator {
-  TopicLoadMoreCoordinator({super.triggerDistance, super.releaseDistance});
+  TopicLoadMoreCoordinator({
+    super.triggerDistance,
+    super.releaseDistance,
+    super.onRunningChanged,
+  });
 
   Future<void> loadTopicPage({
     required LoadMoreAction loadMore,
@@ -158,7 +177,8 @@ class TopicLoadMoreCoordinator extends LoadMoreCoordinator {
       ),
       shouldCooldown: (attempt) =>
           attempt.hasMore &&
-          attempt.attempts >= TopicKeywordFilter.autoLoadMaxAttempts,
+          attempt.attempts >= TopicKeywordFilter.autoLoadMaxAttempts &&
+          attempt.delta < TopicKeywordFilter.autoLoadVisibleThreshold,
     );
   }
 }

@@ -40,6 +40,7 @@ import '../navigation/nav_action_bus.dart';
 import '../providers/app_state_refresher.dart';
 import '../providers/preferences_provider.dart';
 import '../utils/load_more_coordinator.dart';
+import '../utils/list_identity_change.dart';
 import '../utils/motion_springs.dart';
 import '../utils/topic_keyword_filter.dart';
 import '../utils/topic_regex_filter_controller.dart';
@@ -2530,24 +2531,26 @@ class _TopicListState extends ConsumerState<_TopicList>
   int? _lastHeaderOffset;
 
   Map<int, int> _visibleIndexMapFor(List<Topic> topics) {
-    if (!identical(_visibleIndexSource, topics)) {
-      final hadPrevious = _visibleIndexSource != null;
-      _visibleIndexSource = topics;
-      _topicIdToVisibleIndex = <int, int>{
-        for (var i = 0; i < topics.length; i++) topics[i].id: i,
-      };
-      // 只保留仍存在的数据，并限制缓存规模。缓存的是 Widget 配置而非
-      // RenderObject；64 条足够覆盖数屏父层 rebuild，同时避免数据越多
-      // TopicCard 配置和闭包永久累积、放大 GC 压力。
-      _topicItemCache.removeWhere(
-        (topicId, _) => !_topicIdToVisibleIndex.containsKey(topicId),
-      );
-      // 列表数据换代(顶部插入/全量替换/单行刷新):静默结构变化落地帧,
-      // 武装锚定哨兵补偿 keyed 迁移产生的位移。首建不武装。
-      if (hadPrevious) {
-        AnchorGuardSliver.arm();
-      }
+    final change = classifyListIdentityChange(
+      _visibleIndexSource,
+      topics,
+      identityOf: (topic) => topic.id,
+    );
+    _visibleIndexSource = topics;
+    // 异步过滤会复制列表；同一批行无需重建索引、清缓存或武装锚点。
+    if (change == ListIdentityChange.unchanged) return _topicIdToVisibleIndex;
+    if (change == ListIdentityChange.contentChanged) {
+      AnchorGuardSliver.arm();
+      return _topicIdToVisibleIndex;
     }
+    _topicIdToVisibleIndex = <int, int>{
+      for (var i = 0; i < topics.length; i++) topics[i].id: i,
+    };
+    _topicItemCache.removeWhere(
+      (topicId, _) => !_topicIdToVisibleIndex.containsKey(topicId),
+    );
+    // 纯尾部追加不改变旧行位置；只有插入、移除、换序才需要锚定补偿。
+    if (change == ListIdentityChange.structural) AnchorGuardSliver.arm();
     return _topicIdToVisibleIndex;
   }
 
@@ -2566,8 +2569,18 @@ class _TopicListState extends ConsumerState<_TopicList>
   /// J/K 防抖：上次触发时间
   DateTime _lastKeyNavTime = DateTime(0);
 
-  final TopicLoadMoreCoordinator _loadMoreCoordinator =
-      TopicLoadMoreCoordinator();
+  bool _paginationRebuildScheduled = false;
+  late final TopicLoadMoreCoordinator _loadMoreCoordinator =
+      TopicLoadMoreCoordinator(onRunningChanged: (_) {
+        if (!mounted || _paginationRebuildScheduled) return;
+        _paginationRebuildScheduled = true;
+        // 滚动通知可能处于布局阶段，合并到帧后再更新页脚状态。
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _paginationRebuildScheduled = false;
+          if (mounted) setState(() {});
+        });
+        WidgetsBinding.instance.ensureVisualUpdate();
+      });
   List<String> _lastAutoLoadKeywords = const [];
   List<String> _lastAutoLoadRegexPatterns = const [];
   Set<String> _lastAutoLoadBlockedUsernames = const <String>{};
@@ -3004,6 +3017,8 @@ class _TopicListState extends ConsumerState<_TopicList>
                           notification.metrics.pixels;
                       if (_loadMoreCoordinator.shouldTriggerForDistance(
                         distance,
+                        prefetchDistance: (notification.metrics.viewportDimension * 0.75)
+                            .clamp(200.0, 600.0).toDouble(),
                       )) {
                         _triggerLoadMore(providerKey);
                       }
@@ -3092,9 +3107,15 @@ class _TopicListState extends ConsumerState<_TopicList>
                                 key: const ValueKey(_footerKeyValue),
                                 child: PagedListFooter(
                                   hasMore: notifier.hasMore,
-                                  isLoadingMore: notifier.isLoadingMore,
+                                  isLoadingMore: notifier.isLoadingMore ||
+                                      _loadMoreCoordinator.isRunning ||
+                                      _regexFilter.isPending,
+                                  minContentHeight: 24,
                                   isLoadMoreFailed: notifier.isLoadMoreFailed,
-                                  onRetry: notifier.retryLoadMore,
+                                  onRetry: () {
+                                    _loadMoreCoordinator.resetCooldown();
+                                    return notifier.retryLoadMore();
+                                  },
                                 ),
                               );
                             }

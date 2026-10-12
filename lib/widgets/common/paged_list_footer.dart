@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:app_icons/app_icons.dart';
 
 import '../../l10n/s.dart';
+
 import 'package:m3e_ui/m3e_ui.dart';
 
 class PagedListFooter extends StatelessWidget {
@@ -12,6 +13,7 @@ class PagedListFooter extends StatelessWidget {
     required this.isLoadMoreFailed,
     required this.onRetry,
     this.padding = const EdgeInsets.all(16),
+    this.minContentHeight = 0,
   });
 
   final bool hasMore;
@@ -19,6 +21,10 @@ class PagedListFooter extends StatelessWidget {
   final bool isLoadMoreFailed;
   final VoidCallback onRetry;
   final EdgeInsetsGeometry padding;
+
+  /// 首页分页各阶段保留同一高度，避免临近底边时滚动范围反复收缩。
+  /// 默认保留其他列表原有布局；文字放大时仍可自然增高。
+  final double minContentHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +64,10 @@ class PagedListFooter extends StatelessWidget {
 
     return Padding(
       padding: padding,
-      child: Center(child: child),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: minContentHeight),
+        child: Center(child: child),
+      ),
     );
   }
 }

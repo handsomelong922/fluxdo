@@ -11,10 +11,22 @@ class TopicRegexFilterController {
   List<String> _titles = const [];
   TopicRegexJob? _job;
   Future<void>? _pending;
+  Timer? _pendingIndicatorTimer;
+  bool _showPendingIndicator = false;
   int _generation = 0;
   bool _disposed = false;
   FormatException? error;
   bool get isPending => _pending != null;
+
+  /// 展示节流独立于安全待验证状态，快速分页不闪提示，长任务仍可见。
+  bool get showPendingIndicator => _showPendingIndicator;
+
+  void _clearPendingIndicator() {
+    _pendingIndicatorTimer?.cancel();
+    _pendingIndicatorTimer = null;
+    _showPendingIndicator = false;
+  }
+
   bool get active => _patterns.isNotEmpty;
 
   static bool _same(List<String> a, List<String> b) {
@@ -31,6 +43,7 @@ class TopicRegexFilterController {
     final changed = !_same(patterns, _patterns);
     if (!changed && _same(nextTitles, _titles)) return;
     _generation++;
+    _clearPendingIndicator();
     _job?.cancel();
     _job = null;
     _pending = null;
@@ -56,6 +69,12 @@ class TopicRegexFilterController {
     final generation = _generation;
     final job = TopicRegexRules.match(patterns, missing);
     _job = job;
+    _pendingIndicatorTimer = Timer(const Duration(milliseconds: 200), () {
+      if (_disposed || generation != _generation || !isPending) return;
+      _pendingIndicatorTimer = null;
+      _showPendingIndicator = true;
+      onChanged();
+    });
     _pending = () async {
       try {
         final result = await job.result;
@@ -73,6 +92,7 @@ class TopicRegexFilterController {
         if (!_disposed && generation == _generation) {
           _pending = null;
           _job = null;
+          _clearPendingIndicator();
           onChanged();
         }
       }
@@ -100,6 +120,7 @@ class TopicRegexFilterController {
   void dispose() {
     _disposed = true;
     _generation++;
+    _clearPendingIndicator();
     _job?.cancel();
     _job = null;
     _pending = null;
