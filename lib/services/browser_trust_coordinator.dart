@@ -430,7 +430,7 @@ class BrowserTrustCoordinator {
     } else if (cf.autoVerifyEnabled && !cf.isInCooldown) {
       // 没有进行中的验证 → coordinator 主动发起(showManualVerify 内部会复用任何
       // 期间出现的进行中验证)。
-      final ok = await cf.showManualVerify(_navigatorContext, true);
+      final ok = await cf.showAutomaticVerify(_navigatorContext);
       gotClearance = ok == true;
     }
 

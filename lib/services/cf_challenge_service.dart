@@ -14,6 +14,7 @@ import 'network/cookie/cookie_jar_service.dart';
 import 'local_notification_service.dart'; // 用于获取全局 navigatorKey
 import 'cf_challenge_logger.dart';
 import 'cf_clearance_refresh_service.dart';
+import 'cf_verification_presentation.dart';
 import 'embedded_browser_controller_pool.dart';
 import 'toast_service.dart';
 import 'webview_settings.dart';
@@ -39,7 +40,7 @@ enum _CompatPromptChoice {
 }
 
 /// CF 验证服务
-/// 处理 Cloudflare Turnstile 验证（仅手动模式）
+/// 复用站点原始验证流程，自动恢复先后台等待，必要时展示交互界面。
 class CfChallengeService {
   static final CfChallengeService _instance = CfChallengeService._internal();
   factory CfChallengeService() => _instance;
@@ -126,7 +127,7 @@ class CfChallengeService {
   static const _postCleanupCooldown = Duration(milliseconds: 1200);
   static const _refreshRestartCooldown = Duration(milliseconds: 300);
 
-  /// 是否在拦截到 CF 盾时自动弹出验证 UI（默认 true）
+  /// 是否在拦截到 CF 盾时自动发起验证恢复（默认 true）
   /// 关闭后 [CfChallengeInterceptor] 命中 CF 盾时会静默 reject，
   /// 交给 ErrorView 提供"手动验证"入口。由 PreferencesNotifier 同步维护。
   bool autoVerifyEnabled = true;
@@ -478,13 +479,30 @@ class CfChallengeService {
         lower.contains('page you requested');
   }
 
+  /// 自动恢复：给站点原有非交互检查短暂的后台运行机会。
+  /// 不更改挑战逻辑、不模拟交互；宽限耗尽或加载失败后展示原验证页面。
+  Future<bool?> showAutomaticVerify([BuildContext? context]) {
+    if (!autoVerifyEnabled) return Future.value(null);
+    return _showVerify(
+      context: context,
+      forceForeground: false,
+      quietBackground: true,
+    );
+  }
+
   /// 显示手动验证页面
   /// 返回值：true=验证成功, false=验证失败, null=冷却期内暂不可用或无 context
   /// [forceForeground] 是否强制前台显示（默认为 true）
   Future<bool?> showManualVerify([
     BuildContext? context,
     bool forceForeground = true,
-  ]) async {
+  ]) => _showVerify(context: context, forceForeground: forceForeground);
+
+  Future<bool?> _showVerify({
+    BuildContext? context,
+    required bool forceForeground,
+    bool quietBackground = false,
+  }) async {
     // 检查冷却期
     if (isInCooldown) {
       debugPrint('[CfChallenge] In cooldown, skipping manual verify');
@@ -729,6 +747,7 @@ class CfChallengeService {
         key: pageKey,
         verifyUrl: verifyUrl,
         startInBackground: !forceForeground,
+        quietBackground: quietBackground,
         onResult: finish,
         onPromoteRequest: () => onPromoteToForeground(context),
         oldCfClearanceValue: backupCfClearance != null
@@ -811,6 +830,7 @@ class CfChallengePage extends StatefulWidget {
     super.key,
     required this.verifyUrl,
     this.startInBackground = false,
+    this.quietBackground = false,
     this.onResult,
     this.onPromoteRequest,
     this.oldCfClearanceValue,
@@ -821,6 +841,9 @@ class CfChallengePage extends StatefulWidget {
 
   /// 先后台尝试验证，超时后再切到前台
   final bool startInBackground;
+
+  /// 自动恢复的初始后台阶段不展示胶囊；保留其他后台入口的手动展开方式。
+  final bool quietBackground;
   final ValueChanged<bool>? onResult;
   final VoidCallback? onPromoteRequest;
 
@@ -843,7 +866,8 @@ class _CfChallengePageState extends State<CfChallengePage> {
   double _progress = 0;
   bool _hasMarkedPageReady = false;
   bool _hasPopped = false; // 防止重复 pop
-  late bool _isBackground;
+  late final CfVerificationPresentation _presentation;
+  bool get _isBackground => _presentation.isBackground;
   late bool _needsManualAttention;
   bool _challengeWebViewVisible = false;
   bool _hasSeenChallenge = false;
@@ -878,8 +902,14 @@ class _CfChallengePageState extends State<CfChallengePage> {
   @override
   void initState() {
     super.initState();
-    _isBackground = widget.startInBackground;
+    _presentation = CfVerificationPresentation(
+      startInBackground: widget.startInBackground,
+      quietBackground: widget.quietBackground,
+    );
     _needsManualAttention = false;
+    _presentation.startBackgroundDeadline(
+      () => _promoteToForeground(dueToTimeout: true),
+    );
     _snapshotInitialClearance();
   }
 
@@ -923,6 +953,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
 
   @override
   void dispose() {
+    _presentation.dispose();
     _timeoutTimer?.cancel();
     _noChallengeCheckTimer?.cancel();
     _loadStopFallbackTimer?.cancel();
@@ -1283,14 +1314,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
       // 每秒检查已加载的页面是否还有挑战；续期 Cookie 不作为完成信号。
       _pollVerificationDocument();
 
-      if (_checkCount > _activeMaxCheckCount) {
-        if (_isBackground) {
-          CfChallengeLogger.log(
-            '[VERIFY] Background timeout after $_activeMaxCheckCount seconds, prompting manual verify',
-          );
-          _promoteToForeground(dueToTimeout: true);
-          return;
-        }
+      if (!_isBackground && _checkCount > _activeMaxCheckCount) {
         if (!_hasTimedOut) {
           CfChallengeLogger.logVerifyResult(
             success: false,
@@ -1400,9 +1424,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
         reason: reason ?? 'no origin document after completion probe',
       );
       if (_isBackground) {
-        _timeoutTimer?.cancel();
-        if (mounted) _finish(false);
-        return;
+        _promoteToForeground();
       }
       if (mounted && !_hasPopped) {
         setState(() {
@@ -1513,18 +1535,26 @@ class _CfChallengePageState extends State<CfChallengePage> {
     _controller?.reload();
   }
 
-  void _promoteToForeground({bool dueToTimeout = false}) {
-    if (!_isBackground) return;
+  void _promoteToForeground({
+    bool dueToTimeout = false,
+    bool showPrompt = true,
+  }) {
+    if (!mounted || _hasPopped || _finishingFromVerifyResponse) return;
+    if (!_presentation.promote()) return;
+    CfChallengeLogger.log(
+      '[VERIFY] Showing verification UI: '
+      '${dueToTimeout ? 'background presentation deadline' : 'manual attention'}',
+    );
     setState(() {
-      _isBackground = false;
       _needsManualAttention = true;
       _hasTimedOut = false;
       _checkCount = 0;
     });
     widget.onPromoteRequest?.call();
 
+    if (!showPrompt) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || _hasPopped || _finishingFromVerifyResponse) return;
       _showInfo(
         dueToTimeout
             ? S.current.cf_autoVerifyTimeout
@@ -1536,7 +1566,13 @@ class _CfChallengePageState extends State<CfChallengePage> {
   void _finish(bool success) {
     if (_hasPopped) return;
     _hasPopped = true;
+    _presentation.finish();
     _timeoutTimer?.cancel();
+    _noChallengeCheckTimer?.cancel();
+    _loadStopFallbackTimer?.cancel();
+    _pageReadyFallbackTimer?.cancel();
+    _challengeRevealProbeGeneration++;
+    _revealStateWatchGeneration++;
     final handler = widget.onResult;
     if (handler != null) {
       handler(success);
@@ -2192,9 +2228,10 @@ document.readyState === 'complete' && document.body && document.body.innerHTML.t
             if (mounted) {
               setState(() => _isLoading = false);
             }
-            if (showUi) {
-              _showError(context.l10n.cf_loadFailed(error.description));
+            if (_isBackground) {
+              _promoteToForeground(showPrompt: false);
             }
+            _showError(context.l10n.cf_loadFailed(error.description));
           },
           onReceivedHttpError: (controller, request, errorResponse) {
             if (_hasPopped || _finishingFromVerifyResponse) return;
@@ -2591,7 +2628,7 @@ document.readyState === 'complete' && document.body && document.body.innerHTML.t
           ),
 
         // 悬浮验证胶囊：默认收起，点击展开，再次点击进入前台
-        if (_isBackground)
+        if (_presentation.showBackgroundIndicator)
           DraggableFloatingPill(
             initialTop: 100,
             onTap: _promoteToForeground,

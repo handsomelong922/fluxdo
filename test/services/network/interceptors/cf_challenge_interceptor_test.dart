@@ -36,12 +36,13 @@ void main() {
     await platform.reset();
   });
 
-  for (final (retryStatus, delayedSnapshot) in [
-    (200, false),
-    (403, false),
-    (200, true),
+  for (final (retryStatus, delayedSnapshot, isSilent) in [
+    (200, false, true),
+    (403, false, true),
+    (200, true, true),
+    (200, false, false),
   ]) {
-    testWidgets('入口无盾后以 API $retryStatus 判断恢复（快照延迟=$delayedSnapshot）', (
+    testWidgets('入口无盾后以 API $retryStatus 判断恢复（快照延迟=$delayedSnapshot，静默=$isSilent）', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -73,7 +74,7 @@ void main() {
       final request = dio
           .get<dynamic>(
             '/latest.json',
-            options: Options(extra: {'isSilent': true}),
+            options: Options(extra: {'isSilent': isSilent}),
           )
           .then<void>(
             (response) {
@@ -90,6 +91,13 @@ void main() {
         await tester.pump(const Duration(milliseconds: 10));
       }
       expect(platform.webView, isNotNull);
+      final verifyPage = tester.widget<CfChallengePage>(
+        find.byType(CfChallengePage),
+      );
+      expect(verifyPage.startInBackground, isTrue);
+      expect(verifyPage.quietBackground, isTrue);
+      expect(find.text(S.current.cf_securityVerifyTitle), findsNothing);
+      expect(find.text(S.current.cf_backgroundVerifying), findsNothing);
       platform.webView!.params.onWebViewCreated!(platform.controller.wrapped);
       Completer<Cookie?>? pendingValue;
       if (delayedSnapshot) {
