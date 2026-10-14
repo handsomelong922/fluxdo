@@ -160,25 +160,102 @@ void main() {
   );
 
   testWidgets(
-    'replacement error is not retried by a late verification callback',
+    'rendered replacement error is not retried by verification completion',
     (tester) => runCase(tester, () async {
-      var retries = 0;
+      var originalRetries = 0;
+      var replacementRetries = 0;
       Object error = CfChallengeException(autoVerifyDisabled: true);
+      VoidCallback retry = () => originalRetries++;
       late StateSetter rebuild;
       await mount(
         tester,
         StatefulBuilder(
           builder: (context, setState) {
             rebuild = setState;
-            return ErrorView(error: error, onRetry: () => retries++);
+            return ErrorView(error: error, onRetry: retry);
           },
         ),
       );
       await start(tester);
-      rebuild(() => error = StateError('newer request failed'));
+      final originalState = tester.state(find.byType(ErrorView));
+      final replacementError = StateError('newer request failed');
+      rebuild(() {
+        error = replacementError;
+        retry = () => replacementRetries++;
+      });
+      // setState only schedules a frame. Deliver the replacement before
+      // completing verification; a long pump elapses timers before building.
+      await tester.pump();
+      expect(
+        tester.widget<ErrorView>(find.byType(ErrorView)).error,
+        same(replacementError),
+      );
+      expect(tester.state(find.byType(ErrorView)), same(originalState));
       finish();
       await tester.pump(const Duration(seconds: 2));
-      expect(retries, 0);
+      expect(cf.isVerifying, isFalse);
+      expect(originalRetries, 0);
+      expect(replacementRetries, 0);
+    }),
+  );
+
+  testWidgets(
+    'replacement during cookie readiness is not retried by late success',
+    (tester) => runCase(tester, () async {
+      var originalRetries = 0;
+      var replacementRetries = 0;
+      Object error = CfChallengeException(autoVerifyDisabled: true);
+      VoidCallback retry = () => originalRetries++;
+      late StateSetter rebuild;
+      await mount(
+        tester,
+        StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return ErrorView(error: error, onRetry: retry);
+          },
+        ),
+      );
+      await start(tester);
+      final originalState = tester.state(find.byType(ErrorView));
+      final snapshot = Completer<Cookie?>();
+      pendingSnapshots.add(snapshot);
+      platform.cookies.readValue = (_) => snapshot.future;
+      platform.cookies.values = [cfTestCookie('verified')];
+      finish();
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.byType(CfChallengePage), findsNothing);
+      expect(
+        cf.isVerifying,
+        isTrue,
+        reason: 'successful page teardown still waits for its Cookie snapshot',
+      );
+      expect(snapshot.isCompleted, isFalse);
+      expect(originalRetries, 0);
+
+      final replacementError = StateError('request replaced while syncing');
+      rebuild(() {
+        error = replacementError;
+        retry = () => replacementRetries++;
+      });
+      await tester.pump();
+      expect(
+        tester.widget<ErrorView>(find.byType(ErrorView)).error,
+        same(replacementError),
+      );
+      expect(tester.state(find.byType(ErrorView)), same(originalState));
+      snapshot.complete(cfTestCookie('verified'));
+      for (var i = 0; i < 30 && cf.isVerifying; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(
+        cf.isVerifying,
+        isFalse,
+        reason: 'controlled snapshot completion must release readiness',
+      );
+      expect(await CookieJarService().getCfClearance(), 'verified');
+      expect(originalRetries, 0);
+      expect(replacementRetries, 0);
     }),
   );
 
