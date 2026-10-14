@@ -7,6 +7,48 @@ import 'package:fluxdo/services/network/cookie/app_cookie_manager.dart';
 import 'package:fluxdo/services/network/cookie/cookie_jar_service.dart';
 
 void main() {
+  group('AppCookieManager.onRequest', () {
+    test(
+      'managed requests replace all case variants with fresh jar cookies',
+      () async {
+        final jar = CookieJar();
+        final uri = Uri.parse('https://linux.do/latest.json');
+        await jar.saveFromResponse(uri, [
+          Cookie('cf_clearance', 'fresh')..path = '/',
+        ]);
+        final options = RequestOptions(
+          path: uri.toString(),
+          headers: {
+            'Cookie': 'old-one',
+            'COOKIE': 'old-two',
+            'cookie': 'old-three',
+          },
+        );
+        final handler = RequestInterceptorHandler();
+        await AppCookieManager(jar).onRequest(options, handler);
+        await handler.future;
+        final cookieHeaders = options.headers.entries
+            .where((entry) => entry.key.toLowerCase() == 'cookie')
+            .toList();
+        expect(cookieHeaders, hasLength(1));
+        expect(cookieHeaders.single.value, 'cf_clearance=fresh');
+      },
+    );
+
+    test('skipCookieManager preserves caller-managed cookie headers', () async {
+      final options = RequestOptions(
+        path: 'https://linux.do/latest.json',
+        headers: {'Cookie': 'caller-session', 'Other': 'untouched'},
+        extra: {AppCookieManager.skipCookieManagerExtraKey: true},
+      );
+      final before = Map<String, dynamic>.from(options.headers);
+      final handler = RequestInterceptorHandler();
+      await AppCookieManager(CookieJar()).onRequest(options, handler);
+      await handler.future;
+      expect(options.headers, before);
+    });
+  });
+
   group('AppCookieManager.loadCookies', () {
     test('忽略 RequestOptions 上残留的旧 Cookie 头，始终使用 CookieJar 最新值', () async {
       final jar = CookieJar();

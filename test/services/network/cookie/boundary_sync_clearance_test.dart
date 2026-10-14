@@ -3,6 +3,7 @@ import 'dart:io' as io;
 
 import 'package:enhanced_cookie_jar/enhanced_cookie_jar.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:fluxdo/services/cf_clearance_authority.dart';
 import 'package:fluxdo/services/network/cookie/boundary_sync_service.dart';
 import 'package:fluxdo/services/network/cookie/cookie_jar_service.dart';
@@ -136,6 +137,75 @@ void main() {
       },
       skip: viaCdp && !io.Platform.isWindows,
     );
+  }
+
+  test('空快照可以完成，真正的快照异常按调用方选择传播', () async {
+    await sync.syncFromWebView(
+      cookieNames: {'cf_clearance'},
+      propagateErrors: true,
+    );
+    expect(await jar.getCfClearance(), isNull);
+
+    platform.cookies.readSnapshot = () =>
+        Future.error(StateError('snapshot failed'));
+    await sync.syncFromWebView(cookieNames: {'cf_clearance'});
+    await expectLater(
+      sync.syncFromWebView(
+        cookieNames: {'cf_clearance'},
+        propagateErrors: true,
+      ),
+      throwsStateError,
+    );
+  });
+
+  for (final viaCdp in [false, true]) {
+    test('${viaCdp ? 'CDP' : 'CookieManager'} 旧轮次慢快照失效后不得覆盖新值', () async {
+      var current = true;
+      final snapshotStarted = Completer<void>();
+      final snapshot = Completer<List<Cookie>>();
+      platform.cookies.readSnapshot = () {
+        if (!snapshotStarted.isCompleted) snapshotStarted.complete();
+        return snapshot.future;
+      };
+      final pending = sync.syncFromWebView(
+        controller: viaCdp ? platform.controller.wrapped : null,
+        cookieNames: {'cf_clearance'},
+        trusted: true,
+        acceptValues: {'cf_clearance': 'old-round'},
+        shouldCommit: () => current,
+        propagateErrors: true,
+      );
+      await snapshotStarted.future;
+      current = false;
+      await seed('new-round');
+      snapshot.complete([cfTestCookie('old-round')]);
+      await pending;
+      expect(await jar.getCfClearance(), 'new-round');
+    }, skip: viaCdp && !io.Platform.isWindows);
+
+    test('${viaCdp ? 'CDP' : 'CookieManager'} 等待在位值判定后再次检查轮次', () async {
+      var current = true;
+      final authorityStarted = Completer<void>();
+      final incumbent = Completer<CanonicalCookie?>();
+      CfClearanceAuthority.instance.debugCookieReader = () {
+        if (!authorityStarted.isCompleted) authorityStarted.complete();
+        return incumbent.future;
+      };
+      platform.cookies.values = [cfTestCookie('old-round')];
+      final pending = sync.syncFromWebView(
+        controller: viaCdp ? platform.controller.wrapped : null,
+        cookieNames: {'cf_clearance'},
+        trusted: true,
+        acceptValues: {'cf_clearance': 'old-round'},
+        shouldCommit: () => current,
+      );
+      await authorityStarted.future;
+      current = false;
+      await seed('new-round');
+      incumbent.complete(null);
+      await pending;
+      expect(await jar.getCfClearance(), 'new-round');
+    }, skip: viaCdp && !io.Platform.isWindows);
   }
 
   test('Windows CDP 快路径也保护已验证值', () async {

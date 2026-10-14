@@ -419,20 +419,35 @@ class BrowserTrustCoordinator {
 
     final cf = CfChallengeService();
     var gotClearance = false;
+    var recoveryRound = cf.verifyRound;
 
     final resolvedAt = cf.clearanceResolvedAt.value;
     if (resolvedAt != null && resolvedAt.isAfter(cycleStartAt)) {
       // Dio 侧在本周期内已经把 cf_clearance 重新拿到,直接重跑即可。
       gotClearance = true;
     } else if (cf.inProgressNotifier.value) {
-      // Dio 侧(或其它入口)正在验证 → 等它广播 clearance 解决,不重复弹验证。
-      gotClearance = await _awaitClearanceResolved(cf, after: cycleStartAt);
+      // 复用当前轮次的结果、Cookie 同步与析构；不再用独立的 12 秒事件
+      // 等待截断后台宽限，也不重复启动或提升验证。服务等待本身有上限。
+      gotClearance =
+          await cf.waitForActiveVerification(expectedRound: recoveryRound) ==
+          true;
     } else if (cf.autoVerifyEnabled && !cf.isInCooldown) {
       // 没有进行中的验证 → coordinator 主动发起(showManualVerify 内部会复用任何
       // 期间出现的进行中验证)。
       final ok = await cf.showAutomaticVerify(_navigatorContext);
-      gotClearance = ok == true;
+      recoveryRound = cf.verifyRound;
+      // 页面结果可能早于快照/析构，也可能等调用方恢复时清理已经失败结束。
+      if (ok == true) {
+        gotClearance =
+            await cf.waitForActiveVerification(
+              includeCompleted: true,
+              expectedRound: recoveryRound,
+            ) ==
+            true;
+      }
     }
+
+    if (cf.verifyRound != recoveryRound || cf.isVerifying) gotClearance = false;
 
     if (!gotClearance) {
       _log(
@@ -446,10 +461,8 @@ class BrowserTrustCoordinator {
       return blocked;
     }
 
+    // 上面的 readiness 已包含物理析构；不能再追随后来开始的新轮次。
     _lastClearanceRejectedAt = null;
-    // 验证结果会早于 Windows WebView2 Controller 的真实析构完成。
-    // 等 CF teardown gate（内部含 1.2 秒冷却）后才能创建 Session WebView。
-    await cf.waitForManualTeardown();
     _log('CF clearance obtained, force re-run bootstrap reason=$reason');
     final retry = await WebViewSessionCookieRefreshService.instance
         .ensureSynced(reason: '$reason:cf_recover', force: true);
@@ -464,32 +477,6 @@ class BrowserTrustCoordinator {
     );
     // 即使重跑仍被 CF 挡下也直接返回,不再递归(本周期只恢复一次)。
     return retry;
-  }
-
-  /// 等待 [CfChallengeService.clearanceResolvedAt] 出现晚于 [after] 的新值,
-  /// 表示 cf_clearance 已被(Dio 侧或并发的手动验证)重新拿到。带超时兜底。
-  Future<bool> _awaitClearanceResolved(
-    CfChallengeService cf, {
-    required DateTime after,
-    Duration timeout = const Duration(seconds: 12),
-  }) async {
-    final current = cf.clearanceResolvedAt.value;
-    if (current != null && current.isAfter(after)) return true;
-
-    final completer = Completer<bool>();
-    void listener() {
-      final v = cf.clearanceResolvedAt.value;
-      if (v != null && v.isAfter(after) && !completer.isCompleted) {
-        completer.complete(true);
-      }
-    }
-
-    cf.clearanceResolvedAt.addListener(listener);
-    try {
-      return await completer.future.timeout(timeout, onTimeout: () => false);
-    } finally {
-      cf.clearanceResolvedAt.removeListener(listener);
-    }
   }
 
   void _completeRequestGate(Completer<bool>? gate, bool ready) {

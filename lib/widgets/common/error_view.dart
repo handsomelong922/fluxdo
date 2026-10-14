@@ -14,7 +14,7 @@ import '../../utils/error_utils.dart';
 
 /// 通用错误页面组件
 /// 显示语义化的错误提示，并提供查看详情和重试功能
-class ErrorView extends StatelessWidget {
+class ErrorView extends StatefulWidget {
   const ErrorView({
     super.key,
     required this.error,
@@ -52,10 +52,17 @@ class ErrorView extends StatelessWidget {
   final bool showDetails;
 
   @override
+  State<ErrorView> createState() => _ErrorViewState();
+}
+
+class _ErrorViewState extends State<ErrorView> {
+  bool _verifying = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final errorInfo = ErrorUtils.getErrorInfo(error);
-    final isCfChallengeError = _isCfChallengeError(error);
+    final errorInfo = ErrorUtils.getErrorInfo(widget.error);
+    final isCfChallengeError = _isCfChallengeError(widget.error);
 
     return Center(
       child: SingleChildScrollView(
@@ -65,10 +72,10 @@ class ErrorView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _ErrorIconBadge(icon: icon ?? errorInfo.icon),
+              _ErrorIconBadge(icon: widget.icon ?? errorInfo.icon),
               const SizedBox(height: 24),
               Text(
-                title ?? errorInfo.title,
+                widget.title ?? errorInfo.title,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w600,
@@ -111,14 +118,14 @@ class ErrorView extends StatelessWidget {
       widgets.add(
         _PrimaryButton(
           label: context.l10n.cf_manualVerifyAction,
-          onPressed: () => _runManualCfVerify(context),
+          onPressed: _verifying ? null : () => _runManualCfVerify(context),
         ),
       );
-    } else if (onRetry != null) {
+    } else if (widget.onRetry != null) {
       widgets.add(
         _PrimaryButton(
-          label: retryLabel ?? context.l10n.common_retry,
-          onPressed: onRetry!,
+          label: widget.retryLabel ?? context.l10n.common_retry,
+          onPressed: _verifying ? null : _retry,
         ),
       );
     }
@@ -127,11 +134,11 @@ class ErrorView extends StatelessWidget {
     // CF 验证 + 重试 / 网络设置 / 查看详情都收纳到这里，
     // 形成"一个主按钮 + 一排快捷入口"的清爽布局。
     final helperActions = <Widget>[
-      if (isCfChallengeError && onRetry != null)
+      if (isCfChallengeError && widget.onRetry != null)
         _HelperAction(
           icon: Symbols.refresh_rounded,
           label: context.l10n.common_retry,
-          onPressed: onRetry!,
+          onPressed: _verifying ? null : _retry,
         ),
       if (errorInfo.isNetworkError)
         _HelperAction(
@@ -139,7 +146,7 @@ class ErrorView extends StatelessWidget {
           label: context.l10n.error_openNetworkSettings,
           onPressed: () => _openNetworkSettings(context),
         ),
-      if (showDetails)
+      if (widget.showDetails)
         _HelperAction(
           icon: Symbols.info_rounded,
           label: context.l10n.common_viewDetails,
@@ -164,41 +171,63 @@ class ErrorView extends StatelessWidget {
 
   bool _isCfChallengeError(Object error) {
     if (error is CfChallengeException) return true;
-    if (error is DioException && error.error is CfChallengeException) {
-      return true;
+    if (error is DioException) {
+      return error.error is CfChallengeException ||
+          CfChallengeService.isCfChallengeResponse(error.response);
     }
     return false;
   }
 
+  void _retry() {
+    // Also guard callbacks captured before the disabled state was rebuilt.
+    if (_verifying) return;
+    widget.onRetry?.call();
+  }
+
   Future<void> _runManualCfVerify(BuildContext context) async {
-    final result = await CfChallengeService().showManualVerifyNow(
-      context,
-      true,
-    );
-    if (!context.mounted) return;
+    if (_verifying) return;
+    final requestedError = widget.error;
+    setState(() => _verifying = true);
+    final service = CfChallengeService();
+    try {
+      final result = await service.showManualVerifyNow(context, true);
+      if (!mounted || !identical(widget.error, requestedError)) return;
 
-    if (result == true) {
-      ToastService.showSuccess(S.current.cfVerify_success);
-      onRetry?.call();
-      return;
+      if (result == true) {
+        final round = service.verifyRound;
+        final ready = await service.waitForActiveVerification(
+          includeCompleted: true,
+          expectedRound: round,
+        );
+        if (!mounted || !identical(widget.error, requestedError)) return;
+        if (ready != true ||
+            service.isVerifying ||
+            service.verifyRound != round) {
+          ToastService.showError(S.current.cf_verifyIncomplete);
+          return;
+        }
+        ToastService.showSuccess(S.current.cfVerify_success);
+        widget.onRetry?.call();
+        return;
+      }
+
+      ToastService.showError(
+        result == false
+            ? S.current.cf_verifyIncomplete
+            : S.current.cf_cannotOpenVerifyPage,
+      );
+    } finally {
+      if (mounted) setState(() => _verifying = false);
     }
-
-    if (result == false) {
-      ToastService.showError(S.current.cf_verifyIncomplete);
-      return;
-    }
-
-    ToastService.showError(S.current.cf_cannotOpenVerifyPage);
   }
 
   void _openNetworkSettings(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const NetworkSettingsPage()));
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const NetworkSettingsPage()));
   }
 
   void _showErrorDetails(BuildContext context) {
-    final details = ErrorUtils.getErrorDetails(error, stackTrace);
+    final details = ErrorUtils.getErrorDetails(widget.error, widget.stackTrace);
 
     showAppBottomSheet(
       context: context,
@@ -432,7 +461,7 @@ class _PrimaryButton extends StatelessWidget {
   const _PrimaryButton({required this.label, required this.onPressed});
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -467,7 +496,7 @@ class _HelperAction extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {

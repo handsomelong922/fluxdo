@@ -10,7 +10,7 @@ class CfVerificationPresentation {
     this.quietBackground = false,
   }) : _isBackground = startInBackground;
 
-  static const backgroundGracePeriod = Duration(seconds: 10);
+  static const backgroundGracePeriod = Duration(seconds: 40);
 
   final bool quietBackground;
   bool _isBackground;

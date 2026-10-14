@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -65,7 +66,6 @@ class CfChallengeInterceptor extends Interceptor {
 
   Future<void> _doSync() async {
     try {
-      await CfChallengeService().waitForCompletionCookieSync();
       // 已有值时直接复用；没有时只同步一次当前快照。验证入口可能直接
       // 放行而不签发 Cookie，不能等待续期，也不能因此拒绝原请求。
       final clearance = await cookieJarService.getCfClearance();
@@ -213,6 +213,32 @@ class CfChallengeInterceptor extends Interceptor {
       final result = await cfService.showAutomaticVerify();
 
       if (result == true) {
+        // 页面结束早于 Cookie 快照和原生 WebView 析构。原请求也必须
+        // 等这一轮完全可用，再沿已有的一次重放路径发送。
+        final cancelToken = err.requestOptions.cancelToken;
+        final verificationRound = cfService.verifyRound;
+        final ready = await Future.any<bool?>([
+          cfService.waitForActiveVerification(
+            includeCompleted: true,
+            expectedRound: verificationRound,
+          ),
+          if (cancelToken != null) cancelToken.whenCancel.then((_) => false),
+        ]);
+        if (cancelToken?.isCancelled ?? false) {
+          return handler.reject(
+            DioException.requestCancelled(
+              requestOptions: err.requestOptions,
+              reason: '请求在 CF 验证完成前已被取消',
+            ),
+          );
+        }
+        if (ready != true ||
+            cfService.isVerifying ||
+            cfService.verifyRound != verificationRound) {
+          return handler.reject(
+            cfException(CfChallengeException(cause: '验证已结束，但请求恢复尚未就绪')),
+          );
+        }
         await _syncCookiesOnce();
 
         // 各自重试自己的原始请求（每个请求 URL/参数不同，无法共享）
@@ -239,6 +265,22 @@ class CfChallengeInterceptor extends Interceptor {
             '[Dio] Retry cookies: ${hasCfClearance ? "✓ 包含 cf_clearance" : "⚠️ 缺少 cf_clearance"}, '
             'names=[$cookieNames], total=${cookieHeader?.length ?? 0} chars',
           );
+          if (retryOptions.cancelToken?.isCancelled ?? false) {
+            return handler.reject(
+              DioException.requestCancelled(
+                requestOptions: retryOptions,
+                reason: '请求在 CF 验证后重试前已被取消',
+              ),
+            );
+          }
+          if (cfService.isVerifying ||
+              cfService.verifyRound != verificationRound) {
+            return handler.reject(
+              cfException(
+                CfChallengeException(silentBlockedDuringChallenge: true),
+              ),
+            );
+          }
           final response = await dio.fetch(retryOptions);
           CfChallengeLogger.logInterceptorRetry(
             url: requestUrl,
@@ -272,6 +314,18 @@ class CfChallengeInterceptor extends Interceptor {
               // 真正改走浏览器网络栈的开关。
               retryOptions.extra.remove(FluxRequestKeys.skipWebViewAdapter);
               try {
+                if (retryOptions.cancelToken?.isCancelled ?? false) {
+                  throw DioException.requestCancelled(
+                    requestOptions: retryOptions,
+                    reason: '请求在兼容重试前已被取消',
+                  );
+                }
+                if (cfService.isVerifying ||
+                    cfService.verifyRound != verificationRound) {
+                  throw cfException(
+                    CfChallengeException(silentBlockedDuringChallenge: true),
+                  );
+                }
                 final fallbackResponse = await dio.fetch(retryOptions);
                 CfChallengeService.showGlobalMessage(
                   S.current.cf_sessionCompatEnabled,

@@ -877,10 +877,13 @@ class CookieJarService {
     Set<String>? excludeCookieNames,
     Map<String, String>? acceptValues,
     bool trusted = false,
+    bool Function()? shouldCommit,
+    bool propagateErrors = false,
     required Future<bool> Function(String name, String value) shouldSyncCookie,
   }) async {
     if (!io.Platform.isWindows) return 0;
     if (!_initialized) await initialize();
+    if (shouldCommit != null && !shouldCommit()) return 0;
 
     try {
       final uri =
@@ -890,6 +893,7 @@ class CookieJarService {
         controller,
         currentUrl: currentUrl,
       );
+      if (shouldCommit != null && !shouldCommit()) return 0;
       final filtered = <Map<String, dynamic>>[];
       for (final raw in rawCookies) {
         final name = raw['name']?.toString();
@@ -906,11 +910,13 @@ class CookieJarService {
         if (!await shouldSyncCookie(name, value)) {
           continue;
         }
+        if (shouldCommit != null && !shouldCommit()) return 0;
         filtered.add(raw);
       }
 
       if (filtered.isEmpty) return 0;
 
+      if (shouldCommit != null && !shouldCommit()) return 0;
       final jar = _cookieJar;
       if (jar is EnhancedPersistCookieJar) {
         final remaining = [...filtered];
@@ -929,6 +935,7 @@ class CookieJarService {
             remaining.removeWhere((raw) => raw['name'] == 'cf_clearance');
           }
         }
+        if (shouldCommit != null && !shouldCommit()) return 0;
         await jar.saveFromCdpCookies(uri, remaining, trusted: trusted);
         final authNames = filtered
             .map((raw) => raw['name']?.toString())
@@ -979,6 +986,7 @@ class CookieJarService {
       }
 
       if (toSave.isEmpty) return 0;
+      if (shouldCommit != null && !shouldCommit()) return 0;
       await _cookieJar!.saveFromResponse(uri, toSave);
       final authNames = toSave
           .map((cookie) => cookie.name)
@@ -993,6 +1001,7 @@ class CookieJarService {
       return toSave.length;
     } catch (e) {
       debugPrint('[CookieJar][Windows] Failed to sync live cookies: $e');
+      if (propagateErrors) rethrow;
       return 0;
     }
   }

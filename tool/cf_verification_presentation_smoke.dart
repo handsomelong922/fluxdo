@@ -17,7 +17,7 @@ final cfVerificationPresentationSmokeTests = <String, void Function()>{
       });
       _check(presentation.isBackground, '应先在后台');
       _check(!presentation.showBackgroundIndicator, '不能展示初始胶囊');
-      _check(timers.single.duration == const Duration(seconds: 10), '宽限为十秒');
+      _check(timers.single.duration == const Duration(seconds: 40), '宽限为四十秒');
       timers.single.fire();
       _check(promotions == 1 && !presentation.isBackground, '截止后应请求前台');
       _check(!presentation.promote(), '重复切前台应无效');

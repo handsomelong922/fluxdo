@@ -106,6 +106,8 @@ class BoundarySyncService {
   /// [acceptValues] cookie 名 → 只接受的值；用于 challenge 场景按确认的 fresh 值
   ///   过滤，排除 WebView 中可能残留的旧变体。与 trusted 同用时，确认的
   ///   cf_clearance 可替换验证期间被普通同步抢先写回的副本。
+  /// [shouldCommit] 可在读取/判定期间失效；只让当前恢复轮次提交快照。
+  /// [propagateErrors] 用于需区分“空快照”与实际同步失败的恢复调用方。
   Future<void> syncFromWebView({
     String? currentUrl,
     InAppWebViewController? controller,
@@ -115,6 +117,8 @@ class BoundarySyncService {
     int? requestGeneration,
     bool trusted = false,
     Map<String, String>? acceptValues,
+    bool Function()? shouldCommit,
+    bool propagateErrors = false,
   }) => _syncLock.synchronized(
     () => _syncFromWebView(
       currentUrl: currentUrl,
@@ -125,6 +129,8 @@ class BoundarySyncService {
       requestGeneration: requestGeneration,
       trusted: trusted,
       acceptValues: acceptValues,
+      shouldCommit: shouldCommit,
+      propagateErrors: propagateErrors,
     ),
   );
 
@@ -137,12 +143,15 @@ class BoundarySyncService {
     int? requestGeneration,
     bool trusted = false,
     Map<String, String>? acceptValues,
+    bool Function()? shouldCommit,
+    bool propagateErrors = false,
   }) async {
     final url = currentUrl ?? AppConstants.baseUrl;
     final uri = Uri.parse(url);
     final host = uri.host;
 
     try {
+      if (shouldCommit != null && !shouldCommit()) return;
       if (requestGeneration != null &&
           !AuthSession().isValid(requestGeneration)) {
         debugPrint(
@@ -160,6 +169,8 @@ class BoundarySyncService {
           excludeCookieNames: excludeCookieNames,
           trusted: trusted,
           acceptValues: acceptValues,
+          shouldCommit: shouldCommit,
+          propagateErrors: propagateErrors,
           shouldSyncCookie: (name, value) => _shouldSyncCookie(
             name,
             value,
@@ -168,6 +179,7 @@ class BoundarySyncService {
             acceptValues: acceptValues,
           ),
         );
+        if (shouldCommit != null && !shouldCommit()) return;
         if (synced > 0) {
           final syncedDetails = await _jar.getCookieDiagnosticsForRequest(
             uri,
@@ -190,6 +202,7 @@ class BoundarySyncService {
         _jar.webViewCookieManager,
         url,
       );
+      if (shouldCommit != null && !shouldCommit()) return;
       final cookiesToPersist = <Cookie>[];
       final cookieGroups = <String, List<Cookie>>{};
 
@@ -261,6 +274,8 @@ class BoundarySyncService {
         )) {
           continue;
         }
+
+        if (shouldCommit != null && !shouldCommit()) return;
 
         // domain 处理：优先用平台返回值，旧 Android 兜底
         String? domain;
@@ -358,6 +373,7 @@ class BoundarySyncService {
       }
 
       if (!_jar.isInitialized) await _jar.initialize();
+      if (shouldCommit != null && !shouldCommit()) return;
       final jar = _jar.cookieJar;
       if (trusted && jar is EnhancedPersistCookieJar) {
         final remaining = [...toSave];
@@ -373,6 +389,7 @@ class BoundarySyncService {
             remaining.removeWhere((cookie) => cookie.name == 'cf_clearance');
           }
         }
+        if (shouldCommit != null && !shouldCommit()) return;
         await jar.saveFromResponseTrusted(uri, remaining, trusted: true);
       } else {
         await jar.saveFromResponse(uri, toSave);
@@ -406,6 +423,7 @@ class BoundarySyncService {
       );
     } catch (e) {
       CookieLogger.error(operation: 'boundary_sync', error: e.toString());
+      if (propagateErrors) rethrow;
     }
   }
 

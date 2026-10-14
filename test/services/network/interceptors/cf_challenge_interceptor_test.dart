@@ -36,13 +36,14 @@ void main() {
     await platform.reset();
   });
 
-  for (final (retryStatus, delayedSnapshot, isSilent) in [
-    (200, false, true),
-    (403, false, true),
-    (200, true, true),
-    (200, false, false),
+  for (final (retryStatus, delayedSnapshot, isSilent, cancelBeforeReady) in [
+    (200, false, true, false),
+    (403, false, true, false),
+    (200, true, true, false),
+    (200, false, false, false),
+    (200, false, true, true),
   ]) {
-    testWidgets('入口无盾后以 API $retryStatus 判断恢复（快照延迟=$delayedSnapshot，静默=$isSilent）', (
+    testWidgets('入口无盾后以 API $retryStatus 判断恢复（快照延迟=$delayedSnapshot，静默=$isSilent，取消=$cancelBeforeReady）', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -71,9 +72,11 @@ void main() {
       Response<dynamic>? result;
       Object? failure;
       var completed = false;
+      final cancelToken = CancelToken();
       final request = dio
           .get<dynamic>(
             '/latest.json',
+            cancelToken: cancelToken,
             options: Options(extra: {'isSilent': isSilent}),
           )
           .then<void>(
@@ -129,13 +132,17 @@ void main() {
         expect(adapter.requests, 1, reason: '原生重试需复用当前快照，不能抢发旧 jar');
         pendingValue.complete(cfTestCookie('current-webview-value'));
       }
+      if (cancelBeforeReady) cancelToken.cancel('left page');
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(adapter.requests, 1, reason: '页面结束后仍需等待原生析构闸门');
+      await tester.pump(const Duration(milliseconds: 1200));
       for (var i = 0; i < 20 && !completed; i++) {
         await tester.pump(const Duration(milliseconds: 10));
       }
 
-      expect(completed, isTrue, reason: '不能再等待 1.5 秒或轮询新 Cookie 才重试');
+      expect(completed, isTrue, reason: 'Cookie 快照和析构完成后立即重试，不轮询新 Cookie');
       await request;
-      expect(adapter.requests, 2);
+      expect(adapter.requests, cancelBeforeReady ? 1 : 2);
       expect(
         await jar.getCfClearance(),
         delayedSnapshot ? 'current-webview-value' : isNull,
@@ -146,7 +153,12 @@ void main() {
           contains('cf_clearance=current-webview-value'),
         );
       }
-      if (retryStatus == 200) {
+      if (cancelBeforeReady) {
+        expect(result, isNull);
+        expect(failure, isA<DioException>());
+        expect((failure as DioException).type, DioExceptionType.cancel);
+        expect(cfService.isInCooldown, isFalse);
+      } else if (retryStatus == 200) {
         expect(result?.statusCode, 200);
         expect(failure, isNull);
         expect(cfService.consecutiveFailures, 0);

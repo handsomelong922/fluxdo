@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import '../../browser_trust_coordinator.dart';
 import '../../cf_challenge_service.dart';
 import '../exceptions/api_exception.dart';
+import '../cf_read_request_gate.dart';
 import '../cookie/cookie_jar_service.dart';
 import '../flux_request_spec.dart';
 import '../request_scheduler_config.dart';
@@ -164,25 +165,35 @@ class RequestSchedulerInterceptor extends Interceptor {
     return _Priority.normal;
   }
 
-  @override
-  void onRequest(
+  bool _blockedByCf(RequestOptions options) =>
+      !options.spec.skipCfBlock && CfChallengeService().isVerifying;
+
+  Future<bool> _waitForCfIfNeeded(
     RequestOptions options,
     RequestInterceptorHandler handler,
+    CfReadRequestGate gate,
   ) async {
-    // 内部请求（如 CSRF 刷新）跳过调度，避免与调用方死锁
-    if (options.spec.skipScheduler) {
-      handler.next(options);
-      return;
+    final cf = CfChallengeService();
+    final result = await gate.wait(
+      method: options.method,
+      isSilent: options.spec.isSilent,
+      skipCfBlock: options.spec.skipCfBlock,
+      isVerifying: () => cf.isVerifying,
+      waitForVerification: cf.waitForActiveVerification,
+      whenCancelled: options.cancelToken?.whenCancel.then<void>((_) {}),
+    );
+    if (result == CfReadGateResult.cancelled ||
+        (options.cancelToken?.isCancelled ?? false)) {
+      handler.reject(
+        DioException.requestCancelled(
+          requestOptions: options,
+          reason: '请求在等待 CF 验证时被取消',
+        ),
+        true,
+      );
+      return false;
     }
-
-    // CF 验证进行中时冻结所有业务请求，模拟"网页 CF 403 直接停滞"的语义，
-    // 避免挑战完成瞬间一次性 flush 心跳/poll/timings 触发服务端 429，
-    // 同时也能防止用户在验证弹窗期间触发的请求带着旧 cf_clearance 又判 403
-    // 进入挑战循环。
-    //
-    // 仅 CfChallengeInterceptor 内部 retry（标记 skipCfBlock=true）能绕过。
-    if (!options.spec.skipCfBlock &&
-        CfChallengeService().isVerifying) {
+    if (result == CfReadGateResult.blocked) {
       handler.reject(
         DioException(
           requestOptions: options,
@@ -191,77 +202,115 @@ class RequestSchedulerInterceptor extends Interceptor {
         ),
         true,
       );
-      return;
+      return false;
     }
-
-    await _waitForBrowserTrustIfNeeded(options);
-
-    final state = _stateFor(options);
-    final priority = _inferPriority(options);
-    final maxConcurrent = RequestSchedulerConfig.maxConcurrent;
-
-    // cancelToken 已取消，直接拒绝
-    if (options.cancelToken?.isCancelled ?? false) {
-      handler.reject(
-        DioException.requestCancelled(
-          requestOptions: options,
-          reason: '请求在排队前已被取消',
-        ),
-        true,
-      );
-      return;
+    if (result == CfReadGateResult.resumed) {
+      // 已消费一轮验证机会。发送这条尚未发出的读请求，但不因它再次
+      // 开启验证；真正被盾拦下的原请求仍由 CF interceptor 管一次重放。
+      options.extra[FluxRequestKeys.skipCfChallenge] = true;
+      // 本拦截器在 AppCookieManager 前面，解除等待后由它读取最新 jar；
+      // 不在调度器改调用方凭证，因为有些客户端并未安装 CookieManager。
     }
+    return true;
+  }
 
-    // 有空闲槽位且速率限制允许 → 直接放行
-    if (state.running < maxConcurrent && state.rateLimiter.canProceed()) {
-      state.running++;
-      state.rateLimiter.record();
-      options.extra['_schedulerCounted'] = true;
+  @override
+  void onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
+    // 内部请求（如 CSRF 刷新）跳过调度，避免与调用方死锁。
+    if (options.spec.skipScheduler) {
       handler.next(options);
       return;
     }
 
-    // 排队等待
-    final entry = _RequestEntry(
-      options: options,
-      handler: handler,
-      priority: priority,
-      sequence: state.sequence++,
-    );
-    state.queue.add(entry);
-
-    // 注册 cancelToken 取消回调
-    options.cancelToken?.whenCancel.then((_) {
-      if (!entry.completer.isCompleted) {
-        entry.isCancelled = true;
-        entry.completer.complete();
-      }
-    });
-
-    debugPrint(
-      '[Scheduler] 排队: ${options.method} ${options.path} '
-      'host=${options.uri.host} 优先级=${priority.name} '
-      '队列长度=${state.queue.length} 并发=${state.running}',
-    );
-
-    // 入队也必须驱动调度：速率窗口满但 running=0 时，不会再有
-    // 响应触发 _release；由此安排窗口到期的 Timer，避免永久挂起。
-    _scheduleNext(state);
-    await entry.completer.future;
-
-    // 被唤醒后检查是否已取消
-    if (entry.isCancelled) {
-      handler.reject(
-        DioException.requestCancelled(
-          requestOptions: options,
-          reason: '请求在排队中被取消',
-        ),
-        true,
-      );
+    final cfGate = CfReadRequestGate();
+    if (_blockedByCf(options) &&
+        !await _waitForCfIfNeeded(options, handler, cfGate)) {
       return;
     }
+    await _waitForBrowserTrustIfNeeded(options);
 
-    handler.next(options);
+    // 验证也可能在信任门等待或普通调度队列等待期间开始。每次实际
+    // 准入都检查，且复用同一请求的两分钟总预算，不递归开启验证/重放。
+    while (true) {
+      if (_blockedByCf(options)) {
+        if (!await _waitForCfIfNeeded(options, handler, cfGate)) return;
+        // readiness 返回后的微任务间隙可能开始了新一轮验证。
+        if (_blockedByCf(options)) continue;
+      }
+
+      final state = _stateFor(options);
+      final priority = _inferPriority(options);
+      final maxConcurrent = RequestSchedulerConfig.maxConcurrent;
+      if (options.cancelToken?.isCancelled ?? false) {
+        handler.reject(
+          DioException.requestCancelled(
+            requestOptions: options,
+            reason: '请求在排队前已被取消',
+          ),
+          true,
+        );
+        return;
+      }
+
+      if (state.running < maxConcurrent && state.rateLimiter.canProceed()) {
+        state.running++;
+        state.rateLimiter.record();
+        options.extra['_schedulerCounted'] = true;
+        handler.next(options);
+        return;
+      }
+
+      final entry = _RequestEntry(
+        options: options,
+        handler: handler,
+        priority: priority,
+        sequence: state.sequence++,
+      );
+      state.queue.add(entry);
+      options.cancelToken?.whenCancel.then((_) {
+        if (!entry.completer.isCompleted) {
+          entry.isCancelled = true;
+          entry.completer.complete();
+        }
+      });
+
+      debugPrint(
+        '[Scheduler] 排队: ${options.method} ${options.path} '
+        'host=${options.uri.host} 优先级=${priority.name} '
+        '队列长度=${state.queue.length} 并发=${state.running}',
+      );
+      _scheduleNext(state);
+      await entry.completer.future;
+
+      if (entry.isCancelled || (options.cancelToken?.isCancelled ?? false)) {
+        // 取消也可能恰好发生在队列已预留槽位、请求尚未发出之间。
+        if (options.extra.remove('_schedulerCounted') == true) {
+          _release(options);
+        }
+        handler.reject(
+          DioException.requestCancelled(
+            requestOptions: options,
+            reason: '请求在排队中被取消',
+          ),
+          true,
+        );
+        return;
+      }
+
+      if (_blockedByCf(options)) {
+        // 不能占着并发槽位等待验证，否则原请求的验证后重放可能排在
+        // 我们后面。先释放，再回到同一个有界读闸门。
+        if (options.extra.remove('_schedulerCounted') == true) {
+          _release(options);
+        }
+        continue;
+      }
+      handler.next(options);
+      return;
+    }
   }
 
   @override

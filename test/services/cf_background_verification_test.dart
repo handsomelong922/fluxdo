@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io' as io;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -6,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/l10n/s.dart';
 import 'package:fluxdo/providers/theme_provider.dart';
 import 'package:fluxdo/services/cf_challenge_service.dart';
+import 'package:fluxdo/services/network/cookie/cookie_jar_service.dart';
 import 'package:fluxdo/services/local_notification_service.dart'
     show navigatorKey;
 import 'package:fluxdo/widgets/draggable_floating_pill.dart';
@@ -81,7 +85,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     }
     await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(seconds: 11));
+    await tester.pump(const Duration(seconds: 41));
     expect(tester.takeException(), isNull);
   }
 
@@ -106,12 +110,12 @@ void main() {
     );
   }
 
-  testWidgets('没有任何 WebView 回调也在十秒后展示，初始不显示胶囊', (tester) async {
+  testWidgets('没有任何 WebView 回调也在四十秒后展示，初始不显示胶囊', (tester) async {
     await mount(tester, createController: false);
     expect(find.byType(DraggableFloatingPill), findsNothing);
     expect(find.text(S.current.cf_securityVerifyTitle), findsNothing);
     final element = tester.element(find.byType(InAppWebView));
-    await tester.pump(const Duration(milliseconds: 9999));
+    await tester.pump(const Duration(milliseconds: 39999));
     expect(promotions, 0);
     await tester.pump(const Duration(milliseconds: 1));
     expect(promotions, 1);
@@ -121,7 +125,7 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('重复导航和页面就绪不会重置十秒宽限', (tester) async {
+  testWidgets('重复导航和页面就绪不会重置四十秒宽限', (tester) async {
     await mount(tester);
     platform.controller.documentHtml =
         '<html><body><div class="cf-turnstile"></div></body></html>';
@@ -133,6 +137,8 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
     loadStart();
     pageReady();
+    expect(promotions, 0);
+    await tester.pump(const Duration(seconds: 30));
     expect(promotions, 0);
     await tester.pump(const Duration(seconds: 1));
     expect(promotions, 1);
@@ -151,7 +157,7 @@ void main() {
     expect(promotions, 1);
     expect(find.text(S.current.cf_securityVerifyTitle), findsOneWidget);
     expect(results, isEmpty);
-    await tester.pump(const Duration(seconds: 11));
+    await tester.pump(const Duration(seconds: 41));
     expect(promotions, 1, reason: '加载错误提升后取消原截止计时器');
     await unmount(tester);
   });
@@ -165,21 +171,25 @@ void main() {
     );
     await tester.pump();
     expect(results, [true]);
-    await tester.pump(const Duration(seconds: 11));
+    await tester.pump(const Duration(seconds: 41));
     expect(promotions, 0);
     expect(find.text(S.current.cf_securityVerifyTitle), findsNothing);
     await unmount(tester);
   });
 
-  testWidgets('后台探测未确认完成时展示原面板，不直接返回验证失败', (tester) async {
+  testWidgets('后台探测未确认完成时保持安静，宽限到期才展示原面板', (tester) async {
     await mount(tester);
     // 现有探测按真实 DateTime 计时，在真实异步区等待它自己的八秒上限。
-    // Widget 的虚拟十秒截止没有前进，因此这里独立覆盖探测耗尽路径。
+    // Widget 的虚拟四十秒截止没有前进，因此这里独立覆盖探测耗尽路径。
     await tester.runAsync(() async {
       await (platform.controller.handlers['onChallengeNavigation']!(const [])
           as Future<void>);
     });
     await tester.pump();
+    expect(promotions, 0);
+    expect(results, isEmpty);
+    expect(find.text(S.current.cf_securityVerifyTitle), findsNothing);
+    await tester.pump(const Duration(seconds: 40));
     expect(promotions, 1);
     expect(results, isEmpty);
     expect(find.text(S.current.cf_securityVerifyTitle), findsOneWidget);
@@ -204,6 +214,11 @@ void main() {
     expect(find.text(S.current.cf_securityVerifyTitle), findsNothing);
     final element = tester.element(find.byType(InAppWebView));
 
+    var readyCompleted = false;
+    final ready = service.waitForActiveVerification().then((result) {
+      readyCompleted = true;
+      return result;
+    });
     final manual = service.showManualVerify();
     await tester.pump();
     expect(find.text(S.current.cf_securityVerifyTitle), findsOneWidget);
@@ -219,12 +234,191 @@ void main() {
     expect(await first, isTrue);
     expect(await second, isTrue);
     expect(await manual, isTrue);
+    expect(readyCompleted, isFalse, reason: '结果先返回，业务恢复仍需等待析构');
     // 清理服务的析构冷却、续期启动，以及前台提升提示的消失动画。
     await tester.pump(const Duration(seconds: 4));
     await tester.pump(const Duration(seconds: 1));
     expect(service.isVerifying, isFalse);
+    expect(await ready, isTrue);
     await unmount(tester);
     service.resetCooldown();
+  });
+
+  Future<Future<bool?> Function()> beginServiceVerification(
+    WidgetTester tester,
+  ) async {
+    final service = CfChallengeService();
+    service.resetCooldown();
+    service.autoVerifyEnabled = true;
+    final result = service.showAutomaticVerify();
+    for (var i = 0; i < 30 && platform.webView == null; i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    expect(platform.webView, isNotNull);
+    platform.webView!.params.onWebViewCreated!(platform.controller.wrapped);
+    return () => result;
+  }
+
+  void originReached() {
+    platform.webView!.params.onReceivedHttpError!(
+      platform.controller.wrapped,
+      WebResourceRequest(url: WebUri(verifyUrl), isForMainFrame: true),
+      WebResourceResponse(statusCode: 404),
+    );
+  }
+
+  testWidgets('空闲等待不会创建或展示验证', (tester) async {
+    await mount(tester, serviceHost: true);
+    expect(await CfChallengeService().waitForActiveVerification(), isNull);
+    expect(platform.webView, isNull);
+    expect(find.byType(CfChallengePage), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('四十秒内仍等待原轮次，调用方短超时不取消共享验证', (tester) async {
+    await mount(tester, serviceHost: true);
+    final result = await beginServiceVerification(tester);
+    final service = CfChallengeService();
+    final round = service.verifyRound;
+    final earlyWait = service.waitForActiveVerification(
+      timeout: const Duration(seconds: 12),
+    );
+    var readyCompleted = false;
+    final ready = service.waitForActiveVerification().then((value) {
+      readyCompleted = true;
+      return value;
+    });
+    await tester.pump(const Duration(seconds: 20));
+    expect(await earlyWait, isFalse);
+    expect(readyCompleted, isFalse);
+    expect(service.isVerifying, isTrue);
+    expect(service.verifyRound, round);
+    expect(find.text(S.current.cf_securityVerifyTitle), findsNothing);
+    originReached();
+    await tester.pump();
+    expect(await result(), isTrue);
+    await tester.pump(const Duration(seconds: 2));
+    expect(await ready, isTrue);
+    expect(service.isVerifying, isFalse);
+    await unmount(tester);
+  });
+
+  testWidgets('原生析构后慢快照仍挡住后来等待者，快照完成自动恢复', (tester) async {
+    await mount(tester, serviceHost: true);
+    final result = await beginServiceVerification(tester);
+    final service = CfChallengeService();
+    final snapshot = Completer<List<Cookie>>();
+    platform.cookies.singleValue = 'fresh';
+    platform.cookies.readSnapshot = () => snapshot.future;
+    originReached();
+    await tester.pump();
+    expect(await result(), isTrue, reason: '原始页面结果不被慢快照拖住');
+    await tester.pump(const Duration(seconds: 2));
+    await service.waitForManualTeardown();
+    expect(find.byType(CfChallengePage), findsNothing);
+    expect(service.isVerifying, isTrue, reason: '慢快照期间保持业务恢复门');
+    var lateCompleted = false;
+    final late = service.waitForActiveVerification().then((value) {
+      lateCompleted = true;
+      return value;
+    });
+    await tester.pump();
+    expect(lateCompleted, isFalse);
+    snapshot.complete([cfTestCookie('fresh')]);
+    await tester.pump();
+    expect(await late, isTrue);
+    expect(await service.waitForActiveVerification(), isNull);
+    expect(
+      await service.waitForActiveVerification(includeCompleted: true),
+      isTrue,
+    );
+    expect(await CookieJarService().getCfClearance(), 'fresh');
+    expect(service.isVerifying, isFalse);
+    await unmount(tester);
+  });
+
+  testWidgets('快照异常关闭恢复门并返回 false，不制造异步未捕获错误', (tester) async {
+    await mount(tester, serviceHost: true);
+    final result = await beginServiceVerification(tester);
+    final service = CfChallengeService();
+    platform.cookies.singleValue = 'fresh';
+    platform.cookies.readSnapshot = () =>
+        Future.error(StateError('snapshot failed'));
+    final ready = service.waitForActiveVerification();
+    originReached();
+    await tester.pump();
+    expect(await result(), isTrue);
+    await tester.pump(const Duration(seconds: 2));
+    expect(await ready, isFalse);
+    expect(service.isVerifying, isFalse);
+    expect(await service.waitForActiveVerification(), isNull);
+    expect(
+      await service.waitForActiveVerification(includeCompleted: true),
+      isFalse,
+      reason: '页面通过但快照失败的结果不能在清理后丢失',
+    );
+    expect(tester.takeException(), isNull);
+    await unmount(tester);
+  });
+
+  testWidgets('卡住的快照两分钟后释放恢复门，迟到旧快照不覆盖新值', (tester) async {
+    await mount(tester, serviceHost: true);
+    final result = await beginServiceVerification(tester);
+    final service = CfChallengeService();
+    final snapshot = Completer<List<Cookie>>();
+    platform.cookies.singleValue = 'old-round';
+    platform.cookies.readSnapshot = () => snapshot.future;
+    final ready = service.waitForActiveVerification();
+    originReached();
+    await tester.pump();
+    expect(await result(), isTrue);
+    final cookieSync = service.waitForCompletionCookieSync();
+    await tester.pump(const Duration(minutes: 2));
+    expect(await ready, isFalse);
+    expect(service.isVerifying, isFalse);
+
+    await CookieJarService().cookieJar.saveFromResponse(Uri.parse(verifyUrl), [
+      io.Cookie('cf_clearance', 'new-round')
+        ..domain = '.linux.do'
+        ..path = '/',
+    ]);
+    snapshot.complete([cfTestCookie('old-round')]);
+    await tester.pump();
+    await cookieSync;
+    expect(await CookieJarService().getCfClearance(), 'new-round');
+    expect(service.isVerifying, isFalse);
+    await unmount(tester);
+  });
+
+  testWidgets('旧轮次等待者不能错接后来开始的验证', (tester) async {
+    await mount(tester, serviceHost: true);
+    final first = await beginServiceVerification(tester);
+    final service = CfChallengeService();
+    final firstRound = service.verifyRound;
+    final capturedFirst = service.waitForActiveVerification();
+    originReached();
+    await tester.pump();
+    expect(await first(), isTrue);
+    await tester.pump(const Duration(seconds: 2));
+    expect(await capturedFirst, isTrue);
+
+    platform.webView = null;
+    final second = await beginServiceVerification(tester);
+    expect(service.verifyRound, greaterThan(firstRound));
+    expect(await capturedFirst, isTrue, reason: '已经捕获的 Future 仍属于第一轮');
+    expect(
+      await service.waitForActiveVerification(
+        includeCompleted: true,
+        expectedRound: firstRound,
+      ),
+      isFalse,
+      reason: '迟到的新等待不能采纳第二轮结果',
+    );
+    originReached();
+    await tester.pump();
+    expect(await second(), isTrue);
+    await tester.pump(const Duration(seconds: 2));
+    await unmount(tester);
   });
 
   testWidgets('显式前台不等待，普通后台入口仍保留胶囊', (tester) async {
