@@ -8,8 +8,13 @@ enum CfReadGateResult { notNeeded, resumed, blocked, cancelled }
 /// HEAD requests may wait; writes and background polling keep failing fast.
 /// Adjacent rounds share one deadline, including time spent back in the normal
 /// scheduler queue. Cancelling a waiter never cancels the shared verification.
+/// Once this request times out, later verification cannot revive its admission.
 class CfReadRequestGate {
-  Stopwatch? _waitingTime;
+  CfReadRequestGate({Stopwatch? stopwatch})
+    : _waitingTime = stopwatch ?? Stopwatch();
+
+  final Stopwatch _waitingTime;
+  bool _deadlineExpired = false;
 
   Future<CfReadGateResult> wait({
     required String method,
@@ -20,16 +25,18 @@ class CfReadRequestGate {
     Future<void>? whenCancelled,
     Duration timeout = const Duration(minutes: 2),
   }) async {
-    if (skipCfBlock || !isVerifying()) return CfReadGateResult.notNeeded;
+    if (skipCfBlock) return CfReadGateResult.notNeeded;
+    if (_deadlineExpired) return CfReadGateResult.blocked;
+    if (!isVerifying()) return CfReadGateResult.notNeeded;
     final safeRead =
         method.toUpperCase() == 'GET' || method.toUpperCase() == 'HEAD';
     if (!safeRead || isSilent) return CfReadGateResult.blocked;
-    final waitingTime = _waitingTime ??= Stopwatch()..start();
+    _waitingTime.start();
 
     try {
       do {
-        final remaining = timeout - waitingTime.elapsed;
-        if (remaining <= Duration.zero) return CfReadGateResult.blocked;
+        final remaining = timeout - _waitingTime.elapsed;
+        if (remaining <= Duration.zero) return _expireDeadline();
         final result = await Future.any<CfReadGateResult>([
           waitForVerification().then(
             (ready) => ready == true
@@ -38,7 +45,7 @@ class CfReadRequestGate {
           ),
           if (whenCancelled != null)
             whenCancelled.then((_) => CfReadGateResult.cancelled),
-        ]).timeout(remaining, onTimeout: () => CfReadGateResult.blocked);
+        ]).timeout(remaining, onTimeout: _expireDeadline);
         if (result != CfReadGateResult.resumed) return result;
         // A different request may start the next round before this waiter
         // resumes. Join it within the original deadline, never start our own.
@@ -47,5 +54,12 @@ class CfReadRequestGate {
     } catch (_) {
       return CfReadGateResult.blocked;
     }
+  }
+
+  CfReadGateResult _expireDeadline() {
+    // Timer rounds sub-millisecond durations down on some platforms. Preserve
+    // its terminal decision even if Stopwatch still has a fractional remainder.
+    _deadlineExpired = true;
+    return CfReadGateResult.blocked;
   }
 }
