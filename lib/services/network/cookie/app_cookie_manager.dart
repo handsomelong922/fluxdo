@@ -270,10 +270,14 @@ class AppCookieManager extends Interceptor {
       final cookies = await loadCookies(options);
       // Jar 管理的请求只发送这一刻的快照，避免等待验证前留下的大小写
       // Cookie 头并存。显式 skipCookieManager 的调用方凭证不经过这里。
-      options.headers.removeWhere((name, _) => name.toLowerCase() == 'cookie');
-      options.headers[HttpHeaders.cookieHeader] = cookies.isNotEmpty
-          ? cookies
-          : null;
+      // Dio 的大小写无关 LinkedHashMap 在部分 Dart 版本上先 removeWhere
+      // 再写入同名 key 会损坏查找状态；创建新快照，不原地删除后重插。
+      options.headers = {
+        for (final entry in options.headers.entries)
+          if (entry.key.toLowerCase() != HttpHeaders.cookieHeader)
+            entry.key: entry.value,
+        HttpHeaders.cookieHeader: cookies.isNotEmpty ? cookies : null,
+      };
       handler.next(options);
     } catch (e, s) {
       handler.reject(

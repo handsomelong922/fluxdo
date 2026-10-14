@@ -22,10 +22,12 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final platform = CfTestPlatform();
   final cf = CfChallengeService();
+  final pendingSnapshots = <Completer<Cookie?>>[];
   setUpAll(platform.initialize);
   setUp(() async {
     await platform.reset();
     cf.resetCooldown();
+    pendingSnapshots.clear();
   });
   tearDown(platform.reset);
 
@@ -64,6 +66,29 @@ void main() {
     expect(tester.takeException(), isNull);
   }
 
+  Future<void> runCase(
+    WidgetTester tester,
+    Future<void> Function() body,
+  ) async {
+    try {
+      await body();
+    } finally {
+      // Keep one failed assertion from leaving a pending round or Toast overlay
+      // behind for the next case. Resolve only test-controlled snapshots.
+      for (final snapshot in pendingSnapshots) {
+        if (!snapshot.isCompleted) snapshot.complete(null);
+      }
+      await tester.pump(const Duration(milliseconds: 10));
+      final pages = find.byType(CfChallengePage);
+      if (pages.evaluate().isNotEmpty) {
+        tester.widget<CfChallengePage>(pages.first).onResult?.call(false);
+      }
+      await tester.pump(const Duration(seconds: 2));
+      await unmount(tester);
+      cf.resetCooldown();
+    }
+  }
+
   Future<void> start(WidgetTester tester) async {
     final button = tester.widget<FilledButton>(find.byType(FilledButton).first);
     button.onPressed!();
@@ -87,14 +112,15 @@ void main() {
 
   testWidgets(
     'manual success retries once after cookie snapshot and teardown',
-    (tester) async {
+    (tester) => runCase(tester, () async {
       var retries = 0;
+      bool? verifyingAtRetry;
       await mount(
         tester,
         ErrorView(
           error: CfChallengeException(autoVerifyDisabled: true),
           onRetry: () {
-            expect(cf.isVerifying, isFalse);
+            verifyingAtRetry = cf.isVerifying;
             retries++;
           },
         ),
@@ -117,6 +143,7 @@ void main() {
         reason: 'a previously captured Retry callback is guarded',
       );
       final snapshot = Completer<Cookie?>();
+      pendingSnapshots.add(snapshot);
       platform.cookies.readValue = (_) => snapshot.future;
       platform.cookies.values = [cfTestCookie('verified')];
       finish();
@@ -127,14 +154,14 @@ void main() {
       await tester.pump();
       expect(await CookieJarService().getCfClearance(), 'verified');
       expect(retries, 1);
+      expect(verifyingAtRetry, isFalse);
       await tester.pump(const Duration(milliseconds: 400));
-      await unmount(tester);
-    },
+    }),
   );
 
   testWidgets(
     'replacement error is not retried by a late verification callback',
-    (tester) async {
+    (tester) => runCase(tester, () async {
       var retries = 0;
       Object error = CfChallengeException(autoVerifyDisabled: true);
       late StateSetter rebuild;
@@ -152,31 +179,32 @@ void main() {
       finish();
       await tester.pump(const Duration(seconds: 2));
       expect(retries, 0);
-      await unmount(tester);
-    },
+    }),
   );
 
-  testWidgets('failed verification never retries', (tester) async {
-    var retries = 0;
-    await mount(
-      tester,
-      ErrorView(
-        error: CfChallengeException(autoVerifyDisabled: true),
-        onRetry: () => retries++,
-      ),
-    );
-    await start(tester);
-    tester.widget<CfChallengePage>(find.byType(CfChallengePage)).onResult!(
-      false,
-    );
-    await tester.pump(const Duration(seconds: 2));
-    expect(retries, 0);
-    await unmount(tester);
-  });
+  testWidgets(
+    'failed verification never retries',
+    (tester) => runCase(tester, () async {
+      var retries = 0;
+      await mount(
+        tester,
+        ErrorView(
+          error: CfChallengeException(autoVerifyDisabled: true),
+          onRetry: () => retries++,
+        ),
+      );
+      await start(tester);
+      tester.widget<CfChallengePage>(find.byType(CfChallengePage)).onResult!(
+        false,
+      );
+      await tester.pump(const Duration(seconds: 2));
+      expect(retries, 0);
+    }),
+  );
 
   testWidgets(
     'raw CF challenge after a bounded retry offers manual verification',
-    (tester) async {
+    (tester) => runCase(tester, () async {
       final options = RequestOptions(path: 'https://linux.do/latest.json');
       await mount(
         tester,
@@ -195,7 +223,6 @@ void main() {
         ),
       );
       expect(find.text(S.current.cf_manualVerifyAction), findsOneWidget);
-      await unmount(tester);
-    },
+    }),
   );
 }
