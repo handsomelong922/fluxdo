@@ -979,9 +979,15 @@ class _MainPageState extends ConsumerState<MainPage>
 
     // 设置导航 context（用于 CF 验证弹窗）
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       // 标记应用已就绪（MainPage 在 PreheatGate 之后才挂载）
       ref.read(appReadyProvider.notifier).state = true;
       BrowserTrustCoordinator.instance.setNavigatorContext(context);
+      unawaited(
+        BrowserTrustCoordinator.instance.warmUpStartupConnection(
+          isMounted: () => mounted,
+        ),
+      );
 
       // 初始化 Deep Link 服务
       DeepLinkService.instance.initialize(context);
@@ -1336,6 +1342,7 @@ class _MainPageState extends ConsumerState<MainPage>
     if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
       WindowStateService.instance.stopListening();
     }
+    BrowserTrustCoordinator.instance.cancelStartupConnectionWarmup();
     HardwareKeyboard.instance.removeHandler(_handlePresenceKeyEvent);
     WidgetsBinding.instance.removeObserver(this);
     _resumeDebounceTimer?.cancel();
@@ -1370,6 +1377,12 @@ class _MainPageState extends ConsumerState<MainPage>
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       UserPresenceService().setForeground(false);
+    }
+
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      BrowserTrustCoordinator.instance.cancelStartupConnectionWarmup();
     }
 
     if (state == AppLifecycleState.hidden) {

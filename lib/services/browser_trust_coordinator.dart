@@ -4,11 +4,13 @@ import 'dart:convert';
 import 'dart:io' as io;
 
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../constants.dart';
 import '../utils/frame_jank_monitor.dart';
 import 'app_logger.dart';
+import 'auth_session.dart';
 import 'cf_challenge_logger.dart';
 import 'cf_challenge_service.dart';
 import 'cf_clearance_refresh_service.dart';
@@ -17,6 +19,8 @@ import 'network/cookie/boundary_sync_service.dart';
 import 'network/cookie/cookie_jar_service.dart';
 import 'network/cookie/webview_cookie_priming.dart';
 import 'preloaded_data_service.dart';
+import 'startup_connection_warmup.dart';
+import 'startup_connection_probe.dart';
 import 'webview_session_cookie_refresh_service.dart';
 import 'webview_settings.dart';
 import 'windows_webview_environment_service.dart';
@@ -130,6 +134,57 @@ class BrowserTrustCoordinator {
         _log('startup priming failed: $e', level: 'warning');
       }),
     );
+  }
+
+  final StartupConnectionWarmup _startupWarmup = StartupConnectionWarmup();
+  final CancelToken _startupProbeCancel = CancelToken();
+
+  /// 首页首帧后用普通 API 读取提前发现挑战；有效凭证不被主动清除。
+  /// 不等待本方法渲染首页，不强制刷新 session，也不重复已有验证。
+  Future<void> warmUpStartupConnection({required bool Function() isMounted}) {
+    final cf = CfChallengeService();
+    final initialRound = cf.verifyRound;
+    final session = AuthSession();
+    final generation = session.generation;
+    return _startupWarmup.start(
+      canRun: () =>
+          isMounted() &&
+          session.isValid(generation) &&
+          (WidgetsBinding.instance.lifecycleState == null ||
+              WidgetsBinding.instance.lifecycleState ==
+                  AppLifecycleState.resumed) &&
+          cf.autoVerifyEnabled &&
+          !cf.isInCooldown,
+      prepare: () async {
+        await ensurePreloaded(reason: 'startup_connection_warmup');
+        // 只加入已有 bootstrap，避免新建并行 WebView 或强制重跑。
+        final active = _activeBrowserTrust;
+        if (active != null) await active;
+      },
+      joinVerification: () async {
+        // bootstrap 等待期间已经处理过挑战，不由预热再发起第二轮。
+        if (cf.verifyRound != initialRound) return false;
+        return cf.waitForActiveVerification();
+      },
+      probe: () async {
+        // 请求发出后登出也取消本请求；不取消其它请求拥有的 CF 验证。
+        unawaited(
+          session.cancelToken.whenCancel.then((_) {
+            cancelStartupConnectionWarmup();
+          }),
+        );
+        await probeStartupConnection(
+          DiscourseService().dio,
+          cancelToken: _startupProbeCancel,
+        );
+      },
+    );
+  }
+
+  /// 仅取消此预热读取，不关闭其它请求共享的验证页。
+  void cancelStartupConnectionWarmup() {
+    _startupWarmup.cancel();
+    if (!_startupProbeCancel.isCancelled) _startupProbeCancel.cancel();
   }
 
   void pauseForBackground() {

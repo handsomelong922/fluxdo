@@ -8,6 +8,8 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/l10n/s.dart';
+import 'package:fluxdo/services/auth_session.dart';
+import 'package:fluxdo/services/cf_clearance_refresh_service.dart';
 import 'package:fluxdo/services/cf_challenge_service.dart';
 import 'package:fluxdo/services/local_notification_service.dart'
     show navigatorKey;
@@ -35,6 +37,51 @@ void main() {
     SystemProxyService.instance.resetForTest();
     await platform.reset();
   });
+
+  for (final cancelledBy in ['token', 'error', 'session']) {
+    test('迟到的挑战在 $cancelledBy 取消后不启动验证或重放', () async {
+      final adapter = _ChallengeAdapter(200);
+      final dio = Dio()..httpClientAdapter = adapter;
+      addTearDown(() => dio.close(force: true));
+      final token = CancelToken();
+      if (cancelledBy == 'token') token.cancel('startup disposed');
+      final options = RequestOptions(
+        path: 'https://linux.do/latest.json',
+        cancelToken: token,
+        extra: {
+          '_sessionGeneration':
+              AuthSession().generation - (cancelledBy == 'session' ? 1 : 0),
+        },
+      );
+      final handler = _RecordingErrorHandler();
+      final round = cfService.verifyRound;
+      final sitekey = CfClearanceRefreshService().sitekey;
+      await CfChallengeInterceptor(dio: dio, cookieJarService: jar).onError(
+        DioException(
+          requestOptions: options,
+          type: cancelledBy == 'error'
+              ? DioExceptionType.cancel
+              : DioExceptionType.badResponse,
+          response: Response<dynamic>(
+            requestOptions: options,
+            statusCode: 403,
+            headers: Headers.fromMap({
+              'cf-mitigated': ['challenge'],
+            }),
+            data: '<html>challenge</html>',
+          ),
+        ),
+        handler,
+      );
+      expect(handler.forwarded?.type, DioExceptionType.cancel);
+      expect(handler.calls, 1);
+      expect(adapter.requests, 0);
+      expect(cfService.verifyRound, round);
+      expect(cfService.isVerifying, isFalse);
+      expect(platform.webView, isNull);
+      expect(CfClearanceRefreshService().sitekey, sitekey);
+    });
+  }
 
   for (final (retryStatus, delayedSnapshot, isSilent, cancelBeforeReady) in [
     (200, false, true, false),
@@ -206,4 +253,15 @@ class _ChallengeAdapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+}
+
+class _RecordingErrorHandler extends ErrorInterceptorHandler {
+  DioException? forwarded;
+  int calls = 0;
+
+  @override
+  void next(DioException error) {
+    forwarded = error;
+    calls++;
+  }
 }

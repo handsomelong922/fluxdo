@@ -8,6 +8,7 @@ import '../../cf_challenge_logger.dart';
 import '../../cf_clearance_refresh_service.dart';
 import '../../cf_clearance_authority.dart';
 import '../../app_logger.dart';
+import '../../auth_session.dart';
 import '../adapters/platform_adapter.dart';
 import '../cookie/boundary_sync_service.dart';
 import '../cookie/cookie_jar_service.dart';
@@ -112,6 +113,22 @@ class CfChallengeInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
+    // 预热已取消、页面已离开或会话已切换时，迟到的挑战不能另开验证。
+    // 仍向后传播取消错误，让后续拦截器执行各自的资源清理。
+    final generation = err.requestOptions.extra['_sessionGeneration'] as int?;
+    if (err.type == DioExceptionType.cancel ||
+        (err.requestOptions.cancelToken?.isCancelled ?? false) ||
+        (generation != null && !AuthSession().isValid(generation))) {
+      handler.next(
+        err.type == DioExceptionType.cancel
+            ? err
+            : DioException.requestCancelled(
+                requestOptions: err.requestOptions,
+                reason: '请求已取消或会话已失效，不再启动 CF 验证',
+              ),
+      );
+      return;
+    }
     final statusCode = err.response?.statusCode;
 
     // 检查是否标记跳过 CF 验证（防止重试后再次触发）
