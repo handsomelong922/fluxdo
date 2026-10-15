@@ -102,6 +102,12 @@ class MessageBusService {
       : _clientId = ClientIdGenerator.generate(),
         _dio = _createPollingDio();
 
+  /// 使用独立实例和受控网络层验证轮询生命周期，不触碰全局会话。
+  @visibleForTesting
+  MessageBusService.forTesting(Dio dio)
+      : _clientId = 'test-client',
+        _dio = dio;
+
   /// 当前前台/后台轮询间隔(从 PreloadedDataService 读取站点设置)
   Duration get _callbackInterval {
     final settings = PreloadedDataService().siteSettingsSync;
@@ -405,7 +411,11 @@ class MessageBusService {
         debugPrint('[MessageBus] 未知错误: $e');
         debugPrint('[MessageBus] $stack');
       } finally {
-        _currentCancelToken = null;
+        // stopAll 后可以立即开启新会话；旧请求的异步收尾不能丢掉
+        // 新轮询的取消令牌，否则后续停止/订阅变化无法取消在途请求。
+        if (identical(_currentCancelToken, cancelToken)) {
+          _currentCancelToken = null;
+        }
       }
 
       if (_shouldStop || generation != _pollGeneration) break;
