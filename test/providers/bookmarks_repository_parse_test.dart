@@ -9,6 +9,12 @@ Map<String, dynamic> _bookmark(int id, Object? updatedAt) => {
 };
 
 void main() {
+  test('缺失书签列表不是完整空页，显式空列表才是', () {
+    expect(parseBookmarkPage({}).isComplete, isFalse);
+    expect(parseBookmarkPage({'user_bookmark_list': {}}).isComplete, isFalse);
+    expect(parseBookmarkPage({'user_bookmark_list': {'bookmarks': []}}).isComplete, isTrue);
+  });
+
   test('异常更新时间仅跳过缓存，不丢失整页书签或分页信息', () {
     final result = parseBookmarkPage({
       'user_bookmark_list': {
@@ -32,6 +38,7 @@ void main() {
       105,
       106,
     ]);
+    expect(result.isComplete, isFalse);
     expect(result.entries.map((entry) => entry.bookmarkId), [5, 6]);
     expect(
       result.entries.first.updatedAt.toUtc(),

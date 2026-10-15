@@ -97,9 +97,7 @@ void main() {
       if (page == 0) {
         return BookmarkPageParseResult(
           topics: const [],
-          entries: [
-            _entry(bookmarkId: 9, updatedAt: DateTime.utc(2026, 5, 1)),
-          ],
+          entries: [_entry(bookmarkId: 9, updatedAt: DateTime.utc(2026, 5, 1))],
           moreUrl: 'p1',
         );
       }
@@ -107,9 +105,7 @@ void main() {
         // 已知且未变 → 提前停止
         return BookmarkPageParseResult(
           topics: const [],
-          entries: [
-            _entry(bookmarkId: 1, updatedAt: DateTime.utc(2026, 1, 1)),
-          ],
+          entries: [_entry(bookmarkId: 1, updatedAt: DateTime.utc(2026, 1, 1))],
           moreUrl: null,
         );
       }
@@ -170,9 +166,7 @@ void main() {
       if (page == 0) {
         return BookmarkPageParseResult(
           topics: const [],
-          entries: [
-            _entry(bookmarkId: 2, updatedAt: DateTime.utc(2026, 5, 1)),
-          ],
+          entries: [_entry(bookmarkId: 2, updatedAt: DateTime.utc(2026, 5, 1))],
           moreUrl: 'p1',
         );
       }
@@ -188,6 +182,72 @@ void main() {
     expect(reconciler.lastFullSyncAt('acct'), isNull); // 未标记完成
   });
 
+  Map<String, dynamic> rawBookmark(int id, String updatedAt) => {
+    'id': id,
+    'topic_id': id,
+    'title': '书签 $id',
+    'updated_at': updatedAt,
+  };
+
+  for (final scenario in ['混合坏时间', '整页坏时间', '后续页坏时间']) {
+    test('fullReconcile $scenario 不删除缓存且不标记同步成功', () async {
+      await repo.upsertEntries('acct', [
+        _entry(bookmarkId: 1, updatedAt: DateTime.utc(2026, 1, 1)),
+        _entry(bookmarkId: 99, updatedAt: DateTime.utc(2026, 1, 1)),
+      ]);
+      // 之前的成功时间也必须保留，不能被本次不完整同步刷新。
+      const lastSync = '2026-01-01T00:00:00.000Z';
+      await prefs.setString('bookmark_last_full_sync_acct', lastSync);
+      var requested = 0;
+      final reconciler = buildReconciler((page) async {
+        requested++;
+        final firstGoodPage = scenario == '后续页坏时间' && page == 0;
+        return parseBookmarkPage({
+          'user_bookmark_list': {
+            'bookmarks': [
+              if (!firstGoodPage) rawBookmark(1, 'invalid time'),
+              if (firstGoodPage || scenario == '混合坏时间')
+                rawBookmark(2, '2026-10-15T00:00:00Z'),
+            ],
+            // 远端仍有后页，不能把本页误判为正常终点。
+            'more_bookmarks_url': '/bookmarks?page=${page + 1}',
+          },
+        });
+      });
+
+      final report = await reconciler.fullReconcile('acct');
+      expect(report.stopReason, ReconcileStopReason.errored);
+      expect(report.deleted, 0);
+      expect(report.upserted, scenario == '整页坏时间' ? 0 : 1);
+      expect(requested, scenario == '后续页坏时间' ? 2 : 1);
+      expect(report.pagesFetched, requested);
+      expect(
+        await repo.allBookmarkIds('acct'),
+        scenario == '整页坏时间' ? {1, 99} : {1, 2, 99},
+      );
+      expect(prefs.getString('bookmark_last_full_sync_acct'), lastSync);
+    });
+  }
+
+  test('增量及下拉刷新不把整页坏时间视为空页或成功', () async {
+    final reconciler = buildReconciler(
+      (_) async => parseBookmarkPage({
+        'user_bookmark_list': {
+          'bookmarks': [rawBookmark(1, 'invalid time')],
+        },
+      }),
+    );
+    expect(
+      (await reconciler.incrementalReconcile('acct')).stopReason,
+      ReconcileStopReason.errored,
+    );
+    expect(
+      (await reconciler.pullToRefresh('acct')).stopReason,
+      ReconcileStopReason.errored,
+    );
+    expect(reconciler.lastFullSyncAt('acct'), isNull);
+  });
+
   test('pullToRefresh 只拉第一页 upsert，不删除', () async {
     await repo.upsertEntries('acct', [
       _entry(bookmarkId: 1, updatedAt: DateTime.utc(2026, 1, 1)),
@@ -199,9 +259,7 @@ void main() {
       pageRequests++;
       return BookmarkPageParseResult(
         topics: const [],
-        entries: [
-          _entry(bookmarkId: 5, updatedAt: DateTime.utc(2026, 5, 1)),
-        ],
+        entries: [_entry(bookmarkId: 5, updatedAt: DateTime.utc(2026, 5, 1))],
         moreUrl: 'p1',
       );
     });

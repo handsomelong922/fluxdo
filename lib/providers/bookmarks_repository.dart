@@ -35,11 +35,15 @@ class BookmarkPageParseResult {
     required this.topics,
     required this.entries,
     required this.moreUrl,
+    this.isComplete = true,
   });
 
   final List<Topic> topics;
   final List<BookmarkCacheEntry> entries;
   final String? moreUrl;
+
+  /// 存在无法写入缓存的条目或响应结构缺失时，不可据此判断远端删除。
+  final bool isComplete;
 }
 
 /// 把一页 bookmarks.json 原始响应解析成 (Topic 列表, 缓存 entry 列表)。
@@ -60,6 +64,7 @@ BookmarkPageParseResult parseBookmarkPage(Map<String, dynamic> rawResponse) {
       topics: const [],
       entries: const [],
       moreUrl: null,
+      isComplete: false,
     );
   }
 
@@ -106,6 +111,8 @@ BookmarkPageParseResult parseBookmarkPage(Map<String, dynamic> rawResponse) {
     topics: topics,
     entries: entries,
     moreUrl: moreUrl,
+    isComplete: userBookmarkList['bookmarks'] is List &&
+        entries.length == topics.length,
   );
 }
 
@@ -214,7 +221,9 @@ class BookmarksRepository {
     } else {
       payload['_bookmark_reminder_at'] = reminderAt.toUtc().toIso8601String();
     }
-    payload['_bookmark_updated_at'] = bookmarkUpdatedAt.toUtc().toIso8601String();
+    payload['_bookmark_updated_at'] = bookmarkUpdatedAt
+        .toUtc()
+        .toIso8601String();
 
     await _dao.upsertOne(
       accountId,

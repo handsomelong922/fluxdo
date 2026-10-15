@@ -60,8 +60,9 @@ enum ReconcileStopReason {
 }
 
 /// 拉单页接口。reconciler 不直接依赖 dio / 服务层。
-typedef BookmarkRawPageLoader =
-    Future<BookmarkPageParseResult> Function(int page);
+typedef BookmarkRawPageLoader = Future<BookmarkPageParseResult> Function(
+  int page,
+);
 
 /// 书签对账器：协调三种触发时机（首次 / 进页面静默 / 手动 / 下拉刷新）的
 /// 数据同步，最终结果统一写回 [BookmarksRepository]。
@@ -127,6 +128,20 @@ class BookmarksReconciler {
           stopReason: ReconcileStopReason.errored,
         );
       }
+      // 不完整页面不能作为空页、稳定页或远端删除的依据。
+      if (!result.isComplete) {
+        if (result.entries.isNotEmpty) {
+          await _repository.upsertEntries(accountId, result.entries);
+          upserted += result.entries.length;
+        }
+        return ReconcileReport(
+          mode: ReconcileMode.incremental,
+          upserted: upserted,
+          deleted: 0,
+          pagesFetched: page + 1,
+          stopReason: ReconcileStopReason.errored,
+        );
+      }
       if (result.entries.isEmpty) {
         return ReconcileReport(
           mode: ReconcileMode.incremental,
@@ -137,11 +152,13 @@ class BookmarksReconciler {
         );
       }
 
-      final changed = result.entries.where((entry) {
-        final local = snapshot[entry.bookmarkId];
-        return local == null ||
-            local != entry.updatedAt.toUtc().toIso8601String();
-      }).toList(growable: false);
+      final changed = result.entries
+          .where((entry) {
+            final local = snapshot[entry.bookmarkId];
+            return local == null ||
+                local != entry.updatedAt.toUtc().toIso8601String();
+          })
+          .toList(growable: false);
 
       if (changed.isNotEmpty) {
         await _repository.upsertEntries(accountId, changed);
@@ -184,6 +201,20 @@ class BookmarksReconciler {
           stopReason: ReconcileStopReason.errored,
         );
       }
+      // 不完整页面不能作为空页、稳定页或远端删除的依据。
+      if (!result.isComplete) {
+        if (result.entries.isNotEmpty) {
+          await _repository.upsertEntries(accountId, result.entries);
+          upserted += result.entries.length;
+        }
+        return ReconcileReport(
+          mode: ReconcileMode.full,
+          upserted: upserted,
+          deleted: 0,
+          pagesFetched: page + 1,
+          stopReason: ReconcileStopReason.errored,
+        );
+      }
       if (result.entries.isEmpty) {
         break;
       }
@@ -223,7 +254,9 @@ class BookmarksReconciler {
         upserted: result.entries.length,
         deleted: 0,
         pagesFetched: 1,
-        stopReason: result.entries.isEmpty
+        stopReason: !result.isComplete
+            ? ReconcileStopReason.errored
+            : result.entries.isEmpty
             ? ReconcileStopReason.emptyPage
             : ReconcileStopReason.pageLimitReached,
       );
