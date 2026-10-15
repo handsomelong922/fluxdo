@@ -10,6 +10,21 @@ class SessionGuardInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     final session = AuthSession();
+    // 重定向/恢复会重入请求链。旧请求不能被重新盖上新账号的代次，
+    // 否则它会读取新 Cookie 并把结果交回旧调用方。
+    final requestGeneration = options.extra['_sessionGeneration'] as int?;
+    if (requestGeneration != null && !session.isValid(requestGeneration)) {
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          type: DioExceptionType.cancel,
+          error:
+              '会话已过期 (gen=$requestGeneration, current=${session.generation})',
+        ),
+        true,
+      );
+      return;
+    }
     options.extra['_sessionGeneration'] = session.generation;
 
     // 合并 CancelToken：如果请求自带 cancelToken，用 _MergedCancelToken
@@ -71,6 +86,7 @@ class _MergedCancelToken extends CancelToken {
         cancel(source.cancelError?.error?.toString());
       }
     }
+
     a.whenCancel.then((_) => onCancel(a));
     b.whenCancel.then((_) => onCancel(b));
   }

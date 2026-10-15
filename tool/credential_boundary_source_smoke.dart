@@ -31,7 +31,25 @@ void main() {
       .split('static String? parseContentDisposition')
       .first;
   _require(!head.contains('followRedirects: true'), '附件 HEAD 不能绕过逐跳源检查');
-  print('通过：CSRF、重定向及附件 HEAD 接线契约（非运行时集成测试）');
+  final session = File(
+    'lib/services/network/interceptors/session_guard_interceptor.dart',
+  ).readAsStringSync();
+  final requestGuard = session
+      .split('void onRequest')
+      .last
+      .split('void onResponse')
+      .first;
+  final staleCheck = requestGuard.indexOf(
+    '!session.isValid(requestGeneration)',
+  );
+  final generationStamp = requestGuard.indexOf(
+    "options.extra['_sessionGeneration'] = session.generation",
+  );
+  _require(
+    staleCheck >= 0 && staleCheck < generationStamp,
+    '旧代请求必须在重新标记会话代之前拒绝',
+  );
+  print('通过：凭据边界和旧代重入接线契约（非运行时集成测试）');
 }
 
 void _require(bool condition, String message) {
