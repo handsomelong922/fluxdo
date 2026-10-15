@@ -8,6 +8,32 @@ import 'package:fluxdo/services/network/cookie/cookie_jar_service.dart';
 
 void main() {
   group('AppCookieManager.onRequest', () {
+    test('内存 jar 的 Secure Cookie 只发往 HTTPS，普通 Cookie 仍可发往 HTTP', () async {
+      final jar = CookieJar();
+      await jar.saveFromResponse(Uri.parse('https://linux.do'), [
+        Cookie('_t', 'secure-session')..secure = true,
+        Cookie('theme', 'dark'),
+      ]);
+      final manager = AppCookieManager(jar);
+
+      for (final scheme in ['http', 'https']) {
+        final options = RequestOptions(
+          path: '$scheme://linux.do/latest.json',
+          headers: {'Cookie': '_t=stale-session'},
+        );
+        final handler = RequestInterceptorHandler();
+        await manager.onRequest(options, handler);
+        await handler.future;
+        final header = options.headers[HttpHeaders.cookieHeader] as String;
+        expect(header, contains('theme=dark'));
+        if (scheme == 'http') {
+          expect(header, 'theme=dark');
+        } else {
+          expect(header, contains('_t=secure-session'));
+        }
+      }
+    });
+
     test(
       'managed requests replace all case variants with fresh jar cookies',
       () async {
@@ -50,6 +76,29 @@ void main() {
   });
 
   group('AppCookieManager.loadCookies', () {
+    test('HTTP 先过滤 Secure 变体，再挑选同名普通 Cookie', () {
+      final secure = Cookie('theme', 'secure-theme')..secure = true;
+      final plain = Cookie('theme', 'plain-theme')..domain = '.linux.do';
+
+      for (final cookies in [
+        [secure, plain],
+        [plain, secure],
+      ]) {
+        final selected = AppCookieManager.selectCookiesForTest(
+          cookies,
+          Uri.parse('http://linux.do/latest.json'),
+        );
+        expect(selected, [plain]);
+        expect(
+          AppCookieManager.selectCookiesForTest(
+            cookies,
+            Uri.parse('https://linux.do/latest.json'),
+          ),
+          [secure],
+        );
+      }
+    });
+
     test('忽略 RequestOptions 上残留的旧 Cookie 头，始终使用 CookieJar 最新值', () async {
       final jar = CookieJar();
       final uri = Uri.parse('https://linux.do/session/csrf');

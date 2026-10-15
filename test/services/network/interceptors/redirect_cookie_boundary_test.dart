@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
+import 'package:enhanced_cookie_jar/enhanced_cookie_jar.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/services/network/cookie/app_cookie_manager.dart';
 import 'package:fluxdo/services/network/interceptors/redirect_interceptor.dart';
@@ -42,16 +43,30 @@ void main() {
     });
   }
 
-  test('HTTPS 降到 HTTP 时 Secure Cookie 不从 jar 重装', () async {
-    final jar = CookieJar();
-    await jar.saveFromResponse(Uri.parse('https://linux.do'), [
-      Cookie('_t', 'secure-session')..secure = true,
-    ]);
-    final adapter = _RedirectAdapter('http://linux.do/final');
-    await _dio(jar, adapter).get('/start');
-    expect(_cookies(adapter.requests.first), contains('_t=secure-session'));
-    expect(_cookies(adapter.requests.last), isEmpty);
-  });
+  for (final persistent in [false, true]) {
+    final jarName = persistent ? '增强持久 jar' : '内存回退 jar';
+    test('HTTPS 降到 HTTP 时 Secure Cookie 不从 $jarName 重装', () async {
+      final CookieJar jar;
+      if (persistent) {
+        final directory = await Directory.systemTemp.createTemp(
+          'redirect_cookie_boundary_',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        jar = EnhancedPersistCookieJar(store: FileCookieStore(directory.path));
+      } else {
+        jar = CookieJar();
+      }
+      await jar.saveFromResponse(Uri.parse('https://linux.do'), [
+        Cookie('_t', 'secure-session')..secure = true,
+      ]);
+      final adapter = _RedirectAdapter('http://linux.do/final');
+      await _dio(jar, adapter).get('/start');
+      expect(adapter.requests, hasLength(2));
+      expect(adapter.requests.last.uri.scheme, 'http');
+      expect(_cookies(adapter.requests.first), contains('_t=secure-session'));
+      expect(_cookies(adapter.requests.last), isEmpty);
+    });
+  }
 
   test('附件 HEAD 的 303 仍以 HEAD 获取最终文件名', () async {
     final adapter = _RedirectAdapter('https://cdn.example/file', status: 303);

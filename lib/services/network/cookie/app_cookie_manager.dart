@@ -146,6 +146,9 @@ class AppCookieManager extends Interceptor {
 
     final selected = <String, Cookie>{};
     for (final cookie in sortedCookies) {
+      // 持久 jar 初始化失败时会回退到普通 CookieJar，不能依赖 jar 过滤 Secure。
+      // 必须先过滤再选优，避免不可发送的 Secure 变体挤掉同名普通 Cookie。
+      if (cookie.secure && uri.scheme != 'https') continue;
       final isHostOnlyAuth = CookieJarService.hostOnlyCookieNames.contains(
         cookie.name,
       );
