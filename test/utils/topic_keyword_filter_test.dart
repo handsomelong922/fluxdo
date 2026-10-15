@@ -15,6 +15,35 @@ Topic _topic(int id, String title) => Topic(
 
 void main() {
   group('TopicKeywordFilter.apply', () {
+    test('分页复用关键词缓存后，仍重新检查正则结果和标题更新', () {
+      final rules = List.generate(1000, (i) => 'keyword_$i');
+      final topics = [_topic(1, '正常话题'), _topic(2, 'keyword_999')];
+      final matches = <String, bool>{};
+      TopicFilterResult inspect(List<Topic> input) =>
+          TopicKeywordFilter.inspect(
+            input,
+            normalizedKeywords: rules,
+            wholeWord: true,
+            regexPatterns: const ['正常'],
+            regexMatches: matches,
+          );
+      final pending = inspect(topics);
+      expect(pending.pending.map((t) => t.id), [1]);
+      expect(pending.hidden.single.keyword, 'keyword_999');
+      matches['正常话题'] = true;
+      final settled = inspect([...topics, _topic(3, '新增话题')]);
+      expect(settled.hidden.map((t) => t.reason), [
+        TopicFilterReason.regex,
+        TopicFilterReason.keyword,
+      ]);
+      expect(settled.pending.map((t) => t.id), [3]);
+      matches['修改后的话题'] = false;
+      expect(inspect([_topic(2, '修改后的话题')]).visible.single.id, 2);
+      rules[999] = 'replacement';
+      matches['keyword_999'] = false;
+      expect(inspect(topics).visible.single.id, 2);
+    });
+
     test('仅正则也生效，完整词开关不改变显式表达式语义', () {
       final input = [_topic(20, '求助手机 AI'), _topic(21, '其他话题')];
       for (final wholeWord in [false, true]) {

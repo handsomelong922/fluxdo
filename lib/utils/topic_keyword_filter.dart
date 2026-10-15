@@ -1,5 +1,6 @@
 import '../models/topic.dart';
 import 'blocked_user_filter.dart';
+import 'topic_keyword_matcher.dart';
 
 /// 标题关键词过滤工具。
 ///
@@ -7,6 +8,8 @@ import 'blocked_user_filter.dart';
 /// `normalizedFilterKeywords`（已 lowercase）以避免重复归一化开销。
 class TopicKeywordFilter {
   TopicKeywordFilter._();
+
+  static TopicKeywordMatcher? _matcher;
 
   static const int autoLoadVisibleThreshold = 5;
   static const int autoLoadMaxAttempts = 3;
@@ -46,10 +49,18 @@ class TopicKeywordFilter {
     if (normalizedKeywords.isEmpty &&
         regexPatterns.isEmpty &&
         blockedUsernames.isEmpty) {
+      _matcher = null;
       return TopicFilterResult._unfiltered(topics);
     }
     if (topics.isNotEmpty && regexPatterns.isNotEmpty && regexMatches == null) {
       throw StateError('正则过滤必须先在后台匹配');
+    }
+    // 只缓存字面匹配：用户屏蔽、正则结果和话题对象每次重新检查，
+    // 因而规则/标题/作者更新以及后台正则完成都不会沿用过时归因。
+    var matcher = _matcher;
+    if (matcher == null || !matcher.hasRules(normalizedKeywords, wholeWord)) {
+      matcher = TopicKeywordMatcher(normalizedKeywords, wholeWord);
+      _matcher = matcher;
     }
     final visible = <Topic>[];
     final hidden = <FilteredTopic>[];
@@ -61,11 +72,7 @@ class TopicKeywordFilter {
         hidden.add(FilteredTopic(topic, TopicFilterReason.blockedUser));
         continue;
       }
-      final keyword = _matchingKeyword(
-        topic.title,
-        normalizedKeywords,
-        wholeWord,
-      );
+      final keyword = matcher.match(topic.title);
       if (keyword != null) {
         hidden.add(
           FilteredTopic(topic, TopicFilterReason.keyword, keyword: keyword),
@@ -82,37 +89,6 @@ class TopicKeywordFilter {
     }
     return TopicFilterResult(visible, hidden, pending);
   }
-
-  // 字面匹配和 ASCII 完整词边界均无需在界面隔离区执行正则。
-  // 用户表达式仅由后台工作隔离区计算。
-  static String? _matchingKeyword(
-    String title,
-    List<String> keywords,
-    bool wholeWord,
-  ) {
-    final lower = title.toLowerCase();
-    for (final keyword in keywords) {
-      if (keyword.isEmpty) continue;
-      final needsBoundary = wholeWord && keyword.codeUnits.every(_isWordCode);
-      var index = lower.indexOf(keyword);
-      while (index >= 0) {
-        final end = index + keyword.length;
-        if (!needsBoundary ||
-            ((index == 0 || !_isWordCode(lower.codeUnitAt(index - 1))) &&
-                (end == lower.length || !_isWordCode(lower.codeUnitAt(end))))) {
-          return keyword;
-        }
-        index = lower.indexOf(keyword, index + 1);
-      }
-    }
-    return null;
-  }
-
-  static bool _isWordCode(int code) =>
-      (code >= 0x30 && code <= 0x39) ||
-      (code >= 0x41 && code <= 0x5A) ||
-      (code >= 0x61 && code <= 0x7A) ||
-      code == 0x5F;
 
   /// loadMore 完成后判断是否需要自动再加载一次。
   ///
