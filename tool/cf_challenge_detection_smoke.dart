@@ -49,5 +49,10 @@ void main() {
   check(CfChallengeDetection.isResponse(status: 503, mitigated: ' Challenge '));
   check(!CfChallengeDetection.hasChallengeHeader('challenge-pending'));
   check(!CfChallengeDetection.isResponse(status: null));
+  for (final method in ['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
+    check(!CfChallengeDetection.canEnterRecovery(503, method));
+  }
+  check(CfChallengeDetection.canEnterRecovery(503, 'GET'));
+  check(CfChallengeDetection.canEnterRecovery(503, 'head'));
   print('$count 项挑战识别回归通过');
 }

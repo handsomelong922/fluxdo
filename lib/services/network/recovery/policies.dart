@@ -21,10 +21,7 @@ import 'retry_after.dart';
 /// - 等待过长(超过 [maxWaitSeconds])或没给时长 → 不重放,包装成
 ///   [RateLimitException] 让业务层决定(它可能想提示用户而不是干等)。
 class RateLimitPolicy implements RecoveryPolicy {
-  const RateLimitPolicy({
-    this.maxWaitSeconds = 30,
-    this.isChallengeResponse,
-  });
+  const RateLimitPolicy({this.maxWaitSeconds = 30, this.isChallengeResponse});
 
   /// 愿意自动等待的上限。超过则交回业务层。
   final int maxWaitSeconds;
@@ -89,12 +86,16 @@ class RateLimitPolicy implements RecoveryPolicy {
 /// 后者对所有方法一视同仁)。
 class TransientRetryPolicy implements RecoveryPolicy {
   const TransientRetryPolicy({
+    this.isChallengeResponse,
     this.delays = const [
       Duration(seconds: 1),
       Duration(seconds: 2),
       Duration(seconds: 4),
     ],
   });
+
+  /// 明确挑战交给专门的验证链，避免先按普通 503 重复发送。
+  final bool Function(Response<dynamic>? response)? isChallengeResponse;
 
   /// 第 N 次重放前的等待时长(指数退避)。
   final List<Duration> delays;
@@ -112,6 +113,7 @@ class TransientRetryPolicy implements RecoveryPolicy {
     if (!_idempotentMethods.contains(err.requestOptions.method.toUpperCase())) {
       return false;
     }
+    if (isChallengeResponse?.call(err.response) == true) return false;
     final status = outcome.statusCode;
     if (status != null) return _retryableStatuses.contains(status);
     return _isTransientNetworkError(err);

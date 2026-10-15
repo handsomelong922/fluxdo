@@ -6,6 +6,11 @@ abstract final class CfChallengeDetection {
   static bool isRecoverableStatus(int? status) =>
       status == 403 || status == 429 || status == 503;
 
+  /// 新增的 503 恢复仅用于只读请求，避免扩大旧流程的写请求重放范围。
+  static bool canEnterRecovery(int? status, String method) =>
+      isRecoverableStatus(status) &&
+      (status != 503 || const {'GET', 'HEAD'}.contains(method.toUpperCase()));
+
   static bool isResponse({
     required int? status,
     String? mitigated,

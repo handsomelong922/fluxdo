@@ -139,7 +139,10 @@ class CfChallengeInterceptor extends Interceptor {
     // CF 速率限制规则的 action 配为 managed_challenge / js_challenge / challenge 时,
     // 触发后返回 429 + cf-mitigated: challenge + 挑战页,而不是 403。
     // 因此 403 / 429 / 明确挑战型 503 都要走 CF 验证流程,由 isCfChallengeResponse 精确判定。
-    if (CfChallengeDetection.isRecoverableStatus(statusCode) &&
+    if (CfChallengeDetection.canEnterRecovery(
+          statusCode,
+          err.requestOptions.method,
+        ) &&
         !skipCfChallenge &&
         CfChallengeService.isCfChallengeResponse(err.response)) {
       // 备选提取 sitekey（从 403 响应体中）
@@ -313,8 +316,9 @@ class CfChallengeInterceptor extends Interceptor {
         } catch (e) {
           final retryStillBlockedByCf =
               e is DioException &&
-              CfChallengeDetection.isRecoverableStatus(
+              CfChallengeDetection.canEnterRecovery(
                 e.response?.statusCode,
+                retryOptions.method,
               ) &&
               CfChallengeService.isCfChallengeResponse(e.response);
 

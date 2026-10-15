@@ -38,6 +38,45 @@ void main() {
     await platform.reset();
   });
 
+  for (final (method, challenge) in [
+    ('GET', false),
+    ('POST', true),
+    ('PUT', true),
+    ('PATCH', true),
+    ('DELETE', true),
+  ]) {
+    test('503 $method 挑战=$challenge 不扩大写请求恢复或误判普通故障', () async {
+      final adapter = _ChallengeAdapter(200);
+      final dio = Dio()..httpClientAdapter = adapter;
+      addTearDown(() => dio.close(force: true));
+      final options = RequestOptions(
+        path: 'https://linux.do/posts',
+        method: method,
+      );
+      final error = DioException(
+        requestOptions: options,
+        response: Response<dynamic>(
+          requestOptions: options,
+          statusCode: 503,
+          data: '<html>Service unavailable</html>',
+          headers: Headers.fromMap({
+            if (challenge) 'cf-mitigated': ['challenge'],
+          }),
+        ),
+      );
+      final handler = _RecordingErrorHandler();
+      final round = cfService.verifyRound;
+      await CfChallengeInterceptor(
+        dio: dio,
+        cookieJarService: jar,
+      ).onError(error, handler);
+      expect(handler.forwarded, same(error));
+      expect(adapter.requests, 0);
+      expect(cfService.verifyRound, round);
+      expect(platform.webView, isNull);
+    });
+  }
+
   for (final cancelledBy in ['token', 'error', 'session']) {
     test('迟到的挑战在 $cancelledBy 取消后不启动验证或重放', () async {
       final adapter = _ChallengeAdapter(200);
