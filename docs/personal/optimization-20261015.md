@@ -46,3 +46,9 @@ git diff --check
 关键词数据详见 `docs/topic-filter-performance.md`。合成 Linux CPU 测量不代表 Android 帧率；复杂正则和超长规则仍可能消耗资源。没有真实手机/IP 条件的验证成功率或功耗测量，不保证不再出现交互验证，不保证绝对零缺陷。
 
 实际交付需核对 Actions 对应提交、测试结果、APK 签名/ABI与 SHA-256。Release 权限与构建成功是两回事：若发布权限仍不足，提供已验证的 Actions APK 下载，说明期限与登录要求，不反复构建尝试解决权限。
+
+## 集中提交前实际检查记录
+
+2026-10-15，功能代码检查点 `645906a76e0de307df0bb90753b14b63ace3e102`。对应源码树 `f1a55a76598532e16970b0de3359286f8a635b9f` 与本地逐提交核验一致。19 个 `tool/*smoke.dart` 入口全部成功，16 项 Python 发布预检通过，差异空白检查通过。关键词烟测包含 14,400 组结果对照；该数量不是 Flutter 测试总数。
+
+完整 Flutter 分析、provider/widget 与 APK 尚需当前提交的 Actions 结果，不将历史构建或本地替身验证计为本次通过。
