@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../../cf_challenge_detection.dart';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -136,8 +138,8 @@ class CfChallengeInterceptor extends Interceptor {
 
     // CF 速率限制规则的 action 配为 managed_challenge / js_challenge / challenge 时,
     // 触发后返回 429 + cf-mitigated: challenge + 挑战页,而不是 403。
-    // 因此 403 / 429 都要走 CF 验证流程,由 isCfChallengeResponse 精确判定。
-    if ((statusCode == 403 || statusCode == 429) &&
+    // 因此 403 / 429 / 明确挑战型 503 都要走 CF 验证流程,由 isCfChallengeResponse 精确判定。
+    if (CfChallengeDetection.isRecoverableStatus(statusCode) &&
         !skipCfChallenge &&
         CfChallengeService.isCfChallengeResponse(err.response)) {
       // 备选提取 sitekey（从 403 响应体中）
@@ -311,8 +313,9 @@ class CfChallengeInterceptor extends Interceptor {
         } catch (e) {
           final retryStillBlockedByCf =
               e is DioException &&
-              (e.response?.statusCode == 403 ||
-                  e.response?.statusCode == 429) &&
+              CfChallengeDetection.isRecoverableStatus(
+                e.response?.statusCode,
+              ) &&
               CfChallengeService.isCfChallengeResponse(e.response);
 
           // 验证入口已无盾，原生链路仍被 CF 拒绝。浏览器与原生通道的
@@ -384,8 +387,9 @@ class CfChallengeInterceptor extends Interceptor {
               '[Dio] Retry failed: status=${e.response?.statusCode}, '
               'type=${e.type}, url=${e.requestOptions.uri}',
             );
-            if (e.response?.statusCode == 403 ||
-                e.response?.statusCode == 429) {
+            if (CfChallengeDetection.isRecoverableStatus(
+              e.response?.statusCode,
+            )) {
               debugPrint(
                 '[Dio] Verification entry is clear, but API retry returned ${e.response?.statusCode}',
               );

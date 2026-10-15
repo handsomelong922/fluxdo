@@ -14,6 +14,7 @@ import 'network/cookie/boundary_sync_service.dart';
 import 'network/cookie/cookie_jar_service.dart';
 import 'local_notification_service.dart'; // 用于获取全局 navigatorKey
 import 'cf_challenge_logger.dart';
+import 'cf_challenge_detection.dart';
 import 'cf_clearance_refresh_service.dart';
 import 'cf_verification_presentation.dart';
 import 'cf_verification_readiness.dart';
@@ -438,60 +439,21 @@ class CfChallengeService {
     }
   }
 
-  /// 综合响应头 + 响应体判断 dio Response 是否是 CF 验证响应。
-  ///
-  /// CF 根据请求的 Accept header 决定 challenge 响应格式:
-  /// - 浏览器请求 (Accept: text/html) → 返 text/html "Just a moment..." 页面
-  /// - API 请求 (Accept: application/json, text/plain) → 返 text/plain 简短挑战
-  /// 但**两者都带 `cf-mitigated: challenge` header**, 这是 CF 官方权威信号。
-  ///
-  /// 状态码可能是 403 也可能是 429:
-  /// - 普通 CF 盾(WAF / bot fight 等)→ 403 + cf-mitigated: challenge
-  /// - 速率限制规则 action 配 managed_challenge / js_challenge / challenge → 429 + cf-mitigated: challenge
-  /// 两种情况都应该交由 CfChallengeInterceptor 走验证流程,不能当成普通 403/429 处理。
-  ///
-  /// 历史上这里曾把 content-type 必须 text/html 作为前置条件,导致 dio 这种
-  /// 默认 `Accept: application/json, text/plain, */*` 的客户端拿到 text/plain
-  /// 时被漏掉, CfChallengeInterceptor 不弹手动验证。
+  /// 优先使用 CF 官方的精确 challenge 响应头；缺失时仅对
+  /// 403/429/503 的 HTML 挑战标记兜底，普通 503 不启动验证。
   static bool isCfChallengeResponse(Response? response) {
     if (response == null) return false;
-    final headers = response.headers;
-
-    // 1. cf-mitigated: challenge — CF 官方权威信号,单独命中即判定。
-    //    不再把 server 头当前置闸:部分传输通道下响应头可能缺失/走样,
-    //    server 头一票否决会让挑战型 429 永远进不了验证自愈链路。
-    final cfMitigated = headers.value('cf-mitigated') ?? '';
-    if (cfMitigated.contains('challenge')) return true;
-
-    // 2. fallback: 不带 cf-mitigated 时用 body 兜底。挑战页一定是 text/html,
-    //    content-type 明确为其他类型则排除(避免误判 Discourse 自己的
-    //    plaintext/JSON 403);content-type 缺失时放行 body 判定,
-    //    isCfChallenge 的标记(cf_chl_opt 等)足够特异,不会误伤业务响应。
-    final contentType = headers.value('content-type') ?? '';
-    if (contentType.isNotEmpty && !contentType.contains('text/html')) {
-      return false;
-    }
-
-    return isCfChallenge(response.data);
+    return CfChallengeDetection.isResponse(
+      status: response.statusCode,
+      mitigated: response.headers.value('cf-mitigated'),
+      contentType: response.headers.value('content-type'),
+      body: response.data,
+    );
   }
 
-  /// 检测是否是 CF 验证页面（用于 403 响应体判断）
-  static bool isCfChallenge(dynamic responseData) {
-    if (responseData == null) return false;
-    final str = responseData.toString();
-    // cf_chl_opt 是 CF 验证页面的可靠标记（challenge options JS 变量）
-    if (str.contains('cf_chl_opt')) return true;
-    // challenge-platform 路径需配合 cloudflare 标记，避免误匹配
-    if (str.contains('challenge-platform') && str.contains('cloudflare')) {
-      return true;
-    }
-    // "Just a moment" 需配合 CF 特征，避免误匹配用户内容
-    if (str.contains('Just a moment') &&
-        (str.contains('cloudflare') || str.contains('cf-challenge'))) {
-      return true;
-    }
-    return false;
-  }
+  /// 检测浏览器页面是否含明确的 CF 验证标记。
+  static bool isCfChallenge(dynamic responseData) =>
+      CfChallengeDetection.isBody(responseData);
 
   /// 检测页面 HTML 中是否有活跃的 CF 验证盾
   /// 用于判断已加载的页面是否仍在展示验证挑战
