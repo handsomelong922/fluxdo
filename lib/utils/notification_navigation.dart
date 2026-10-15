@@ -4,6 +4,7 @@ import 'package:app_icons/app_icons.dart';
 import '../l10n/s.dart';
 import '../models/notification.dart';
 import '../providers/discourse_providers.dart';
+import '../providers/message_bus/notification_providers.dart';
 import '../pages/badge_page.dart';
 import '../pages/chat/channel/chat_channel_page.dart';
 import '../pages/topic_detail_page/topic_detail_page.dart';
@@ -110,15 +111,46 @@ Widget? _notificationTargetPage(
   }
 }
 
-/// 标记已读的副作用(快捷面板本地态 + 服务端),点击与弹窗内翻页共用
+/// 只根据已加载列表里的真实状态更新角标，不相信弹窗的旧未读快照。
+/// 未加载或已移除的条目交给服务端推送校准，不额外发起列表请求。
+void syncNotificationReadLocally(
+  ProviderContainer container,
+  DiscourseNotification notification,
+) {
+  if (notification.read) return;
+  final user = container.read(currentUserProvider).value;
+  if (user == null || user.id != notification.userId) return;
+
+  final hasRecent = container.exists(recentNotificationsProvider);
+  final hasHistory = container.exists(notificationListProvider);
+  final matches = <DiscourseNotification>[
+    if (hasRecent)
+      ...?container.read(recentNotificationsProvider).value,
+    if (hasHistory)
+      ...?container.read(notificationListProvider).value,
+  ].where((entry) => entry.id == notification.id).toList();
+  // 任一当前列表已读即视为已经同步，不能因另一个列表滞后而重复扣减。
+  final changedToRead = matches.isNotEmpty && !matches.any((entry) => entry.read);
+  if (hasRecent) {
+    container.read(recentNotificationsProvider.notifier).markAsRead(notification.id);
+  }
+  if (hasHistory) {
+    container.read(notificationListProvider.notifier).markAsRead(notification.id);
+  }
+  if (changedToRead) {
+    container.read(notificationCountStateProvider.notifier).markRead(
+      highPriority: matches.first.highPriority,
+    );
+  }
+}
+
+/// 标记已读的副作用（本地列表/角标 + 服务端），点击与弹窗内翻页共用。
 void _markNotificationRead(
   ProviderContainer container,
   DiscourseNotification notification,
 ) {
   if (notification.read) return;
-  container
-      .read(recentNotificationsProvider.notifier)
-      .markAsRead(notification.id);
+  syncNotificationReadLocally(container, notification);
   container
       .read(discourseServiceProvider)
       .markNotificationRead(notification.id)

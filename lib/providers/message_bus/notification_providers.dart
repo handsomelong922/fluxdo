@@ -62,6 +62,20 @@ class NotificationCountNotifier extends Notifier<NotificationCountState> {
     );
   }
 
+  /// 仅由已加载列表确认 unread → read 后调用，不以旧 UI 快照重复扣减。
+  void markRead({required bool highPriority}) {
+    _liveUpdateReceived = true;
+    state = state.copyWith(
+      allUnread: state.allUnread > 0 ? state.allUnread - 1 : 0,
+      unread: !highPriority && state.unread > 0
+          ? state.unread - 1
+          : state.unread,
+      highPriority: highPriority && state.highPriority > 0
+          ? state.highPriority - 1
+          : state.highPriority,
+    );
+  }
+
   /// 标记所有已读后重置计数(视为实时事实,服务端旧值不得复活徽章)
   void markAllRead() {
     _liveUpdateReceived = true;
