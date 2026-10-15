@@ -146,7 +146,32 @@ class DiscourseUrlParser {
   static String? parseTag(String url) {
     final match = _tagRegex.firstMatch(url);
     final encoded = match?.group(1);
-    return encoded == null ? null : Uri.decodeComponent(encoded);
+    return encoded == null ? null : decodeComponentLenient(encoded);
+  }
+
+  /// 兼容客户端预览的中文原文和百分号编码混排，畸形编码原样保留。
+  static String decodeComponentLenient(String component) {
+    try {
+      return Uri.decodeComponent(component);
+    } on FormatException {
+      return component;
+    } on ArgumentError {
+      final buffer = StringBuffer();
+      for (final rune in component.runes) {
+        if (rune < 0x80) {
+          buffer.writeCharCode(rune);
+        } else {
+          buffer.write(Uri.encodeComponent(String.fromCharCode(rune)));
+        }
+      }
+      try {
+        return Uri.decodeComponent(buffer.toString());
+      } on FormatException {
+        return component;
+      } on ArgumentError {
+        return component;
+      }
+    }
   }
 
   /// 解析标题中的单独 HTTP(S) URL。
