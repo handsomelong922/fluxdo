@@ -4,6 +4,7 @@ import '../../../constants.dart';
 import '../../log/log_writer.dart';
 import '../../user_presence_service.dart';
 import '../cookie/csrf_token_service.dart';
+import '../credential_boundary.dart';
 import '../flux_request_spec.dart';
 import '../health/network_health_controller.dart';
 
@@ -29,8 +30,19 @@ class RequestHeaderInterceptor extends Interceptor {
       options.headers.addAll(hints);
     }
 
-    // 3. 设置 CSRF Token（未登录时无法获取，跳过）
-    final skipCsrf = options.spec.skipCsrf;
+    // 3. 论坛 CSRF 仅属于主站 HTTPS 源。图片/CDN 和第三方 API 也可能
+    // 复用此工厂，不能注入论坛 token，也不能保留重定向带来的旧头。
+    final trustedForumOrigin = isSameHttpsOrigin(
+      Uri.parse(AppConstants.baseUrl),
+      options.uri,
+    );
+    if (!trustedForumOrigin) {
+      options.headers = {
+        for (final entry in options.headers.entries)
+          if (entry.key.toLowerCase() != 'x-csrf-token') entry.key: entry.value,
+      };
+    }
+    final skipCsrf = options.spec.skipCsrf || !trustedForumOrigin;
     if (!skipCsrf) {
       // 非 GET 请求且 token 为空时，先从 /session/csrf 获取
       // 对齐 Discourse 前端: if (type !== "GET" && !csrfToken) { updateCsrfToken() }
