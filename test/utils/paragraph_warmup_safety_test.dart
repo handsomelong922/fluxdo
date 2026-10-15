@@ -97,6 +97,42 @@ void main() {
     expect(created, 5, reason: '交互缓存必须由携带真实回调的挂载端创建');
   });
 
+  testWidgets('极小预算重复调用必须前进并最终结束', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: FluxdoRender(cookedHtml: '<p>探针正文</p>')),
+      ),
+    );
+    final context = tester.element(find.byType(FluxdoRender));
+    final snapshot = ParagraphWarmupProbe.snapshot()!;
+    final nodes = ParagraphParser().parse(
+      '<p>第一段</p><p><a href="/t/1">跳过链接</a></p>'
+      '<p>第二段</p><p>第三段</p>',
+    );
+    for (final budget in [0, 1]) {
+      var cursor = 0;
+      var calls = 0;
+      while (cursor != -1 && calls <= nodes.length) {
+        final previous = cursor;
+        cursor = warmSafeParagraphs(
+          nodes: nodes,
+          ctx: snapshot,
+          context: context,
+          startIndex: cursor,
+          budgetMicros: budget,
+        );
+        expect(
+          cursor == -1 || cursor > previous,
+          isTrue,
+          reason: '预算不足不得在相同游标反复调度',
+        );
+        calls++;
+      }
+      expect(cursor, -1);
+      expect(calls, lessThanOrEqualTo(nodes.length));
+    }
+  });
+
   test('图片尺寸和正文修改使解析身份失效，原内容命中', () {
     Post post(String cooked) => Post(
       id: 912,

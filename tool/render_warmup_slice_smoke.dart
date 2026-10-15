@@ -19,9 +19,39 @@ void runRenderWarmupSliceChecks() {
   check(selectRenderWarmupSlice(blocks, 5) == null, '完成');
   check(selectRenderWarmupSlice(<List<Object>>[], 0) == null, '空帖');
   check(selectRenderWarmupSlice([first], 0)!.hasMore == false, '短帖');
+  final indices = [1, 3, 7];
+  for (var i = 0; i < indices.length; i++) {
+    final next = advanceRenderWarmupCursor(
+      sourceIndices: indices,
+      startIndex: i,
+      nextIndex: i,
+    );
+    check(
+      next == (i + 1 == indices.length ? -1 : indices[i + 1]),
+      '连续零预算步骤必须前进或完成',
+    );
+  }
+  check(
+    advanceRenderWarmupCursor(
+          sourceIndices: indices,
+          startIndex: 0,
+          nextIndex: 2,
+        ) ==
+        7,
+    '已有进展映射回原游标',
+  );
+  check(
+    advanceRenderWarmupCursor(
+          sourceIndices: indices,
+          startIndex: 0,
+          nextIndex: -1,
+        ) ==
+        -1,
+    '正常完成不重试',
+  );
 }
 
 void main() {
   runRenderWarmupSliceChecks();
-  print('PASS: 8 项预热块边界和游标检查');
+  print('PASS: 13 项预热块边界和游标检查');
 }

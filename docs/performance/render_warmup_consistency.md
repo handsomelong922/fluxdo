@@ -20,7 +20,10 @@ FlattenCache 的 key 不含 handler。SpanMountContext 仅刷新点击使用的 
 ## 调度与预算
 
 维持原来的滚动停止/idle 调度、取消 generation 和 4ms 预算。每次最多处理一个
-渲染块，使用原始节点游标跨块续跑；筛选与图片计数耗时从预算中扣除。
+渲染块，使用原始节点游标跨块续跑；筛选与图片计数按不可变节点列表身份弱缓存，
+每块只准备一次，准备耗时从预算中扣除。预算不足且未处理任何候选时跳过一个
+待热段落，保证游标前进，避免重复扫描同一范围或 idle 链原地重试。
+跳过仅影响预热覆盖，真实挂载仍照常渲染。
 解析策略不扩张，长帖仍要求全部 chunk 已解析，短帖保持现有缓存入口。
 单次节点遍历和原子 flatten 并非可抢占，因此 4ms 仍不是硬实时上限。
 
@@ -35,11 +38,11 @@ post-frame 回调已晚于部分流水线工作，剩余预算估计不能代表
 ## 验证
 
 实际执行：
-- dart tool/render_warmup_slice_smoke.dart：8 项通过。
+- dart tool/render_warmup_slice_smoke.dart：13 项通过。
 - dart analyze lib/utils/render_warmup_slice.dart tool/render_warmup_slice_smoke.dart：通过。
 - git diff --check：通过。
 
 新增 test/utils/paragraph_warmup_safety_test.dart 覆盖：块边界、交互节点排除、
 带图渲染块纯文缓存命中、图片数/主题/字号/节点身份失效、图片尺寸/正文编辑的
-解析身份失效。环境缺 Flutter SDK，此测试尚未运行，不能据此声称 Flutter
+解析身份失效，以及 0/1 微秒预算下重复调用必然前进并完成。环境缺 Flutter SDK，此测试尚未运行，不能据此声称 Flutter
 集成测试或点击交互端到端测试通过。合入前需在完整 Flutter 环境执行该文件。

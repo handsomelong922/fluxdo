@@ -17,3 +17,16 @@ selectRenderWarmupSlice<T>(List<List<T>> blocks, int cursor) {
   }
   return null;
 }
+
+/// 把筛选列表的返回游标映射回原节点列表。
+/// 预算不足而未处理任何段落时跳过一个候选，避免 idle 链原地重试。
+/// 被跳过的段落仍由真实挂载正常渲染，不强行超预算预热。
+int advanceRenderWarmupCursor({
+  required List<int> sourceIndices,
+  required int startIndex,
+  required int nextIndex,
+}) {
+  if (nextIndex == -1) return -1;
+  final next = nextIndex <= startIndex ? startIndex + 1 : nextIndex;
+  return next >= sourceIndices.length ? -1 : sourceIndices[next];
+}
