@@ -18,6 +18,7 @@ import 'cf_diagnostic_redaction.dart';
 import 'cf_challenge_detection.dart';
 import 'cf_clearance_refresh_service.dart';
 import 'cf_verification_presentation.dart';
+import 'cf_verification_metrics.dart';
 import 'cf_verification_readiness.dart';
 import 'embedded_browser_controller_pool.dart';
 import 'toast_service.dart';
@@ -121,6 +122,7 @@ class CfChallengeService {
     _isVerifying = value;
     if (value) {
       _verifyRound++;
+      CfChallengeLogger.verificationRoundStarted(_verifyRound);
       _completedVerificationResult = null;
       _completionCookieSync = null;
       _completionCookieSyncGeneration++;
@@ -140,6 +142,12 @@ class CfChallengeService {
       }
     }
     if (!value) {
+      // Early setup aborts have no cleanup callback. A completed round is
+      // ignored here, so callers joining the same round cannot count twice.
+      CfChallengeLogger.verificationRoundFinished(
+        _verifyRound,
+        CfVerificationOutcome.failed,
+      );
       final readiness = _verificationReadiness;
       if (readiness != null && !readiness.isCompleted) {
         readiness.complete(false);
@@ -716,6 +724,14 @@ class CfChallengeService {
             level: 'warning',
           );
         }
+        CfChallengeLogger.verificationRoundFinished(
+          cleanupRound,
+          ready
+              ? CfVerificationOutcome.succeeded
+              : success
+              ? CfVerificationOutcome.failed
+              : CfVerificationOutcome.cancelled,
+        );
         _setVerifying(false);
         if (ready) {
           // 从真正就绪的时刻错峰启动；慢快照不会永久错过旧的 1.5 秒定时器。
@@ -782,6 +798,11 @@ class CfChallengeService {
         startInBackground: !forceForeground,
         quietBackground: quietBackground,
         onResult: finish,
+        onForegroundPresented: CfChallengeLogger.isEnabled
+            ? () => CfChallengeLogger.verificationForegroundPresented(
+                cleanupRound,
+              )
+            : null,
         onPromoteRequest: () => onPromoteToForeground(context),
         oldCfClearanceValue: backupCfClearance != null
             ? CookieValueCodec.decode(backupCfClearance.value)
@@ -860,6 +881,7 @@ class CfChallengePage extends StatefulWidget {
     this.quietBackground = false,
     this.onResult,
     this.onPromoteRequest,
+    this.onForegroundPresented,
     this.oldCfClearanceValue,
     this.oldCfClearanceValues,
   });
@@ -873,6 +895,10 @@ class CfChallengePage extends StatefulWidget {
   final bool quietBackground;
   final ValueChanged<bool>? onResult;
   final VoidCallback? onPromoteRequest;
+
+  /// Observes the first rendered foreground panel, not a promotion request or
+  /// any interaction with the site's verification controls.
+  final VoidCallback? onForegroundPresented;
 
   /// showManualVerify 在删除前备份的旧 cf_clearance 值（已解码）
   /// 用于可靠过滤 Windows 上 WebView 中未完全删除的残留旧值
@@ -893,6 +919,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
   double _progress = 0;
   bool _hasMarkedPageReady = false;
   bool _hasPopped = false; // 防止重复 pop
+  bool _foregroundPresentationScheduled = false;
   late final CfVerificationPresentation _presentation;
   bool get _isBackground => _presentation.isBackground;
   late bool _needsManualAttention;
@@ -2495,6 +2522,16 @@ document.readyState === 'complete' && document.body && document.body.innerHTML.t
   }
 
   Widget _buildContextualVerifyLayer(ThemeData theme) {
+    if (widget.onForegroundPresented != null &&
+        !_foregroundPresentationScheduled &&
+        !_hasPopped) {
+      _foregroundPresentationScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_hasPopped && !_isBackground) {
+          widget.onForegroundPresented?.call();
+        }
+      });
+    }
     final colorScheme = theme.colorScheme;
 
     return Consumer(

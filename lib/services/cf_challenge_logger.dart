@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'cf_diagnostic_redaction.dart';
+import 'cf_verification_metrics.dart';
 import 'log/log_writer.dart';
 import 'network/doh/network_settings_service.dart';
 
@@ -16,6 +17,7 @@ class CfChallengeLogger {
   CfChallengeLogger._();
 
   static bool _enabled = false;
+  static final _verificationMetrics = CfVerificationMetrics();
   static const Duration _ipLogCooldown = Duration(minutes: 2);
   static final Map<String, DateTime> _lastIpLogAt = {};
 
@@ -28,12 +30,38 @@ class CfChallengeLogger {
   static void setEnabled(bool enabled) {
     if (_enabled == enabled) return;
     _enabled = enabled;
+    _verificationMetrics.setEnabled(enabled);
     if (_enabled) {
       log('=== CF Challenge Log Started ===');
     }
   }
 
   static bool get isEnabled => _enabled;
+
+  /// Only actual coordinator rounds enter this opt-in, memory-only aggregate.
+  static void verificationRoundStarted(int round) {
+    if (!_enabled) return;
+    _verificationMetrics.start(round);
+  }
+
+  static void verificationForegroundPresented(int round) {
+    if (!_enabled) return;
+    _verificationMetrics.foregroundPresented(round);
+  }
+
+  static void verificationRoundFinished(
+    int round,
+    CfVerificationOutcome outcome,
+  ) {
+    if (!_enabled) return;
+    final fields = _verificationMetrics.finish(round, outcome);
+    if (fields == null) return;
+    log('[VERIFY_METRICS] Round completed', fields: fields);
+  }
+
+  @visibleForTesting
+  static Map<String, Object> get verificationMetrics =>
+      _verificationMetrics.snapshot;
 
   /// 写入一条 CF 验证日志。调用方须先省略异常正文、认证头等敏感内容；
   /// 通用 message/fields 不具备任意文本脱敏保证。URL 使用 cfDiagnosticUrl。

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluxdo/l10n/s.dart';
 import 'package:fluxdo/providers/theme_provider.dart';
+import 'package:fluxdo/services/cf_challenge_logger.dart';
 import 'package:fluxdo/services/cf_challenge_service.dart';
 import 'package:fluxdo/services/network/cookie/cookie_jar_service.dart';
 import 'package:fluxdo/services/local_notification_service.dart'
@@ -22,15 +23,21 @@ void main() {
   final platform = CfTestPlatform();
   const verifyUrl = 'https://linux.do/challenge';
   var promotions = 0;
+  var presentations = 0;
   final results = <bool>[];
 
   setUpAll(platform.initialize);
   setUp(() async {
     await platform.reset();
     promotions = 0;
+    presentations = 0;
     results.clear();
+    CfChallengeLogger.setEnabled(false);
   });
-  tearDown(platform.reset);
+  tearDown(() async {
+    CfChallengeLogger.setEnabled(false);
+    await platform.reset();
+  });
 
   Future<void> mount(
     WidgetTester tester, {
@@ -65,6 +72,7 @@ void main() {
                     startInBackground: startInBackground,
                     quietBackground: quietBackground,
                     onPromoteRequest: () => promotions++,
+                    onForegroundPresented: () => presentations++,
                     onResult: results.add,
                   ),
           ),
@@ -117,8 +125,10 @@ void main() {
     final element = tester.element(find.byType(InAppWebView));
     await tester.pump(const Duration(milliseconds: 39999));
     expect(promotions, 0);
+    expect(presentations, 0);
     await tester.pump(const Duration(milliseconds: 1));
     expect(promotions, 1);
+    expect(presentations, 1);
     expect(find.text(S.current.cf_securityVerifyTitle), findsOneWidget);
     expect(tester.element(find.byType(InAppWebView)), same(element));
     expect(results, isEmpty);
@@ -159,6 +169,7 @@ void main() {
     expect(results, isEmpty);
     await tester.pump(const Duration(seconds: 41));
     expect(promotions, 1, reason: '加载错误提升后取消原截止计时器');
+    expect(presentations, 1, reason: '重建、重复提升不能算第二次展示');
     await unmount(tester);
   });
 
@@ -174,6 +185,7 @@ void main() {
     await tester.pump(const Duration(seconds: 41));
     expect(promotions, 0);
     expect(find.text(S.current.cf_securityVerifyTitle), findsNothing);
+    expect(presentations, 0, reason: '后台完成没有实际展示面板');
     await unmount(tester);
   });
 
@@ -201,6 +213,7 @@ void main() {
     service.resetCooldown();
     service.autoVerifyEnabled = true;
     await mount(tester, serviceHost: true);
+    CfChallengeLogger.setEnabled(true);
     final first = service.showAutomaticVerify();
     for (var i = 0; i < 30 && platform.webView == null; i++) {
       await tester.pump(const Duration(milliseconds: 10));
@@ -212,6 +225,9 @@ void main() {
     expect(service.verifyRound, round);
     expect(find.byType(CfChallengePage), findsOneWidget);
     expect(find.text(S.current.cf_securityVerifyTitle), findsNothing);
+    expect(CfChallengeLogger.verificationMetrics['startedRounds'], 1);
+    expect(CfChallengeLogger.verificationMetrics['pendingRounds'], 1);
+    expect(CfChallengeLogger.verificationMetrics['foregroundPresentations'], 0);
     final element = tester.element(find.byType(InAppWebView));
 
     var readyCompleted = false;
@@ -224,6 +240,7 @@ void main() {
     expect(find.text(S.current.cf_securityVerifyTitle), findsOneWidget);
     expect(service.verifyRound, round);
     expect(tester.element(find.byType(InAppWebView)), same(element));
+    expect(CfChallengeLogger.verificationMetrics['foregroundPresentations'], 1);
     platform.webView!.params.onWebViewCreated!(platform.controller.wrapped);
     platform.webView!.params.onReceivedHttpError!(
       platform.controller.wrapped,
@@ -235,22 +252,35 @@ void main() {
     expect(await second, isTrue);
     expect(await manual, isTrue);
     expect(readyCompleted, isFalse, reason: '结果先返回，业务恢复仍需等待析构');
+    expect(
+      CfChallengeLogger.verificationMetrics['completedRounds'],
+      0,
+      reason: '等待统计要覆盖既有 readiness 门，不在页面先返回时提前结束',
+    );
     // 清理服务的析构冷却、续期启动，以及前台提升提示的消失动画。
     await tester.pump(const Duration(seconds: 4));
     await tester.pump(const Duration(seconds: 1));
     expect(service.isVerifying, isFalse);
     expect(await ready, isTrue);
+    expect(CfChallengeLogger.verificationMetrics['startedRounds'], 1);
+    expect(CfChallengeLogger.verificationMetrics['completedRounds'], 1);
+    expect(CfChallengeLogger.verificationMetrics['succeededRounds'], 1);
+    expect(CfChallengeLogger.verificationMetrics['failedRounds'], 0);
+    expect(CfChallengeLogger.verificationMetrics['pendingRounds'], 0);
     await unmount(tester);
     service.resetCooldown();
   });
 
   Future<Future<bool?> Function()> beginServiceVerification(
-    WidgetTester tester,
-  ) async {
+    WidgetTester tester, {
+    bool foreground = false,
+  }) async {
     final service = CfChallengeService();
     service.resetCooldown();
     service.autoVerifyEnabled = true;
-    final result = service.showAutomaticVerify();
+    final result = foreground
+        ? service.showManualVerify()
+        : service.showAutomaticVerify();
     for (var i = 0; i < 30 && platform.webView == null; i++) {
       await tester.pump(const Duration(milliseconds: 10));
     }
@@ -305,6 +335,7 @@ void main() {
 
   testWidgets('原生析构后慢快照仍挡住后来等待者，快照完成自动恢复', (tester) async {
     await mount(tester, serviceHost: true);
+    CfChallengeLogger.setEnabled(true);
     final result = await beginServiceVerification(tester);
     final service = CfChallengeService();
     final snapshot = Completer<List<Cookie>>();
@@ -317,6 +348,7 @@ void main() {
     await service.waitForManualTeardown();
     expect(find.byType(CfChallengePage), findsNothing);
     expect(service.isVerifying, isTrue, reason: '慢快照期间保持业务恢复门');
+    expect(CfChallengeLogger.verificationMetrics['completedRounds'], 0);
     var lateCompleted = false;
     final late = service.waitForActiveVerification().then((value) {
       lateCompleted = true;
@@ -334,11 +366,15 @@ void main() {
     );
     expect(await CookieJarService().getCfClearance(), 'fresh');
     expect(service.isVerifying, isFalse);
+    expect(CfChallengeLogger.verificationMetrics['completedRounds'], 1);
+    expect(CfChallengeLogger.verificationMetrics['succeededRounds'], 1);
+    expect(CfChallengeLogger.verificationMetrics['foregroundPresentations'], 0);
     await unmount(tester);
   });
 
   testWidgets('快照异常关闭恢复门并返回 false，不制造异步未捕获错误', (tester) async {
     await mount(tester, serviceHost: true);
+    CfChallengeLogger.setEnabled(true);
     final result = await beginServiceVerification(tester);
     final service = CfChallengeService();
     platform.cookies.singleValue = 'fresh';
@@ -358,6 +394,9 @@ void main() {
       reason: '页面通过但快照失败的结果不能在清理后丢失',
     );
     expect(tester.takeException(), isNull);
+    expect(CfChallengeLogger.verificationMetrics['completedRounds'], 1);
+    expect(CfChallengeLogger.verificationMetrics['failedRounds'], 1);
+    expect(CfChallengeLogger.verificationMetrics['succeededRounds'], 0);
     await unmount(tester);
   });
 
@@ -424,12 +463,50 @@ void main() {
   testWidgets('显式前台不等待，普通后台入口仍保留胶囊', (tester) async {
     await mount(tester, startInBackground: false, quietBackground: false);
     expect(find.text(S.current.cf_securityVerifyTitle), findsOneWidget);
+    expect(presentations, 1, reason: '初始就是前台也必须记录一次实际展示');
     expect(find.byType(DraggableFloatingPill), findsNothing);
     await unmount(tester);
     await mount(tester, quietBackground: false);
     expect(find.byType(DraggableFloatingPill), findsOneWidget);
     expect(find.text(S.current.cf_securityVerifyTitle), findsNothing);
+    expect(presentations, 1, reason: '后来的后台页面尚未展示，不能增加');
     await unmount(tester);
     expect(promotions, 0, reason: '销毁后台页面后不得再弹出');
+  });
+
+  testWidgets('退出确认的打开、继续和取消只记一次展示和一轮取消', (tester) async {
+    await mount(tester, serviceHost: true);
+    CfChallengeLogger.setEnabled(true);
+    final result = await beginServiceVerification(tester, foreground: true);
+    expect(CfChallengeLogger.verificationMetrics['foregroundPresentations'], 1);
+    await tester.tap(find.byTooltip(S.current.common_exit));
+    await tester.pump();
+    await tester.tap(find.text(S.current.cf_continueVerify));
+    await tester.pump();
+    expect(CfChallengeLogger.verificationMetrics['completedRounds'], 0);
+    await tester.tap(find.byTooltip(S.current.common_exit));
+    await tester.pump();
+    await tester.tap(find.text(S.current.common_exit));
+    await tester.pump();
+    expect(await result(), isFalse);
+    expect(CfChallengeLogger.verificationMetrics['completedRounds'], 0);
+    await tester.pump(const Duration(seconds: 2));
+    expect(CfChallengeLogger.verificationMetrics['completedRounds'], 1);
+    expect(CfChallengeLogger.verificationMetrics['cancelledRounds'], 1);
+    expect(CfChallengeLogger.verificationMetrics['failedRounds'], 0);
+    expect(CfChallengeLogger.verificationMetrics['foregroundPresentations'], 1);
+    await unmount(tester);
+    CfChallengeService().resetCooldown();
+  });
+
+  testWidgets('未开启诊断的真实验证不采集任何统计', (tester) async {
+    await mount(tester, serviceHost: true);
+    final result = await beginServiceVerification(tester);
+    originReached();
+    await tester.pump();
+    expect(await result(), isTrue);
+    await tester.pump(const Duration(seconds: 2));
+    expect(CfChallengeLogger.verificationMetrics.values, everyElement(0));
+    await unmount(tester);
   });
 }
