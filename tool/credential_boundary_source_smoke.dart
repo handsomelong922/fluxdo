@@ -13,6 +13,16 @@ void main() {
     headers.contains("entry.key.toLowerCase() != 'x-csrf-token'"),
     '清除 CSRF 时必须覆盖所有头名大小写',
   );
+  final redirects = File(
+    'lib/services/network/interceptors/redirect_interceptor.dart',
+  ).readAsStringSync();
+  _require(redirects.contains('redirectRequestHeaders('), '重定向必须按逐跳源边界清理原认证头');
+  _require(
+    redirects.contains('_dio.fetch(') &&
+        redirects.indexOf('..headers = redirectRequestHeaders(') >
+            redirects.indexOf('.compose('),
+    '净化后的头不能被 Dio 默认头重新覆盖',
+  );
   print('通过：CSRF 源边界接线契约（非运行时集成测试）');
 }
 

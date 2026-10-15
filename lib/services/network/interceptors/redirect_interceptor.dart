@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../credential_boundary.dart';
 import '../flux_request_spec.dart';
 
 /// 重定向拦截器
@@ -45,34 +46,37 @@ class RedirectInterceptor extends Interceptor {
         }
 
         // 解析重定向 URL
-        final redirectUri = Uri.parse(location);
-        final absoluteUrl = redirectUri.isAbsolute
-            ? location
-            : response.requestOptions.uri.resolve(location).toString();
+        final redirectUri = response.requestOptions.uri.resolve(location);
+        // 规范化协议大小写后再交给 Dio，保证源判断与实际发送 URL 一致。
+        final absoluteUrl = redirectUri.toString();
 
-        // 创建新请求，不保留原始 cookie header
-        // CookieManager 会为新 URL 重新获取正确的 cookie
+        // 每一跳重新计算凭据边界，CookieManager 再为目标 URL 加载 Cookie。
         final redirectExtra =
             Map<String, dynamic>.from(response.requestOptions.extra)
               // 当前原请求仍占用调度槽位。内部重定向必须绕过调度器，否则并发槽
               // 和速率窗口会被重定向链自己耗尽，外层响应也无法完成释放。
               ..['skipScheduler'] = true
               ..[_redirectCountKey] = redirectCount + 1;
-        final newOptions = Options(
-          method: response.requestOptions.method,
-          headers: Map<String, dynamic>.from(response.requestOptions.headers)
-            ..remove('cookie')
-            ..remove('Cookie'),
-          extra: redirectExtra,
-          responseType: response.requestOptions.responseType,
-          validateStatus: response.requestOptions.validateStatus,
-        );
+        final newOptions =
+            Options(
+                method: response.requestOptions.method,
+                extra: redirectExtra,
+                responseType: response.requestOptions.responseType,
+                validateStatus: response.requestOptions.validateStatus,
+                followRedirects: false,
+              ).compose(_dio.options, absoluteUrl)
+              // Location 已给出目标查询串，不能再次并入起始请求的默认参数。
+              ..queryParameters.clear()
+              // compose 会合并 Dio 的默认头；必须在合并后清理，避免把默认
+              // Authorization / Cookie 重新带到跨源目标。
+              ..headers = redirectRequestHeaders(
+                response.requestOptions.headers,
+                source: response.requestOptions.uri,
+                target: redirectUri,
+              );
 
         try {
-          final redirectResponse = await _dio.request(
-            absoluteUrl,
-            options: newOptions,
-          );
+          final redirectResponse = await _dio.fetch(newOptions);
           return handler.resolve(redirectResponse);
         } catch (e) {
           if (e is DioException) {
