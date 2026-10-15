@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../../utils/idle_task.dart';
+import '../../../utils/render_warmup_slice.dart';
+import '../../../utils/paragraph_warmup_safety.dart';
 import 'package:app_icons/app_icons.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,7 +28,6 @@ import 'package:fluxdo_render/fluxdo_render.dart'
         HeadingAnchorRegistry,
         HeadingAnchorScope,
         HtmlChunk,
-        ParagraphWarmup,
         ParagraphWarmupProbe;
 import '../../../widgets/post/post_item/post_item.dart';
 import '../../../widgets/post/post_item/render_parse_cache.dart';
@@ -660,54 +661,55 @@ class _TopicPostListState extends State<TopicPostList> {
     // scheduleIdleTask 是我们自己包的安全版,原因见 _scheduleChunkWarmUp
     // 顶部注释(原生 SchedulerBinding.scheduleTask(idle) 撞持续动画会
     // 活锁)。
-    scheduleIdleTask(
-      () {
+    scheduleIdleTask(() {
       // 找目标楼层:游标楼层仍有效则续,否则从 startIndex 起第一个
       // 已有解析产物的楼层(不为预热触发解析 —— 短帖解析很便宜但
       // 语义上归级 1/首建;这里只吃现成 AST)。
-      List<BlockNode>? nodes;
-      int? postId;
+      List<List<BlockNode>>? blocks;
+      Post? warmPost;
       if (_warmPostCursor != null) {
         final idx = posts.indexWhere((p) => p.id == _warmPostCursor);
         if (idx >= 0) {
-          nodes = _warmNodesFor(posts[idx]);
-          postId = _warmPostCursor;
+          blocks = _warmNodesFor(posts[idx]);
+          warmPost = posts[idx];
         }
       }
-      if (nodes == null) {
+      if (blocks == null) {
         _warmNodeCursor = 0;
         for (var i = startIndex; i < posts.length; i++) {
           final candidate = _warmNodesFor(posts[i]);
           if (candidate != null && candidate.isNotEmpty) {
             // 已全热完的楼层 warmParagraphs 一圈查表(<0.1ms)后返回 -1,
             // 游标自然推进,不重复付费。
-            nodes = candidate;
-            postId = posts[i].id;
+            blocks = candidate;
+            warmPost = posts[i];
             break;
           }
         }
       }
-      if (nodes == null || postId == null) return; // 前方无可热楼层,收工
-
-      final next = ParagraphWarmup.warmParagraphs(
-        nodes: nodes,
-        ctx: snapshot,
-        context: context,
-        // 预热产物按 (inlines 身份, style, theme) 进全局缓存,handler 用
-        // 共享 static(emoji/mention/localDate/math/download)+ 无 post
-        // 语境的兜底即可 —— 挂载时若 handler 语义不同也不影响:内容同
-        // 身份 → 命中的是 span/排版,recognizer 行为经 mount 桥现取活
-        // context,linkHandler 闭包冻结的 post.id 仅用于点击追踪,预热
-        // 段落全部来自「该 post 自己的 AST」,forPost 语义一致。
-        totalImagesInPost: 0,
-        startIndex: _warmNodeCursor,
-        budgetMicros: 4000,
-      );
+      if (blocks == null || warmPost == null) return;
+      final postId = warmPost.id;
+      final slice = selectRenderWarmupSlice(blocks, _warmNodeCursor);
+      var next = -1;
+      if (slice != null) {
+        // 只预热无需交互回调的段落；图片计数仍取完整渲染块。
+        final localNext = warmSafeParagraphs(
+          nodes: slice.nodes,
+          ctx: snapshot,
+          context: context,
+          startIndex: slice.startIndex,
+          budgetMicros: 4000,
+        );
+        next = localNext == -1
+            ? (slice.hasMore ? slice.offset + slice.nodes.length : -1)
+            : slice.offset + localNext;
+      }
       if (next == -1) {
         // 本楼层热完,游标移到下一楼层(下一步找)。
         final idx = posts.indexWhere((p) => p.id == postId);
-        _warmPostCursor =
-            (idx >= 0 && idx + 1 < posts.length) ? posts[idx + 1].id : null;
+        _warmPostCursor = (idx >= 0 && idx + 1 < posts.length)
+            ? posts[idx + 1].id
+            : null;
         _warmNodeCursor = 0;
         if (_warmPostCursor == null) return; // 到底了
       } else {
@@ -715,27 +717,28 @@ class _TopicPostListState extends State<TopicPostList> {
         _warmNodeCursor = next;
       }
       _scheduleParagraphWarmUp(generation); // 下一 idle 步
-      },
-      isCanceled: () => !mounted || generation != _warmUpGeneration,
-    );
+    }, isCanceled: () => !mounted || generation != _warmUpGeneration);
   }
 
   /// 楼层的现成 AST(只取已解析的,不触发解析):
   /// - 短帖:RenderParseCache.shortPost(命中即回;未解析过的短帖
   ///   解析本身 1-3ms,顺带做了也无妨 —— shortPost 内部会解析并缓存);
-  /// - 长帖:各 chunk 均已由级 1 热过,拼接全部 chunk 节点。
-  List<BlockNode>? _warmNodesFor(Post post) {
+  /// - 长帖:各 chunk 均已由级 1 热过,保留各自节点列表与计数边界。
+  List<List<BlockNode>>? _warmNodesFor(Post post) {
     final longEntry = _longPostRenderCache[post.id];
     final parseData = longEntry?.newEngineData?.parseData;
     if (parseData != null) {
+      if (longEntry!.signature != RenderParseCache.signatureOf(post)) {
+        return null;
+      }
       if (!parseData.fullyParsed) return null; // 级 1 尚未完成,先跳过
-      final all = <BlockNode>[];
+      final all = <List<BlockNode>>[];
       for (var i = 0; i < parseData.chunks.length; i++) {
-        all.addAll(parseData.parsedChunkAt(i));
+        all.add(parseData.parsedChunkAt(i));
       }
       return all;
     }
-    return RenderParseCache.shortPost(post).nodes;
+    return [RenderParseCache.shortPost(post).nodes];
   }
 
   String _segmentKey(_PostRenderSegment segment) {
@@ -1076,39 +1079,8 @@ class _TopicPostListState extends State<TopicPostList> {
     return entry;
   }
 
-  int _longPostRenderSignature(Post post) {
-    final mentionedUsers = post.mentionedUsers;
-    final linkCounts = post.linkCounts;
-    return Object.hash(
-      post.cooked.length,
-      post.cooked.hashCode,
-      mentionedUsers == null
-          ? 0
-          : Object.hashAll(
-              mentionedUsers.map(
-                (u) => Object.hash(
-                  u.id,
-                  u.username,
-                  u.statusEmoji,
-                  u.statusDescription,
-                ),
-              ),
-            ),
-      linkCounts == null
-          ? 0
-          : Object.hashAll(
-              linkCounts.map(
-                (l) => Object.hash(
-                  l.url,
-                  l.clicks,
-                  l.title,
-                  l.internal,
-                  l.reflection,
-                ),
-              ),
-            ),
-    );
-  }
+  // 长帖本地缓存、全局解析缓存和预热校验共用同一套内容签名。
+  int _longPostRenderSignature(Post post) => RenderParseCache.signatureOf(post);
 
   @override
   Widget build(BuildContext context) {
