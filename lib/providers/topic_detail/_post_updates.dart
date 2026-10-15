@@ -45,23 +45,26 @@ extension PostUpdateMethods on TopicDetailNotifier {
       return;
     }
 
+    final generation = _contentGeneration;
+    final refreshQueue = _postRefreshQueue;
     // 同一 postId 已有在途请求 → 标记尾部重试，不发新请求
-    if (!_postRefreshQueue.begin(postId, preserveCooked: preserveCooked)) {
+    if (!refreshQueue.begin(postId, preserveCooked: preserveCooked)) {
       return;
     }
 
     try {
       final service = ref.read(discourseServiceProvider);
       final updatedPost = await service.getPost(postId);
-      if (!ref.mounted) return;
+      if (!ref.mounted || generation != _contentGeneration) return;
 
       _applyPostUpdate(postId, updatedPost, preserveCooked: preserveCooked);
     } catch (e) {
       debugPrint('[TopicDetail] 刷新帖子 $postId 失败: $e');
     } finally {
-      final retryPreserveCooked = _postRefreshQueue.complete(postId);
+      final retryPreserveCooked = refreshQueue.complete(postId);
       // 在途期间有新消息到达 → 自动重试一次获取最新状态
-      if (retryPreserveCooked != null && ref.mounted) {
+      if (retryPreserveCooked != null &&
+          ref.mounted && generation == _contentGeneration) {
         refreshPost(postId, preserveCooked: retryPreserveCooked);
       }
     }

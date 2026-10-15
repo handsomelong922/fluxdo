@@ -96,7 +96,9 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   final List<int> _pendingNewPostIds = [];
   bool _isLoadingNewPosts = false;
   final _newPostRetry = TopicNewPostRetry();
-  final _postRefreshQueue = TopicPostRefreshQueue();
+  TopicPostRefreshQueue _postRefreshQueue = TopicPostRefreshQueue();
+  // 整体内容重载的代次；同代 gap/单帖请求可并行，不互相取消。
+  int get _contentGeneration => _newPostRetry.generation;
   Timer? _newPostRetryTimer;
 
   bool get hasMoreAfter => _hasMoreAfter;

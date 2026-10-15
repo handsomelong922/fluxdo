@@ -15,11 +15,12 @@ extension GapMethods on TopicDetailNotifier {
     final gapPostIds = gaps.before[postId];
     if (gapPostIds == null || gapPostIds.isEmpty) return;
 
+    final generation = _contentGeneration;
     try {
       final service = ref.read(discourseServiceProvider);
       final newPostStream = await service.getPosts(arg.topicId, gapPostIds);
 
-      if (!ref.mounted) return;
+      if (!ref.mounted || generation != _contentGeneration) return;
       final updatedDetail = state.value;
       if (updatedDetail == null) return;
 
@@ -88,11 +89,12 @@ extension GapMethods on TopicDetailNotifier {
     final gapPostIds = gaps.after[postId];
     if (gapPostIds == null || gapPostIds.isEmpty) return;
 
+    final generation = _contentGeneration;
     try {
       final service = ref.read(discourseServiceProvider);
       final newPostStream = await service.getPosts(arg.topicId, gapPostIds);
 
-      if (!ref.mounted) return;
+      if (!ref.mounted || generation != _contentGeneration) return;
       final updatedDetail = state.value;
       if (updatedDetail == null) return;
 

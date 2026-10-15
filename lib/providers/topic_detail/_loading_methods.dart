@@ -240,6 +240,7 @@ extension LoadingMethods on TopicDetailNotifier {
     _newPostRetryTimer?.cancel();
     _newPostRetryTimer = null;
     _newPostRetry.reset();
+    _postRefreshQueue = TopicPostRefreshQueue();
     _isLoadingNewPosts = false;
   }
 
@@ -346,6 +347,7 @@ extension LoadingMethods on TopicDetailNotifier {
   /// 使用新的起始帖子号重新加载数据
   Future<void> reloadWithPostNumber(int postNumber) async {
     _resetPendingNewPosts();
+    final generation = _contentGeneration;
     state = const AsyncValue.loading();
     _hasMoreAfter = true;
     _hasMoreBefore = true;
@@ -364,18 +366,25 @@ extension LoadingMethods on TopicDetailNotifier {
         filterTopLevelReplies: _filterTopLevelReplies,
       );
 
+      if (!ref.mounted || generation != _contentGeneration) return detail;
       _updateBoundaryState(detail.postStream.posts, detail.postStream.stream);
 
       return _withSuggestedCache(detail);
     });
-    if (!ref.mounted) return;
+    if (!ref.mounted || generation != _contentGeneration) return;
     state = result;
   }
 
   /// 刷新当前话题详情（保持列表可见）
   Future<void> refreshWithPostNumber(int postNumber) async {
     if (state.isLoading) return;
+    Post? firstPost;
+    if (_filterTopLevelReplies) {
+      firstPost = state.value?.postStream.posts
+          .where((post) => post.postNumber == 1).firstOrNull;
+    }
     _resetPendingNewPosts();
+    final generation = _contentGeneration;
     _isLoadMoreFailed = false;
     _isLoadPreviousFailed = false;
 
@@ -392,12 +401,27 @@ extension LoadingMethods on TopicDetailNotifier {
         filterTopLevelReplies: _filterTopLevelReplies,
       );
 
+      if (!ref.mounted || generation != _contentGeneration) return detail;
       _updateBoundaryState(detail.postStream.posts, detail.postStream.stream);
 
       return _withSuggestedCache(detail);
     });
-    if (!ref.mounted) return;
+    if (!ref.mounted || generation != _contentGeneration) return;
     state = result;
+    if (!result.hasError && _filterTopLevelReplies) {
+      // 顶层接口不返回主帖；优先复用当前主帖，缺失时单独补取。
+      if (firstPost == null) {
+        try {
+          firstPost = await ref.read(discourseServiceProvider)
+              .getPostByNumber(arg.topicId, 1);
+        } catch (_) {
+          // 主帖补取失败不影响已加载的顶层回复。
+        }
+      }
+      if (ref.mounted && generation == _contentGeneration) {
+        _prependFirstPost(firstPost);
+      }
+    }
   }
 
   /// 加载指定楼层的帖子（用于跳转）

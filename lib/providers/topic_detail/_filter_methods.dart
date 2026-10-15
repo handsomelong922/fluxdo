@@ -47,7 +47,10 @@ extension FilterMethods on TopicDetailNotifier {
     _filterTopLevelReplies = true;
     _filter = null;
     _usernameFilter = null;
-    await _reloadWithFilter();
+    final reload = _reloadWithFilter();
+    final generation = _contentGeneration;
+    await reload;
+    if (!ref.mounted || generation != _contentGeneration) return;
 
     // 主贴不在当前数据中，单独请求
     if (savedFirstPost == null && ref.mounted) {
@@ -60,7 +63,9 @@ extension FilterMethods on TopicDetailNotifier {
     }
 
     // 补回主贴
-    if (ref.mounted) _prependFirstPost(savedFirstPost);
+    if (ref.mounted && generation == _contentGeneration) {
+      _prependFirstPost(savedFirstPost);
+    }
   }
 
   /// 补回主贴到 posts 和 stream 开头
@@ -100,6 +105,8 @@ extension FilterMethods on TopicDetailNotifier {
 
   /// 取消过滤并跳转到指定帖子
   Future<void> cancelFilterAndReloadWithPostNumber(int postNumber) async {
+    _resetPendingNewPosts();
+    final generation = _contentGeneration;
     _filter = null;
     _usernameFilter = null;
     _filterTopLevelReplies = false;
@@ -120,17 +127,19 @@ extension FilterMethods on TopicDetailNotifier {
         usernameFilters: _usernameFilter,
       );
 
+      if (!ref.mounted || generation != _contentGeneration) return detail;
       _updateBoundaryState(detail.postStream.posts, detail.postStream.stream);
 
       return _withSuggestedCache(detail);
     });
-    if (!ref.mounted) return;
+    if (!ref.mounted || generation != _contentGeneration) return;
     state = result;
   }
 
   /// 使用当前 filter 重新加载数据
   Future<void> _reloadWithFilter() async {
     _resetPendingNewPosts();
+    final generation = _contentGeneration;
     state = const AsyncValue.loading();
     _hasMoreAfter = true;
     _hasMoreBefore = true;
@@ -146,11 +155,12 @@ extension FilterMethods on TopicDetailNotifier {
         filterTopLevelReplies: _filterTopLevelReplies,
       );
 
+      if (!ref.mounted || generation != _contentGeneration) return detail;
       _updateBoundaryState(detail.postStream.posts, detail.postStream.stream);
 
       return _withSuggestedCache(detail);
     });
-    if (!ref.mounted) return;
+    if (!ref.mounted || generation != _contentGeneration) return;
     state = result;
   }
 
