@@ -57,9 +57,9 @@ BookmarkPageParseResult parseBookmarkPage(Map<String, dynamic> rawResponse) {
       (u['id'] as int): TopicUser.fromJson(u as Map<String, dynamic>),
   };
 
-  final userBookmarkList =
-      rawResponse['user_bookmark_list'] as Map<String, dynamic>?;
-  if (userBookmarkList == null) {
+  // 只读取已知键，不要求响应容器带有 Map<String, dynamic> 的运行时类型。
+  final userBookmarkList = rawResponse['user_bookmark_list'];
+  if (userBookmarkList is! Map) {
     return BookmarkPageParseResult(
       topics: const [],
       entries: const [],
@@ -111,7 +111,8 @@ BookmarkPageParseResult parseBookmarkPage(Map<String, dynamic> rawResponse) {
     topics: topics,
     entries: entries,
     moreUrl: moreUrl,
-    isComplete: userBookmarkList['bookmarks'] is List &&
+    isComplete:
+        userBookmarkList['bookmarks'] is List &&
         entries.length == topics.length,
   );
 }

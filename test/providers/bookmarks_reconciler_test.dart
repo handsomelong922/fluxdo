@@ -229,6 +229,35 @@ void main() {
     });
   }
 
+  test('fullReconcile 缺失或异常书签容器不删除缓存或刷新同步时间', () async {
+    await repo.upsertEntries('acct', [
+      _entry(bookmarkId: 99, updatedAt: DateTime.utc(2026, 1, 1)),
+    ]);
+    const lastSync = '2026-01-01T00:00:00.000Z';
+    await prefs.setString('bookmark_last_full_sync_acct', lastSync);
+
+    for (final container in [
+      <dynamic, dynamic>{},
+      {'bookmarks': null},
+      [],
+    ]) {
+      var requested = 0;
+      final reconciler = buildReconciler((page) async {
+        requested++;
+        return parseBookmarkPage({'user_bookmark_list': container});
+      });
+
+      final report = await reconciler.fullReconcile('acct');
+      expect(report.stopReason, ReconcileStopReason.errored);
+      expect(report.upserted, 0);
+      expect(report.deleted, 0);
+      expect(report.pagesFetched, 1);
+      expect(requested, 1);
+      expect(await repo.allBookmarkIds('acct'), {99});
+      expect(prefs.getString('bookmark_last_full_sync_acct'), lastSync);
+    }
+  });
+
   test('增量及下拉刷新不把整页坏时间视为空页或成功', () async {
     final reconciler = buildReconciler(
       (_) async => parseBookmarkPage({
