@@ -192,4 +192,32 @@ void main() {
     await _Service(dio: dio, prefs: prefs).checkForUpdate();
     expect(prefs.values.containsKey('update_etag'), isFalse);
   });
+  for (final (current, remote, expected) in [
+    ('1.0.0-beta.2', 'v1.0.0-beta.10', true),
+    ('1.0.0-beta.10', 'v1.0.0-beta.2', false),
+    ('1.0.0-beta.10', 'v1.0.0', true),
+    ('1.0.0', 'v1.0.0-beta.10', false),
+    ('1.0.0+100', 'v1.0.0+200', false),
+    ('1.0.0-beta.2+100', 'v1.0.0-beta.2+200', false),
+    ('1.0.0-beta', 'v1.0.0-beta.1', true),
+    ('1.0.0-2', 'v1.0.0-beta', true),
+    ('1.0.0-beta', 'v1.0.0-2', false),
+    ('1.0.0-dev.1', 'v1.0.0-dev.2', true),
+    ('0.2.28', 'v0.2.28.1', true),
+    ('1.0', 'v1.0.0', false),
+  ]) {
+    test('版本比较 $current → $remote', () async {
+      responses.add((200, _release(remote)));
+      final service = _Service(dio: dio, prefs: prefs, version: current);
+      final info = await service.checkForUpdate();
+      expect(info.hasUpdate, expected);
+      expect(info.remoteVersion, remote.substring(1));
+      // 自动检查走持久化缓存，也必须使用同样的语义版本比较。
+      expect(
+        (await service.checkForUpdate(useCache: true)).hasUpdate,
+        expected,
+      );
+      expect(requests.length, 1);
+    });
+  }
 }

@@ -363,7 +363,11 @@ class UpdateService {
     Map<String, dynamic> data,
     String currentVersion,
   ) {
-    final remoteVersion = (data['tag_name'] as String).replaceAll('v', '');
+    // 仅剥离标签前缀，保留 dev 等预发布标识中的 v。
+    final tagName = data['tag_name'] as String;
+    final remoteVersion = tagName.startsWith('v')
+        ? tagName.substring(1)
+        : tagName;
     final releaseUrl = data['html_url'] as String;
     var releaseNotes = data['body'] as String? ?? '';
 
@@ -461,14 +465,61 @@ class UpdateService {
   /// - 0: v1 == v2
   /// - 负数: v1 < v2
   int _compareVersions(String v1, String v2) {
-    final parts1 = v1.split('.').map(int.parse).toList();
-    final parts2 = v2.split('.').map(int.parse).toList();
+    final (numbers1, pre1) = _splitVersion(v1);
+    final (numbers2, pre2) = _splitVersion(v2);
 
-    for (int i = 0; i < 3; i++) {
-      final p1 = i < parts1.length ? parts1[i] : 0;
-      final p2 = i < parts2.length ? parts2[i] : 0;
+    final length = numbers1.length > numbers2.length
+        ? numbers1.length
+        : numbers2.length;
+    for (int i = 0; i < length; i++) {
+      final p1 = i < numbers1.length ? numbers1[i] : 0;
+      final p2 = i < numbers2.length ? numbers2[i] : 0;
       if (p1 != p2) return p1.compareTo(p2);
     }
-    return 0;
+    if (pre1 == null && pre2 == null) return 0;
+    if (pre1 == null) return 1;
+    if (pre2 == null) return -1;
+    return _comparePreRelease(pre1, pre2);
+  }
+
+  /// 预发布标识按 semver 规则比较:以 `.` 分段,纯数字段按数值比较且小于
+  /// 非数字段,其余按 ASCII;公共前缀相同时段数少的小。
+  /// 直接比字符串会得出 beta.10 < beta.2、beta.2 < beta,到 beta.10 或
+  /// 正式版 1.0.0 时推送就乱了。
+  int _comparePreRelease(String a, String b) {
+    final partsA = a.split('.');
+    final partsB = b.split('.');
+    final length = partsA.length < partsB.length
+        ? partsA.length
+        : partsB.length;
+    for (var i = 0; i < length; i++) {
+      final numA = int.tryParse(partsA[i]);
+      final numB = int.tryParse(partsB[i]);
+      final int cmp;
+      if (numA != null && numB != null) {
+        cmp = numA.compareTo(numB);
+      } else if (numA != null) {
+        cmp = -1;
+      } else if (numB != null) {
+        cmp = 1;
+      } else {
+        cmp = partsA[i].compareTo(partsB[i]);
+      }
+      if (cmp != 0) return cmp;
+    }
+    return partsA.length.compareTo(partsB.length);
+  }
+
+  /// 拆成数字段与预发布标识;`+` 之后的构建号不参与比较。
+  (List<int>, String?) _splitVersion(String version) {
+    final plus = version.indexOf('+');
+    final core = plus == -1 ? version : version.substring(0, plus);
+    final dash = core.indexOf('-');
+    final numbers = (dash == -1 ? core : core.substring(0, dash))
+        .split('.')
+        .map((part) => int.tryParse(part) ?? 0)
+        .toList();
+    final pre = dash == -1 ? null : core.substring(dash + 1);
+    return (numbers, pre);
   }
 }
