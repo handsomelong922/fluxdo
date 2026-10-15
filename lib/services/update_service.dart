@@ -25,20 +25,20 @@ class ApkAsset {
   });
 
   Map<String, dynamic> toJson() => {
-        'downloadUrl': downloadUrl,
-        'sha256Url': sha256Url,
-        'architecture': architecture,
-        'size': size,
-        'name': name,
-      };
+    'downloadUrl': downloadUrl,
+    'sha256Url': sha256Url,
+    'architecture': architecture,
+    'size': size,
+    'name': name,
+  };
 
   factory ApkAsset.fromJson(Map<String, dynamic> json) => ApkAsset(
-        downloadUrl: json['downloadUrl'] as String,
-        sha256Url: json['sha256Url'] as String?,
-        architecture: json['architecture'] as String,
-        size: json['size'] as int,
-        name: json['name'] as String,
-      );
+    downloadUrl: json['downloadUrl'] as String,
+    sha256Url: json['sha256Url'] as String?,
+    architecture: json['architecture'] as String,
+    size: json['size'] as int,
+    name: json['name'] as String,
+  );
 }
 
 /// 更新信息模型
@@ -60,25 +60,26 @@ class UpdateInfo {
   });
 
   Map<String, dynamic> toJson() => {
-        'currentVersion': currentVersion,
-        'remoteVersion': remoteVersion,
-        'releaseUrl': releaseUrl,
-        'releaseNotes': releaseNotes,
-        'hasUpdate': hasUpdate,
-        'apkAssets': apkAssets.map((e) => e.toJson()).toList(),
-      };
+    'currentVersion': currentVersion,
+    'remoteVersion': remoteVersion,
+    'releaseUrl': releaseUrl,
+    'releaseNotes': releaseNotes,
+    'hasUpdate': hasUpdate,
+    'apkAssets': apkAssets.map((e) => e.toJson()).toList(),
+  };
 
   factory UpdateInfo.fromJson(Map<String, dynamic> json) => UpdateInfo(
-        currentVersion: json['currentVersion'] as String,
-        remoteVersion: json['remoteVersion'] as String,
-        releaseUrl: json['releaseUrl'] as String,
-        releaseNotes: json['releaseNotes'] as String,
-        hasUpdate: json['hasUpdate'] as bool,
-        apkAssets: (json['apkAssets'] as List<dynamic>?)
-                ?.map((e) => ApkAsset.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [],
-      );
+    currentVersion: json['currentVersion'] as String,
+    remoteVersion: json['remoteVersion'] as String,
+    releaseUrl: json['releaseUrl'] as String,
+    releaseNotes: json['releaseNotes'] as String,
+    hasUpdate: json['hasUpdate'] as bool,
+    apkAssets:
+        (json['apkAssets'] as List<dynamic>?)
+            ?.map((e) => ApkAsset.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [],
+  );
 }
 
 /// 应用更新检查服务
@@ -99,8 +100,8 @@ class UpdateService {
   final SharedPreferences? _prefs;
 
   UpdateService({Dio? dio, SharedPreferences? prefs})
-      : _dio = dio ?? Dio(),
-        _prefs = prefs;
+    : _dio = dio ?? Dio(),
+      _prefs = prefs;
 
   /// 获取自动检查更新设置
   bool getAutoCheckUpdate() {
@@ -233,50 +234,23 @@ class UpdateService {
     final storedEtag = _prefs?.getString(_etagKey);
 
     try {
-      final response = await _dio.get(
-        _apiUrl,
-        options: Options(
-          responseType: ResponseType.json,
-          headers: {
-            'User-Agent': 'FluxDO-App',
-            'Accept': 'application/vnd.github.v3+json',
-            if (storedEtag != null) 'If-None-Match': storedEtag,
-          },
-          validateStatus: (status) =>
-              status != null && (status == 200 || status == 304),
-        ),
-      );
-
-      // 304 Not Modified - 使用缓存
-      if (response.statusCode == 304) {
-        final cachedInfo =
-            _getCachedUpdateInfo(currentVersion, ignoreExpiry: true);
-        if (cachedInfo != null) {
-          // 更新缓存时间
-          await _prefs?.setInt(
-              _cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
-          return cachedInfo;
-        }
+      var updateInfo = await _fetchUpdateInfo(currentVersion, etag: storedEtag);
+      if (updateInfo == null) {
+        // 304 的缓存缺失或损坏时，丢弃条件请求并且只重取一次。
+        await _prefs?.remove(_etagKey);
+        updateInfo = await _fetchUpdateInfo(currentVersion, etag: null);
       }
-
-      // 保存 ETag
-      final newEtag = response.headers.value('etag');
-      if (newEtag != null) {
-        await _prefs?.setString(_etagKey, newEtag);
+      if (updateInfo == null) {
+        throw StateError('无可用缓存，完整更新请求仍返回 304');
       }
-
-      final data = response.data as Map<String, dynamic>;
-      final updateInfo = _parseUpdateInfo(data, currentVersion);
-
-      // 缓存结果
-      await _cacheUpdateInfo(updateInfo);
-
       return updateInfo;
     } on DioException catch (e) {
       // 403/429 速率限制时尝试使用缓存
       if (e.response?.statusCode == 403 || e.response?.statusCode == 429) {
-        final cachedInfo =
-            _getCachedUpdateInfo(currentVersion, ignoreExpiry: true);
+        final cachedInfo = _getCachedUpdateInfo(
+          currentVersion,
+          ignoreExpiry: true,
+        );
         if (cachedInfo != null) {
           return cachedInfo;
         }
@@ -286,30 +260,80 @@ class UpdateService {
     }
   }
 
-  /// 从缓存获取更新信息
-  UpdateInfo? _getCachedUpdateInfo(String currentVersion,
-      {bool ignoreExpiry = false}) {
-    if (_prefs == null) return null;
-
-    final cacheJson = _prefs.getString(_cacheKey);
-    final cacheTime = _prefs.getInt(_cacheTimeKey);
-
-    if (cacheJson == null || cacheTime == null) return null;
-
-    // 检查缓存是否过期
-    if (!ignoreExpiry) {
-      final cacheDate = DateTime.fromMillisecondsSinceEpoch(cacheTime);
-      if (DateTime.now().difference(cacheDate) > _cacheValidDuration) {
-        return null;
+  /// 请求一次更新；仅在内容解析、缓存持久化成功后关联 ETag。
+  Future<UpdateInfo?> _fetchUpdateInfo(
+    String currentVersion, {
+    required String? etag,
+  }) async {
+    final response = await _dio.get(
+      _apiUrl,
+      options: Options(
+        responseType: ResponseType.json,
+        headers: {
+          'User-Agent': 'FluxDO-App',
+          'Accept': 'application/vnd.github.v3+json',
+          if (etag != null) 'If-None-Match': etag,
+        },
+        validateStatus: (status) =>
+            status != null && (status == 200 || status == 304),
+      ),
+    );
+    if (response.statusCode == 304) {
+      final cached = _getCachedUpdateInfo(currentVersion, ignoreExpiry: true);
+      if (cached != null) {
+        await _prefs?.setInt(
+          _cacheTimeKey,
+          DateTime.now().millisecondsSinceEpoch,
+        );
       }
+      return cached;
     }
 
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException('更新接口未返回有效对象');
+    }
+    final info = _parseUpdateInfo(data, currentVersion);
+    // 先清除旧关联，避免部分写入失败后用旧 ETag 验证新缓存。
+    if (_prefs != null && await _prefs.remove(_etagKey)) {
+      if (await _cacheUpdateInfo(info)) {
+        final newEtag = response.headers.value('etag');
+        if (newEtag != null) {
+          await _prefs.setString(_etagKey, newEtag);
+        }
+      }
+    }
+    return info;
+  }
+
+  /// 从缓存获取更新信息
+  UpdateInfo? _getCachedUpdateInfo(
+    String currentVersion, {
+    bool ignoreExpiry = false,
+  }) {
+    if (_prefs == null) return null;
+
     try {
-      final cached =
-          UpdateInfo.fromJson(jsonDecode(cacheJson) as Map<String, dynamic>);
+      final cacheJson = _prefs.getString(_cacheKey);
+      final cacheTime = _prefs.getInt(_cacheTimeKey);
+
+      if (cacheJson == null || cacheTime == null) return null;
+
+      // 检查缓存是否过期
+      if (!ignoreExpiry) {
+        final cacheDate = DateTime.fromMillisecondsSinceEpoch(cacheTime);
+        if (DateTime.now().difference(cacheDate) > _cacheValidDuration) {
+          return null;
+        }
+      }
+
+      final cached = UpdateInfo.fromJson(
+        jsonDecode(cacheJson) as Map<String, dynamic>,
+      );
 
       // 重新计算 hasUpdate（因为当前版本可能已变化）
-      final hasUpdate = _compareVersions(cached.remoteVersion, currentVersion) > 0;
+      final hasUpdate =
+          _compareVersions(cached.remoteVersion, currentVersion) > 0;
 
       return UpdateInfo(
         currentVersion: currentVersion,
@@ -325,15 +349,20 @@ class UpdateService {
   }
 
   /// 缓存更新信息
-  Future<void> _cacheUpdateInfo(UpdateInfo info) async {
-    if (_prefs == null) return;
+  Future<bool> _cacheUpdateInfo(UpdateInfo info) async {
+    if (_prefs == null) return false;
 
-    await _prefs.setString(_cacheKey, jsonEncode(info.toJson()));
-    await _prefs.setInt(_cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
+    if (!await _prefs.setString(_cacheKey, jsonEncode(info.toJson()))) {
+      return false;
+    }
+    return _prefs.setInt(_cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
   }
 
   /// 解析更新信息
-  UpdateInfo _parseUpdateInfo(Map<String, dynamic> data, String currentVersion) {
+  UpdateInfo _parseUpdateInfo(
+    Map<String, dynamic> data,
+    String currentVersion,
+  ) {
     final remoteVersion = (data['tag_name'] as String).replaceAll('v', '');
     final releaseUrl = data['html_url'] as String;
     var releaseNotes = data['body'] as String? ?? '';
@@ -386,13 +415,15 @@ class UpdateService {
       final architecture = _extractArchitecture(name);
       if (architecture == null) continue;
 
-      apkAssets.add(ApkAsset(
-        downloadUrl: asset['browser_download_url'] as String,
-        sha256Url: sha256Map[name],
-        architecture: architecture,
-        size: asset['size'] as int? ?? 0,
-        name: name,
-      ));
+      apkAssets.add(
+        ApkAsset(
+          downloadUrl: asset['browser_download_url'] as String,
+          sha256Url: sha256Map[name],
+          architecture: architecture,
+          size: asset['size'] as int? ?? 0,
+          name: name,
+        ),
+      );
     }
 
     return apkAssets;
