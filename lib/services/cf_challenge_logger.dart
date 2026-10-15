@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import 'cf_diagnostic_redaction.dart';
 import 'log/log_writer.dart';
 import 'network/doh/network_settings_service.dart';
 
@@ -77,7 +78,7 @@ class CfChallengeLogger {
 
   /// 记录验证开始
   static void logVerifyStart(String url) {
-    log('[VERIFY] Start manual verify, url=$url');
+    log('[VERIFY] Start manual verify, url=${cfDiagnosticUrl(url)}');
   }
 
   /// 记录客户端/服务端 IP（用于 CF 验证诊断）
@@ -102,10 +103,14 @@ class CfChallengeLogger {
 
     final clientIp = await _fetchClientIp(uri);
     final serverIps = await _resolveServerIps(host);
-    final clientText = (clientIp == null || clientIp.isEmpty) ? 'unknown' : clientIp;
+    final clientText = (clientIp == null || clientIp.isEmpty)
+        ? 'unknown'
+        : clientIp;
     final serverText = serverIps.isEmpty ? 'unknown' : serverIps.join(', ');
 
-    log('[IP]${_formatContext(context)} host=$host client=$clientText server=$serverText');
+    log(
+      '[IP]${_formatContext(context)} host=$host client=$clientText server=$serverText',
+    );
   }
 
   /// 记录验证检查
@@ -115,14 +120,13 @@ class CfChallengeLogger {
     String? cfClearance,
     bool clearanceChanged = false,
   }) {
-    log('[VERIFY] Check #$checkCount: isChallenge=$isChallenge, hasClearance=${cfClearance != null}, clearanceChanged=$clearanceChanged');
+    log(
+      '[VERIFY] Check #$checkCount: isChallenge=$isChallenge, hasClearance=${cfClearance != null}, clearanceChanged=$clearanceChanged',
+    );
   }
 
   /// 记录验证结果
-  static void logVerifyResult({
-    required bool success,
-    String? reason,
-  }) {
+  static void logVerifyResult({required bool success, String? reason}) {
     if (success) {
       log('[VERIFY] Result: SUCCESS${reason != null ? ' ($reason)' : ''}');
     } else {
@@ -138,7 +142,9 @@ class CfChallengeLogger {
     required String url,
     required int statusCode,
   }) {
-    log('[INTERCEPTOR] CF challenge detected: $statusCode $url');
+    log(
+      '[INTERCEPTOR] CF challenge detected: $statusCode ${cfDiagnosticUrl(url)}',
+    );
   }
 
   /// 记录拦截器重试
@@ -149,17 +155,18 @@ class CfChallengeLogger {
     String? error,
   }) {
     if (success) {
-      log('[INTERCEPTOR] Retry success: $statusCode $url');
+      log('[INTERCEPTOR] Retry success: $statusCode ${cfDiagnosticUrl(url)}');
     } else {
-      log('[INTERCEPTOR] Retry failed: $url, error=$error', level: 'warning');
+      log(
+        '[INTERCEPTOR] Retry failed: $statusCode ${cfDiagnosticUrl(url)}, '
+        'error=${cfDiagnosticError(error)}',
+        level: 'warning',
+      );
     }
   }
 
   /// 记录冷却期状态
-  static void logCooldown({
-    required bool entering,
-    DateTime? until,
-  }) {
+  static void logCooldown({required bool entering, DateTime? until}) {
     if (entering) {
       log('[COOLDOWN] Entering cooldown until $until', level: 'warning');
     } else {
