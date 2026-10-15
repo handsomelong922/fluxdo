@@ -6,6 +6,7 @@ import '../l10n/s.dart';
 import '../models/topic.dart';
 import '../utils/topic_gap_stream.dart';
 import '../utils/topic_new_post_retry.dart';
+import '../utils/topic_post_refresh_queue.dart';
 import '../models/pending_post.dart';
 import '../models/user.dart';
 import '../plugins/plugins.dart';
@@ -95,6 +96,7 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   final List<int> _pendingNewPostIds = [];
   bool _isLoadingNewPosts = false;
   final _newPostRetry = TopicNewPostRetry();
+  final _postRefreshQueue = TopicPostRefreshQueue();
   Timer? _newPostRetryTimer;
 
   bool get hasMoreAfter => _hasMoreAfter;
