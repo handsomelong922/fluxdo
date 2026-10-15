@@ -35,7 +35,8 @@ class CfChallengeLogger {
 
   static bool get isEnabled => _enabled;
 
-  /// 写入一条 CF 验证日志
+  /// 写入一条 CF 验证日志。调用方须先省略异常正文、认证头等敏感内容；
+  /// 通用 message/fields 不具备任意文本脱敏保证。URL 使用 cfDiagnosticUrl。
   static void log(
     String message, {
     String level = 'info',

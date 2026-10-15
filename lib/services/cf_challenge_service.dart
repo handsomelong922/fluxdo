@@ -14,6 +14,7 @@ import 'network/cookie/boundary_sync_service.dart';
 import 'network/cookie/cookie_jar_service.dart';
 import 'local_notification_service.dart'; // 用于获取全局 navigatorKey
 import 'cf_challenge_logger.dart';
+import 'cf_diagnostic_redaction.dart';
 import 'cf_challenge_detection.dart';
 import 'cf_clearance_refresh_service.dart';
 import 'cf_verification_presentation.dart';
@@ -608,7 +609,7 @@ class CfChallengeService {
           .readCookieValuesFromWebView(name: 'cf_clearance');
     } catch (e) {
       CfChallengeLogger.log(
-        '[VERIFY] Failed to snapshot WebView clearances: $e',
+        '[VERIFY] Failed to snapshot WebView clearances: ${cfDiagnosticError(e)}',
       );
     }
 
@@ -973,7 +974,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
         );
       }
     } catch (e) {
-      debugPrint('[CfChallenge] 快照 cf_clearance 失败: $e');
+      debugPrint('[CfChallenge] 快照 cf_clearance 失败: ${cfDiagnosticError(e)}');
     }
   }
 
@@ -1001,7 +1002,9 @@ class _CfChallengePageState extends State<CfChallengePage> {
         return cookie.value;
       }
     } catch (e) {
-      debugPrint('[CfChallenge] CookieManager 读取 $name 失败: $e');
+      debugPrint(
+        '[CfChallenge] CookieManager 读取 $name 失败: ${cfDiagnosticError(e)}',
+      );
     }
 
     // Windows：通过当前页面 controller 读取实时 cookie，再回退到 CookieJar
@@ -1033,7 +1036,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
         }
       } catch (e) {
         debugPrint(
-          '[CfChallenge] Linux getAllCookies fallback 读取 $name 失败: $e',
+          '[CfChallenge] Linux getAllCookies fallback 读取 $name 失败: ${cfDiagnosticError(e)}',
         );
       }
     }
@@ -1284,9 +1287,11 @@ class _CfChallengePageState extends State<CfChallengePage> {
     if (_hasPopped || _finishingFromVerifyResponse) return;
     final url = args.isNotEmpty ? args[0] : '';
     final status = args.length > 1 ? args[1] : 0;
-    debugPrint('[CfChallenge] challenge-platform 响应: url=$url, status=$status');
+    debugPrint(
+      '[CfChallenge] challenge-platform 响应: url=${cfDiagnosticUrl(url is String ? url : '')}, status=${status is int ? status : 'unknown'}',
+    );
     CfChallengeLogger.log(
-      '[VERIFY] Challenge response: url=$url, status=$status',
+      '[VERIFY] Challenge response: url=${cfDiagnosticUrl(url is String ? url : '')}, status=${status is int ? status : 'unknown'}',
     );
 
     try {
@@ -1299,7 +1304,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
         );
       }
     } catch (e) {
-      debugPrint('[CfChallenge] challenge 回调页面检查异常: $e');
+      debugPrint('[CfChallenge] challenge 回调页面检查异常: ${cfDiagnosticError(e)}');
     }
   }
 
@@ -1315,8 +1320,8 @@ class _CfChallengePageState extends State<CfChallengePage> {
       // 已经覆盖中，不必重复触发 fallback 流程
       return;
     }
-    debugPrint('[CfChallenge] JS 导航事件 ($reason)，立刻覆盖 WebView');
-    CfChallengeLogger.log('[VERIFY] JS navigation: $reason');
+    debugPrint('[CfChallenge] JS 导航事件，立刻覆盖 WebView');
+    CfChallengeLogger.log('[VERIFY] JS navigation');
     await _handleVerifyOriginFallback(
       _loadGeneration,
       reason: 'js navigation: $reason',
@@ -1397,7 +1402,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
           completionLikely: _hasSeenChallenge,
         );
       } catch (e) {
-        debugPrint('[CfChallenge] 检测 challenge 状态异常: $e');
+        debugPrint('[CfChallenge] 检测 challenge 状态异常: ${cfDiagnosticError(e)}');
       }
     });
   }
@@ -1422,7 +1427,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
     _challengeRevealProbeGeneration++;
     _noChallengeCheckTimer?.cancel();
     if (reason != null) {
-      debugPrint('[CfChallenge] fallback triggered: $reason');
+      debugPrint('[CfChallenge] fallback triggered');
     }
 
     try {
@@ -1469,10 +1474,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
         if (controller != null) _scheduleNoChallengeCheck(controller);
         return;
       }
-      CfChallengeLogger.log(
-        '[VERIFY] Origin document remains unconfirmed: '
-        '${reason ?? 'completion probe exhausted'}',
-      );
+      CfChallengeLogger.log('[VERIFY] Origin document remains unconfirmed');
       if (mounted && !_hasPopped && !_finishingFromVerifyResponse) {
         setState(() {
           _originFallbackNeedsAction = true;
@@ -1480,7 +1482,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
         });
       }
     } catch (e) {
-      debugPrint('[CfChallenge] 处理 fallback 异常: $e');
+      debugPrint('[CfChallenge] 处理 fallback 异常: ${cfDiagnosticError(e)}');
     } finally {
       _checkingOriginFallback = false;
       if (mounted &&
@@ -1527,7 +1529,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
         );
       }
     } catch (e) {
-      debugPrint('[CfChallenge] 轮询检查异常: $e');
+      debugPrint('[CfChallenge] 轮询检查异常: ${cfDiagnosticError(e)}');
     } finally {
       _polling = false;
     }
@@ -1687,7 +1689,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
         _isBareVerifyUrl(url)) {
       debugPrint('[CfChallenge] 验证完成后准备加载 /challenge，提前覆盖并等待状态码');
       CfChallengeLogger.log(
-        '[VERIFY] Post-challenge navigation to ${url?.toString() ?? ''}',
+        '[VERIFY] Post-challenge navigation to ${cfDiagnosticUrl(url?.toString() ?? '')}',
       );
       _coverWebViewForOriginFallback();
       unawaited(
@@ -1739,7 +1741,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
       CfChallengeLogger.log(
         '[VERIFY] Main frame /challenge navigation response: '
         'status=${response?.statusCode}, '
-        'headers=${response?.headers}',
+        'headersPresent=${response?.headers != null}',
       );
     }
 
@@ -1777,7 +1779,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
     debugPrint('[CfChallenge] $reason，验证入口当前无盾，结束验证页面');
     CfChallengeLogger.logVerifyResult(success: true, reason: reason);
     if (headers != null) {
-      CfChallengeLogger.log('[VERIFY] Passed response headers: $headers');
+      CfChallengeLogger.log('[VERIFY] Passed response headers present');
     }
 
     // 源站可直接放行而不签发 Cookie。只同步此刻已有的值，不轮询续期，
@@ -1806,7 +1808,7 @@ class _CfChallengePageState extends State<CfChallengePage> {
         shouldCommit: shouldCommit,
       );
     } catch (e) {
-      debugPrint('[CfChallenge] 源站已放行，Cookie 同步未完成: $e');
+      debugPrint('[CfChallenge] 源站已放行，Cookie 同步未完成: ${cfDiagnosticError(e)}');
       rethrow;
     }
   }
@@ -1853,7 +1855,9 @@ document.readyState === 'complete' && document.body && document.body.innerHTML.t
       _controller
               ?.evaluateJavascript(source: 'window.__fluxdoHideCfMask?.();')
               .catchError((Object e) {
-                debugPrint('[CfChallenge] 隐藏 DOM mask 失败: $e');
+                debugPrint(
+                  '[CfChallenge] 隐藏 DOM mask 失败: ${cfDiagnosticError(e)}',
+                );
               }) ??
           Future<void>.value(),
     );
@@ -1909,7 +1913,9 @@ document.readyState === 'complete' && document.body && document.body.innerHTML.t
           );
           return;
         } catch (e) {
-          debugPrint('[CfChallenge] reveal watcher 检测异常: $e');
+          debugPrint(
+            '[CfChallenge] reveal watcher 检测异常: ${cfDiagnosticError(e)}',
+          );
         }
       }
     }());
@@ -1936,7 +1942,7 @@ document.readyState === 'complete' && document.body && document.body.innerHTML.t
             return;
           }
         } catch (e) {
-          debugPrint('[CfChallenge] 检测验证页可见状态异常: $e');
+          debugPrint('[CfChallenge] 检测验证页可见状态异常: ${cfDiagnosticError(e)}');
         }
 
         await Future.delayed(const Duration(milliseconds: 250));
@@ -2118,7 +2124,7 @@ document.readyState === 'complete' && document.body && document.body.innerHTML.t
         );
       }
     } catch (e) {
-      debugPrint('[CfChallenge] 即时内容探测异常: $e');
+      debugPrint('[CfChallenge] 即时内容探测异常: ${cfDiagnosticError(e)}');
     }
   }
 
@@ -2254,14 +2260,14 @@ document.readyState === 'complete' && document.body && document.body.innerHTML.t
               '[VERIFY] WebView load error: '
               'mainFrame=$isMainFrame '
               'host=${uri?.host ?? '-'} path=${uri?.path ?? '-'} '
-              'type=${error.type} description=${error.description}',
+              'type=${error.type} description=${cfDiagnosticError(error.description)}',
               level: isMainFrame ? 'warning' : 'info',
               fields: {
                 'isMainFrame': isMainFrame,
                 'host': uri?.host,
                 'path': uri?.path,
                 'errorType': error.type.toString(),
-                'description': error.description,
+                'description': cfDiagnosticError(error.description),
               },
             );
 
@@ -2296,7 +2302,7 @@ document.readyState === 'complete' && document.body && document.body.innerHTML.t
               CfChallengeLogger.log(
                 '[VERIFY] Main frame /challenge HTTP response: '
                 'status=${errorResponse.statusCode}, '
-                'headers=${errorResponse.headers}',
+                'headersPresent=${errorResponse.headers != null}',
               );
             }
             if (_isVerifyOriginResponse(

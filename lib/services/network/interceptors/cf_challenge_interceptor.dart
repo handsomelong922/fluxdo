@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../cf_challenge_service.dart';
 import '../../cf_challenge_logger.dart';
+import '../../cf_diagnostic_redaction.dart';
 import '../../cf_clearance_refresh_service.dart';
 import '../../cf_clearance_authority.dart';
 import '../../app_logger.dart';
@@ -78,7 +79,7 @@ class CfChallengeInterceptor extends Interceptor {
       );
     } catch (e) {
       CfChallengeLogger.log(
-        '[INTERCEPTOR] Cookie sync unavailable; retrying with current cookies: $e',
+        '[INTERCEPTOR] Cookie sync unavailable; retrying with current cookies: ${cfDiagnosticError(e)}',
         level: 'warning',
       );
     }
@@ -158,7 +159,7 @@ class CfChallengeInterceptor extends Interceptor {
       final requestMethod = err.requestOptions.method.toUpperCase();
       final requestTag = err.requestOptions.spec.requestTag;
       final logMessage =
-          'CF Challenge detected: $requestMethod $requestUrl '
+          'CF Challenge detected: $requestMethod ${cfDiagnosticUrl(requestUrl)} '
           '(status=$statusCode, silent=${err.requestOptions.spec.isSilent}, '
           'tag=${requestTag ?? '-'}, skipCsrf=${err.requestOptions.spec.skipCsrf})';
       debugPrint('[Dio] $logMessage');
@@ -201,7 +202,7 @@ class CfChallengeInterceptor extends Interceptor {
       if (!cfService.autoVerifyEnabled) {
         CfChallengeLogger.log(
           '[INTERCEPTOR] Auto verify disabled, rejecting: '
-          '$requestMethod $requestUrl mode=$requestMode',
+          '$requestMethod ${cfDiagnosticUrl(requestUrl)} mode=$requestMode',
         );
         return handler.reject(
           cfException(CfChallengeException(autoVerifyDisabled: true)),
@@ -217,7 +218,7 @@ class CfChallengeInterceptor extends Interceptor {
       if (cfService.isInCooldown) {
         debugPrint('[Dio] CF Challenge in cooldown, rejecting request');
         CfChallengeLogger.log(
-          '[INTERCEPTOR] Cooldown after 403: $requestMethod $requestUrl '
+          '[INTERCEPTOR] Cooldown after 403: $requestMethod ${cfDiagnosticUrl(requestUrl)} '
           'mode=$requestMode',
         );
         if (shouldShowActionPrompt) {
@@ -368,7 +369,7 @@ class CfChallengeInterceptor extends Interceptor {
                 }
                 CfChallengeLogger.log(
                   '[INTERCEPTOR] Session WebView fallback failed: '
-                  '$fallbackError',
+                  '${cfDiagnosticError(fallbackError)}',
                   level: 'warning',
                 );
                 if (fallbackError is DioException) {
@@ -385,11 +386,11 @@ class CfChallengeInterceptor extends Interceptor {
             }
           }
 
-          // 诊断：记录完整的重试失败信息
+          // 诊断：只记录重试状态、错误类型和脱敏 URL
           if (e is DioException) {
             debugPrint(
               '[Dio] Retry failed: status=${e.response?.statusCode}, '
-              'type=${e.type}, url=${e.requestOptions.uri}',
+              'type=${e.type}, url=${cfDiagnosticUrl(e.requestOptions.uri.toString())}',
             );
             if (CfChallengeDetection.isRecoverableStatus(
               e.response?.statusCode,
@@ -412,7 +413,7 @@ class CfChallengeInterceptor extends Interceptor {
                 CfChallengeLogger.log(
                   '[INTERCEPTOR] Origin verification finished but API still challenged '
                   '(retry ${e.response?.statusCode}), entering cooldown: '
-                  '$requestMethod $requestUrl',
+                  '$requestMethod ${cfDiagnosticUrl(requestUrl)}',
                   level: 'warning',
                 );
                 if (shouldShowActionPrompt) {
@@ -423,12 +424,13 @@ class CfChallengeInterceptor extends Interceptor {
               }
             }
           } else {
-            debugPrint('[Dio] Retry failed (non-Dio): $e');
+            debugPrint('[Dio] Retry failed (non-Dio): ${cfDiagnosticError(e)}');
           }
           CfChallengeLogger.logInterceptorRetry(
             url: requestUrl,
             success: false,
-            error: e.toString(),
+            error: cfDiagnosticError(e),
+            statusCode: e is DioException ? e.response?.statusCode : null,
           );
           // 验证页面已经结束；保留真实重试错误和状态码，供调用方判断恢复。
           if (e is DioException) {
@@ -448,7 +450,7 @@ class CfChallengeInterceptor extends Interceptor {
         if (cfService.isInCooldown) {
           CfChallengeLogger.log(
             '[INTERCEPTOR] Verification skipped by cooldown: '
-            '$requestMethod $requestUrl mode=$requestMode',
+            '$requestMethod ${cfDiagnosticUrl(requestUrl)} mode=$requestMode',
           );
           if (shouldShowActionPrompt) {
             CfChallengeService.showGlobalMessage(
@@ -478,7 +480,7 @@ class CfChallengeInterceptor extends Interceptor {
       // 用户取消或验证失败。页面数据请求交给 ErrorView 展示按钮；操作请求给即时提示；静默请求不打扰。
       CfChallengeLogger.log(
         '[INTERCEPTOR] User cancelled or verify failed: '
-        '$requestMethod $requestUrl mode=$requestMode',
+        '$requestMethod ${cfDiagnosticUrl(requestUrl)} mode=$requestMode',
       );
       if (shouldShowActionPrompt) {
         CfChallengeService.showGlobalMessage(S.current.cf_verifyIncomplete);

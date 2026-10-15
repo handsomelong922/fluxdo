@@ -61,6 +61,9 @@ final cfDiagnosticRedactionSmokeTests = <String, void Function()>{
     }
     _equal(cfDiagnosticError(null), 'not provided');
   },
+  '异常对象不调用可能泄露正文的 toString': () {
+    _equal(cfDiagnosticError(_UnsafeError()), '[error detail omitted]');
+  },
   '重复 URL 脱敏保持一致': () {
     final safe = cfDiagnosticUrl('https://u:p@example.com/a?token=s#s');
     _equal(cfDiagnosticUrl(safe), safe);
@@ -77,4 +80,9 @@ void main() {
 
 void _equal(Object? actual, Object? expected) {
   if (actual != expected) throw StateError('期望 $expected，实际 $actual');
+}
+
+class _UnsafeError {
+  @override
+  String toString() => throw StateError('不能对异常序列化');
 }

@@ -27,5 +27,5 @@ String cfDiagnosticUrl(String value) {
 
 /// 异常字符串可能含请求头、Cookie、正文或非 URL 形式的凭据。
 /// 不尝试用关键词替换猜测内容，仅保留是否提供了异常这一事实。
-String cfDiagnosticError(String? error) =>
+String cfDiagnosticError(Object? error) =>
     error == null ? 'not provided' : '[error detail omitted]';
