@@ -47,7 +47,15 @@ extension GapMethods on TopicDetailNotifier {
       final currentStream = updatedDetail.postStream.stream;
       final existingStreamIds = currentStream.toSet();
       final newStreamIds = newPosts.map((p) => p.id).where((id) => !existingStreamIds.contains(id)).toList();
-      final mergedStream = [...currentStream, ...newStreamIds];
+      final mergedStream = mergeTopicGapStream(
+        stream: currentStream,
+        anchorId: postId,
+        before: true,
+        gapIds: gapPostIds,
+        fetchedIds: newStreamIds,
+      );
+      if (mergedStream == null) return;
+      _updateBoundaryState(mergedPosts, mergedStream);
 
       // 移除已加载的 gap 条目
       final newBefore = Map<int, List<int>>.from(updatedDetail.postStream.gaps?.before ?? {});
@@ -111,7 +119,15 @@ extension GapMethods on TopicDetailNotifier {
       final currentStream = updatedDetail.postStream.stream;
       final existingStreamIds = currentStream.toSet();
       final newStreamIds = newPosts.map((p) => p.id).where((id) => !existingStreamIds.contains(id)).toList();
-      final mergedStream = [...currentStream, ...newStreamIds];
+      final mergedStream = mergeTopicGapStream(
+        stream: currentStream,
+        anchorId: postId,
+        before: false,
+        gapIds: gapPostIds,
+        fetchedIds: newStreamIds,
+      );
+      if (mergedStream == null) return;
+      _updateBoundaryState(mergedPosts, mergedStream);
 
       // 移除已加载的 gap 条目
       final newAfter = Map<int, List<int>>.from(updatedDetail.postStream.gaps?.after ?? {});
