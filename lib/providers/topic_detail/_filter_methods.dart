@@ -130,6 +130,7 @@ extension FilterMethods on TopicDetailNotifier {
 
   /// 使用当前 filter 重新加载数据
   Future<void> _reloadWithFilter() async {
+    _resetPendingNewPosts();
     state = const AsyncValue.loading();
     _hasMoreAfter = true;
     _hasMoreBefore = true;

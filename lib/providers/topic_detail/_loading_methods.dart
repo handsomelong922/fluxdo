@@ -213,6 +213,10 @@ extension LoadingMethods on TopicDetailNotifier {
       state = AsyncValue.data(
         currentDetail.copyWith(postsCount: currentDetail.postsCount + 1),
       );
+      // 新消息开启新一轮有限预算，并取消旧的退避回调。
+      _newPostRetry.succeeded();
+      _newPostRetryTimer?.cancel();
+      _newPostRetryTimer = null;
       _pendingNewPostIds.add(postId);
       _loadPendingNewPosts();
     } else {
@@ -230,18 +234,32 @@ extension LoadingMethods on TopicDetailNotifier {
     }
   }
 
+  /// 整体重载/过滤切换后，丢弃旧队列、定时器和在途响应。
+  void _resetPendingNewPosts() {
+    _pendingNewPostIds.clear();
+    _newPostRetryTimer?.cancel();
+    _newPostRetryTimer = null;
+    _newPostRetry.reset();
+    _isLoadingNewPosts = false;
+  }
+
   /// 批量加载待处理的新帖子（对齐 Discourse triggerNewPostsInStream）
   Future<void> _loadPendingNewPosts() async {
-    if (_isLoadingNewPosts) return;
+    if (_isLoadingNewPosts || state.isLoading || _isFilteredMode) return;
     if (_pendingNewPostIds.isEmpty) return;
 
     _isLoadingNewPosts = true;
+    final generation = _newPostRetry.generation;
+    Duration? retryDelay;
+    var loadFailed = false;
     final postIds = List<int>.from(_pendingNewPostIds);
     _pendingNewPostIds.clear();
 
     try {
       final service = ref.read(discourseServiceProvider);
       final postStream = await service.getPosts(arg.topicId, postIds);
+      if (!ref.mounted || generation != _newPostRetry.generation) return;
+      _newPostRetry.succeeded();
       final fetchedPosts = postStream.posts;
 
       if (fetchedPosts.isEmpty || !ref.mounted) return;
@@ -297,22 +315,37 @@ extension LoadingMethods on TopicDetailNotifier {
         ),
       ));
     } catch (e) {
-      // 失败时将 post IDs 放回队列,退避后由 finally 重试(无退避会在
-      // 断网时立即重试打转)
+      if (!ref.mounted || generation != _newPostRetry.generation) return;
       _pendingNewPostIds.insertAll(0, postIds);
+      loadFailed = true;
+      retryDelay = _newPostRetry.failed();
       debugPrint('[TopicDetail] 加载新回复失败: $e');
-      await Future.delayed(const Duration(seconds: 3));
     } finally {
-      _isLoadingNewPosts = false;
-      // 如果在加载期间又有新帖子进入队列，继续加载
-      if (ref.mounted && _pendingNewPostIds.isNotEmpty) {
-        _loadPendingNewPosts();
+      // 旧请求不能释放新一轮请求的锁，也不能重建已取消的定时器。
+      if (ref.mounted && generation == _newPostRetry.generation) {
+        _isLoadingNewPosts = false;
+        if (_pendingNewPostIds.isNotEmpty) {
+          if (retryDelay != null) {
+            // 退避期间释放加载锁，不阻塞用户自己的翻页。
+            _newPostRetryTimer?.cancel();
+            _newPostRetryTimer = Timer(retryDelay, () {
+              _newPostRetryTimer = null;
+              if (ref.mounted && generation == _newPostRetry.generation) {
+                _loadPendingNewPosts();
+              }
+            });
+          } else if (!loadFailed) {
+            // 本批成功且期间收到新消息，立即继续；失败耗尽则等新消息。
+            _loadPendingNewPosts();
+          }
+        }
       }
     }
   }
 
   /// 使用新的起始帖子号重新加载数据
   Future<void> reloadWithPostNumber(int postNumber) async {
+    _resetPendingNewPosts();
     state = const AsyncValue.loading();
     _hasMoreAfter = true;
     _hasMoreBefore = true;
@@ -342,6 +375,7 @@ extension LoadingMethods on TopicDetailNotifier {
   /// 刷新当前话题详情（保持列表可见）
   Future<void> refreshWithPostNumber(int postNumber) async {
     if (state.isLoading) return;
+    _resetPendingNewPosts();
     _isLoadMoreFailed = false;
     _isLoadPreviousFailed = false;
 

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/s.dart';
 import '../models/topic.dart';
 import '../utils/topic_gap_stream.dart';
+import '../utils/topic_new_post_retry.dart';
 import '../models/pending_post.dart';
 import '../models/user.dart';
 import '../plugins/plugins.dart';
@@ -93,6 +94,8 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
   /// 待加载的新帖子 ID 队列（对齐 Discourse _newPostsInStream）
   final List<int> _pendingNewPostIds = [];
   bool _isLoadingNewPosts = false;
+  final _newPostRetry = TopicNewPostRetry();
+  Timer? _newPostRetryTimer;
 
   bool get hasMoreAfter => _hasMoreAfter;
   bool get hasMoreBefore => _hasMoreBefore;
@@ -368,8 +371,10 @@ class TopicDetailNotifier extends AsyncNotifier<TopicDetail> {
     });
     ref.onDispose(() {
       disposeTimer?.cancel();
+      _resetPendingNewPosts();
     });
 
+    _resetPendingNewPosts();
     _hasMoreAfter = true;
     _hasMoreBefore = true;
     _isLoadMoreFailed = false;
