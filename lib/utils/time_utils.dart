@@ -13,6 +13,22 @@ class TimeUtils {
   static String _localTimezone = 'UTC';
   static bool _tzInitialized = false;
 
+  static String? _formatLocale;
+  static final Map<String, DateFormat> _displayFormats = {};
+
+  // 按当前 locale 复用格式器，切换语言时清空，避免冻结数字字形等区域设置。
+  static DateFormat _displayFormat(String pattern) {
+    final locale = Intl.getCurrentLocale();
+    if (_formatLocale != locale) {
+      _displayFormats.clear();
+      _formatLocale = locale;
+    }
+    return _displayFormats.putIfAbsent(
+      pattern,
+      () => DateFormat(pattern, locale),
+    );
+  }
+
   /// 设备本地 IANA 时区名（如 "Asia/Shanghai"）
   ///
   /// `initialize()` 执行前返回 "UTC"。
@@ -175,8 +191,10 @@ class TimeUtils {
     if (diff.inMinutes < 60) return S.current.time_minutesAgo(diff.inMinutes);
     if (diff.inHours < 24) return S.current.time_hoursAgo(diff.inHours);
     if (diff.inDays < 7) return S.current.time_daysAgo(diff.inDays);
-    if (diff.inDays < 30) return S.current.time_weeksAgo((diff.inDays / 7).floor());
-    if (diff.inDays < 365) return S.current.time_monthsAgo((diff.inDays / 30).floor());
+    if (diff.inDays < 30)
+      return S.current.time_weeksAgo((diff.inDays / 7).floor());
+    if (diff.inDays < 365)
+      return S.current.time_monthsAgo((diff.inDays / 30).floor());
     return S.current.time_yearsAgo((diff.inDays / 365).floor());
   }
 
@@ -186,7 +204,7 @@ class TimeUtils {
   static String formatDetailTime(DateTime? time) {
     if (time == null) return '';
 
-    final formatter = DateFormat('yyyy-MM-dd HH:mm');
+    final formatter = _displayFormat('yyyy-MM-dd HH:mm');
     return formatter.format(time);
   }
 
@@ -215,7 +233,14 @@ class TimeUtils {
     final hh = time.hour.toString().padLeft(2, '0');
     final mm = time.minute.toString().padLeft(2, '0');
     final ss = time.second.toString().padLeft(2, '0');
-    return S.current.time_tooltipTime(time.year, time.month, time.day, hh, mm, ss);
+    return S.current.time_tooltipTime(
+      time.year,
+      time.month,
+      time.day,
+      hh,
+      mm,
+      ss,
+    );
   }
 
   /// 格式化时间为智能日期标签
@@ -228,8 +253,10 @@ class TimeUtils {
     final date = DateTime(time.year, time.month, time.day);
 
     if (date == today) return S.current.time_today;
-    if (date == today.subtract(const Duration(days: 1))) return S.current.time_yesterday;
-    if (time.year == now.year) return S.current.time_shortDate(time.month, time.day);
+    if (date == today.subtract(const Duration(days: 1)))
+      return S.current.time_yesterday;
+    if (time.year == now.year)
+      return S.current.time_shortDate(time.month, time.day);
     return S.current.time_fullDate(time.year, time.month, time.day);
   }
 
@@ -239,13 +266,13 @@ class TimeUtils {
   static String formatCompactTime(DateTime? time) {
     if (time == null) return '';
 
-    final formatter = DateFormat('MM-dd HH:mm');
+    final formatter = _displayFormat('MM-dd HH:mm');
     return formatter.format(time);
   }
 
   /// 时:分(聊天气泡内联时间;日期已由分隔线承载)
   static String formatClockTime(DateTime? time) {
     if (time == null) return '';
-    return DateFormat('HH:mm').format(time);
+    return _displayFormat('HH:mm').format(time);
   }
 }
