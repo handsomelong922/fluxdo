@@ -1492,6 +1492,9 @@ class _TopicPostListState extends State<TopicPostList> {
         // 跟随最新 widget,复用实例不会捕获旧数据)
         final signature = (
           post: post,
+          categoryId: detail.categoryId,
+          assignmentInfo: detail.indirectlyAssignedTo[post.id],
+          canAssignPost: widget.canAssignPost,
           selected: isSelectedPost,
           highlight: highlight,
           boostUsername: boostUsername,
