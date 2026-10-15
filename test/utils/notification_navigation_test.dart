@@ -137,6 +137,53 @@ void main() {
     expect(container.read(notificationCountStateProvider).allUnread, 2);
   });
 
+  for (final loggedOut in [false, true]) {
+    test(loggedOut ? '退出后旧通知不改变本地列表或计数' : '换账号后旧通知不改变本地列表或计数', () async {
+      final container = await _buildContainer();
+      final keepAlive = container.listen(notificationListProvider, (_, _) {});
+      addTearDown(keepAlive.close);
+      await container.read(notificationListProvider.future);
+      final currentUser = container.read(
+        currentUserProvider.notifier,
+      ) as _FakeCurrentUserNotifier;
+      currentUser.emit(
+        loggedOut
+            ? null
+            : User(
+                id: 43,
+                username: 'other-user',
+                trustLevel: 1,
+                unreadNotifications: 3,
+                unreadHighPriorityNotifications: 2,
+                allUnreadNotificationsCount: 5,
+              ),
+      );
+      await container.pump();
+
+      final recentBefore = container
+          .read(recentNotificationsProvider)
+          .requireValue;
+      final historyBefore = container
+          .read(notificationListProvider)
+          .requireValue;
+      final countBefore = container.read(notificationCountStateProvider);
+      expect(countBefore.allUnread, loggedOut ? 0 : 5);
+      syncNotificationReadLocally(container, _highPriorityUnread);
+
+      expect(
+        container.read(recentNotificationsProvider).requireValue,
+        same(recentBefore),
+      );
+      expect(
+        container.read(notificationListProvider).requireValue,
+        same(historyBefore),
+      );
+      expect(container.read(notificationCountStateProvider), same(countBefore));
+      expect(recentBefore.first.read, isFalse);
+      expect(historyBefore.first.read, isFalse);
+    });
+  }
+
   test('已读通知不重复递减,计数不低于 0', () async {
     final container = await _buildContainer();
 
@@ -153,6 +200,8 @@ void main() {
 }
 
 class _FakeCurrentUserNotifier extends CurrentUserNotifier {
+  void emit(User? user) => state = AsyncValue.data(user);
+
   @override
   FutureOr<User?> build() {
     return User(
