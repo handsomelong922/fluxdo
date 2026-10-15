@@ -23,7 +23,15 @@ void main() {
             redirects.indexOf('.compose('),
     '净化后的头不能被 Dio 默认头重新覆盖',
   );
-  print('通过：CSRF 源边界接线契约（非运行时集成测试）');
+  final downloads = File('lib/services/download_service.dart')
+      .readAsStringSync();
+  final head = downloads
+      .split('Future<String?> fetchFileNameFromHeader')
+      .last
+      .split('static String? parseContentDisposition')
+      .first;
+  _require(!head.contains('followRedirects: true'), '附件 HEAD 不能绕过逐跳源检查');
+  print('通过：CSRF、重定向及附件 HEAD 接线契约（非运行时集成测试）');
 }
 
 void _require(bool condition, String message) {

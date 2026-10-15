@@ -72,7 +72,7 @@ class DownloadService {
         url,
         options: Options(
           extra: {'skipCsrf': true, 'skipAuthCheck': true},
-          followRedirects: true,
+          // 沿用 DiscourseDio 的手动跳转，每一跳重新选择目标 Cookie。
         ),
       );
       final disposition = response.headers.value('content-disposition');

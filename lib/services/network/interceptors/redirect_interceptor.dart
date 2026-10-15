@@ -5,7 +5,7 @@ import '../credential_boundary.dart';
 import '../flux_request_spec.dart';
 
 /// 重定向拦截器
-/// 手动处理 301/302/307/308 重定向，确保重定向时使用正确的 cookie
+/// 手动处理 301/302/307/308 及 HEAD 的 303，确保每跳使用正确的 Cookie。
 class RedirectInterceptor extends Interceptor {
   RedirectInterceptor(this._dio);
 
@@ -26,6 +26,7 @@ class RedirectInterceptor extends Interceptor {
     final statusCode = response.statusCode;
     if (statusCode == 301 ||
         statusCode == 302 ||
+        (statusCode == 303 && response.requestOptions.method == 'HEAD') ||
         statusCode == 307 ||
         statusCode == 308) {
       final location = response.headers.value('location');
