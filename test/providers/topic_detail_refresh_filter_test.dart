@@ -66,6 +66,8 @@ class _Service implements DiscourseService {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late _Service service;
   late ProviderContainer container;
   final provider = topicDetailProvider(const TopicDetailParams(7));
@@ -74,12 +76,18 @@ void main() {
     container = ProviderContainer(overrides: [
       discourseServiceProvider.overrideWithValue(service),
     ]);
-    container.listen(provider, (_, _) {});
   });
   tearDown(() => container.dispose());
 
-  test('顶层过滤刷新保留主帖和过滤参数，不额外请求已有主帖', () async {
+  Future<void> loadInitialDetail() async {
+    // listen 会立即开始首次请求，必须等用例配置好 service.detail 后再调用。
+    expect(service.filters, isEmpty);
+    container.listen(provider, (_, _) {});
     await container.read(provider.future);
+  }
+
+  test('顶层过滤刷新保留主帖和过滤参数，不额外请求已有主帖', () async {
+    await loadInitialDetail();
     final notifier = container.read(provider.notifier);
     await notifier.showTopLevelReplies();
     await notifier.refreshWithPostNumber(42);
@@ -92,7 +100,7 @@ void main() {
   });
 
   test('顶层刷新缺少主帖时补取一次', () async {
-    await container.read(provider.future);
+    await loadInitialDetail();
     final notifier = container.read(provider.notifier);
     await notifier.showTopLevelReplies();
     notifier.removePost(1);
@@ -107,9 +115,10 @@ void main() {
         service.detail = _detail([_post(2)], gaps: PostStreamGaps(
           before: before ? {2: [1]} : {}, after: before ? {} : {2: [3]},
         ));
-        await container.read(provider.future);
+        await loadInitialDetail();
         final notifier = container.read(provider.notifier);
         final pending = before ? notifier.fillGapBefore(2) : notifier.fillGapAfter(2);
+        expect(service.gapRequests, hasLength(1));
         service.detail = _detail([_post(2)], gaps: PostStreamGaps(
           before: before ? {2: [99]} : {}, after: before ? {} : {2: [99]},
         ));
@@ -128,10 +137,11 @@ void main() {
 
   test('同代前后 gap 可并行完成且目录保持顺序', () async {
     service.detail = _detail([_post(2)], gaps: PostStreamGaps(before: {2: [1]}, after: {2: [3]}));
-    await container.read(provider.future);
+    await loadInitialDetail();
     final notifier = container.read(provider.notifier);
     final before = notifier.fillGapBefore(2);
     final after = notifier.fillGapAfter(2);
+    expect(service.gapRequests, hasLength(2));
     service.gapRequests[1].complete(PostStream(posts: [_post(3)], stream: [3]));
     await after;
     service.gapRequests[0].complete(PostStream(posts: [_post(1)], stream: [1]));
@@ -142,7 +152,7 @@ void main() {
   });
 
   test('重载后新单帖请求不被旧队列阻塞，旧响应不能覆盖新正文', () async {
-    await container.read(provider.future);
+    await loadInitialDetail();
     final notifier = container.read(provider.notifier);
     final old = notifier.refreshPost(2);
     await notifier.refreshWithPostNumber(2);
@@ -150,13 +160,14 @@ void main() {
     expect(service.postRequests, hasLength(2));
     service.postRequests[1].complete(_post(2, cooked: '新正文'));
     await fresh;
+    expect(container.read(provider).requireValue.postStream.posts.last.cooked, '新正文');
     service.postRequests[0].complete(_post(2, cooked: '过期正文'));
     await old;
     expect(container.read(provider).requireValue.postStream.posts.last.cooked, '新正文');
   });
   for (final route in ['过滤', '定位', '取消过滤定位']) {
     test('$route 重载 A→B 时旧 A 不覆盖 B', () async {
-      await container.read(provider.future);
+      await loadInitialDetail();
       final notifier = container.read(provider.notifier);
       service.delayDetails = true;
       final Future<void> old;
@@ -183,9 +194,10 @@ void main() {
 
   test('取消过滤并定位也隔离旧 gap', () async {
     service.detail = _detail([_post(2)], gaps: PostStreamGaps(before: {2: [1]}, after: {}));
-    await container.read(provider.future);
+    await loadInitialDetail();
     final notifier = container.read(provider.notifier);
     final old = notifier.fillGapBefore(2);
+    expect(service.gapRequests, hasLength(1));
     service.detail = _detail([_post(2)]);
     await notifier.cancelFilterAndReloadWithPostNumber(2);
     service.gapRequests.single.complete(PostStream(posts: [_post(1)], stream: [1]));
