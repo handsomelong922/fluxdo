@@ -33,7 +33,7 @@ flutter test test/utils/topic_keyword_matcher_test.dart test/utils/topic_keyword
 - 500/1000 条规则、300 用户、40 页规模基准，每轮校验相同的预期过滤计数，全部通过。
 - 既有正则烟测 14 项、控制器烟测 15 项全部通过，包括恶意回溯取消/超时与分页缓存。
 - 独立 matcher 和两个新增命令行工具的 `dart analyze` 无问题。
-- 新增 Flutter 集成回归覆盖分页、忽略原因、异步正则结果变更、同 ID 标题修改、原地规则修改。当前环境未安装 Flutter，尚未执行 Flutter 测试；不得视作已通过。
+- 新增 Flutter 集成回归覆盖分页、忽略原因、异步正则结果变更、同 ID 标题修改、原地规则修改。当前环境已安装 Flutter，但完整依赖下载受阻，尚未执行 Flutter 测试；不得视作已通过。
 
 ## 测量
 
